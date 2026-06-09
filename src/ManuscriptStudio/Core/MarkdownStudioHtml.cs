@@ -17,25 +17,29 @@ internal static class MarkdownStudioHtml
     public static string FromMarkdown(string? markdown, MarkdownPreviewTheme theme, double zoomScale) =>
         WrapBody(BodyFromMarkdown(markdown), theme, zoomScale);
 
-    public static string WrapBody(string bodyHtml, MarkdownPreviewTheme theme, double zoomScale) =>
-        BuildDocument(bodyHtml, theme, zoomScale);
+    public static string WrapBody(string bodyHtml, MarkdownPreviewTheme theme, double zoomScale)
+    {
+        var fontSize = MarkdownZoom.ScaledFontSize(BaseFontSize, zoomScale);
+        return BuildDocument(bodyHtml, theme, fontSize);
+    }
 
-    private static string BuildDocument(string bodyHtml, MarkdownPreviewTheme theme, double zoomScale)
+    private static string BuildDocument(string bodyHtml, MarkdownPreviewTheme theme, double fontSizePx)
     {
         var css = theme == MarkdownPreviewTheme.GitHubLight
-            ? MarkdownStudioCss.GitHubLight
-            : MarkdownStudioCss.Dark;
+            ? MarkdownStudioCss.GitHubLight(fontSizePx)
+            : MarkdownStudioCss.Dark(fontSizePx);
 
         var bodyClass = theme == MarkdownPreviewTheme.GitHubLight
             ? "markdown-body github-light"
             : "markdown-body studio";
 
-        var fontSize = Novolis.Avalonia.Markdown.MarkdownZoom.ScaledFontSize(BaseFontSize, zoomScale);
+        var bg = theme == MarkdownPreviewTheme.GitHubLight ? "#ffffff" : "#1e1e1e";
+        var fg = theme == MarkdownPreviewTheme.GitHubLight ? "#24292f" : "#e8e8e8";
+        var bodyStyle = "background-color:" + bg + ";color:" + fg + ";margin:0;padding:0;";
 
         return "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\" /><style>" +
-               ":root { --ms-base-size: " + fontSize + "px; }" +
                css +
-               "</style></head><body class=\"" + bodyClass + "\">" +
+               "</style></head><body class=\"" + bodyClass + "\" style=\"" + bodyStyle + "\">" +
                bodyHtml +
                "</body></html>";
     }

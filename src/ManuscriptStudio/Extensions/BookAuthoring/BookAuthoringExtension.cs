@@ -164,16 +164,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
             ZoomScale = host.PreviewZoomScale,
             PreviewTheme = host.PreviewTheme,
         };
-        pane.PropertyChanged += (_, e) =>
-        {
-            if (e.Property != HtmlPreviewPane.ZoomScaleProperty || _host is null)
-                return;
-
-            _host.Settings.Settings.Editor.PreviewZoomScale = pane.ZoomScale;
-            if (_host.Settings.Settings.Editor.SyncZoom)
-                _host.SetEditorZoomScale(pane.ZoomScale);
-            _host.Settings.Save();
-        };
+        pane.ZoomScaleChanged += (_, scale) => _host?.OnPreviewZoomScaleChanged(scale);
         return pane;
     }
 

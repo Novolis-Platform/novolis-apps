@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using ManuscriptStudio.Editing;
 using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
 
@@ -6,7 +7,7 @@ namespace ManuscriptStudio.Core;
 
 internal sealed class ManuscriptHostContext
 {
-    public required MarkdownSourceEditor Editor { get; init; }
+    public required StudioMarkdownEditor Editor { get; init; }
 
     public required EditorSession Session { get; init; }
     public required ManuscriptSettingsStore Settings { get; init; }
@@ -24,6 +25,8 @@ internal sealed class ManuscriptHostContext
     public required Action<string> SetRightRailViewId { get; init; }
 
     public required Action<double> SetEditorZoomScale { get; init; }
+
+    public required Action<double> OnPreviewZoomScaleChanged { get; init; }
 
     public MarkdownPreviewTheme PreviewTheme =>
         Settings.Settings.Editor.PreviewTheme.Equals("light", StringComparison.OrdinalIgnoreCase)

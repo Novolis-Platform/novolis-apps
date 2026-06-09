@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using ManuscriptStudio.Core;
+using ManuscriptStudio.Editing;
 using ManuscriptStudio.Extensions.GenericMarkdown;
 using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
@@ -20,7 +21,7 @@ internal sealed class MainWindow : Window
     private readonly ManuscriptSettingsStore _settings;
     private readonly ManuscriptExtensionRegistry _registry;
 
-    private readonly MarkdownSourceEditor _editor = new()
+    private readonly StudioMarkdownEditor _editor = new()
     {
         PlaceholderText = "Select a file or chapter…",
         Margin = new Thickness(8, 4, 8, 8),
@@ -38,6 +39,7 @@ internal sealed class MainWindow : Window
     private readonly ToggleButton _lightPreviewToggle = new() { Content = "Light preview", Padding = new Thickness(8, 4), Margin = new Thickness(0, 0, 4, 0) };
     private readonly ToggleButton _syncZoomToggle = new() { Content = "Sync zoom", Padding = new Thickness(8, 4), Margin = new Thickness(0, 0, 4, 0) };
     private readonly TextBlock _editorZoomLabel = new() { Margin = new Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.85 };
+    private readonly TextBlock _previewZoomLabel = new() { Margin = new Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.85 };
 
     private readonly StackPanel _extensionToolbar = new()
     {
@@ -104,6 +106,7 @@ internal sealed class MainWindow : Window
             GetRightRailViewId = GetRightRailViewId,
             SetRightRailViewId = SetRightRailViewId,
             SetEditorZoomScale = scale => _editor.ZoomScale = scale,
+            OnPreviewZoomScaleChanged = OnPreviewZoomScaleChanged,
         };
 
         foreach (var ext in _registry.All)
@@ -116,8 +119,15 @@ internal sealed class MainWindow : Window
         zoomOut.Click += (_, _) => AdjustEditorZoom(-MarkdownZoom.Step);
         var zoomIn = ToolbarButton("+");
         zoomIn.Click += (_, _) => AdjustEditorZoom(MarkdownZoom.Step);
-        var zoomReset = ToolbarButton("100%");
+        var zoomReset = ToolbarButton("Ed 100%");
         zoomReset.Click += (_, _) => SetEditorZoom(1.0);
+
+        var previewZoomOut = ToolbarButton("Pv −");
+        previewZoomOut.Click += (_, _) => AdjustPreviewZoom(-MarkdownZoom.Step);
+        var previewZoomIn = ToolbarButton("Pv +");
+        previewZoomIn.Click += (_, _) => AdjustPreviewZoom(MarkdownZoom.Step);
+        var previewZoomReset = ToolbarButton("Pv 100%");
+        previewZoomReset.Click += (_, _) => SetPreviewZoom(1.0);
 
         var toolbar = StudioWorkspace.CreateToolbarRow();
         toolbar.Children.Add(_modeCombo);
@@ -130,7 +140,13 @@ internal sealed class MainWindow : Window
         toolbar.Children.Add(zoomOut);
         toolbar.Children.Add(zoomIn);
         toolbar.Children.Add(zoomReset);
+        toolbar.Children.Add(new TextBlock { Text = "Ed", Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 });
         toolbar.Children.Add(_editorZoomLabel);
+        toolbar.Children.Add(previewZoomOut);
+        toolbar.Children.Add(previewZoomIn);
+        toolbar.Children.Add(previewZoomReset);
+        toolbar.Children.Add(new TextBlock { Text = "Pv", Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 });
+        toolbar.Children.Add(_previewZoomLabel);
         toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
         toolbar.Children.Add(_extensionToolbar);
         toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
@@ -208,10 +224,12 @@ internal sealed class MainWindow : Window
         var editor = _settings.Settings.Editor;
         _editor.WordWrap = editor.WordWrap;
         _editor.ZoomScale = ClampZoom(editor.EditorZoomScale);
+        editor.PreviewZoomScale = ClampZoom(editor.PreviewZoomScale);
         _wrapToggle.IsChecked = editor.WordWrap;
         _lightPreviewToggle.IsChecked = editor.PreviewTheme.Equals("light", StringComparison.OrdinalIgnoreCase);
         _syncZoomToggle.IsChecked = editor.SyncZoom;
         UpdateEditorZoomLabel();
+        UpdatePreviewZoomLabel();
     }
 
     private void SaveEditorSettings()

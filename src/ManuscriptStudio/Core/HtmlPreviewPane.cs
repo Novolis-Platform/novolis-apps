@@ -1,13 +1,14 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Novolis.Avalonia.Markdown;
 using TheArtOfDev.HtmlRenderer.Avalonia;
 
 namespace ManuscriptStudio.Core;
 
-/// <summary>HTML preview with theme, word-wrapping CSS, and Ctrl+scroll zoom.</summary>
+/// <summary>HTML preview with dark/light themes, panel-width wrapping, and Ctrl+scroll zoom.</summary>
 internal sealed class HtmlPreviewPane : Border
 {
     public static readonly StyledProperty<string?> DocumentBodyHtmlProperty =
@@ -19,17 +20,25 @@ internal sealed class HtmlPreviewPane : Border
     public static readonly StyledProperty<MarkdownPreviewTheme> PreviewThemeProperty =
         AvaloniaProperty.Register<HtmlPreviewPane, MarkdownPreviewTheme>(nameof(PreviewTheme), MarkdownPreviewTheme.StudioDark);
 
+    public event EventHandler<double>? ZoomScaleChanged;
+
     private readonly HtmlPanel _html;
     private readonly ScrollViewer _scroll;
+    private readonly ScaleTransform _scale;
+    private string? _lastHtml;
 
     public HtmlPreviewPane()
     {
-        Background = new SolidColorBrush(Color.Parse("#1e1e1e"));
-        BorderBrush = new SolidColorBrush(Color.Parse("#2d2d30"));
         BorderThickness = new Thickness(0);
         ClipToBounds = true;
 
-        _html = new HtmlPanel { Margin = new Thickness(0) };
+        _scale = new ScaleTransform(1, 1);
+        _html = new HtmlPanel
+        {
+            Margin = new Thickness(0),
+            RenderTransform = _scale,
+            RenderTransformOrigin = new RelativePoint(0, 0, RelativeUnit.Relative),
+        };
 
         _scroll = new ScrollViewer
         {
@@ -40,11 +49,12 @@ internal sealed class HtmlPreviewPane : Border
 
         Child = _scroll;
 
+        _scroll.SizeChanged += (_, _) => ApplyLayout();
         CtrlScrollZoom.Attach(this, () => ZoomScale, value => ZoomScale = value);
         CtrlScrollZoom.Attach(_scroll, () => ZoomScale, value => ZoomScale = value);
         CtrlScrollZoom.Attach(_html, () => ZoomScale, value => ZoomScale = value);
 
-        RefreshHtml();
+        ApplyThemeChrome();
     }
 
     public string? DocumentBodyHtml
@@ -69,18 +79,59 @@ internal sealed class HtmlPreviewPane : Border
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == DocumentBodyHtmlProperty
-            || change.Property == PreviewThemeProperty
-            || change.Property == ZoomScaleProperty)
+        if (change.Property == DocumentBodyHtmlProperty || change.Property == PreviewThemeProperty)
+        {
+            ApplyThemeChrome();
             RefreshHtml();
+        }
+        else if (change.Property == ZoomScaleProperty)
+        {
+            ApplyLayout();
+            ZoomScaleChanged?.Invoke(this, ZoomScale);
+        }
+    }
+
+    private void ApplyThemeChrome()
+    {
+        if (PreviewTheme == MarkdownPreviewTheme.GitHubLight)
+        {
+            Background = new SolidColorBrush(Color.Parse("#ffffff"));
+            _html.Background = new SolidColorBrush(Color.Parse("#ffffff"));
+        }
+        else
+        {
+            Background = new SolidColorBrush(Color.Parse("#1e1e1e"));
+            _html.Background = new SolidColorBrush(Color.Parse("#1e1e1e"));
+        }
     }
 
     private void RefreshHtml()
     {
         var body = DocumentBodyHtml ?? string.Empty;
-        _html.Text = MarkdownStudioHtml.WrapBody(body, PreviewTheme, ZoomScale);
-        Background = PreviewTheme == MarkdownPreviewTheme.GitHubLight
-            ? new SolidColorBrush(Color.Parse("#ffffff"))
-            : new SolidColorBrush(Color.Parse("#1e1e1e"));
+        _lastHtml = MarkdownStudioHtml.WrapBody(body, PreviewTheme, 1.0);
+        _html.Text = _lastHtml;
+        ApplyThemeChrome();
+        ApplyLayout();
+    }
+
+    private void ApplyLayout()
+    {
+        var zoom = Math.Clamp(ZoomScale, MarkdownZoom.Minimum, MarkdownZoom.Maximum);
+        if (Math.Abs(zoom - ZoomScale) > 0.0001)
+            SetCurrentValue(ZoomScaleProperty, zoom);
+
+        _scale.ScaleX = zoom;
+        _scale.ScaleY = zoom;
+
+        var viewportWidth = _scroll.Viewport.Width;
+        if (viewportWidth > 0)
+        {
+            var layoutWidth = viewportWidth / zoom;
+            _html.MaxWidth = layoutWidth;
+            _html.Width = layoutWidth;
+        }
+
+        if (_lastHtml is not null && !string.IsNullOrEmpty(_lastHtml))
+            _html.Text = _lastHtml;
     }
 }
