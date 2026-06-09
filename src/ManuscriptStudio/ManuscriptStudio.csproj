@@ -13,6 +13,10 @@
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Novolis.Avalonia.Markdown" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Novolis.Avalonia.Studio" />
     <PackageReference Include="Novolis.Markup.Mermaid" />
     <PackageReference Include="QuestPDF" />

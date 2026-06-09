@@ -13,6 +13,7 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.203" />
     <PackageVersion Include="Novolis.Avalonia.Markdown" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Packaging.Inno" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Studio" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Markup.Mermaid" Version="2026.1.*" />
     <PackageVersion Include="QuestPDF" Version="2025.7.4" />

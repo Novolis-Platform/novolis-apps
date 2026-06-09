@@ -15,6 +15,25 @@ dotnet restore
 dotnet build --no-restore
 ```
 
+## Install (Windows)
+
+Download from [GitHub Releases](https://github.com/Novolis-Platform/novolis-apps/releases):
+
+| Asset | Use |
+|-------|-----|
+| `ManuscriptStudioSetup-*-win-x64.exe` | Installer — installs to `%LOCALAPPDATA%\Programs\Novolis\Manuscript Studio` (no admin) |
+| `ManuscriptStudio-*-win-x64.zip` | Portable — unzip and run `ManuscriptStudio.exe` |
+
+New releases are created automatically when changes merge to `main` (see Merge workflow).
+
+Build installer locally (requires Inno Setup 6 for the setup exe):
+
+```powershell
+pwsh -File scripts/build-installer.ps1
+# Skip Inno compile (publish + zip only):
+pwsh -File scripts/build-installer.ps1 -SkipInstaller
+```
+
 ## Manuscript Studio
 
 ```powershell

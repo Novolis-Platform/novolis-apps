@@ -38,6 +38,11 @@
     <WarningsNotAsErrors>$(WarningsNotAsErrors);CS0067;CS0108;CS0168;CS0219;CS0433;CS4014;CS1574;CS1717;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8619;CS8620;CS8625;CS8629;CS8631;CS8632;CS8765;DV2001;RS1014</WarningsNotAsErrors>
   </PropertyGroup>
 
+  <Import Project="$(MSBuildThisFileDirectory)build\version.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)build\version.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\novolis-governance\build\Novolis.Version.targets"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\novolis-governance\build\Novolis.Version.targets')" />
+
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub">
       <PrivateAssets>all</PrivateAssets>

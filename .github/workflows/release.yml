@@ -1,31 +1,9 @@
-name: Merge
+name: Release
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
   workflow_dispatch:
-    inputs:
-      skip_release:
-        description: Skip release job (CI only)
-        type: boolean
-        default: false
 
 jobs:
-  ci:
-    uses: Novolis-Platform/novolis-workflows/.github/workflows/dotnet-pull-request.yml@main
-    secrets: inherit
-    with:
-      solution: Novolis.Apps.slnx
-      run_tests: false
-    permissions:
-      contents: read
-      packages: read
-
   release:
-    needs: ci
-    if: github.event_name != 'workflow_dispatch' || inputs.skip_release != true
     runs-on: windows-latest
     permissions:
       contents: write

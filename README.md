@@ -13,6 +13,21 @@ dotnet build --no-restore
 dotnet run --project src/ManuscriptStudio
 ```
 
+## Releases
+
+Every successful merge to `main` (non-doc paths) publishes a [GitHub Release](https://github.com/Novolis-Platform/novolis-apps/releases) with:
+
+- `ManuscriptStudioSetup-{version}-win-x64.exe` — Inno Setup installer (per-user, no admin)
+- `ManuscriptStudio-{version}-win-x64.zip` — portable self-contained publish folder
+
+Version format: `YEAR.MAJOR.MINOR.BUILD` from `build/version.json` plus CI build number (e.g. `2026.1.0.42`).
+
+Manual republish: run the **Release** workflow from Actions, or locally:
+
+```powershell
+pwsh -File scripts/build-installer.ps1
+```
+
 ## Apps
 
 | App | Path | Description |
