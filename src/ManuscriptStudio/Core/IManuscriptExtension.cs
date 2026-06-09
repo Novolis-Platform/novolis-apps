@@ -9,7 +9,11 @@ internal interface IManuscriptExtension
 
     Control CreateLeftRail(ManuscriptHostContext host);
 
-    void ConfigureToolbar(StackPanel toolbar, ManuscriptHostContext host);
+    void ConfigureNavigationBar(StackPanel bar, ManuscriptHostContext host);
+
+    void ConfigureEditorBar(StackPanel bar, ManuscriptHostContext host);
+
+    void ConfigurePreviewBar(StackPanel bar, ManuscriptHostContext host);
 
     IReadOnlyList<RightRailViewDescriptor> GetRightRailViews();
 

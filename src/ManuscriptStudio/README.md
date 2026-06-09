@@ -7,16 +7,15 @@ Avalonia editor for hand-crafted markdown with built-in modes:
 
 ## Editor and preview
 
-Studio-style markdown editing (VS Code source + Obsidian-style reading pane):
+`MainWindow` hosts a single `MarkdownAuthoringWorkspace` with three resizable columns. Each column is an `AuthoringPane` (action bar + body):
 
-| Feature | Editor (center) | Preview (right rail) |
-|---------|-----------------|----------------------|
-| Word wrap | Toolbar **Wrap** toggle (persisted) | Prose and code blocks wrap to panel width |
-| Zoom | Ctrl+scroll, **+/−**, **100%** reset | Ctrl+scroll over preview |
-| Sync zoom | **Sync zoom** links editor and preview scale | |
-| Theme | — | **Light preview** toggle (dark default) |
+| Pane | Action bar | Body |
+|------|------------|------|
+| Navigation (left) | Mode-specific browse/open actions | Tree or chapter list |
+| Editor (center) | Save, wrap, zoom, dirty indicator + mode tools | AvaloniaEdit markdown source |
+| Preview (right) | Light theme, sync zoom, preview zoom + view picker | HTML or Mermaid views |
 
-Editor uses `MarkdownSourceEditor` (AvaloniaEdit): line numbers, current-line highlight, word wrap, Cascadia/Consolas stack.
+Column widths persist in settings. Editor and preview share zoom options (with optional sync).
 
 Preview uses themed HTML with readable typography, wrapped tables/code, and metadata styling in Book Authoring mode.
 

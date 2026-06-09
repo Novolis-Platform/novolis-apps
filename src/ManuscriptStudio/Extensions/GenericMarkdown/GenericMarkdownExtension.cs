@@ -29,7 +29,7 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
         };
     }
 
-    public void ConfigureToolbar(StackPanel toolbar, ManuscriptHostContext host)
+    public void ConfigureNavigationBar(StackPanel bar, ManuscriptHostContext host)
     {
         _host = host;
         var openBtn = ToolbarButton("Open folder…");
@@ -39,8 +39,12 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
             if (path is not null)
                 OpenWorkspace(path);
         };
-        toolbar.Children.Add(openBtn);
+        bar.Children.Add(openBtn);
     }
+
+    public void ConfigureEditorBar(StackPanel bar, ManuscriptHostContext host) => _host = host;
+
+    public void ConfigurePreviewBar(StackPanel bar, ManuscriptHostContext host) => _host = host;
 
     public IReadOnlyList<RightRailViewDescriptor> GetRightRailViews() =>
         [RightRailViewDescriptor.Preview];

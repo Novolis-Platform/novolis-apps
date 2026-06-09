@@ -1,12 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
-using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using ManuscriptStudio.Components;
 using ManuscriptStudio.Core;
 using ManuscriptStudio.Extensions.GenericMarkdown;
 using Novolis.Avalonia.Markdown;
@@ -19,47 +18,20 @@ internal sealed class MainWindow : Window
     private readonly EditorSession _session;
     private readonly ManuscriptSettingsStore _settings;
     private readonly ManuscriptExtensionRegistry _registry;
-
-    private readonly MarkdownSourceEditor _editor = new()
-    {
-        PlaceholderText = "Select a file or chapter…",
-        Margin = new Thickness(8, 4, 8, 8),
-        VerticalAlignment = VerticalAlignment.Stretch,
-        HorizontalAlignment = HorizontalAlignment.Stretch,
-    };
-    private readonly TextBlock _dirtyIndicator = new()
-    {
-        Margin = new Thickness(8, 0),
-        VerticalAlignment = VerticalAlignment.Center,
-        Foreground = Brushes.Orange,
-    };
+    private readonly MarkdownAuthoringWorkspace _authoring;
     private readonly ComboBox _modeCombo = new() { MinWidth = 160, Margin = new Thickness(0, 0, 8, 0) };
-    private readonly ToggleButton _wrapToggle = new() { Content = "Wrap", Padding = new Thickness(8, 4), Margin = new Thickness(0, 0, 4, 0) };
-    private readonly ToggleButton _lightPreviewToggle = new() { Content = "Light preview", Padding = new Thickness(8, 4), Margin = new Thickness(0, 0, 4, 0) };
-    private readonly ToggleButton _syncZoomToggle = new() { Content = "Sync zoom", Padding = new Thickness(8, 4), Margin = new Thickness(0, 0, 4, 0) };
-    private readonly TextBlock _editorZoomLabel = new() { Margin = new Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.85 };
-    private readonly TextBlock _previewZoomLabel = new() { Margin = new Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.85 };
 
-    private readonly StackPanel _extensionToolbar = new()
-    {
-        Orientation = Orientation.Horizontal,
-        Spacing = 0,
-        Margin = new Thickness(0, 0, 4, 0),
-    };
-
-    private readonly Grid _rightRailHost = new();
-    private Grid _leftRailHost = new();
     private StudioFeedback _feedback = null!;
     private ManuscriptHostContext _hostContext = null!;
     private IManuscriptExtension _activeExtension = null!;
-    private DispatcherTimer? _rightRailTimer;
-    private bool _suppressEditorChange;
+    private DispatcherTimer? _previewTimer;
 
     public MainWindow(EditorSession session, ManuscriptSettingsStore settings, ManuscriptExtensionRegistry registry)
     {
         _session = session;
         _settings = settings;
         _registry = registry;
+        _authoring = new MarkdownAuthoringWorkspace(settings);
 
         Title = "Manuscript Studio";
         Width = 1400;
@@ -68,12 +40,12 @@ internal sealed class MainWindow : Window
         Content = BuildLayout();
         KeyDown += OnKeyDown;
         Opened += OnOpened;
-        _editor.TextChanged += OnEditorTextChanged;
-        _editor.PropertyChanged += OnEditorPropertyChanged;
+
+        _authoring.EditorTextChanged += OnEditorTextChanged;
+        _authoring.SaveRequested += (_, _) => SaveCurrent();
+        _authoring.PreviewRefreshRequested += (_, _) => RefreshPreview();
+        _authoring.SettingsChanged += (_, _) => UpdateStatus();
         _modeCombo.SelectionChanged += OnModeChanged;
-        _wrapToggle.Click += OnWrapToggleClicked;
-        _lightPreviewToggle.Click += OnLightPreviewToggleClicked;
-        _syncZoomToggle.Click += OnSyncZoomToggleClicked;
     }
 
     private Control BuildLayout()
@@ -83,84 +55,34 @@ internal sealed class MainWindow : Window
 
         _hostContext = new ManuscriptHostContext
         {
-            Editor = _editor,
+            Authoring = _authoring,
             Session = _session,
             Settings = _settings,
             Feedback = _feedback,
-            RequestPreviewRefresh = RefreshRightRail,
-            GetEditorText = () => _editor.Text ?? string.Empty,
+            RequestPreviewRefresh = RefreshPreview,
+            GetEditorText = () => _authoring.Editor.Text ?? string.Empty,
             SetEditorText = text =>
             {
-                _suppressEditorChange = true;
-                _editor.Text = text;
+                _authoring.SetEditorText(text);
                 _session.EditorText = text;
-                _suppressEditorChange = false;
             },
             PickFolderAsync = PickFolderAsync,
             PickExportFolderAsync = PickExportFolderAsync,
             MainWindow = this,
             UpdateStatus = UpdateStatus,
             UpdateDirtyIndicator = UpdateDirtyIndicator,
-            RefreshRightRail = RefreshRightRail,
+            RefreshRightRail = RefreshPreview,
             GetRightRailViewId = GetRightRailViewId,
             SetRightRailViewId = SetRightRailViewId,
-            SetEditorZoomScale = scale => _editor.ZoomScale = scale,
-            OnPreviewZoomScaleChanged = OnPreviewZoomScaleChanged,
+            SetEditorZoomScale = scale => _authoring.Editor.ZoomScale = scale,
+            OnPreviewZoomScaleChanged = scale => _authoring.OnPreviewZoomChanged(scale),
         };
 
         foreach (var ext in _registry.All)
             _modeCombo.Items.Add(ext.DisplayName);
 
-        var saveButton = ToolbarButton("Save");
-        saveButton.Click += (_, _) => SaveCurrent();
-
-        var zoomOut = ToolbarButton("−");
-        zoomOut.Click += (_, _) => AdjustEditorZoom(-MarkdownZoom.Step);
-        var zoomIn = ToolbarButton("+");
-        zoomIn.Click += (_, _) => AdjustEditorZoom(MarkdownZoom.Step);
-        var zoomReset = ToolbarButton("Ed 100%");
-        zoomReset.Click += (_, _) => SetEditorZoom(1.0);
-
-        var previewZoomOut = ToolbarButton("Pv −");
-        previewZoomOut.Click += (_, _) => AdjustPreviewZoom(-MarkdownZoom.Step);
-        var previewZoomIn = ToolbarButton("Pv +");
-        previewZoomIn.Click += (_, _) => AdjustPreviewZoom(MarkdownZoom.Step);
-        var previewZoomReset = ToolbarButton("Pv 100%");
-        previewZoomReset.Click += (_, _) => SetPreviewZoom(1.0);
-
-        var toolbar = StudioWorkspace.CreateToolbarRow();
-        toolbar.Children.Add(_modeCombo);
-        toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
-        toolbar.Children.Add(saveButton);
-        toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
-        toolbar.Children.Add(_wrapToggle);
-        toolbar.Children.Add(_lightPreviewToggle);
-        toolbar.Children.Add(_syncZoomToggle);
-        toolbar.Children.Add(zoomOut);
-        toolbar.Children.Add(zoomIn);
-        toolbar.Children.Add(zoomReset);
-        toolbar.Children.Add(new TextBlock { Text = "Ed", Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 });
-        toolbar.Children.Add(_editorZoomLabel);
-        toolbar.Children.Add(previewZoomOut);
-        toolbar.Children.Add(previewZoomIn);
-        toolbar.Children.Add(previewZoomReset);
-        toolbar.Children.Add(new TextBlock { Text = "Pv", Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 });
-        toolbar.Children.Add(_previewZoomLabel);
-        toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
-        toolbar.Children.Add(_extensionToolbar);
-        toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
-        toolbar.Children.Add(_dirtyIndicator);
-
-        var center = StudioWorkspace.CreateCenterColumn(toolbar, _editor);
-
-        var rightRail = new Border
-        {
-            BorderBrush = Brushes.Gray,
-            BorderThickness = new Thickness(1, 0, 0, 0),
-            Child = _rightRailHost,
-        };
-
-        var workspace = new ResizableStudioShell(_leftRailHost, center, rightRail, _settings);
+        var appBar = StudioWorkspace.CreateToolbarRow();
+        appBar.Children.Add(_modeCombo);
 
         var statusBar = new DockPanel();
         DockPanel.SetDock(chrome.FlashLine, Dock.Bottom);
@@ -168,13 +90,16 @@ internal sealed class MainWindow : Window
         statusBar.Children.Add(chrome.FlashLine);
         statusBar.Children.Add(chrome.StatusLine);
 
-        var shell = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        var shell = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         var workspaceHost = new Grid();
-        workspaceHost.Children.Add(workspace);
+        workspaceHost.Children.Add(_authoring);
         workspaceHost.Children.Add(chrome.BusyOverlay);
-        Grid.SetRow(workspaceHost, 0);
+
+        Grid.SetRow(appBar, 0);
+        shell.Children.Add(appBar);
+        Grid.SetRow(workspaceHost, 1);
         shell.Children.Add(workspaceHost);
-        Grid.SetRow(statusBar, 1);
+        Grid.SetRow(statusBar, 2);
         shell.Children.Add(statusBar);
 
         return shell;
@@ -183,17 +108,17 @@ internal sealed class MainWindow : Window
     private void OnOpened(object? sender, EventArgs e)
     {
         _settings.Load();
-        ApplyEditorSettings();
+        _authoring.ApplySettings();
 
         if (string.IsNullOrWhiteSpace(_settings.Settings.ContentRoot) && Directory.Exists("D:\\repos\\books"))
             _settings.Settings.ContentRoot = "D:\\repos\\books";
 
-        _rightRailTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background, (_, _) => RefreshRightRail());
-        _rightRailTimer.Start();
+        _previewTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background, (_, _) => RefreshPreview());
+        _previewTimer.Start();
 
         var activeId = _settings.Settings.ActiveExtensionId;
         _activeExtension = _registry.GetById(activeId);
-        var modeIndex = _registry.All.ToList().FindIndex(e => e.Id == _activeExtension.Id);
+        var modeIndex = _registry.All.ToList().FindIndex(ext => ext.Id == _activeExtension.Id);
         _modeCombo.SelectedIndex = modeIndex >= 0 ? modeIndex : 0;
         ActivateExtension(_activeExtension);
 
@@ -212,120 +137,11 @@ internal sealed class MainWindow : Window
             }
         }
 
-        RefreshRightRail();
+        RefreshPreview();
         UpdateDirtyIndicator();
         UpdateStatus();
-        _editor.FocusEditor();
+        _authoring.FocusEditor();
     }
-
-    private void ApplyEditorSettings()
-    {
-        var editor = _settings.Settings.Editor;
-        _editor.WordWrap = editor.WordWrap;
-        _editor.ZoomScale = ClampZoom(editor.EditorZoomScale);
-        editor.PreviewZoomScale = ClampZoom(editor.PreviewZoomScale);
-        _wrapToggle.IsChecked = editor.WordWrap;
-        _lightPreviewToggle.IsChecked = editor.PreviewTheme.Equals("light", StringComparison.OrdinalIgnoreCase);
-        _syncZoomToggle.IsChecked = editor.SyncZoom;
-        UpdateEditorZoomLabel();
-        UpdatePreviewZoomLabel();
-    }
-
-    private void SaveEditorSettings()
-    {
-        var editor = _settings.Settings.Editor;
-        editor.WordWrap = _editor.WordWrap;
-        editor.EditorZoomScale = _editor.ZoomScale;
-        editor.SyncZoom = _syncZoomToggle.IsChecked == true;
-        editor.PreviewTheme = _lightPreviewToggle.IsChecked == true ? "light" : "dark";
-        _settings.Save();
-        UpdateEditorZoomLabel();
-    }
-
-    private void OnWrapToggleClicked(object? sender, RoutedEventArgs e)
-    {
-        _editor.WordWrap = _wrapToggle.IsChecked == true;
-        SaveEditorSettings();
-    }
-
-    private void OnLightPreviewToggleClicked(object? sender, RoutedEventArgs e)
-    {
-        SaveEditorSettings();
-        RefreshRightRail();
-    }
-
-    private void OnSyncZoomToggleClicked(object? sender, RoutedEventArgs e)
-    {
-        SaveEditorSettings();
-        if (_syncZoomToggle.IsChecked == true)
-            SyncPreviewZoomToEditor();
-    }
-
-    private void OnEditorPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property != MarkdownSourceEditor.ZoomScaleProperty)
-            return;
-
-        _settings.Settings.Editor.EditorZoomScale = _editor.ZoomScale;
-        UpdateEditorZoomLabel();
-
-        if (_syncZoomToggle.IsChecked == true)
-            SyncPreviewZoomToEditor();
-
-        _settings.Save();
-    }
-
-    private void AdjustEditorZoom(double delta) =>
-        SetEditorZoom(_editor.ZoomScale + delta);
-
-    private void SetEditorZoom(double scale)
-    {
-        _editor.ZoomScale = ClampZoom(scale);
-        _settings.Settings.Editor.EditorZoomScale = _editor.ZoomScale;
-        UpdateEditorZoomLabel();
-
-        if (_syncZoomToggle.IsChecked == true)
-            SyncPreviewZoomToEditor();
-
-        _settings.Save();
-    }
-
-    private void SyncPreviewZoomToEditor()
-    {
-        SetPreviewZoom(_editor.ZoomScale);
-    }
-
-    private void OnPreviewZoomScaleChanged(double scale)
-    {
-        _settings.Settings.Editor.PreviewZoomScale = ClampZoom(scale);
-        UpdatePreviewZoomLabel();
-        if (_syncZoomToggle.IsChecked == true)
-            _editor.ZoomScale = _settings.Settings.Editor.PreviewZoomScale;
-        _settings.Save();
-        UpdateEditorZoomLabel();
-        UpdateStatus();
-    }
-
-    private void AdjustPreviewZoom(double delta) =>
-        SetPreviewZoom(_settings.Settings.Editor.PreviewZoomScale + delta);
-
-    private void SetPreviewZoom(double scale)
-    {
-        _settings.Settings.Editor.PreviewZoomScale = ClampZoom(scale);
-        UpdatePreviewZoomLabel();
-        _settings.Save();
-        RefreshRightRail();
-        UpdateStatus();
-    }
-
-    private void UpdateEditorZoomLabel() =>
-        _editorZoomLabel.Text = $"{Math.Round(_editor.ZoomScale * 100)}%";
-
-    private void UpdatePreviewZoomLabel() =>
-        _previewZoomLabel.Text = $"{Math.Round(_settings.Settings.Editor.PreviewZoomScale * 100)}%";
-
-    private static double ClampZoom(double scale) =>
-        Math.Clamp(scale, MarkdownZoom.Minimum, MarkdownZoom.Maximum);
 
     private void OnModeChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -340,27 +156,37 @@ internal sealed class MainWindow : Window
         ActivateExtension(next);
         _settings.Settings.ActiveExtensionId = next.Id;
         _settings.Save();
-        RefreshRightRail();
+        RefreshPreview();
         _feedback.Flash($"Mode: {next.DisplayName}");
     }
 
     private void ActivateExtension(IManuscriptExtension extension)
     {
         _activeExtension = extension;
-        _leftRailHost.Children.Clear();
-        _leftRailHost.Children.Add(extension.CreateLeftRail(_hostContext));
 
-        _extensionToolbar.Children.Clear();
-        extension.ConfigureToolbar(_extensionToolbar, _hostContext);
+        TrimExtensionActions(_authoring.NavigationActionBar, 0);
+        TrimExtensionActions(_authoring.EditorActionBar, _authoring.EditorBarBuiltInChildCount);
+        TrimExtensionActions(_authoring.PreviewActionBar, _authoring.PreviewBarBuiltInChildCount);
+
+        extension.ConfigureNavigationBar(_authoring.NavigationActionBar, _hostContext);
+        extension.ConfigureEditorBar(_authoring.EditorActionBar, _hostContext);
+        extension.ConfigurePreviewBar(_authoring.PreviewActionBar, _hostContext);
+
+        _authoring.SetNavigationContent(extension.CreateLeftRail(_hostContext));
+        RebuildPreview();
         extension.OnActivated(_hostContext);
-        RebuildRightRail();
     }
 
-    private void RebuildRightRail()
+    private static void TrimExtensionActions(StackPanel bar, int keepCount)
     {
-        _rightRailHost.Children.Clear();
+        while (bar.Children.Count > keepCount)
+            bar.Children.RemoveAt(bar.Children.Count - 1);
+    }
+
+    private void RebuildPreview()
+    {
         var viewId = GetRightRailViewId();
-        _rightRailHost.Children.Add(_activeExtension.CreateRightRail(_hostContext, viewId));
+        _authoring.SetPreviewContent(_activeExtension.CreateRightRail(_hostContext, viewId));
         _activeExtension.OnRightRailViewChanged(_hostContext, viewId);
     }
 
@@ -383,15 +209,12 @@ internal sealed class MainWindow : Window
 
     private void OnEditorTextChanged(object? sender, TextChangedEventArgs e)
     {
-        if (_suppressEditorChange)
-            return;
-
-        _session.EditorText = _editor.Text ?? string.Empty;
+        _session.EditorText = _authoring.Editor.Text ?? string.Empty;
         UpdateDirtyIndicator();
         UpdateStatus();
     }
 
-    private void RefreshRightRail() =>
+    private void RefreshPreview() =>
         _activeExtension.OnRightRailViewChanged(_hostContext, GetRightRailViewId());
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -425,14 +248,16 @@ internal sealed class MainWindow : Window
     }
 
     private void UpdateDirtyIndicator() =>
-        _dirtyIndicator.Text = _session.IsDirty ? "● unsaved" : string.Empty;
+        _authoring.UpdateDirtyIndicator(_session.IsDirty);
 
     private void UpdateStatus()
     {
         var path = _session.SelectedFilePath ?? "No file selected";
         var words = _session.CountWords(_session.EditorText);
         var dirty = _session.IsDirty ? " (unsaved)" : string.Empty;
-        _feedback.SetStatus($"{path}{dirty} — {words} words — ed {Math.Round(_editor.ZoomScale * 100)}% · pv {Math.Round(_settings.Settings.Editor.PreviewZoomScale * 100)}%");
+        var editor = _settings.Settings.Editor;
+        _feedback.SetStatus(
+            $"{path}{dirty} — {words} words — ed {Math.Round(_authoring.Editor.ZoomScale * 100)}% · pv {Math.Round(editor.PreviewZoomScale * 100)}%");
     }
 
     private async Task<string?> PickFolderAsync()
@@ -451,7 +276,4 @@ internal sealed class MainWindow : Window
     }
 
     private async Task<string?> PickExportFolderAsync() => await PickFolderAsync();
-
-    private static Button ToolbarButton(string label) =>
-        new() { Content = label, Margin = new Thickness(0, 0, 4, 0), Padding = new Thickness(10, 4) };
 }

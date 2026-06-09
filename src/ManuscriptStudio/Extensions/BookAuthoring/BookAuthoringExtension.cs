@@ -57,7 +57,6 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         _chapterList.SelectionChanged += (_, _) => OnChapterSelected();
 
         var panel = new StackPanel();
-        panel.Children.Add(ToolbarButton("Set content root…", OnSetContentRoot));
         panel.Children.Add(_seriesCombo);
         panel.Children.Add(_bookCombo);
         panel.Children.Add(new TextBlock { Text = "Chapters", Margin = new Avalonia.Thickness(8, 8, 8, 0), Opacity = 0.7 });
@@ -68,9 +67,33 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         return new ScrollViewer { Content = panel };
     }
 
-    public void ConfigureToolbar(StackPanel toolbar, ManuscriptHostContext host)
+    public void ConfigureNavigationBar(StackPanel bar, ManuscriptHostContext host)
     {
         _host = host;
+        bar.Children.Add(ToolbarButton("Set content root…", OnSetContentRoot));
+    }
+
+    public void ConfigureEditorBar(StackPanel bar, ManuscriptHostContext host)
+    {
+        _host = host;
+
+        bar.Children.Add(StudioWorkspace.ToolbarSeparator());
+
+        var insertBtn = new Button { Content = "Insert", Margin = new Avalonia.Thickness(0, 0, 4, 0), Padding = new Avalonia.Thickness(8, 4) };
+        insertBtn.Flyout = BuildInsertFlyout();
+        bar.Children.Add(insertBtn);
+        bar.Children.Add(ToolbarButton("Debug meta", ToggleDebugMetadata));
+
+        var exportBtn = new Button { Content = "Export", Margin = new Avalonia.Thickness(0, 0, 4, 0), Padding = new Avalonia.Thickness(8, 4) };
+        exportBtn.Flyout = BuildExportFlyout();
+        bar.Children.Add(exportBtn);
+    }
+
+    public void ConfigurePreviewBar(StackPanel bar, ManuscriptHostContext host)
+    {
+        _host = host;
+
+        bar.Children.Add(StudioWorkspace.ToolbarSeparator());
 
         _viewCombo = new ComboBox { MinWidth = 140, Margin = new Avalonia.Thickness(0, 0, 4, 0) };
         foreach (var view in GetRightRailViews())
@@ -80,19 +103,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         var viewIndex = GetRightRailViews().ToList().FindIndex(v => v.Id == savedView);
         _viewCombo.SelectedIndex = viewIndex >= 0 ? viewIndex : 0;
         _viewCombo.SelectionChanged += (_, _) => OnViewComboChanged();
-
-        toolbar.Children.Add(_viewCombo);
-        toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
-
-        var insertBtn = new Button { Content = "Insert", Margin = new Avalonia.Thickness(0, 0, 4, 0), Padding = new Avalonia.Thickness(8, 4) };
-        insertBtn.Flyout = BuildInsertFlyout();
-        toolbar.Children.Add(insertBtn);
-        toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
-        toolbar.Children.Add(ToolbarButton("Debug meta", ToggleDebugMetadata));
-
-        var exportBtn = new Button { Content = "Export", Margin = new Avalonia.Thickness(0, 0, 4, 0), Padding = new Avalonia.Thickness(8, 4) };
-        exportBtn.Flyout = BuildExportFlyout();
-        toolbar.Children.Add(exportBtn);
+        bar.Children.Add(_viewCombo);
     }
 
     public IReadOnlyList<RightRailViewDescriptor> GetRightRailViews() =>
