@@ -155,6 +155,8 @@ internal sealed class MarkdownAuthoringWorkspace : Grid
     public void SetPreviewContent(Control content)
     {
         _previewBody.Children.Clear();
+        content.HorizontalAlignment = HorizontalAlignment.Stretch;
+        content.VerticalAlignment = VerticalAlignment.Stretch;
         _previewBody.Children.Add(content);
         ApplyPreviewZoomToPane(ClampZoom(_settings.Settings.Editor.PreviewZoomScale));
     }

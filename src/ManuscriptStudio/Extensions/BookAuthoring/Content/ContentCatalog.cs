@@ -56,7 +56,8 @@ internal sealed class ContentCatalog
                 books.Add(LoadBook(bookDir, id));
         }
 
-        return new SeriesInfo(id, title, seriesDirectory, books);
+        var references = LoadReferenceSets(seriesDirectory);
+        return new SeriesInfo(id, title, seriesDirectory, books, references);
     }
 
     private static BookInfo LoadBook(string bookDirectory, string? seriesId)
@@ -103,6 +104,72 @@ internal sealed class ContentCatalog
         }
 
         var ordered = ChapterOrder.SortChapters(chapters, orderFromHeading);
-        return new BookInfo(id, title, subtitle, author, bookDirectory, seriesId, ordered, orderFromHeading, debugMode);
+        var references = LoadReferenceSets(bookDirectory);
+        return new BookInfo(id, title, subtitle, author, bookDirectory, seriesId, ordered, orderFromHeading, debugMode, references);
     }
+
+    private static List<ReferenceSetInfo> LoadReferenceSets(string containerDir)
+    {
+        var result = new List<ReferenceSetInfo>();
+        var refRoot = ResolveReferenceRoot(containerDir);
+        if (refRoot is null)
+            return result;
+
+        var sectionDirs = Directory.GetDirectories(refRoot)
+            .Where(d => !Path.GetFileName(d).StartsWith('_'))
+            .OrderBy(Path.GetFileName, StringComparer.Ordinal)
+            .ToList();
+
+        if (sectionDirs.Count > 0)
+        {
+            foreach (var sectionDir in sectionDirs)
+            {
+                var id = Path.GetFileName(sectionDir);
+                var files = CollectReferenceFiles(sectionDir);
+                if (files.Count == 0)
+                    continue;
+
+                result.Add(new ReferenceSetInfo(id, ToSectionTitle(id), sectionDir, files));
+            }
+        }
+        else
+        {
+            var files = CollectReferenceFiles(refRoot);
+            if (files.Count > 0)
+                result.Add(new ReferenceSetInfo("references", "References", refRoot, files));
+        }
+
+        return result;
+    }
+
+    private static string? ResolveReferenceRoot(string containerDir)
+    {
+        var references = Path.Combine(containerDir, "references");
+        if (Directory.Exists(references))
+            return references;
+
+        var reference = Path.Combine(containerDir, "reference");
+        return Directory.Exists(reference) ? reference : null;
+    }
+
+    private static List<ReferenceFileInfo> CollectReferenceFiles(string rootDir)
+    {
+        var files = new List<ReferenceFileInfo>();
+        foreach (var path in Directory.GetFiles(rootDir, "*.md", SearchOption.AllDirectories))
+        {
+            if (path.Contains($"{Path.DirectorySeparatorChar}_archive{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var stem = Path.GetFileNameWithoutExtension(path);
+            var title = ChapterOrder.ReadChapterTitle(path) ?? stem;
+            files.Add(new ReferenceFileInfo(stem, title, path));
+        }
+
+        files.Sort((a, b) => string.Compare(a.FilePath, b.FilePath, StringComparison.OrdinalIgnoreCase));
+        return files;
+    }
+
+    private static string ToSectionTitle(string folderName) =>
+        string.Join(' ', folderName.Split('-', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
 }

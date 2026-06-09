@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Layout;
 using ManuscriptStudio.Core;
 using Novolis.Avalonia.Studio;
 
@@ -53,6 +54,8 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
     {
         _host = host;
         _previewPanel = CreatePreviewPane(host);
+        _previewPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _previewPanel.VerticalAlignment = VerticalAlignment.Stretch;
         return _previewPanel;
     }
 

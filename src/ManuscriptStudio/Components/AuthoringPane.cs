@@ -29,6 +29,8 @@ internal sealed class AuthoringPane : Grid
     public void SetBody(Control content)
     {
         _bodyHost.Children.Clear();
+        content.HorizontalAlignment = HorizontalAlignment.Stretch;
+        content.VerticalAlignment = VerticalAlignment.Stretch;
         _bodyHost.Children.Add(content);
     }
 }

@@ -24,15 +24,19 @@ internal sealed class HtmlPreviewPane : Border
 
     public event EventHandler<double>? ZoomScaleChanged;
 
+    private readonly Panel _extentHost = new();
     private readonly HtmlPanel _html;
     private readonly ScrollViewer _scroll;
     private readonly ScaleTransform _scale;
     private string? _lastBodyHtml;
+    private double _lastExtentHeight;
 
     public HtmlPreviewPane()
     {
         BorderThickness = new Thickness(0);
         ClipToBounds = true;
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+        VerticalAlignment = VerticalAlignment.Stretch;
 
         _scale = new ScaleTransform(1, 1);
         _html = new HtmlPanel
@@ -43,16 +47,21 @@ internal sealed class HtmlPreviewPane : Border
             RenderTransformOrigin = new RelativePoint(0, 0, RelativeUnit.Relative),
         };
 
+        _extentHost.Children.Add(_html);
+
         _scroll = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = _html,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Content = _extentHost,
         };
 
         Child = _scroll;
 
         _scroll.SizeChanged += (_, _) => ApplyLayout();
+        _html.LayoutUpdated += (_, _) => ApplyLayout();
         PointerWheelZoomRouting.Attach(_scroll, () => ZoomScale, value => ZoomScale = value);
         PointerWheelZoomRouting.Attach(_html, () => ZoomScale, value => ZoomScale = value);
 
@@ -84,15 +93,18 @@ internal sealed class HtmlPreviewPane : Border
         if (change.Property == DocumentBodyHtmlProperty)
         {
             _lastBodyHtml = DocumentBodyHtml;
+            _lastExtentHeight = 0;
             RefreshHtml();
         }
         else if (change.Property == PreviewThemeProperty)
         {
             ApplyThemeChrome();
+            _lastExtentHeight = 0;
             RefreshHtml();
         }
         else if (change.Property == ZoomScaleProperty)
         {
+            _lastExtentHeight = 0;
             ApplyLayout();
             ZoomScaleChanged?.Invoke(this, ZoomScale);
         }
@@ -140,5 +152,30 @@ internal sealed class HtmlPreviewPane : Border
         _html.Margin = new Thickness(sideInset, 0, sideInset, 0);
         _html.Width = layoutWidth;
         _html.MaxWidth = layoutWidth;
+
+        var contentHeight = MeasureHtmlHeight(layoutWidth);
+        if (contentHeight <= 0)
+            return;
+
+        var extentHeight = contentHeight * zoom;
+        _extentHost.Width = viewportWidth;
+
+        if (Math.Abs(extentHeight - _lastExtentHeight) > 0.5)
+        {
+            _extentHost.MinHeight = extentHeight;
+            _lastExtentHeight = extentHeight;
+        }
+    }
+
+    private double MeasureHtmlHeight(double layoutWidth)
+    {
+        if (_html.Bounds.Height > 0)
+            return _html.Bounds.Height;
+
+        if (_html.DesiredSize.Height > 0 && _html.DesiredSize.Width > 0)
+            return _html.DesiredSize.Height;
+
+        _html.Measure(new Size(layoutWidth, double.PositiveInfinity));
+        return _html.DesiredSize.Height;
     }
 }

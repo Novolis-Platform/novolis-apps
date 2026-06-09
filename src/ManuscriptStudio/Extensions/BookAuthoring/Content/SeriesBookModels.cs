@@ -6,7 +6,12 @@ internal enum ChapterKind
     Appendix,
 }
 
-internal sealed record SeriesInfo(string Id, string Title, string DirectoryPath, IReadOnlyList<BookInfo> Books);
+internal sealed record SeriesInfo(
+    string Id,
+    string Title,
+    string DirectoryPath,
+    IReadOnlyList<BookInfo> Books,
+    IReadOnlyList<ReferenceSetInfo> References);
 
 internal sealed record BookInfo(
     string Id,
@@ -17,7 +22,16 @@ internal sealed record BookInfo(
     string? SeriesId,
     IReadOnlyList<ChapterInfo> Chapters,
     bool ChapterOrderFromHeading,
-    bool DebugMode);
+    bool DebugMode,
+    IReadOnlyList<ReferenceSetInfo> References);
+
+internal sealed record ReferenceSetInfo(
+    string Id,
+    string Title,
+    string DirectoryPath,
+    IReadOnlyList<ReferenceFileInfo> Files);
+
+internal sealed record ReferenceFileInfo(string Id, string Title, string FilePath);
 
 internal sealed record ChapterInfo(
     string Id,

@@ -5,6 +5,7 @@ using Avalonia.Media;
 using ManuscriptStudio.Core;
 using ManuscriptStudio.Extensions.BookAuthoring.Content;
 using ManuscriptStudio.Extensions.BookAuthoring.Helpers;
+using ManuscriptStudio.Extensions.BookAuthoring.Navigation;
 using ManuscriptStudio.Extensions.BookAuthoring.Rendering;
 using ManuscriptStudio.Extensions.BookAuthoring.Views;
 using Novolis.Avalonia.Studio;
@@ -22,7 +23,8 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
     private ManuscriptHostContext? _host;
     private ComboBox? _seriesCombo;
     private ComboBox? _bookCombo;
-    private ListBox? _chapterList;
+    private ComboBox? _navScopeCombo;
+    private TreeView? _navTree;
     private TextBlock? _metadataSummary;
     private ComboBox? _viewCombo;
     private HtmlPreviewPane? _previewPanel;
@@ -44,7 +46,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
         _seriesCombo = new ComboBox { PlaceholderText = "Series", Margin = new Avalonia.Thickness(4, 4, 4, 0) };
         _bookCombo = new ComboBox { PlaceholderText = "Book", Margin = new Avalonia.Thickness(4, 4, 4, 0) };
-        _chapterList = new ListBox { Margin = new Avalonia.Thickness(4) };
+        _navTree = new TreeView { Margin = new Avalonia.Thickness(4) };
         _metadataSummary = new TextBlock
         {
             Margin = new Avalonia.Thickness(8, 4),
@@ -54,23 +56,63 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
         _seriesCombo.SelectionChanged += (_, _) => OnSeriesChanged();
         _bookCombo.SelectionChanged += (_, _) => OnBookChanged();
-        _chapterList.SelectionChanged += (_, _) => OnChapterSelected();
+        _navTree.SelectionChanged += OnNavigationTreeSelectionChanged;
 
-        var panel = new StackPanel();
+        var panel = new Grid
+        {
+            RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"),
+        };
+        Grid.SetRow(_seriesCombo, 0);
+        Grid.SetRow(_bookCombo, 1);
+        Grid.SetRow(_navTree, 2);
+        Grid.SetRow(_metadataSummary, 3);
         panel.Children.Add(_seriesCombo);
         panel.Children.Add(_bookCombo);
-        panel.Children.Add(new TextBlock { Text = "Chapters", Margin = new Avalonia.Thickness(8, 8, 8, 0), Opacity = 0.7 });
-        panel.Children.Add(_chapterList);
+        panel.Children.Add(_navTree);
         panel.Children.Add(_metadataSummary);
 
         ReloadCatalog();
-        return new ScrollViewer { Content = panel };
+        return new ScrollViewer
+        {
+            Content = panel,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+        };
     }
 
     public void ConfigureNavigationBar(StackPanel bar, ManuscriptHostContext host)
     {
         _host = host;
+
+        _navScopeCombo = new ComboBox { MinWidth = 120, Margin = new Avalonia.Thickness(0, 0, 4, 0) };
+        _navScopeCombo.Items.Add("All");
+        _navScopeCombo.Items.Add("Chapters");
+        _navScopeCombo.Items.Add("References");
+        var scope = BookNavigationScopeParser.Parse(host.Settings.Settings.BookAuthoring.NavigationScope);
+        _navScopeCombo.SelectedIndex = scope switch
+        {
+            BookNavigationScope.Chapters => 1,
+            BookNavigationScope.References => 2,
+            _ => 0,
+        };
+        _navScopeCombo.SelectionChanged += (_, _) => OnNavigationScopeChanged();
+        bar.Children.Add(_navScopeCombo);
         bar.Children.Add(ToolbarButton("Set content root…", OnSetContentRoot));
+    }
+
+    private void OnNavigationScopeChanged()
+    {
+        if (_host is null || _navScopeCombo is null || _navScopeCombo.SelectedIndex < 0)
+            return;
+
+        var scope = _navScopeCombo.SelectedIndex switch
+        {
+            1 => BookNavigationScope.Chapters,
+            2 => BookNavigationScope.References,
+            _ => BookNavigationScope.All,
+        };
+        _host.Settings.Settings.BookAuthoring.NavigationScope = BookNavigationScopeParser.ToSettingValue(scope);
+        _host.Settings.Save();
+        RebuildNavigationTree();
     }
 
     public void ConfigureEditorBar(StackPanel bar, ManuscriptHostContext host)
@@ -120,6 +162,8 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         _activeViewId = viewId;
 
         _previewPanel = CreatePreviewPane(host);
+        _previewPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _previewPanel.VerticalAlignment = VerticalAlignment.Stretch;
         _mermaidSource = new TextBox
         {
             AcceptsReturn = true,
@@ -375,8 +419,8 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
             _series = [];
             _seriesCombo.ItemsSource = null;
             _bookCombo.ItemsSource = null;
-            if (_chapterList is not null)
-                _chapterList.ItemsSource = null;
+            if (_navTree is not null)
+                _navTree.Items.Clear();
             return;
         }
 
@@ -435,7 +479,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
     private void OnBookChanged()
     {
-        if (_host is null || _seriesCombo is null || _bookCombo is null || _chapterList is null)
+        if (_host is null || _seriesCombo is null || _bookCombo is null || _navTree is null)
             return;
 
         if (_seriesCombo.SelectedIndex < 0 || _bookCombo.SelectedIndex < 0)
@@ -449,19 +493,47 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         _host.Settings.Settings.BookAuthoring.BookId = _currentBook.Id;
         _host.Settings.Save();
 
-        _chapterList.ItemsSource = _currentBook.Chapters
-            .Select(c => $"{c.SortKey:0.###} — {c.Title}")
-            .ToList();
-
+        RebuildNavigationTree();
         _host.RefreshRightRail();
     }
 
-    private void OnChapterSelected()
+    private void RebuildNavigationTree()
     {
-        if (_host is null || _chapterList is null || _currentBook is null || _chapterList.SelectedIndex < 0)
+        if (_navTree is null)
             return;
 
-        if (_chapterList.SelectedIndex >= _currentBook.Chapters.Count)
+        var series = GetCurrentSeries();
+        var scope = BookNavigationScopeParser.Parse(_host?.Settings.Settings.BookAuthoring.NavigationScope);
+        var nodes = BookNavigationTreeBuilder.Build(series, _currentBook, scope);
+        _navTree.Items.Clear();
+        foreach (var node in nodes)
+            _navTree.Items.Add(CreateNavTreeItem(node));
+    }
+
+    private SeriesInfo? GetCurrentSeries()
+    {
+        if (_seriesCombo is null || _seriesCombo.SelectedIndex < 0 || _seriesCombo.SelectedIndex >= _series.Count)
+            return null;
+
+        return _series[_seriesCombo.SelectedIndex];
+    }
+
+    private static TreeViewItem CreateNavTreeItem(BookNavigationNode node)
+    {
+        var item = new TreeViewItem { Header = node.Label, Tag = node };
+        if (node.IsFile)
+            return item;
+
+        item.IsExpanded = true;
+        foreach (var child in node.Children)
+            item.Items.Add(CreateNavTreeItem(child));
+
+        return item;
+    }
+
+    private void OnNavigationTreeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_host is null || _navTree?.SelectedItem is not TreeViewItem { Tag: BookNavigationNode node } || !node.IsFile || node.FilePath is null)
             return;
 
         if (_host.Session.IsDirty)
@@ -469,8 +541,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
         try
         {
-            var chapter = _currentBook.Chapters[_chapterList.SelectedIndex];
-            _host.Session.SelectFile(chapter.FilePath);
+            _host.Session.SelectFile(node.FilePath);
             _host.SetEditorText(_host.Session.EditorText);
             _host.RefreshRightRail();
             _host.UpdateDirtyIndicator();
@@ -481,6 +552,15 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         {
             _host.Feedback.FlashError(ex.Message);
         }
+    }
+
+    private ChapterInfo? GetSelectedChapter()
+    {
+        if (_currentBook is null || _host?.Session.SelectedFilePath is null)
+            return null;
+
+        return _currentBook.Chapters.FirstOrDefault(c =>
+            string.Equals(c.FilePath, _host.Session.SelectedFilePath, StringComparison.OrdinalIgnoreCase));
     }
 
     private void UpdateMetadataSummary()
@@ -552,13 +632,16 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
     private void InsertChapterTag()
     {
-        if (_host is null || _chapterList is null || _currentBook is null || _chapterList.SelectedIndex < 0)
+        if (_host is null)
+            return;
+
+        var chapter = GetSelectedChapter();
+        if (chapter is null)
         {
-            _host?.Feedback.FlashWarning("Select a chapter first.");
+            _host.Feedback.FlashWarning("Select a chapter first.");
             return;
         }
 
-        var chapter = _currentBook.Chapters[_chapterList.SelectedIndex];
         var text = _host.GetEditorText();
         var updated = MetadataInsertHelper.InsertChapterTag(text, 0, chapter.SortKey);
         _host.Session.EditorText = updated;
