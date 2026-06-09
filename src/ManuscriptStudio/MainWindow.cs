@@ -264,7 +264,7 @@ internal sealed class MainWindow : Window
 
     private void OnEditorPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property != MarkdownSourceEditor.ZoomScaleProperty)
+        if (e.Property != StudioMarkdownEditor.ZoomScaleProperty)
             return;
 
         _settings.Settings.Editor.EditorZoomScale = _editor.ZoomScale;
@@ -293,13 +293,37 @@ internal sealed class MainWindow : Window
 
     private void SyncPreviewZoomToEditor()
     {
-        _settings.Settings.Editor.PreviewZoomScale = _editor.ZoomScale;
+        SetPreviewZoom(_editor.ZoomScale);
+    }
+
+    private void OnPreviewZoomScaleChanged(double scale)
+    {
+        _settings.Settings.Editor.PreviewZoomScale = ClampZoom(scale);
+        UpdatePreviewZoomLabel();
+        if (_syncZoomToggle.IsChecked == true)
+            _editor.ZoomScale = _settings.Settings.Editor.PreviewZoomScale;
+        _settings.Save();
+        UpdateEditorZoomLabel();
+        UpdateStatus();
+    }
+
+    private void AdjustPreviewZoom(double delta) =>
+        SetPreviewZoom(_settings.Settings.Editor.PreviewZoomScale + delta);
+
+    private void SetPreviewZoom(double scale)
+    {
+        _settings.Settings.Editor.PreviewZoomScale = ClampZoom(scale);
+        UpdatePreviewZoomLabel();
         _settings.Save();
         RefreshRightRail();
+        UpdateStatus();
     }
 
     private void UpdateEditorZoomLabel() =>
         _editorZoomLabel.Text = $"{Math.Round(_editor.ZoomScale * 100)}%";
+
+    private void UpdatePreviewZoomLabel() =>
+        _previewZoomLabel.Text = $"{Math.Round(_settings.Settings.Editor.PreviewZoomScale * 100)}%";
 
     private static double ClampZoom(double scale) =>
         Math.Clamp(scale, MarkdownZoom.Minimum, MarkdownZoom.Maximum);
@@ -409,7 +433,7 @@ internal sealed class MainWindow : Window
         var path = _session.SelectedFilePath ?? "No file selected";
         var words = _session.CountWords(_session.EditorText);
         var dirty = _session.IsDirty ? " (unsaved)" : string.Empty;
-        _feedback.SetStatus($"{path}{dirty} — {words} words — editor {Math.Round(_editor.ZoomScale * 100)}%");
+        _feedback.SetStatus($"{path}{dirty} — {words} words — ed {Math.Round(_editor.ZoomScale * 100)}% · pv {Math.Round(_settings.Settings.Editor.PreviewZoomScale * 100)}%");
     }
 
     private async Task<string?> PickFolderAsync()
