@@ -6,6 +6,8 @@ internal static class MarkdownStudioCss
         html, body {
           margin: 0;
           padding: 0;
+          width: 100%;
+          box-sizing: border-box;
           background-color: #1e1e1e !important;
           color: #e8e8e8 !important;
           overflow-x: hidden;
@@ -19,8 +21,10 @@ internal static class MarkdownStudioCss
           font-family: "Segoe UI", system-ui, sans-serif;
           font-size: {{{fontSizePx}}}px;
           line-height: 1.65;
-          padding: 16px 20px 28px;
+          padding: 16px 0 28px;
+          width: 100%;
           max-width: 100%;
+          box-sizing: border-box;
           word-wrap: break-word;
           overflow-wrap: break-word;
           background-color: #1e1e1e !important;
@@ -105,6 +109,8 @@ internal static class MarkdownStudioCss
         html, body {
           margin: 0;
           padding: 0;
+          width: 100%;
+          box-sizing: border-box;
           background-color: #ffffff !important;
           color: #24292f !important;
           overflow-x: hidden;
@@ -117,8 +123,10 @@ internal static class MarkdownStudioCss
           font-family: "Segoe UI", system-ui, sans-serif;
           font-size: {{{fontSizePx}}}px;
           line-height: 1.65;
-          padding: 16px 20px 28px;
+          padding: 16px 0 28px;
+          width: 100%;
           max-width: 100%;
+          box-sizing: border-box;
           word-wrap: break-word;
           overflow-wrap: break-word;
           background-color: #ffffff !important;
