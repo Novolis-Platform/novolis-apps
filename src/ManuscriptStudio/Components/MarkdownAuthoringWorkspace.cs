@@ -213,7 +213,7 @@ internal sealed class MarkdownAuthoringWorkspace : Grid
 
     private void ApplyPreviewZoomToPane(double zoom)
     {
-        foreach (var pane in _previewBody.GetVisualDescendants().OfType<HtmlPreviewPane>())
+        foreach (var pane in _previewBody.GetVisualDescendants().OfType<MarkdownPreviewPane>())
             pane.ZoomScale = zoom;
     }
 

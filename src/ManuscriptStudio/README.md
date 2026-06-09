@@ -22,12 +22,12 @@ Preview uses themed HTML with readable typography, wrapped tables/code, and meta
 ## Preview and metadata views
 
 - Generic mode: live GFM preview (Markdig + studio CSS)
-- Book Authoring: Markdig HTML preview plus metadata-driven Mermaid **source** views:
+- Book Authoring: Markdig HTML preview (including embedded Mermaid diagrams) plus metadata-driven Mermaid **source** views:
   - **Timeline** — chapter dates from `[!date]` metadata
   - **Relationships** — character co-occurrence from `[!characters]` and `[!pov]`
   - **Map** — `[!system]` / `[!location]` hierarchy with chapter pins
 
-v1 shows Mermaid as read-only source text with Copy / Save `.mmd` in the right rail. Live diagram rendering is not included yet.
+Embedded ` ```mermaid ` blocks in markdown preview render as SVG diagrams. The Timeline/Relationships/Map right-rail tabs still show read-only Mermaid source with Copy / Save `.mmd`.
 
 ## Export
 

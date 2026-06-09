@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Markdig;
 using ManuscriptStudio.Extensions.BookAuthoring.Content;
+using Novolis.Avalonia.Markdown;
 
 namespace ManuscriptStudio.Extensions.BookAuthoring.Rendering;
 
@@ -9,17 +9,13 @@ internal sealed class BookPreviewRenderer
 {
     private static readonly Regex MetadataBlockquote = new(@"^>\s*\[!", RegexOptions.Compiled);
 
-    private readonly MarkdownPipeline _pipeline = new MarkdownPipelineBuilder()
-        .UseAdvancedExtensions()
-        .Build();
-
-    public string ToBodyHtml(string markdown, bool debugMetadata)
+    public string ToBodyHtml(string markdown, bool debugMetadata, MarkdownPreviewTheme theme = MarkdownPreviewTheme.StudioDark)
     {
         if (string.IsNullOrEmpty(markdown))
             return "<p></p>";
 
         var processed = PreprocessMetadataBlockquotes(markdown, debugMetadata);
-        return Markdown.ToHtml(processed, _pipeline);
+        return MarkdownPreviewPipeline.ToBodyHtml(processed, theme);
     }
 
     private static string PreprocessMetadataBlockquotes(string markdown, bool debugMetadata)
@@ -43,7 +39,6 @@ internal sealed class BookPreviewRenderer
                 i++;
             }
 
-            var blockText = string.Join("\n", blockLines);
             var plain = string.Join("\n", blockLines.Select(l => l.TrimStart().TrimStart('>').Trim()));
             var rows = ChapterMetadata.ParseFromMarkdown(plain);
             var visible = ChapterMetadata.FilterForBuild(rows, debugMetadata);

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Layout;
 using ManuscriptStudio.Core;
+using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
 
 namespace ManuscriptStudio.Extensions.GenericMarkdown;
@@ -11,7 +12,7 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
 
     private TreeView? _fileTree;
     private ManuscriptHostContext? _host;
-    private HtmlPreviewPane? _previewPanel;
+    private MarkdownPreviewPane? _previewPanel;
 
     public string Id => ExtensionId;
     public string DisplayName => "Generic Markdown";
@@ -73,9 +74,9 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
 
     public void OnDeactivated(ManuscriptHostContext host) => _host = null;
 
-    private HtmlPreviewPane CreatePreviewPane(ManuscriptHostContext host)
+    private MarkdownPreviewPane CreatePreviewPane(ManuscriptHostContext host)
     {
-        var pane = new HtmlPreviewPane
+        var pane = new MarkdownPreviewPane
         {
             ZoomScale = host.PreviewZoomScale,
             PreviewTheme = host.PreviewTheme,
@@ -91,7 +92,7 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
 
         _previewPanel.PreviewTheme = host.PreviewTheme;
         _previewPanel.ZoomScale = host.PreviewZoomScale;
-        _previewPanel.DocumentBodyHtml = MarkdownStudioHtml.BodyFromMarkdown(host.GetEditorText());
+        _previewPanel.Markdown = host.GetEditorText();
     }
 
     private async void OpenWorkspace(string path)

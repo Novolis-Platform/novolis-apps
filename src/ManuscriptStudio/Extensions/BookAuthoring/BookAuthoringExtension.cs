@@ -8,6 +8,7 @@ using ManuscriptStudio.Extensions.BookAuthoring.Helpers;
 using ManuscriptStudio.Extensions.BookAuthoring.Navigation;
 using ManuscriptStudio.Extensions.BookAuthoring.Rendering;
 using ManuscriptStudio.Extensions.BookAuthoring.Views;
+using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
 
 namespace ManuscriptStudio.Extensions.BookAuthoring;
@@ -27,7 +28,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
     private TreeView? _navTree;
     private TextBlock? _metadataSummary;
     private ComboBox? _viewCombo;
-    private HtmlPreviewPane? _previewPanel;
+    private MarkdownPreviewPane? _previewPanel;
     private TextBox? _mermaidSource;
     private Grid? _rightRailRoot;
     private StackPanel? _mermaidHeader;
@@ -212,9 +213,9 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
     public void OnDeactivated(ManuscriptHostContext host) => _host = null;
 
-    private HtmlPreviewPane CreatePreviewPane(ManuscriptHostContext host)
+    private MarkdownPreviewPane CreatePreviewPane(ManuscriptHostContext host)
     {
-        var pane = new HtmlPreviewPane
+        var pane = new MarkdownPreviewPane
         {
             ZoomScale = host.PreviewZoomScale,
             PreviewTheme = host.PreviewTheme,
@@ -245,7 +246,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
                 var debug = _host.Settings.Settings.BookAuthoring.DebugMetadata || (_currentBook?.DebugMode ?? false);
                 _previewPanel.PreviewTheme = _host.PreviewTheme;
                 _previewPanel.ZoomScale = _host.PreviewZoomScale;
-                _previewPanel.DocumentBodyHtml = _previewRenderer.ToBodyHtml(_host.GetEditorText(), debug);
+                _previewPanel.DocumentBodyHtml = _previewRenderer.ToBodyHtml(_host.GetEditorText(), debug, _host.PreviewTheme);
             }
 
             return;
