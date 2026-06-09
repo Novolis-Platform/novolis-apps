@@ -1,0 +1,14 @@
+name: Pull request
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  ci:
+    uses: Novolis-Platform/novolis-workflows/.github/workflows/dotnet-pull-request.yml@main
+    secrets: inherit
+    with:
+      solution: Novolis.Apps.slnx
+      run_tests: false
+    permissions:
+      contents: read
+      packages: read

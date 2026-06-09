@@ -1,0 +1,18 @@
+name: Merge
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  workflow_dispatch:
+jobs:
+  ci:
+    uses: Novolis-Platform/novolis-workflows/.github/workflows/dotnet-pull-request.yml@main
+    secrets: inherit
+    with:
+      solution: Novolis.Apps.slnx
+      run_tests: false
+    permissions:
+      contents: read
+      packages: read
