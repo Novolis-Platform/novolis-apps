@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using ManuscriptStudio.Editing;
 using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
 
@@ -7,7 +6,7 @@ namespace ManuscriptStudio.Core;
 
 internal sealed class ManuscriptHostContext
 {
-    public required StudioMarkdownEditor Editor { get; init; }
+    public required MarkdownSourceEditor Editor { get; init; }
 
     public required EditorSession Session { get; init; }
     public required ManuscriptSettingsStore Settings { get; init; }

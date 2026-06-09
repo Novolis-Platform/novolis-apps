@@ -2,7 +2,7 @@ namespace ManuscriptStudio.Core;
 
 internal static class MarkdownStudioCss
 {
-    public static string Dark(double fontSizePx) => """
+    public static string Dark(double fontSizePx) => $$$"""
         html, body {
           margin: 0;
           padding: 0;
@@ -17,7 +17,7 @@ internal static class MarkdownStudioCss
         }
         .markdown-body.studio {
           font-family: "Segoe UI", system-ui, sans-serif;
-          font-size: """ + fontSizePx + """px;
+          font-size: {{{fontSizePx}}}px;
           line-height: 1.65;
           padding: 16px 20px 28px;
           max-width: 100%;
@@ -101,7 +101,7 @@ internal static class MarkdownStudioCss
         .markdown-body.studio img { max-width: 100%; height: auto; }
         """;
 
-    public static string GitHubLight(double fontSizePx) => """
+    public static string GitHubLight(double fontSizePx) => $$$"""
         html, body {
           margin: 0;
           padding: 0;
@@ -115,7 +115,7 @@ internal static class MarkdownStudioCss
         }
         .markdown-body.github-light {
           font-family: "Segoe UI", system-ui, sans-serif;
-          font-size: """ + fontSizePx + """px;
+          font-size: {{{fontSizePx}}}px;
           line-height: 1.65;
           padding: 16px 20px 28px;
           max-width: 100%;

@@ -8,7 +8,6 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using ManuscriptStudio.Core;
-using ManuscriptStudio.Editing;
 using ManuscriptStudio.Extensions.GenericMarkdown;
 using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
@@ -21,7 +20,7 @@ internal sealed class MainWindow : Window
     private readonly ManuscriptSettingsStore _settings;
     private readonly ManuscriptExtensionRegistry _registry;
 
-    private readonly StudioMarkdownEditor _editor = new()
+    private readonly MarkdownSourceEditor _editor = new()
     {
         PlaceholderText = "Select a file or chapter…",
         Margin = new Thickness(8, 4, 8, 8),
@@ -264,7 +263,7 @@ internal sealed class MainWindow : Window
 
     private void OnEditorPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property != StudioMarkdownEditor.ZoomScaleProperty)
+        if (e.Property != MarkdownSourceEditor.ZoomScaleProperty)
             return;
 
         _settings.Settings.Editor.EditorZoomScale = _editor.ZoomScale;

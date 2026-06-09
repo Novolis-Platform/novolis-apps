@@ -16,7 +16,7 @@ Studio-style markdown editing (VS Code source + Obsidian-style reading pane):
 | Sync zoom | **Sync zoom** links editor and preview scale | |
 | Theme | — | **Light preview** toggle (dark default) |
 
-Editor uses `MarkdownSourceEditor`: dark monospace gutter with line numbers, active-line sync, Cascadia/Consolas stack.
+Editor uses `MarkdownSourceEditor` (AvaloniaEdit): line numbers, current-line highlight, word wrap, Cascadia/Consolas stack.
 
 Preview uses themed HTML with readable typography, wrapped tables/code, and metadata styling in Book Authoring mode.
 
