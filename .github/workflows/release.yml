@@ -89,19 +89,11 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $scriptPath = Join-Path $env:INSTALLER_DIR 'manuscript-studio.iss'
-          dotnet msbuild $env:APP_PROJECT `
-            -t:NovolisGenerateInnoScript `
-            -p:NovolisInnoAppName='Manuscript Studio' `
-            -p:NovolisInnoAppVersion=$env:PACKAGE_VERSION `
-            -p:NovolisInnoPublishDir=$env:APP_PUBLISH_DIR `
-            -p:NovolisInnoAppExeName='ManuscriptStudio.exe' `
-            -p:NovolisInnoOutputDir=$env:INSTALLER_DIR `
-            -p:NovolisInnoAppId='Novolis.ManuscriptStudio' `
-            -p:NovolisInnoDefaultGroupName='Manuscript Studio' `
-            -p:NovolisInnoOutputBaseFilename="ManuscriptStudioSetup-$env:PACKAGE_VERSION-win-x64" `
-            -p:NovolisInnoInstallDirName='Novolis\Manuscript Studio' `
-            -p:NovolisInnoScriptPath=$scriptPath
-          if ($LASTEXITCODE -ne 0) { throw "Generating the Inno script failed with exit code $LASTEXITCODE." }
+          & "${{ github.workspace }}/scripts/generate-manuscript-studio-iss.ps1" `
+            -AppVersion $env:PACKAGE_VERSION `
+            -PublishDir $env:APP_PUBLISH_DIR `
+            -OutputDir $env:INSTALLER_DIR `
+            -ScriptPath $scriptPath
 
       - name: Install Inno Setup
         shell: pwsh

@@ -69,18 +69,11 @@ if ($SkipInstaller) {
 }
 
 $scriptPath = Join-Path $installerDir 'manuscript-studio.iss'
-dotnet msbuild $appProject `
-    -t:NovolisGenerateInnoScript `
-    -p:NovolisInnoAppName='Manuscript Studio' `
-    -p:NovolisInnoAppVersion=$packageVersion `
-    -p:NovolisInnoPublishDir=$publishDir `
-    -p:NovolisInnoAppExeName='ManuscriptStudio.exe' `
-    -p:NovolisInnoOutputDir=$installerDir `
-    -p:NovolisInnoAppId='Novolis.ManuscriptStudio' `
-    -p:NovolisInnoDefaultGroupName='Manuscript Studio' `
-    -p:NovolisInnoOutputBaseFilename="ManuscriptStudioSetup-$packageVersion-win-x64" `
-    -p:NovolisInnoInstallDirName='Novolis\Manuscript Studio' `
-    -p:NovolisInnoScriptPath=$scriptPath
+& (Join-Path $PSScriptRoot 'generate-manuscript-studio-iss.ps1') `
+    -AppVersion $packageVersion `
+    -PublishDir $publishDir `
+    -OutputDir $installerDir `
+    -ScriptPath $scriptPath
 
 $iscc = @(
     "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
