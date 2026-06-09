@@ -156,6 +156,7 @@ internal sealed class MarkdownAuthoringWorkspace : Grid
     {
         _previewBody.Children.Clear();
         _previewBody.Children.Add(content);
+        ApplyPreviewZoomToPane(ClampZoom(_settings.Settings.Editor.PreviewZoomScale));
     }
 
     public void ApplySettings()
@@ -169,6 +170,7 @@ internal sealed class MarkdownAuthoringWorkspace : Grid
         _syncZoomToggle.IsChecked = editor.SyncZoom;
         UpdateEditorZoomLabel();
         UpdatePreviewZoomLabel();
+        ApplyPreviewZoomToPane(editor.PreviewZoomScale);
     }
 
     public void PersistEditorSettings()
@@ -198,13 +200,19 @@ internal sealed class MarkdownAuthoringWorkspace : Grid
         var clamped = ClampZoom(scale);
         _settings.Settings.Editor.PreviewZoomScale = clamped;
         UpdatePreviewZoomLabel();
+        ApplyPreviewZoomToPane(clamped);
 
         if (_syncZoomToggle.IsChecked == true)
             Editor.ZoomScale = clamped;
 
         _settings.Save();
-        PreviewRefreshRequested?.Invoke(this, EventArgs.Empty);
         SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ApplyPreviewZoomToPane(double zoom)
+    {
+        foreach (var pane in _previewBody.GetVisualDescendants().OfType<HtmlPreviewPane>())
+            pane.ZoomScale = zoom;
     }
 
     public void FocusEditor() => Editor.FocusEditor();

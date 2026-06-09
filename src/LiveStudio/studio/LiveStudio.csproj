@@ -5,9 +5,14 @@
     <RootNamespace>LiveStudio</RootNamespace>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <LiveStudioHostProject>$(MSBuildThisFileDirectory)..\host\LiveStudio.Host.csproj</LiveStudioHostProject>
+    <LiveStudioLauncherProject>$(MSBuildThisFileDirectory)..\launcher\LiveStudio.Launcher.csproj</LiveStudioLauncherProject>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\shared\LiveStudio.Shared.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
@@ -23,11 +28,17 @@
   <Target Name="BundleLiveHostOnPublish" AfterTargets="Publish">
     <PropertyGroup>
       <_LiveHostPublishDir>$(PublishDir)host\</_LiveHostPublishDir>
+      <_LiveLauncherPublishDir>$(PublishDir)launcher\</_LiveLauncherPublishDir>
     </PropertyGroup>
     <MSBuild
       Projects="$(LiveStudioHostProject)"
       Targets="Publish"
       Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(_LiveHostPublishDir);PublishSingleFile=$(PublishSingleFile);IncludeNativeLibrariesForSelfExtract=$(IncludeNativeLibrariesForSelfExtract)" />
+    <MSBuild
+      Projects="$(LiveStudioLauncherProject)"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(_LiveLauncherPublishDir);PublishSingleFile=$(PublishSingleFile);IncludeNativeLibrariesForSelfExtract=$(IncludeNativeLibrariesForSelfExtract)" />
     <Message Importance="high" Text="Live Studio: bundled host into $(_LiveHostPublishDir)" />
+    <Message Importance="high" Text="Live Studio: bundled launcher into $(_LiveLauncherPublishDir)" />
   </Target>
 </Project>

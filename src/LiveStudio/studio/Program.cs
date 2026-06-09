@@ -5,12 +5,12 @@ namespace LiveStudio;
 
 internal static class Program
 {
-    internal static LiveStudioLauncher Launcher { get; private set; } = null!;
+    internal static LiveStudioRuntime Runtime { get; private set; } = null!;
 
     [STAThread]
     public static void Main(string[] args)
     {
-        Launcher = new LiveStudioLauncher();
+        Runtime = new LiveStudioRuntime();
 
         try
         {
@@ -18,7 +18,7 @@ internal static class Program
         }
         finally
         {
-            Launcher.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            Runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
 

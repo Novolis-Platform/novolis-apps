@@ -16,7 +16,7 @@ internal sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow(Program.Launcher.Session);
+            desktop.MainWindow = new MainWindow(Program.Runtime.Session);
             desktop.ShutdownRequested += OnShutdownRequested;
         }
 
@@ -24,5 +24,5 @@ internal sealed class App : Application
     }
 
     private static void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e) =>
-        Program.Launcher.RequestShutdown();
+        Program.Runtime.RequestShutdown();
 }

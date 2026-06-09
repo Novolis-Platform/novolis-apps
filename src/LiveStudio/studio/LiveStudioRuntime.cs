@@ -1,15 +1,15 @@
 namespace LiveStudio;
 
 /// <summary>
-/// Owns the live studio session lifecycle so the host starts with the UI and shuts down on exit.
+/// Owns the studio session lifecycle for the Avalonia UI process.
 /// </summary>
-internal sealed class LiveStudioLauncher : IAsyncDisposable
+internal sealed class LiveStudioRuntime : IAsyncDisposable
 {
     private readonly CancellationTokenSource _shutdown = new();
     private Task? _startTask;
     private bool _disposed;
 
-    public LiveStudioLauncher()
+    public LiveStudioRuntime()
     {
         Session = new LiveStudioSession();
     }

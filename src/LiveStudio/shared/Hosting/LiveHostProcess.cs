@@ -1,15 +1,25 @@
 using System.Diagnostics;
 
-namespace LiveStudio;
+namespace LiveStudio.Shared.Hosting;
 
-internal sealed class LiveHostProcess : IAsyncDisposable
+public sealed class LiveHostProcess : IAsyncDisposable
 {
     private Process? _process;
 
+    public bool IsRunning => _process is { HasExited: false };
+
+    public int? ProcessId => _process?.HasExited == false ? _process.Id : null;
+
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        if (_process is not null)
+        if (IsRunning)
             return;
+
+        if (_process is not null)
+        {
+            _process.Dispose();
+            _process = null;
+        }
 
         var startInfo = CreateStartInfo();
 
@@ -18,6 +28,15 @@ internal sealed class LiveHostProcess : IAsyncDisposable
 
         _ = DrainAsync(_process.StandardOutput, Console.Out, cancellationToken);
         _ = DrainAsync(_process.StandardError, Console.Error, cancellationToken);
+    }
+
+    public async Task<int> WaitForExitAsync(CancellationToken cancellationToken = default)
+    {
+        if (_process is null)
+            throw new InvalidOperationException("The live host has not been started.");
+
+        await _process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        return _process.ExitCode;
     }
 
     public async ValueTask DisposeAsync()
@@ -29,25 +48,7 @@ internal sealed class LiveHostProcess : IAsyncDisposable
         try
         {
             if (!process.HasExited)
-            {
-                if (OperatingSystem.IsWindows())
-                {
-                    try
-                    {
-                        process.CloseMainWindow();
-                        if (!process.WaitForExit(1500))
-                            process.Kill(entireProcessTree: true);
-                    }
-                    catch
-                    {
-                        process.Kill(entireProcessTree: true);
-                    }
-                }
-                else
-                {
-                    process.Kill(entireProcessTree: true);
-                }
-            }
+                process.Kill(entireProcessTree: true);
         }
         catch
         {
@@ -68,7 +69,7 @@ internal sealed class LiveHostProcess : IAsyncDisposable
 
     private static ProcessStartInfo CreateStartInfo()
     {
-        if (TryResolvePublishedHostExecutable(out var executablePath, out var useDotNet))
+        if (LiveHostPaths.TryResolvePublishedHostExecutable(AppContext.BaseDirectory, out var executablePath, out var useDotNet))
         {
             var publishedStartInfo = new ProcessStartInfo
             {
@@ -92,7 +93,7 @@ internal sealed class LiveHostProcess : IAsyncDisposable
             return publishedStartInfo;
         }
 
-        var projectPath = ResolveHostProjectPath();
+        var projectPath = LiveHostPaths.ResolveHostProjectPath();
         var workingDirectory = Path.GetDirectoryName(projectPath)
             ?? throw new InvalidOperationException($"Unable to resolve working directory for {projectPath}.");
 
@@ -131,68 +132,5 @@ internal sealed class LiveHostProcess : IAsyncDisposable
         catch (OperationCanceledException)
         {
         }
-    }
-
-    private static string ResolveHostProjectPath()
-    {
-        var appsRoot = FindAncestorDirectory("novolis-apps");
-        var projectPath = Path.Combine(appsRoot, "src", "LiveStudio", "host", "LiveStudio.Host.csproj");
-
-        if (!File.Exists(projectPath))
-            throw new FileNotFoundException("Unable to locate the Novolis Audio live host project.", projectPath);
-
-        return projectPath;
-    }
-
-    private static bool TryResolvePublishedHostExecutable(out string executablePath, out bool useDotNet)
-    {
-        var overridePath = Environment.GetEnvironmentVariable("NOVOLIS_AUDIO_LIVE_HOST_PATH");
-        if (!string.IsNullOrWhiteSpace(overridePath))
-        {
-            var candidate = Path.GetFullPath(overridePath);
-            if (File.Exists(candidate))
-            {
-                executablePath = candidate;
-                useDotNet = Path.GetExtension(candidate).Equals(".dll", StringComparison.OrdinalIgnoreCase);
-                return true;
-            }
-        }
-
-        var publishRoot = AppContext.BaseDirectory;
-        var hostName = OperatingSystem.IsWindows() ? "Novolis.Audio.Live.Host.exe" : "Novolis.Audio.Live.Host";
-        var candidateHost = Path.Combine(publishRoot, "host", hostName);
-        if (File.Exists(candidateHost))
-        {
-            executablePath = candidateHost;
-            useDotNet = false;
-            return true;
-        }
-
-        var candidateDll = Path.Combine(publishRoot, "host", "Novolis.Audio.Live.Host.dll");
-        if (File.Exists(candidateDll))
-        {
-            executablePath = candidateDll;
-            useDotNet = true;
-            return true;
-        }
-
-        executablePath = string.Empty;
-        useDotNet = false;
-        return false;
-    }
-
-    private static string FindAncestorDirectory(string name)
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (current is not null)
-        {
-            if (string.Equals(current.Name, name, StringComparison.OrdinalIgnoreCase))
-                return current.FullName;
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException($"Unable to locate the '{name}' repository root from {AppContext.BaseDirectory}.");
     }
 }

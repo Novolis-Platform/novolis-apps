@@ -26,6 +26,7 @@ internal sealed class HtmlPreviewPane : Border
 
     private readonly HtmlPanel _html;
     private readonly ScrollViewer _scroll;
+    private readonly ScaleTransform _scale;
     private string? _lastBodyHtml;
 
     public HtmlPreviewPane()
@@ -33,10 +34,13 @@ internal sealed class HtmlPreviewPane : Border
         BorderThickness = new Thickness(0);
         ClipToBounds = true;
 
+        _scale = new ScaleTransform(1, 1);
         _html = new HtmlPanel
         {
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
+            RenderTransform = _scale,
+            RenderTransformOrigin = new RelativePoint(0, 0, RelativeUnit.Relative),
         };
 
         _scroll = new ScrollViewer
@@ -89,7 +93,7 @@ internal sealed class HtmlPreviewPane : Border
         }
         else if (change.Property == ZoomScaleProperty)
         {
-            RefreshHtml();
+            ApplyLayout();
             ZoomScaleChanged?.Invoke(this, ZoomScale);
         }
     }
@@ -110,27 +114,31 @@ internal sealed class HtmlPreviewPane : Border
 
     private void RefreshHtml()
     {
-        var zoom = Math.Clamp(ZoomScale, MarkdownZoom.Minimum, MarkdownZoom.Maximum);
-        if (Math.Abs(zoom - ZoomScale) > 0.0001)
-            SetCurrentValue(ZoomScaleProperty, zoom);
-
         var body = _lastBodyHtml ?? DocumentBodyHtml ?? string.Empty;
-        _html.Text = MarkdownStudioHtml.WrapBody(body, PreviewTheme, zoom);
+        _html.Text = MarkdownStudioHtml.WrapBody(body, PreviewTheme, zoomScale: 1.0);
         ApplyThemeChrome();
         ApplyLayout();
     }
 
     private void ApplyLayout()
     {
+        var zoom = Math.Clamp(ZoomScale, MarkdownZoom.Minimum, MarkdownZoom.Maximum);
+        if (Math.Abs(zoom - ZoomScale) > 0.0001)
+            SetCurrentValue(ZoomScaleProperty, zoom);
+
+        _scale.ScaleX = zoom;
+        _scale.ScaleY = zoom;
+
         var viewportWidth = _scroll.Viewport.Width;
         if (viewportWidth <= 0)
             return;
 
         var sideInset = viewportWidth * SideMarginFraction;
         var contentWidth = Math.Max(1, viewportWidth - (2 * sideInset));
+        var layoutWidth = contentWidth / zoom;
 
         _html.Margin = new Thickness(sideInset, 0, sideInset, 0);
-        _html.Width = contentWidth;
-        _html.MaxWidth = contentWidth;
+        _html.Width = layoutWidth;
+        _html.MaxWidth = layoutWidth;
     }
 }

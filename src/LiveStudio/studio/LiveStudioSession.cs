@@ -1,3 +1,4 @@
+using LiveStudio.Shared.Launcher;
 using Novolis.Audio.Live;
 using Novolis.Audio.Live.Protocol;
 using Novolis.Audio.Live.Protocol.Dto;
@@ -8,8 +9,8 @@ namespace LiveStudio;
 
 internal sealed class LiveStudioSession : IAsyncDisposable
 {
-    private readonly LiveHostProcess _host = new();
-    private readonly LiveReplClient _client = new();
+    private readonly LiveLauncherClient _launcher = new();
+    private LiveReplClient _client = new();
     private readonly SemaphoreSlim _clientGate = new(1, 1);
     private readonly CancellationTokenSource _shutdown = new();
     private readonly IReadOnlyList<LiveProgramPreset> _presets = LiveSamplePrograms.CreateShowcasePresets();
@@ -17,13 +18,16 @@ internal sealed class LiveStudioSession : IAsyncDisposable
     private LiveGraphNode? _graph;
     private LiveTransportSnapshotDto? _snapshot;
     private IReadOnlyList<LiveDiagnosticDto> _diagnostics = [];
-    private string _connectionStatus = "Starting local host...";
-    private string _activityStatus = "Preparing the showcase.";
-    private string _currentPresetName = "Waiting...";
+    private string _launcherStatus = "Connecting to launcher...";
+    private string _connectionStatus = "Waiting for launcher...";
+    private string _activityStatus = "Write live code and compile to the host.";
+    private string _currentPresetName = "No program loaded";
     private string? _nextPresetName;
     private string? _errorMessage;
+    private bool _hasFatalLauncherError;
+    private int _lastLauncherRestartCount;
     private Task? _pollingTask;
-    private Task? _showcaseTask;
+    private Task? _reconnectTask;
     private bool _started;
 
     public event Action<LiveStudioState>? StateChanged;
@@ -34,38 +38,83 @@ internal sealed class LiveStudioSession : IAsyncDisposable
             return;
 
         _started = true;
-
         PublishState();
 
-        await _host.StartAsync(cancellationToken).ConfigureAwait(false);
+        _launcher.StatusChanged += OnLauncherStatusChanged;
+        await _launcher.ConnectAsync(cancellationToken).ConfigureAwait(false);
 
+        var launcherStatus = await _launcher.WaitForHostReadyAsync(cancellationToken).ConfigureAwait(false);
+        _launcherStatus = launcherStatus.Message;
+        _lastLauncherRestartCount = launcherStatus.RestartCount;
         _connectionStatus = "Host online. Connecting over local IPC...";
         PublishState();
 
-        await _client.ConnectAsync(LiveTransportEndpoints.CreateDefault(), cancellationToken).ConfigureAwait(false);
+        await ConnectToHostAsync(cancellationToken).ConfigureAwait(false);
 
         _connectionStatus = "Connected to the live host.";
-        _activityStatus = "Loading the first showcase preset.";
+        _activityStatus = "Ready. Press Compile to send code to the host.";
         PublishState();
 
         _pollingTask = PollSnapshotsAsync(_shutdown.Token);
-        _showcaseTask = RunShowcaseAsync(_shutdown.Token);
+    }
+
+    public async Task CompileSourceAsync(string source, SwapPolicy swapPolicy, CancellationToken cancellationToken = default)
+    {
+        if (_hasFatalLauncherError)
+            throw new InvalidOperationException(_errorMessage ?? "The launcher reported a fatal host error.");
+
+        try
+        {
+            _activityStatus = "Compiling live code on the host...";
+            PublishState();
+
+            var response = await SendAsync(
+                token => _client.CompileTextAsync(source, swapPolicy, token),
+                cancellationToken).ConfigureAwait(false);
+
+            _currentPresetName = "Live buffer";
+            _nextPresetName = null;
+
+            if (response.Success && response.Program is not null)
+            {
+                _activityStatus = $"Compiled live code as v{response.Program.Version} · swap {swapPolicy}.";
+                _diagnostics = response.Diagnostics;
+
+                lock (_stateGate)
+                {
+                    _graph = LiveVisualProjection.FromProgram(response.Program.ToDomain());
+                }
+
+                _errorMessage = null;
+            }
+            else
+            {
+                _activityStatus = "Compile rejected.";
+                _diagnostics = response.Diagnostics;
+                _errorMessage = response.Diagnostics.Length > 0
+                    ? string.Join(" ", response.Diagnostics.Select(d => $"{d.Code}: {d.Message}"))
+                    : "Compile rejected by the live host.";
+            }
+
+            await PublishSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            PublishState();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _activityStatus = "Compile failed.";
+            _errorMessage = ex.Message;
+            PublishState();
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
         _shutdown.Cancel();
-
-        if (_showcaseTask is not null)
-        {
-            try
-            {
-                await _showcaseTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        }
+        _launcher.StatusChanged -= OnLauncherStatusChanged;
 
         if (_pollingTask is not null)
         {
@@ -78,73 +127,78 @@ internal sealed class LiveStudioSession : IAsyncDisposable
             }
         }
 
+        if (_reconnectTask is not null)
+        {
+            try
+            {
+                await _reconnectTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
         await _client.DisposeAsync().ConfigureAwait(false);
-        await _host.DisposeAsync().ConfigureAwait(false);
+        await _launcher.DisposeAsync().ConfigureAwait(false);
         _clientGate.Dispose();
         _shutdown.Dispose();
     }
 
-    private async Task RunShowcaseAsync(CancellationToken cancellationToken)
+    private void OnLauncherStatusChanged(LiveLauncherStatus status)
     {
-        try
-        {
-            for (var i = 0; i < _presets.Count; i++)
-            {
-                var preset = _presets[i];
-                if (preset.DelayBeforeCompile > TimeSpan.Zero)
-                    await Task.Delay(preset.DelayBeforeCompile, cancellationToken).ConfigureAwait(false);
+        _launcherStatus = status.Message;
 
-                await CompilePresetAsync(preset, cancellationToken).ConfigureAwait(false);
+        if (status.IsFatal)
+        {
+            _hasFatalLauncherError = true;
+            _errorMessage = status.Message;
+            _connectionStatus = "Launcher stopped the host.";
+            _activityStatus = "The studio cannot continue because the host could not be recovered.";
+        }
+        else if (status.State == LiveLauncherState.Restarting)
+        {
+            _connectionStatus = "Host is restarting...";
+            _activityStatus = status.Message;
+            _errorMessage = null;
+        }
+        else if (status.IsHostReady)
+        {
+            _connectionStatus = _client.IsConnected ? "Connected to the live host." : "Host is ready.";
+            _errorMessage = null;
+            _hasFatalLauncherError = false;
+
+            if (status.RestartCount > _lastLauncherRestartCount)
+            {
+                _lastLauncherRestartCount = status.RestartCount;
+                _reconnectTask = ReconnectToHostAsync(_shutdown.Token);
             }
         }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception ex)
-        {
-            _activityStatus = "The showcase stopped unexpectedly.";
-            _errorMessage = ex.Message;
-            PublishState();
-        }
+
+        PublishState();
     }
 
-    private async Task CompilePresetAsync(LiveProgramPreset preset, CancellationToken cancellationToken)
+    private async Task ConnectToHostAsync(CancellationToken cancellationToken)
+    {
+        if (!_client.IsConnected)
+            await _client.ConnectAsync(LiveTransportEndpoints.CreateDefault(), cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ReconnectToHostAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var response = await SendAsync(
-                token => _client.CompileAsync(preset.Definition, preset.SwapPolicy, token),
-                cancellationToken).ConfigureAwait(false);
+            _connectionStatus = "Reconnecting to restarted host...";
+            _activityStatus = "Waiting for the relaunched host IPC endpoint.";
+            PublishState();
 
-            _currentPresetName = preset.Name;
-            var nextPreset = NextPresetAfter(preset);
-            _nextPresetName = nextPreset?.Name;
+            await _client.DisposeAsync().ConfigureAwait(false);
+            _client = new LiveReplClient();
+            await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+            await ConnectToHostAsync(cancellationToken).ConfigureAwait(false);
 
-            if (response.Success && response.Program is not null)
-            {
-                _activityStatus = response.Program.Version == preset.Version
-                    ? $"Loaded {preset.Name} · swap {preset.SwapPolicy}."
-                    : $"Loaded {preset.Name} as v{response.Program.Version} · swap {preset.SwapPolicy}.";
-
-                _diagnostics = response.Diagnostics;
-
-                lock (_stateGate)
-                {
-                    _graph = LiveVisualProjection.FromProgram(response.Program.ToDomain());
-                }
-
-                _errorMessage = null;
-            }
-            else
-            {
-                _activityStatus = $"Compile rejected for {preset.Name}.";
-                _diagnostics = response.Diagnostics;
-                _errorMessage = response.Diagnostics.Length > 0
-                    ? string.Join(" ", response.Diagnostics.Select(d => $"{d.Code}: {d.Message}"))
-                    : $"Compile rejected for {preset.Name}.";
-            }
-
-            await PublishSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            _connectionStatus = "Connected to the live host.";
+            _activityStatus = "Host recovered. Recompile to resume playback.";
+            _errorMessage = null;
             PublishState();
         }
         catch (OperationCanceledException)
@@ -152,7 +206,8 @@ internal sealed class LiveStudioSession : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _activityStatus = $"Unable to compile {preset.Name}.";
+            _connectionStatus = "Unable to reconnect to the host.";
+            _activityStatus = ex.Message;
             _errorMessage = ex.Message;
             PublishState();
         }
@@ -165,7 +220,12 @@ internal sealed class LiveStudioSession : IAsyncDisposable
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
 
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (_hasFatalLauncherError)
+                    break;
+
                 await PublishSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -174,6 +234,9 @@ internal sealed class LiveStudioSession : IAsyncDisposable
 
     private async Task PublishSnapshotAsync(CancellationToken cancellationToken)
     {
+        if (!_client.IsConnected)
+            return;
+
         try
         {
             var snapshot = await SendAsync(token => _client.SnapshotAsync(token), cancellationToken).ConfigureAwait(false);
@@ -208,6 +271,7 @@ internal sealed class LiveStudioSession : IAsyncDisposable
         }
 
         StateChanged?.Invoke(new LiveStudioState(
+            LauncherStatus: _launcherStatus,
             ConnectionStatus: _connectionStatus,
             ActivityStatus: _activityStatus,
             CurrentPresetName: _currentPresetName,
@@ -216,18 +280,8 @@ internal sealed class LiveStudioSession : IAsyncDisposable
             Graph: graph,
             Diagnostics: _diagnostics,
             Presets: _presets,
-            ErrorMessage: _errorMessage));
-    }
-
-    private LiveProgramPreset? NextPresetAfter(LiveProgramPreset preset)
-    {
-        for (var index = 0; index < _presets.Count - 1; index++)
-        {
-            if (ReferenceEquals(_presets[index], preset) || _presets[index].Name == preset.Name)
-                return _presets[index + 1];
-        }
-
-        return null;
+            ErrorMessage: _errorMessage,
+            HasFatalLauncherError: _hasFatalLauncherError));
     }
 
     private async ValueTask<T> SendAsync<T>(Func<CancellationToken, ValueTask<T>> action, CancellationToken cancellationToken)

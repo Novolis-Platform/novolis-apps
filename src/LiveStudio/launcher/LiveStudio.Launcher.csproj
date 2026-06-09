@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Novolis.Audio.Live.Launcher</AssemblyName>
+    <RootNamespace>LiveStudio.Launcher</RootNamespace>
+    <Description>Orchestrates and supervises the Novolis Audio Live host process.</Description>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LiveStudioHostProject>$(MSBuildThisFileDirectory)..\host\LiveStudio.Host.csproj</LiveStudioHostProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\shared\LiveStudio.Shared.csproj" />
+  </ItemGroup>
+  <Target Name="BundleLiveHostOnPublish" AfterTargets="Publish">
+    <PropertyGroup>
+      <_LiveHostPublishDir>$(PublishDir)..\host\</_LiveHostPublishDir>
+    </PropertyGroup>
+    <MSBuild
+      Projects="$(LiveStudioHostProject)"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(_LiveHostPublishDir);PublishSingleFile=$(PublishSingleFile);IncludeNativeLibrariesForSelfExtract=$(IncludeNativeLibrariesForSelfExtract)" />
+    <Message Importance="high" Text="Live Launcher: bundled host into $(_LiveHostPublishDir)" />
+  </Target>
+</Project>

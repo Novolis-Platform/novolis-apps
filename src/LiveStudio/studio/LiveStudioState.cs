@@ -4,6 +4,7 @@ using Novolis.Audio.Live.Visuals;
 namespace LiveStudio;
 
 internal sealed record LiveStudioState(
+    string LauncherStatus,
     string ConnectionStatus,
     string ActivityStatus,
     string CurrentPresetName,
@@ -12,4 +13,5 @@ internal sealed record LiveStudioState(
     LiveGraphNode? Graph,
     IReadOnlyList<LiveDiagnosticDto> Diagnostics,
     IReadOnlyList<LiveProgramPreset> Presets,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    bool HasFatalLauncherError = false);
