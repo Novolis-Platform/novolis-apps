@@ -8,7 +8,6 @@
     <Project Path="src/ManuscriptStudio/ManuscriptStudio.csproj" />
   </Folder>
   <Folder Name="/src/LiveStudio/">
-    <File Path="src/LiveStudio/LiveStudio.slnx" />
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
     <Project Path="src/LiveStudio/launcher/LiveStudio.Launcher.csproj" />
     <Project Path="src/LiveStudio/studio/LiveStudio.csproj" />
