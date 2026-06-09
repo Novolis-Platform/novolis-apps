@@ -12,7 +12,9 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Novolis.Avalonia.Markdown" />
     <PackageReference Include="Novolis.Avalonia.Studio" />
+    <PackageReference Include="Novolis.Markup.Mermaid" />
     <PackageReference Include="QuestPDF" />
     <PackageReference Include="YamlDotNet" />
   </ItemGroup>

@@ -8,8 +8,8 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using ManuscriptStudio.Core;
 using ManuscriptStudio.Extensions.GenericMarkdown;
+using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
-using TheArtOfDev.HtmlRenderer.Avalonia;
 
 namespace ManuscriptStudio;
 
@@ -19,15 +19,10 @@ internal sealed class MainWindow : Window
     private readonly ManuscriptSettingsStore _settings;
     private readonly ManuscriptExtensionRegistry _registry;
 
-    private readonly TextBox _editor = new()
+    private readonly MarkdownSourceEditor _editor = new()
     {
-        AcceptsReturn = true,
-        AcceptsTab = true,
-        TextWrapping = TextWrapping.Wrap,
-        FontFamily = new FontFamily("Consolas,Courier New,monospace"),
         PlaceholderText = "Select a file or chapter…",
     };
-    private readonly HtmlPanel _preview = new() { Margin = new Thickness(8) };
     private readonly TextBlock _dirtyIndicator = new()
     {
         Margin = new Thickness(8, 0),
@@ -43,11 +38,12 @@ internal sealed class MainWindow : Window
         Margin = new Thickness(0, 0, 4, 0),
     };
 
+    private readonly Grid _rightRailHost = new();
     private Grid _leftRailHost = new();
     private StudioFeedback _feedback = null!;
     private ManuscriptHostContext _hostContext = null!;
     private IManuscriptExtension _activeExtension = null!;
-    private DispatcherTimer? _previewTimer;
+    private DispatcherTimer? _rightRailTimer;
     private bool _suppressEditorChange;
 
     public MainWindow(EditorSession session, ManuscriptSettingsStore settings, ManuscriptExtensionRegistry registry)
@@ -77,7 +73,7 @@ internal sealed class MainWindow : Window
             Session = _session,
             Settings = _settings,
             Feedback = _feedback,
-            RequestPreviewRefresh = RefreshPreview,
+            RequestPreviewRefresh = RefreshRightRail,
             GetEditorText = () => _editor.Text ?? string.Empty,
             SetEditorText = text =>
             {
@@ -91,6 +87,9 @@ internal sealed class MainWindow : Window
             MainWindow = this,
             UpdateStatus = UpdateStatus,
             UpdateDirtyIndicator = UpdateDirtyIndicator,
+            RefreshRightRail = RefreshRightRail,
+            GetRightRailViewId = GetRightRailViewId,
+            SetRightRailViewId = SetRightRailViewId,
         };
 
         foreach (var ext in _registry.All)
@@ -108,14 +107,7 @@ internal sealed class MainWindow : Window
         toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
         toolbar.Children.Add(_dirtyIndicator);
 
-        var editorScroll = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = _editor,
-        };
-
-        var center = StudioWorkspace.CreateCenterColumn(toolbar, editorScroll);
+        var center = StudioWorkspace.CreateCenterColumn(toolbar, _editor);
 
         var rightRail = new Border
         {
@@ -123,7 +115,7 @@ internal sealed class MainWindow : Window
             BorderThickness = new Thickness(1, 0, 0, 0),
             Child = new ScrollViewer
             {
-                Content = _preview,
+                Content = _rightRailHost,
                 HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
                 VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             },
@@ -156,8 +148,8 @@ internal sealed class MainWindow : Window
         if (string.IsNullOrWhiteSpace(_settings.Settings.ContentRoot) && Directory.Exists("D:\\repos\\books"))
             _settings.Settings.ContentRoot = "D:\\repos\\books";
 
-        _previewTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background, (_, _) => RefreshPreview());
-        _previewTimer.Start();
+        _rightRailTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background, (_, _) => RefreshRightRail());
+        _rightRailTimer.Start();
 
         var activeId = _settings.Settings.ActiveExtensionId;
         _activeExtension = _registry.GetById(activeId);
@@ -180,7 +172,7 @@ internal sealed class MainWindow : Window
             }
         }
 
-        RefreshPreview();
+        RefreshRightRail();
         UpdateDirtyIndicator();
         UpdateStatus();
     }
@@ -198,7 +190,7 @@ internal sealed class MainWindow : Window
         ActivateExtension(next);
         _settings.Settings.ActiveExtensionId = next.Id;
         _settings.Save();
-        RefreshPreview();
+        RefreshRightRail();
         _feedback.Flash($"Mode: {next.DisplayName}");
     }
 
@@ -211,6 +203,32 @@ internal sealed class MainWindow : Window
         _extensionToolbar.Children.Clear();
         extension.ConfigureToolbar(_extensionToolbar, _hostContext);
         extension.OnActivated(_hostContext);
+        RebuildRightRail();
+    }
+
+    private void RebuildRightRail()
+    {
+        _rightRailHost.Children.Clear();
+        var viewId = GetRightRailViewId();
+        _rightRailHost.Children.Add(_activeExtension.CreateRightRail(_hostContext, viewId));
+        _activeExtension.OnRightRailViewChanged(_hostContext, viewId);
+    }
+
+    private string GetRightRailViewId()
+    {
+        if (_activeExtension.Id == Extensions.BookAuthoring.BookAuthoringExtension.ExtensionId)
+            return _settings.Settings.BookAuthoring.RightRailView;
+
+        return _activeExtension.DefaultRightRailViewId;
+    }
+
+    private void SetRightRailViewId(string viewId)
+    {
+        if (_activeExtension.Id == Extensions.BookAuthoring.BookAuthoringExtension.ExtensionId)
+        {
+            _settings.Settings.BookAuthoring.RightRailView = viewId;
+            _settings.Save();
+        }
     }
 
     private void OnEditorTextChanged(object? sender, TextChangedEventArgs e)
@@ -223,10 +241,8 @@ internal sealed class MainWindow : Window
         UpdateStatus();
     }
 
-    private void RefreshPreview()
-    {
-        _preview.Text = _activeExtension.RenderPreviewHtml(_hostContext);
-    }
+    private void RefreshRightRail() =>
+        _activeExtension.OnRightRailViewChanged(_hostContext, GetRightRailViewId());
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {

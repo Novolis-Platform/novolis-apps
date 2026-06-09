@@ -11,7 +11,13 @@ internal interface IManuscriptExtension
 
     void ConfigureToolbar(StackPanel toolbar, ManuscriptHostContext host);
 
-    string RenderPreviewHtml(ManuscriptHostContext host);
+    IReadOnlyList<RightRailViewDescriptor> GetRightRailViews();
+
+    string DefaultRightRailViewId { get; }
+
+    Control CreateRightRail(ManuscriptHostContext host, string viewId);
+
+    void OnRightRailViewChanged(ManuscriptHostContext host, string viewId);
 
     void OnActivated(ManuscriptHostContext host);
 

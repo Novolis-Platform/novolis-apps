@@ -16,4 +16,7 @@ internal sealed class ManuscriptHostContext
     public required Window MainWindow { get; init; }
     public required Action UpdateStatus { get; init; }
     public required Action UpdateDirtyIndicator { get; init; }
+    public required Action RefreshRightRail { get; init; }
+    public required Func<string> GetRightRailViewId { get; init; }
+    public required Action<string> SetRightRailViewId { get; init; }
 }

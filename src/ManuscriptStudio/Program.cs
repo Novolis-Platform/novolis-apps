@@ -17,6 +17,13 @@ internal static class Program
     {
         QuestPDF.Settings.License = LicenseType.Community;
 
+        if (args.Contains("--smoke-calypso", StringComparer.OrdinalIgnoreCase))
+        {
+            var dataRoot = Path.Combine(Path.GetTempPath(), "ManuscriptStudio-smoke");
+            Environment.ExitCode = Smoke.CalypsoViewsSmoke.Run(dataRoot);
+            return;
+        }
+
         if (args.Length > 0 && Directory.Exists(args[0]))
             StartupFolder = Path.GetFullPath(args[0]);
 

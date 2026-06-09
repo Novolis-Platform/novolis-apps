@@ -1,10 +1,14 @@
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
+using Avalonia.Media;
 using ManuscriptStudio.Core;
 using ManuscriptStudio.Extensions.BookAuthoring.Content;
 using ManuscriptStudio.Extensions.BookAuthoring.Helpers;
 using ManuscriptStudio.Extensions.BookAuthoring.Rendering;
+using ManuscriptStudio.Extensions.BookAuthoring.Views;
 using Novolis.Avalonia.Studio;
+using TheArtOfDev.HtmlRenderer.Avalonia;
 
 namespace ManuscriptStudio.Extensions.BookAuthoring;
 
@@ -14,17 +18,26 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
     private readonly ContentCatalog _catalog = new();
     private readonly BookPreviewRenderer _previewRenderer = new();
+    private readonly MermaidViewExporter _mermaidExporter = new();
 
     private ManuscriptHostContext? _host;
     private ComboBox? _seriesCombo;
     private ComboBox? _bookCombo;
     private ListBox? _chapterList;
     private TextBlock? _metadataSummary;
+    private ComboBox? _viewCombo;
+    private HtmlPanel? _previewPanel;
+    private TextBox? _mermaidSource;
+    private Grid? _rightRailRoot;
+    private StackPanel? _mermaidHeader;
+    private DockPanel? _mermaidPanel;
     private IReadOnlyList<SeriesInfo> _series = [];
     private BookInfo? _currentBook;
+    private string _activeViewId = BookViewIds.Preview;
 
     public string Id => ExtensionId;
     public string DisplayName => "Book Authoring";
+    public string DefaultRightRailViewId => BookViewIds.Preview;
 
     public Control CreateLeftRail(ManuscriptHostContext host)
     {
@@ -59,25 +72,82 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
     public void ConfigureToolbar(StackPanel toolbar, ManuscriptHostContext host)
     {
         _host = host;
-        toolbar.Children.Add(ToolbarButton("[!date]", () => InsertMetadata("date", "2496.001")));
-        toolbar.Children.Add(ToolbarButton("[!time]", () => InsertMetadata("time", "12:00")));
-        toolbar.Children.Add(ToolbarButton("[!system]", () => InsertMetadata("system", "System name")));
-        toolbar.Children.Add(ToolbarButton("[!location]", () => InsertMetadata("location", "Place")));
-        toolbar.Children.Add(ToolbarButton("[!pov]", () => InsertMetadata("pov", "Character")));
-        toolbar.Children.Add(ToolbarButton("[!characters]", () => InsertMetadata("characters", "Name, Name")));
+
+        _viewCombo = new ComboBox { MinWidth = 140, Margin = new Avalonia.Thickness(0, 0, 4, 0) };
+        foreach (var view in GetRightRailViews())
+            _viewCombo.Items.Add(view.DisplayName);
+
+        var savedView = host.Settings.Settings.BookAuthoring.RightRailView;
+        var viewIndex = GetRightRailViews().ToList().FindIndex(v => v.Id == savedView);
+        _viewCombo.SelectedIndex = viewIndex >= 0 ? viewIndex : 0;
+        _viewCombo.SelectionChanged += (_, _) => OnViewComboChanged();
+
+        toolbar.Children.Add(_viewCombo);
         toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
-        toolbar.Children.Add(ToolbarButton("Dialogue", () => InsertDialogue()));
-        toolbar.Children.Add(ToolbarButton("Thinking", () => InsertThinking()));
-        toolbar.Children.Add(ToolbarButton("Chapter tag", InsertChapterTag));
+
+        var insertBtn = new Button { Content = "Insert", Margin = new Avalonia.Thickness(0, 0, 4, 0), Padding = new Avalonia.Thickness(8, 4) };
+        insertBtn.Flyout = BuildInsertFlyout();
+        toolbar.Children.Add(insertBtn);
         toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
         toolbar.Children.Add(ToolbarButton("Debug meta", ToggleDebugMetadata));
-        toolbar.Children.Add(ToolbarButton("Export PDF", ExportPdf));
+
+        var exportBtn = new Button { Content = "Export", Margin = new Avalonia.Thickness(0, 0, 4, 0), Padding = new Avalonia.Thickness(8, 4) };
+        exportBtn.Flyout = BuildExportFlyout();
+        toolbar.Children.Add(exportBtn);
     }
 
-    public string RenderPreviewHtml(ManuscriptHostContext host)
+    public IReadOnlyList<RightRailViewDescriptor> GetRightRailViews() =>
+        [
+            RightRailViewDescriptor.Preview,
+            new RightRailViewDescriptor(BookViewIds.Timeline, "Timeline"),
+            new RightRailViewDescriptor(BookViewIds.Relationships, "Relationships"),
+            new RightRailViewDescriptor(BookViewIds.Map, "Map"),
+        ];
+
+    public Control CreateRightRail(ManuscriptHostContext host, string viewId)
     {
-        var debug = host.Settings.Settings.BookAuthoring.DebugMetadata || (_currentBook?.DebugMode ?? false);
-        return _previewRenderer.ToHtml(host.GetEditorText(), debug);
+        _host = host;
+        _activeViewId = viewId;
+
+        _previewPanel = new HtmlPanel { Margin = new Avalonia.Thickness(8) };
+        _mermaidSource = new TextBox
+        {
+            AcceptsReturn = true,
+            IsReadOnly = true,
+            TextWrapping = TextWrapping.Wrap,
+            FontFamily = new FontFamily("Consolas,Courier New,monospace"),
+            Margin = new Avalonia.Thickness(8),
+        };
+
+        var copyBtn = ToolbarButton("Copy", CopyMermaidSource);
+        var saveBtn = ToolbarButton("Save .mmd", SaveMermaidSource);
+        _mermaidHeader = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Avalonia.Thickness(8, 8, 8, 0),
+            Children = { copyBtn, saveBtn },
+        };
+
+        _mermaidPanel = new DockPanel();
+        DockPanel.SetDock(_mermaidHeader, Dock.Top);
+        _mermaidPanel.Children.Add(_mermaidHeader);
+        _mermaidPanel.Children.Add(_mermaidSource);
+
+        _rightRailRoot = new Grid();
+        _rightRailRoot.Children.Add(_previewPanel);
+        _rightRailRoot.Children.Add(_mermaidPanel);
+
+        ApplyViewVisibility(viewId);
+        return _rightRailRoot;
+    }
+
+    public void OnRightRailViewChanged(ManuscriptHostContext host, string viewId)
+    {
+        _host = host;
+        _activeViewId = viewId;
+        ApplyViewVisibility(viewId);
+        RefreshRightRailContent(viewId);
+        SyncViewCombo(viewId);
     }
 
     public void OnActivated(ManuscriptHostContext host)
@@ -87,6 +157,189 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
     }
 
     public void OnDeactivated(ManuscriptHostContext host) => _host = null;
+
+    private void ApplyViewVisibility(string viewId)
+    {
+        if (_rightRailRoot is null || _previewPanel is null || _mermaidPanel is null)
+            return;
+
+        var isPreview = viewId == BookViewIds.Preview;
+        _previewPanel.IsVisible = isPreview;
+        _mermaidPanel.IsVisible = !isPreview;
+    }
+
+    private void RefreshRightRailContent(string viewId)
+    {
+        if (_host is null)
+            return;
+
+        if (viewId == BookViewIds.Preview)
+        {
+            if (_previewPanel is not null)
+            {
+                var debug = _host.Settings.Settings.BookAuthoring.DebugMetadata || (_currentBook?.DebugMode ?? false);
+                _previewPanel.Text = _previewRenderer.ToHtml(_host.GetEditorText(), debug);
+            }
+
+            return;
+        }
+
+        if (_mermaidSource is null || _currentBook is null)
+        {
+            if (_mermaidSource is not null)
+                _mermaidSource.Text = _currentBook is null ? "Select a book to generate views." : string.Empty;
+            return;
+        }
+
+        var (timeline, relationships, map) = _mermaidExporter.BuildAll(_currentBook);
+        _mermaidSource.Text = viewId switch
+        {
+            BookViewIds.Timeline => timeline,
+            BookViewIds.Relationships => relationships,
+            BookViewIds.Map => map,
+            _ => string.Empty,
+        };
+    }
+
+    private void SyncViewCombo(string viewId)
+    {
+        if (_viewCombo is null)
+            return;
+
+        var idx = GetRightRailViews().ToList().FindIndex(v => v.Id == viewId);
+        if (idx >= 0 && _viewCombo.SelectedIndex != idx)
+            _viewCombo.SelectedIndex = idx;
+    }
+
+    private void OnViewComboChanged()
+    {
+        if (_host is null || _viewCombo is null || _viewCombo.SelectedIndex < 0)
+            return;
+
+        var views = GetRightRailViews();
+        if (_viewCombo.SelectedIndex >= views.Count)
+            return;
+
+        var viewId = views[_viewCombo.SelectedIndex].Id;
+        _host.SetRightRailViewId(viewId);
+        OnRightRailViewChanged(_host, viewId);
+    }
+
+    private MenuFlyout BuildInsertFlyout()
+    {
+        var menu = new MenuFlyout();
+        menu.Items.Add(MenuItem("[!date]", () => InsertMetadata("date", "2496.001")));
+        menu.Items.Add(MenuItem("[!time]", () => InsertMetadata("time", "12:00")));
+        menu.Items.Add(MenuItem("[!system]", () => InsertMetadata("system", "System name")));
+        menu.Items.Add(MenuItem("[!location]", () => InsertMetadata("location", "Place")));
+        menu.Items.Add(MenuItem("[!pov]", () => InsertMetadata("pov", "Character")));
+        menu.Items.Add(MenuItem("[!characters]", () => InsertMetadata("characters", "Name, Name")));
+        menu.Items.Add(MenuItem("Dialogue", InsertDialogue));
+        menu.Items.Add(MenuItem("Thinking", InsertThinking));
+        menu.Items.Add(MenuItem("Chapter tag", InsertChapterTag));
+        return menu;
+    }
+
+    private MenuFlyout BuildExportFlyout()
+    {
+        var menu = new MenuFlyout();
+        menu.Items.Add(MenuItem("Export PDF", ExportPdf));
+        menu.Items.Add(MenuItem("Export view (.mmd)", ExportCurrentView));
+        menu.Items.Add(MenuItem("Export all views", ExportAllViews));
+        return menu;
+    }
+
+    private static MenuItem MenuItem(string label, Action onClick)
+    {
+        var item = new MenuItem { Header = label };
+        item.Click += (_, _) => onClick();
+        return item;
+    }
+
+    private async void CopyMermaidSource()
+    {
+        if (_host is null || _mermaidSource?.Text is null)
+            return;
+
+        var clipboard = TopLevel.GetTopLevel(_host.MainWindow)?.Clipboard;
+        if (clipboard is not null)
+            await clipboard.SetTextAsync(_mermaidSource.Text);
+        _host.Feedback.Flash("Copied Mermaid source.");
+    }
+
+    private void SaveMermaidSource()
+    {
+        if (_host is null || _currentBook is null || _mermaidSource?.Text is null)
+        {
+            _host?.Feedback.FlashWarning("Nothing to save.");
+            return;
+        }
+
+        try
+        {
+            _mermaidExporter.ExportView(_host.Settings.DataRoot, _currentBook, _activeViewId, _mermaidSource.Text);
+            var path = Path.Combine(
+                _mermaidExporter.ExportDirectory(_host.Settings.DataRoot, _currentBook),
+                MermaidViewExporter.ViewFileName(_activeViewId));
+            _host.Feedback.Flash($"Saved {path}");
+        }
+        catch (Exception ex)
+        {
+            _host.Feedback.FlashError($"Save failed: {ex.Message}");
+        }
+    }
+
+    private void ExportCurrentView()
+    {
+        if (_host is null || _currentBook is null)
+        {
+            _host?.Feedback.FlashWarning("Select a book first.");
+            return;
+        }
+
+        try
+        {
+            var (timeline, relationships, map) = _mermaidExporter.BuildAll(_currentBook);
+            var mermaid = _activeViewId switch
+            {
+                BookViewIds.Timeline => timeline,
+                BookViewIds.Relationships => relationships,
+                BookViewIds.Map => map,
+                _ => timeline,
+            };
+            var viewId = _activeViewId == BookViewIds.Preview ? BookViewIds.Timeline : _activeViewId;
+            _mermaidExporter.ExportView(_host.Settings.DataRoot, _currentBook, viewId, mermaid);
+            var path = Path.Combine(
+                _mermaidExporter.ExportDirectory(_host.Settings.DataRoot, _currentBook),
+                MermaidViewExporter.ViewFileName(viewId));
+            _host.Feedback.Flash($"Exported {path}");
+        }
+        catch (Exception ex)
+        {
+            _host.Feedback.FlashError($"Export failed: {ex.Message}");
+        }
+    }
+
+    private void ExportAllViews()
+    {
+        if (_host is null || _currentBook is null)
+        {
+            _host?.Feedback.FlashWarning("Select a book first.");
+            return;
+        }
+
+        try
+        {
+            var (timeline, relationships, map) = _mermaidExporter.BuildAll(_currentBook);
+            _mermaidExporter.ExportAll(_host.Settings.DataRoot, _currentBook, timeline, relationships, map);
+            var dir = _mermaidExporter.ExportDirectory(_host.Settings.DataRoot, _currentBook);
+            _host.Feedback.Flash($"Exported views to {dir}");
+        }
+        catch (Exception ex)
+        {
+            _host.Feedback.FlashError($"Export failed: {ex.Message}");
+        }
+    }
 
     private void ReloadCatalog()
     {
@@ -176,6 +429,8 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         _chapterList.ItemsSource = _currentBook.Chapters
             .Select(c => $"{c.SortKey:0.###} — {c.Title}")
             .ToList();
+
+        _host.RefreshRightRail();
     }
 
     private void OnChapterSelected()
@@ -194,7 +449,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
             var chapter = _currentBook.Chapters[_chapterList.SelectedIndex];
             _host.Session.SelectFile(chapter.FilePath);
             _host.SetEditorText(_host.Session.EditorText);
-            _host.RequestPreviewRefresh();
+            _host.RefreshRightRail();
             _host.UpdateDirtyIndicator();
             _host.UpdateStatus();
             UpdateMetadataSummary();
@@ -244,7 +499,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         var updated = MetadataInsertHelper.InsertAtCursor(text, text.Length, tag, placeholder);
         _host.Session.EditorText = updated;
         _host.SetEditorText(updated);
-        _host.RequestPreviewRefresh();
+        _host.RefreshRightRail();
         UpdateMetadataSummary();
     }
 
@@ -257,7 +512,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         var updated = DialogueInsertHelper.InsertDialogueBlock(text, text.Length);
         _host.Session.EditorText = updated;
         _host.SetEditorText(updated);
-        _host.RequestPreviewRefresh();
+        _host.RefreshRightRail();
     }
 
     private void InsertThinking()
@@ -269,7 +524,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         var updated = DialogueInsertHelper.InsertThinkingBlock(text, text.Length);
         _host.Session.EditorText = updated;
         _host.SetEditorText(updated);
-        _host.RequestPreviewRefresh();
+        _host.RefreshRightRail();
     }
 
     private void InsertChapterTag()
@@ -285,7 +540,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         var updated = MetadataInsertHelper.InsertChapterTag(text, 0, chapter.SortKey);
         _host.Session.EditorText = updated;
         _host.SetEditorText(updated);
-        _host.RequestPreviewRefresh();
+        _host.RefreshRightRail();
     }
 
     private void ToggleDebugMetadata()
@@ -295,7 +550,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
         _host.Settings.Settings.BookAuthoring.DebugMetadata = !_host.Settings.Settings.BookAuthoring.DebugMetadata;
         _host.Settings.Save();
-        _host.RequestPreviewRefresh();
+        _host.RefreshRightRail();
         _host.Feedback.Flash(_host.Settings.Settings.BookAuthoring.DebugMetadata ? "Debug metadata on" : "Debug metadata off");
     }
 

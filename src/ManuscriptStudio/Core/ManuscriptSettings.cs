@@ -27,4 +27,6 @@ internal sealed class BookAuthoringSettings
     public string? BookId { get; set; }
 
     public bool DebugMetadata { get; set; }
+
+    public string RightRailView { get; set; } = "preview";
 }

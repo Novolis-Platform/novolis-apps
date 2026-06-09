@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using ManuscriptStudio.Core;
+using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
 
 namespace ManuscriptStudio.Extensions.GenericMarkdown;
@@ -8,12 +9,13 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
 {
     public const string ExtensionId = "generic-markdown";
 
-    private readonly MarkdownPreviewRenderer _preview = new();
     private TreeView? _fileTree;
     private ManuscriptHostContext? _host;
+    private MarkdownPreviewPane? _previewPanel;
 
     public string Id => ExtensionId;
     public string DisplayName => "Generic Markdown";
+    public string DefaultRightRailViewId => RightRailViewDescriptor.Preview.Id;
 
     public Control CreateLeftRail(ManuscriptHostContext host)
     {
@@ -41,10 +43,21 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
         toolbar.Children.Add(openBtn);
     }
 
-    public string RenderPreviewHtml(ManuscriptHostContext host)
+    public IReadOnlyList<RightRailViewDescriptor> GetRightRailViews() =>
+        [RightRailViewDescriptor.Preview];
+
+    public Control CreateRightRail(ManuscriptHostContext host, string viewId)
     {
-        var html = _preview.ToHtml(host.GetEditorText());
-        return PreviewHtml.Wrap(html);
+        _host = host;
+        _previewPanel = new MarkdownPreviewPane();
+        return _previewPanel;
+    }
+
+    public void OnRightRailViewChanged(ManuscriptHostContext host, string viewId)
+    {
+        _host = host;
+        if (_previewPanel is not null)
+            _previewPanel.Markdown = host.GetEditorText();
     }
 
     public void OnActivated(ManuscriptHostContext host)
@@ -67,7 +80,7 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
             _host.Settings.Save();
             RebuildTree();
             _host.SetEditorText(_host.Session.EditorText);
-            _host.RequestPreviewRefresh();
+            _host.RefreshRightRail();
             _host.UpdateDirtyIndicator();
             _host.UpdateStatus();
             _host.Feedback.Flash($"Opened {path}");
@@ -105,7 +118,7 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
         {
             _host.Session.SelectFile(node.FilePath);
             _host.SetEditorText(_host.Session.EditorText);
-            _host.RequestPreviewRefresh();
+            _host.RefreshRightRail();
             _host.UpdateDirtyIndicator();
             _host.UpdateStatus();
         }
