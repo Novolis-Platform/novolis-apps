@@ -4,6 +4,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
+using AvaloniaEdit;
 using ManuscriptStudio.Core;
 using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
@@ -102,6 +104,24 @@ internal sealed class MarkdownAuthoringWorkspace : Grid
         Editor.TextChanged += OnEditorTextChanged;
         Editor.PropertyChanged += OnEditorPropertyChanged;
         _saveButton.Click += (_, _) => SaveRequested?.Invoke(this, EventArgs.Empty);
+
+        Editor.Loaded += (_, _) => AttachEditorWheelZoom();
+        Loaded += (_, _) => AttachEditorWheelZoom();
+    }
+
+    private bool _editorWheelZoomAttached;
+
+    private void AttachEditorWheelZoom()
+    {
+        if (_editorWheelZoomAttached)
+            return;
+
+        var textEditor = Editor.GetVisualDescendants().OfType<TextEditor>().FirstOrDefault();
+        if (textEditor is null)
+            return;
+
+        _editorWheelZoomAttached = true;
+        PointerWheelZoomRouting.Attach(textEditor, () => Editor.ZoomScale, scale => Editor.ZoomScale = scale);
     }
 
     public MarkdownSourceEditor Editor { get; }

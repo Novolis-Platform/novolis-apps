@@ -1,0 +1,28 @@
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Styling;
+using Avalonia.Themes.Fluent;
+
+namespace LiveStudio;
+
+internal sealed class App : Application
+{
+    public override void Initialize()
+    {
+        Styles.Add(new FluentTheme());
+    }
+
+    public override void OnFrameworkInitializationCompleted()
+    {
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.MainWindow = new MainWindow(Program.Launcher.Session);
+            desktop.ShutdownRequested += OnShutdownRequested;
+        }
+
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e) =>
+        Program.Launcher.RequestShutdown();
+}

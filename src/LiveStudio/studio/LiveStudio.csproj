@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>Novolis.Audio.Live.Studio</AssemblyName>
+    <RootNamespace>LiveStudio</RootNamespace>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <LiveStudioHostProject>$(MSBuildThisFileDirectory)..\host\LiveStudio.Host.csproj</LiveStudioHostProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Novolis.Audio.Live" />
+    <PackageReference Include="Novolis.Audio.Live.Dsl" />
+    <PackageReference Include="Novolis.Audio.Live.Protocol" />
+    <PackageReference Include="Novolis.Audio.Live.Repl" />
+    <PackageReference Include="Novolis.Audio.Live.Visuals" />
+    <PackageReference Include="Novolis.Audio.MusicTheory" />
+    <PackageReference Include="Novolis.Audio.Patterns" />
+    <PackageReference Include="Novolis.Avalonia.Live" />
+  </ItemGroup>
+  <Target Name="BundleLiveHostOnPublish" AfterTargets="Publish">
+    <PropertyGroup>
+      <_LiveHostPublishDir>$(PublishDir)host\</_LiveHostPublishDir>
+    </PropertyGroup>
+    <MSBuild
+      Projects="$(LiveStudioHostProject)"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(_LiveHostPublishDir);PublishSingleFile=$(PublishSingleFile);IncludeNativeLibrariesForSelfExtract=$(IncludeNativeLibrariesForSelfExtract)" />
+    <Message Importance="high" Text="Live Studio: bundled host into $(_LiveHostPublishDir)" />
+  </Target>
+</Project>

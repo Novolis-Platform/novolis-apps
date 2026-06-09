@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Novolis.Audio.Live.Host</AssemblyName>
+    <RootNamespace>Novolis.Audio.Live.Host</RootNamespace>
+    <Description>Headless engine host for Novolis Audio Live IPC sessions.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Novolis.Audio.Live" />
+    <PackageReference Include="Novolis.Audio.Live.Protocol" />
+  </ItemGroup>
+</Project>

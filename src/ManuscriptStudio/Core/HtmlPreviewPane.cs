@@ -49,9 +49,8 @@ internal sealed class HtmlPreviewPane : Border
         Child = _scroll;
 
         _scroll.SizeChanged += (_, _) => ApplyLayout();
-        CtrlScrollZoom.Attach(this, () => ZoomScale, value => ZoomScale = value);
-        CtrlScrollZoom.Attach(_scroll, () => ZoomScale, value => ZoomScale = value);
-        CtrlScrollZoom.Attach(_html, () => ZoomScale, value => ZoomScale = value);
+        PointerWheelZoomRouting.Attach(_scroll, () => ZoomScale, value => ZoomScale = value);
+        PointerWheelZoomRouting.Attach(_html, () => ZoomScale, value => ZoomScale = value);
 
         ApplyThemeChrome();
     }
