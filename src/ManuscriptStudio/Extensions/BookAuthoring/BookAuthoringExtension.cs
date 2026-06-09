@@ -8,7 +8,6 @@ using ManuscriptStudio.Extensions.BookAuthoring.Helpers;
 using ManuscriptStudio.Extensions.BookAuthoring.Rendering;
 using ManuscriptStudio.Extensions.BookAuthoring.Views;
 using Novolis.Avalonia.Studio;
-using TheArtOfDev.HtmlRenderer.Avalonia;
 
 namespace ManuscriptStudio.Extensions.BookAuthoring;
 
@@ -26,7 +25,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
     private ListBox? _chapterList;
     private TextBlock? _metadataSummary;
     private ComboBox? _viewCombo;
-    private HtmlPanel? _previewPanel;
+    private HtmlPreviewPane? _previewPanel;
     private TextBox? _mermaidSource;
     private Grid? _rightRailRoot;
     private StackPanel? _mermaidHeader;
@@ -109,7 +108,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         _host = host;
         _activeViewId = viewId;
 
-        _previewPanel = new HtmlPanel { Margin = new Avalonia.Thickness(8) };
+        _previewPanel = CreatePreviewPane(host);
         _mermaidSource = new TextBox
         {
             AcceptsReturn = true,
@@ -158,6 +157,26 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
     public void OnDeactivated(ManuscriptHostContext host) => _host = null;
 
+    private HtmlPreviewPane CreatePreviewPane(ManuscriptHostContext host)
+    {
+        var pane = new HtmlPreviewPane
+        {
+            ZoomScale = host.PreviewZoomScale,
+            PreviewTheme = host.PreviewTheme,
+        };
+        pane.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != HtmlPreviewPane.ZoomScaleProperty || _host is null)
+                return;
+
+            _host.Settings.Settings.Editor.PreviewZoomScale = pane.ZoomScale;
+            if (_host.Settings.Settings.Editor.SyncZoom)
+                _host.SetEditorZoomScale(pane.ZoomScale);
+            _host.Settings.Save();
+        };
+        return pane;
+    }
+
     private void ApplyViewVisibility(string viewId)
     {
         if (_rightRailRoot is null || _previewPanel is null || _mermaidPanel is null)
@@ -178,7 +197,9 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
             if (_previewPanel is not null)
             {
                 var debug = _host.Settings.Settings.BookAuthoring.DebugMetadata || (_currentBook?.DebugMode ?? false);
-                _previewPanel.Text = _previewRenderer.ToHtml(_host.GetEditorText(), debug);
+                _previewPanel.PreviewTheme = _host.PreviewTheme;
+                _previewPanel.ZoomScale = _host.PreviewZoomScale;
+                _previewPanel.DocumentBodyHtml = _previewRenderer.ToBodyHtml(_host.GetEditorText(), debug);
             }
 
             return;

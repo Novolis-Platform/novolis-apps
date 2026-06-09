@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Markdig;
-using ManuscriptStudio.Core;
 using ManuscriptStudio.Extensions.BookAuthoring.Content;
 
 namespace ManuscriptStudio.Extensions.BookAuthoring.Rendering;
@@ -14,14 +13,13 @@ internal sealed class BookPreviewRenderer
         .UseAdvancedExtensions()
         .Build();
 
-    public string ToHtml(string markdown, bool debugMetadata)
+    public string ToBodyHtml(string markdown, bool debugMetadata)
     {
         if (string.IsNullOrEmpty(markdown))
-            return PreviewHtml.Wrap("<p></p>");
+            return "<p></p>";
 
         var processed = PreprocessMetadataBlockquotes(markdown, debugMetadata);
-        var body = Markdown.ToHtml(processed, _pipeline);
-        return PreviewHtml.Wrap(body);
+        return Markdown.ToHtml(processed, _pipeline);
     }
 
     private static string PreprocessMetadataBlockquotes(string markdown, bool debugMetadata)

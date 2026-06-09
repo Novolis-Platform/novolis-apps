@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using ManuscriptStudio.Core;
-using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
 
 namespace ManuscriptStudio.Extensions.GenericMarkdown;
@@ -11,7 +10,7 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
 
     private TreeView? _fileTree;
     private ManuscriptHostContext? _host;
-    private MarkdownPreviewPane? _previewPanel;
+    private HtmlPreviewPane? _previewPanel;
 
     public string Id => ExtensionId;
     public string DisplayName => "Generic Markdown";
@@ -49,15 +48,14 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
     public Control CreateRightRail(ManuscriptHostContext host, string viewId)
     {
         _host = host;
-        _previewPanel = new MarkdownPreviewPane();
+        _previewPanel = CreatePreviewPane(host);
         return _previewPanel;
     }
 
     public void OnRightRailViewChanged(ManuscriptHostContext host, string viewId)
     {
         _host = host;
-        if (_previewPanel is not null)
-            _previewPanel.Markdown = host.GetEditorText();
+        RefreshPreview(host);
     }
 
     public void OnActivated(ManuscriptHostContext host)
@@ -67,6 +65,36 @@ internal sealed class GenericMarkdownExtension : IManuscriptExtension
     }
 
     public void OnDeactivated(ManuscriptHostContext host) => _host = null;
+
+    private HtmlPreviewPane CreatePreviewPane(ManuscriptHostContext host)
+    {
+        var pane = new HtmlPreviewPane
+        {
+            ZoomScale = host.PreviewZoomScale,
+            PreviewTheme = host.PreviewTheme,
+        };
+        pane.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != HtmlPreviewPane.ZoomScaleProperty || _host is null)
+                return;
+
+            _host.Settings.Settings.Editor.PreviewZoomScale = pane.ZoomScale;
+            if (_host.Settings.Settings.Editor.SyncZoom)
+                _host.SetEditorZoomScale(pane.ZoomScale);
+            _host.Settings.Save();
+        };
+        return pane;
+    }
+
+    private void RefreshPreview(ManuscriptHostContext host)
+    {
+        if (_previewPanel is null)
+            return;
+
+        _previewPanel.PreviewTheme = host.PreviewTheme;
+        _previewPanel.ZoomScale = host.PreviewZoomScale;
+        _previewPanel.DocumentBodyHtml = MarkdownStudioHtml.BodyFromMarkdown(host.GetEditorText());
+    }
 
     private async void OpenWorkspace(string path)
     {

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -22,6 +23,9 @@ internal sealed class MainWindow : Window
     private readonly MarkdownSourceEditor _editor = new()
     {
         PlaceholderText = "Select a file or chapter…",
+        Margin = new Thickness(8, 4, 8, 8),
+        VerticalAlignment = VerticalAlignment.Stretch,
+        HorizontalAlignment = HorizontalAlignment.Stretch,
     };
     private readonly TextBlock _dirtyIndicator = new()
     {
@@ -30,6 +34,10 @@ internal sealed class MainWindow : Window
         Foreground = Brushes.Orange,
     };
     private readonly ComboBox _modeCombo = new() { MinWidth = 160, Margin = new Thickness(0, 0, 8, 0) };
+    private readonly ToggleButton _wrapToggle = new() { Content = "Wrap", Padding = new Thickness(8, 4), Margin = new Thickness(0, 0, 4, 0) };
+    private readonly ToggleButton _lightPreviewToggle = new() { Content = "Light preview", Padding = new Thickness(8, 4), Margin = new Thickness(0, 0, 4, 0) };
+    private readonly ToggleButton _syncZoomToggle = new() { Content = "Sync zoom", Padding = new Thickness(8, 4), Margin = new Thickness(0, 0, 4, 0) };
+    private readonly TextBlock _editorZoomLabel = new() { Margin = new Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center, Opacity = 0.85 };
 
     private readonly StackPanel _extensionToolbar = new()
     {
@@ -60,7 +68,11 @@ internal sealed class MainWindow : Window
         KeyDown += OnKeyDown;
         Opened += OnOpened;
         _editor.TextChanged += OnEditorTextChanged;
+        _editor.PropertyChanged += OnEditorPropertyChanged;
         _modeCombo.SelectionChanged += OnModeChanged;
+        _wrapToggle.Click += OnWrapToggleClicked;
+        _lightPreviewToggle.Click += OnLightPreviewToggleClicked;
+        _syncZoomToggle.Click += OnSyncZoomToggleClicked;
     }
 
     private Control BuildLayout()
@@ -70,6 +82,7 @@ internal sealed class MainWindow : Window
 
         _hostContext = new ManuscriptHostContext
         {
+            Editor = _editor,
             Session = _session,
             Settings = _settings,
             Feedback = _feedback,
@@ -90,6 +103,7 @@ internal sealed class MainWindow : Window
             RefreshRightRail = RefreshRightRail,
             GetRightRailViewId = GetRightRailViewId,
             SetRightRailViewId = SetRightRailViewId,
+            SetEditorZoomScale = scale => _editor.ZoomScale = scale,
         };
 
         foreach (var ext in _registry.All)
@@ -98,10 +112,25 @@ internal sealed class MainWindow : Window
         var saveButton = ToolbarButton("Save");
         saveButton.Click += (_, _) => SaveCurrent();
 
+        var zoomOut = ToolbarButton("−");
+        zoomOut.Click += (_, _) => AdjustEditorZoom(-MarkdownZoom.Step);
+        var zoomIn = ToolbarButton("+");
+        zoomIn.Click += (_, _) => AdjustEditorZoom(MarkdownZoom.Step);
+        var zoomReset = ToolbarButton("100%");
+        zoomReset.Click += (_, _) => SetEditorZoom(1.0);
+
         var toolbar = StudioWorkspace.CreateToolbarRow();
         toolbar.Children.Add(_modeCombo);
         toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
         toolbar.Children.Add(saveButton);
+        toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
+        toolbar.Children.Add(_wrapToggle);
+        toolbar.Children.Add(_lightPreviewToggle);
+        toolbar.Children.Add(_syncZoomToggle);
+        toolbar.Children.Add(zoomOut);
+        toolbar.Children.Add(zoomIn);
+        toolbar.Children.Add(zoomReset);
+        toolbar.Children.Add(_editorZoomLabel);
         toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
         toolbar.Children.Add(_extensionToolbar);
         toolbar.Children.Add(StudioWorkspace.ToolbarSeparator());
@@ -113,12 +142,7 @@ internal sealed class MainWindow : Window
         {
             BorderBrush = Brushes.Gray,
             BorderThickness = new Thickness(1, 0, 0, 0),
-            Child = new ScrollViewer
-            {
-                Content = _rightRailHost,
-                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            },
+            Child = _rightRailHost,
         };
 
         var workspace = new ResizableStudioShell(_leftRailHost, center, rightRail, _settings);
@@ -144,6 +168,7 @@ internal sealed class MainWindow : Window
     private void OnOpened(object? sender, EventArgs e)
     {
         _settings.Load();
+        ApplyEditorSettings();
 
         if (string.IsNullOrWhiteSpace(_settings.Settings.ContentRoot) && Directory.Exists("D:\\repos\\books"))
             _settings.Settings.ContentRoot = "D:\\repos\\books";
@@ -175,7 +200,91 @@ internal sealed class MainWindow : Window
         RefreshRightRail();
         UpdateDirtyIndicator();
         UpdateStatus();
+        _editor.FocusEditor();
     }
+
+    private void ApplyEditorSettings()
+    {
+        var editor = _settings.Settings.Editor;
+        _editor.WordWrap = editor.WordWrap;
+        _editor.ZoomScale = ClampZoom(editor.EditorZoomScale);
+        _wrapToggle.IsChecked = editor.WordWrap;
+        _lightPreviewToggle.IsChecked = editor.PreviewTheme.Equals("light", StringComparison.OrdinalIgnoreCase);
+        _syncZoomToggle.IsChecked = editor.SyncZoom;
+        UpdateEditorZoomLabel();
+    }
+
+    private void SaveEditorSettings()
+    {
+        var editor = _settings.Settings.Editor;
+        editor.WordWrap = _editor.WordWrap;
+        editor.EditorZoomScale = _editor.ZoomScale;
+        editor.SyncZoom = _syncZoomToggle.IsChecked == true;
+        editor.PreviewTheme = _lightPreviewToggle.IsChecked == true ? "light" : "dark";
+        _settings.Save();
+        UpdateEditorZoomLabel();
+    }
+
+    private void OnWrapToggleClicked(object? sender, RoutedEventArgs e)
+    {
+        _editor.WordWrap = _wrapToggle.IsChecked == true;
+        SaveEditorSettings();
+    }
+
+    private void OnLightPreviewToggleClicked(object? sender, RoutedEventArgs e)
+    {
+        SaveEditorSettings();
+        RefreshRightRail();
+    }
+
+    private void OnSyncZoomToggleClicked(object? sender, RoutedEventArgs e)
+    {
+        SaveEditorSettings();
+        if (_syncZoomToggle.IsChecked == true)
+            SyncPreviewZoomToEditor();
+    }
+
+    private void OnEditorPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != MarkdownSourceEditor.ZoomScaleProperty)
+            return;
+
+        _settings.Settings.Editor.EditorZoomScale = _editor.ZoomScale;
+        UpdateEditorZoomLabel();
+
+        if (_syncZoomToggle.IsChecked == true)
+            SyncPreviewZoomToEditor();
+
+        _settings.Save();
+    }
+
+    private void AdjustEditorZoom(double delta) =>
+        SetEditorZoom(_editor.ZoomScale + delta);
+
+    private void SetEditorZoom(double scale)
+    {
+        _editor.ZoomScale = ClampZoom(scale);
+        _settings.Settings.Editor.EditorZoomScale = _editor.ZoomScale;
+        UpdateEditorZoomLabel();
+
+        if (_syncZoomToggle.IsChecked == true)
+            SyncPreviewZoomToEditor();
+
+        _settings.Save();
+    }
+
+    private void SyncPreviewZoomToEditor()
+    {
+        _settings.Settings.Editor.PreviewZoomScale = _editor.ZoomScale;
+        _settings.Save();
+        RefreshRightRail();
+    }
+
+    private void UpdateEditorZoomLabel() =>
+        _editorZoomLabel.Text = $"{Math.Round(_editor.ZoomScale * 100)}%";
+
+    private static double ClampZoom(double scale) =>
+        Math.Clamp(scale, MarkdownZoom.Minimum, MarkdownZoom.Maximum);
 
     private void OnModeChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -282,7 +391,7 @@ internal sealed class MainWindow : Window
         var path = _session.SelectedFilePath ?? "No file selected";
         var words = _session.CountWords(_session.EditorText);
         var dirty = _session.IsDirty ? " (unsaved)" : string.Empty;
-        _feedback.SetStatus($"{path}{dirty} — {words} words");
+        _feedback.SetStatus($"{path}{dirty} — {words} words — editor {Math.Round(_editor.ZoomScale * 100)}%");
     }
 
     private async Task<string?> PickFolderAsync()

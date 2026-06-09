@@ -43,6 +43,14 @@ dotnet run --project src/ManuscriptStudio
 dotnet run --project src/ManuscriptStudio -- "D:\path\to\markdown-folder"
 ```
 
+### Editor controls
+
+- **Wrap** — toggle long-line wrapping in the source editor
+- **Light preview** — switch preview between studio dark and GitHub-style light
+- **Sync zoom** — keep editor and preview zoom aligned
+- **+/− / 100%** — adjust editor zoom; Ctrl+scroll also works on editor and preview
+- Settings persist in `settings.json` under `editor`
+
 ### Book Authoring mode
 
 1. Switch mode to **Book Authoring** in the toolbar
