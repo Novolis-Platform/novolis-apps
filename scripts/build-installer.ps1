@@ -1,19 +1,17 @@
 #Requires -Version 7.0
-# Publish Manuscript Studio win-x64, optional Inno Setup installer (local parity with CI).
+# Publish novolis-apps WinExe projects (win-x64) with optional Inno Setup installers.
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
+    [ValidateSet('ManuscriptStudio', 'ConceptStudio', 'All')]
+    [string]$App = 'All',
     [int]$BuildNumber = 0,
     [switch]$SkipInstaller
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Publish-NovolisApp.ps1')
 
-$appProject = Join-Path $RepoRoot 'src/ManuscriptStudio/ManuscriptStudio.csproj'
 $versionFile = Join-Path $RepoRoot 'build/version.json'
-$stagingDir = Join-Path $RepoRoot 'artifacts/manuscript-studio'
-$publishDir = Join-Path $stagingDir 'app'
-$installerDir = Join-Path $stagingDir 'installer'
-
 if (-not (Test-Path $versionFile)) {
     throw "Missing $versionFile"
 }
@@ -30,85 +28,47 @@ $packageVersion = "$platform.$BuildNumber"
 $assemblyVersion = "$year.$major.0.0"
 $fileVersion = $packageVersion
 
-New-Item -ItemType Directory -Force -Path $publishDir, $installerDir | Out-Null
-
-$versionArgs = @(
-    "-p:PackageVersion=$packageVersion"
-    "-p:AssemblyVersion=$assemblyVersion"
-    "-p:FileVersion=$fileVersion"
-    "-p:InformationalVersion=$packageVersion"
-)
-
-$cfgArgs = @()
-$nugetConfig = Join-Path $RepoRoot 'nuget.config'
-if (Test-Path $nugetConfig) {
-    $cfgArgs = @('--configfile', $nugetConfig)
+$apps = switch ($App) {
+    'ManuscriptStudio' { @('manuscript-studio') }
+    'ConceptStudio' { @('concept-studio') }
+    default { @('manuscript-studio', 'concept-studio') }
 }
 
-Write-Host "Publishing Manuscript Studio $packageVersion (win-x64)..."
-dotnet restore $appProject -r win-x64 @cfgArgs @versionArgs
-if ($LASTEXITCODE -ne 0) { throw "Restore failed with exit code $LASTEXITCODE." }
+$projectMap = @{
+    'manuscript-studio' = 'src/ManuscriptStudio/ManuscriptStudio.csproj'
+    'concept-studio'    = 'src/ConceptStudio/ConceptStudio.csproj'
+}
 
-dotnet publish $appProject `
-    -c Release `
-    -r win-x64 `
-    --self-contained true `
-    --no-restore `
-    -o $publishDir `
-    @versionArgs
-if ($LASTEXITCODE -ne 0) { throw "Publish failed with exit code $LASTEXITCODE." }
-
-$zipName = "ManuscriptStudio-$packageVersion-win-x64.zip"
-$zipPath = Join-Path $stagingDir $zipName
-if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath
-Write-Host "Portable zip: $zipPath"
+$published = @()
+foreach ($appKey in $apps) {
+    $published += Publish-NovolisApp `
+        -RepoRoot $RepoRoot `
+        -AppKey $appKey `
+        -ProjectRelativePath $projectMap[$appKey] `
+        -PackageVersion $packageVersion `
+        -AssemblyVersion $assemblyVersion `
+        -FileVersion $fileVersion `
+        -SkipInstaller:$SkipInstaller
+}
 
 if ($SkipInstaller) {
     return
 }
 
-$scriptPath = Join-Path $installerDir 'manuscript-studio.iss'
-dotnet msbuild $appProject `
-    -t:NovolisGenerateInnoScript `
-    -p:NovolisInnoAppName='Manuscript Studio' `
-    -p:NovolisInnoAppVersion=$packageVersion `
-    -p:NovolisInnoPublishDir=$publishDir `
-    -p:NovolisInnoAppExeName='ManuscriptStudio.exe' `
-    -p:NovolisInnoOutputDir=$installerDir `
-    -p:NovolisInnoAppId='Novolis.ManuscriptStudio' `
-    -p:NovolisInnoDefaultGroupName='Manuscript Studio' `
-    -p:NovolisInnoOutputBaseFilename="ManuscriptStudioSetup-$packageVersion-win-x64" `
-    -p:NovolisInnoInstallDirName='Novolis\Manuscript Studio' `
-    -p:NovolisInnoScriptPath=$scriptPath `
-    -p:NovolisInnoAppSupportURL='https://github.com/Novolis-Platform/novolis-apps/issues' `
-    -p:NovolisInnoAppUpdatesURL='https://github.com/Novolis-Platform/novolis-apps/releases'
-if ($LASTEXITCODE -ne 0) { throw "Generating the Inno script failed with exit code $LASTEXITCODE." }
-
-$iscc = @(
-    "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-    "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
-if (-not $iscc) {
-    $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1)
-}
-if (-not $iscc) {
-    Write-Warning "ISCC.exe not found. Inno script written to $scriptPath — install Inno Setup 6 to compile the installer."
-    return
+$lines = @()
+foreach ($item in $published) {
+    if (Test-Path $item.ZipPath) {
+        $hashZip = (Get-FileHash $item.ZipPath -Algorithm SHA256).Hash
+        $lines += "$hashZip  $($item.ZipName)"
+    }
+    if ($item.InstallerPath -and (Test-Path $item.InstallerPath)) {
+        $hashExe = (Get-FileHash $item.InstallerPath -Algorithm SHA256).Hash
+        $lines += "$hashExe  $($item.InstallerName)"
+    }
 }
 
-& $iscc $scriptPath
-$installer = Join-Path $installerDir "ManuscriptStudioSetup-$packageVersion-win-x64.exe"
-if (-not (Test-Path $installer)) {
-    throw "Expected installer not found: $installer"
+if ($lines.Count -gt 0) {
+    $sumsPath = Join-Path $RepoRoot 'artifacts/SHA256SUMS.txt'
+    $lines | Set-Content -Path $sumsPath -Encoding utf8NoBOM
+    Write-Host "Checksums: $sumsPath"
 }
-Write-Host "Installer: $installer"
-
-$hashZip = (Get-FileHash $zipPath -Algorithm SHA256).Hash
-$hashExe = (Get-FileHash $installer -Algorithm SHA256).Hash
-$sumsPath = Join-Path $stagingDir 'SHA256SUMS.txt'
-@(
-    "$hashZip  $zipName"
-    "$hashExe  $(Split-Path $installer -Leaf)"
-) | Set-Content -Path $sumsPath -Encoding utf8NoBOM
-Write-Host "Checksums: $sumsPath"

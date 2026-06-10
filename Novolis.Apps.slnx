@@ -5,6 +5,7 @@
     <File Path="nuget.config" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/ConceptStudio/ConceptStudio.csproj" />
     <Project Path="src/ManuscriptStudio/ManuscriptStudio.csproj" />
   </Folder>
   <Folder Name="/src/LiveStudio/">

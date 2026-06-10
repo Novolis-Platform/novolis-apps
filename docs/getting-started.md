@@ -21,9 +21,11 @@ Download only from official [GitHub Releases](https://github.com/Novolis-Platfor
 
 | Asset | Use |
 |-------|-----|
-| `ManuscriptStudioSetup-*-win-x64.exe` | **Installer (recommended)** — installs to `%LOCALAPPDATA%\Programs\Novolis\Manuscript Studio` (no admin). Run a newer setup exe over an existing install to upgrade in place (same `AppId`, settings preserved). |
-| `ManuscriptStudio-*-win-x64.zip` | **Portable** — unzip and run `ManuscriptStudio.exe`; does not register for upgrades. |
-| `SHA256SUMS.txt` | SHA-256 hashes for the zip and setup exe on each release |
+| `ManuscriptStudioSetup-*-win-x64.exe` | **Manuscript Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Manuscript Studio` |
+| `ManuscriptStudio-*-win-x64.zip` | Manuscript Studio portable |
+| `ConceptStudioSetup-*-win-x64.exe` | **Concept Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Concept Studio` |
+| `ConceptStudio-*-win-x64.zip` | Concept Studio portable |
+| `SHA256SUMS.txt` | SHA-256 hashes for all zip and setup exe files on each release |
 
 ### Verify downloads
 
@@ -43,10 +45,26 @@ New releases are created automatically when changes merge to `main` (see Merge w
 Build installer locally (requires Inno Setup 6 for the setup exe):
 
 ```powershell
-pwsh -File scripts/build-installer.ps1
+pwsh -File scripts/build-installer.ps1 -App All
+# Single app:
+pwsh -File scripts/build-installer.ps1 -App ConceptStudio
 # Skip Inno compile (publish + zip only):
-pwsh -File scripts/build-installer.ps1 -SkipInstaller
+pwsh -File scripts/build-installer.ps1 -App All -SkipInstaller
 ```
+
+## Concept Studio
+
+```powershell
+dotnet run --project src/ConceptStudio
+```
+
+Block out ships and props with boxes, cylinders, cones, spheres, and wedges. Use **Plan / Profile / Bow** in the view combo for orthographic technical views, **Dimension** for callouts, and **Export SVG** or **Export PNG** for book art.
+
+- Workspace: `%LocalAppData%\Novolis\Concept Studio\default-workspace\concept.json`
+- **Preview** = instant Raylib editing; **Quality** = path-traced render
+- Shortcuts: `B` box, `C` cylinder, `N` cone, `S` sphere, `Ctrl+S` save, `F` fit view
+
+Link exports in Manuscript Studio via **Concept Assets** mode (browse to your Concept Studio workspace folder).
 
 ## Manuscript Studio
 

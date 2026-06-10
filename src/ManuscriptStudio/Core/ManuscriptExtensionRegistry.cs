@@ -1,4 +1,5 @@
 using ManuscriptStudio.Extensions.BookAuthoring;
+using ManuscriptStudio.Extensions.ConceptAssets;
 using ManuscriptStudio.Extensions.GenericMarkdown;
 
 namespace ManuscriptStudio.Core;
@@ -12,6 +13,7 @@ internal sealed class ManuscriptExtensionRegistry
         _extensions = [
             new GenericMarkdownExtension(),
             new BookAuthoringExtension(),
+            new ConceptAssetExtension(),
         ];
     }
 

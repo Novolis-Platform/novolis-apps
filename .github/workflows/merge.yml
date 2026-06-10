@@ -31,10 +31,6 @@ jobs:
       contents: write
       packages: read
     env:
-      APP_PROJECT: src/ManuscriptStudio/ManuscriptStudio.csproj
-      APP_PUBLISH_DIR: ${{ github.workspace }}\artifacts\manuscript-studio\app
-      INSTALLER_DIR: ${{ github.workspace }}\artifacts\manuscript-studio\installer
-      STAGING_DIR: ${{ github.workspace }}\artifacts\manuscript-studio
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +56,14 @@ jobs:
       - uses: Novolis-Platform/novolis-workflows/actions/read-version@main
         id: ver
 
-      - name: Publish Manuscript Studio
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Chocolatey failed to install Inno Setup." }
+
+      - name: Publish apps and build installers
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ steps.ver.outputs.package-version }}
@@ -68,126 +71,47 @@ jobs:
           FILE_VERSION: ${{ steps.ver.outputs.file-version }}
         run: |
           $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Force -Path $env:APP_PUBLISH_DIR, $env:INSTALLER_DIR | Out-Null
+          . ./scripts/Publish-NovolisApp.ps1
 
-          $versionArgs = @(
-            "-p:PackageVersion=$env:PACKAGE_VERSION"
-            "-p:AssemblyVersion=$env:ASSEMBLY_VERSION"
-            "-p:FileVersion=$env:FILE_VERSION"
-            "-p:InformationalVersion=$env:PACKAGE_VERSION"
+          $apps = @(
+            @{ Key = 'manuscript-studio'; Project = 'src/ManuscriptStudio/ManuscriptStudio.csproj' },
+            @{ Key = 'concept-studio'; Project = 'src/ConceptStudio/ConceptStudio.csproj' }
           )
 
-          $cfgArgs = @()
-          if (Test-Path nuget.config) { $cfgArgs = @('--configfile', 'nuget.config') }
-
-          dotnet restore $env:APP_PROJECT -r win-x64 @cfgArgs @versionArgs
-          if ($LASTEXITCODE -ne 0) { throw "Restore failed with exit code $LASTEXITCODE." }
-
-          dotnet publish $env:APP_PROJECT `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            --no-restore `
-            -o $env:APP_PUBLISH_DIR `
-            @versionArgs
-          if ($LASTEXITCODE -ne 0) { throw "Publish failed with exit code $LASTEXITCODE." }
-
-      - name: Create portable zip
-        shell: pwsh
-        env:
-          PACKAGE_VERSION: ${{ steps.ver.outputs.package-version }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $zipName = "ManuscriptStudio-$env:PACKAGE_VERSION-win-x64.zip"
-          $zipPath = Join-Path $env:STAGING_DIR $zipName
-          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-          Compress-Archive -Path (Join-Path $env:APP_PUBLISH_DIR '*') -DestinationPath $zipPath
-          "ZIP_PATH=$zipPath" >> $env:GITHUB_ENV
-
-      - name: Generate Inno script
-        shell: pwsh
-        env:
-          PACKAGE_VERSION: ${{ steps.ver.outputs.package-version }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $scriptPath = Join-Path $env:INSTALLER_DIR 'manuscript-studio.iss'
-          dotnet msbuild $env:APP_PROJECT `
-            -t:NovolisGenerateInnoScript `
-            -p:NovolisInnoAppName='Manuscript Studio' `
-            -p:NovolisInnoAppVersion=$env:PACKAGE_VERSION `
-            -p:NovolisInnoPublishDir=$env:APP_PUBLISH_DIR `
-            -p:NovolisInnoAppExeName='ManuscriptStudio.exe' `
-            -p:NovolisInnoOutputDir=$env:INSTALLER_DIR `
-            -p:NovolisInnoAppId='Novolis.ManuscriptStudio' `
-            -p:NovolisInnoDefaultGroupName='Manuscript Studio' `
-            -p:NovolisInnoOutputBaseFilename="ManuscriptStudioSetup-$env:PACKAGE_VERSION-win-x64" `
-            -p:NovolisInnoInstallDirName='Novolis\Manuscript Studio' `
-            -p:NovolisInnoScriptPath=$scriptPath `
-            -p:NovolisInnoAppSupportURL='https://github.com/Novolis-Platform/novolis-apps/issues' `
-            -p:NovolisInnoAppUpdatesURL='https://github.com/Novolis-Platform/novolis-apps/releases'
-          if ($LASTEXITCODE -ne 0) { throw "Generating the Inno script failed with exit code $LASTEXITCODE." }
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          choco install innosetup -y --no-progress
-          if ($LASTEXITCODE -ne 0) { throw "Chocolatey failed to install Inno Setup." }
-          $iscc = @(
-            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
-          if (-not $iscc) {
-            $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1)
+          $published = @()
+          foreach ($app in $apps) {
+            $published += Publish-NovolisApp `
+              -RepoRoot $env:GITHUB_WORKSPACE `
+              -AppKey $app.Key `
+              -ProjectRelativePath $app.Project `
+              -PackageVersion $env:PACKAGE_VERSION `
+              -AssemblyVersion $env:ASSEMBLY_VERSION `
+              -FileVersion $env:FILE_VERSION
           }
-          if (-not $iscc) {
-            throw "Unable to locate ISCC.exe after installing Inno Setup."
-          }
-          "ISCC_PATH=$iscc" >> $env:GITHUB_ENV
 
-      - name: Build installer
-        shell: pwsh
-        env:
-          PACKAGE_VERSION: ${{ steps.ver.outputs.package-version }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $scriptPath = Join-Path $env:INSTALLER_DIR 'manuscript-studio.iss'
-          & $env:ISCC_PATH $scriptPath
-          if ($LASTEXITCODE -ne 0) {
-            throw "ISCC failed with exit code $LASTEXITCODE."
+          $lines = @()
+          $assets = @()
+          foreach ($item in $published) {
+            $assets += $item.ZipPath
+            $hashZip = (Get-FileHash $item.ZipPath -Algorithm SHA256).Hash
+            $lines += "$hashZip  $($item.ZipName)"
+            if ($item.InstallerPath) {
+              $assets += $item.InstallerPath
+              $hashExe = (Get-FileHash $item.InstallerPath -Algorithm SHA256).Hash
+              $lines += "$hashExe  $($item.InstallerName)"
+            }
           }
-          $installer = Join-Path $env:INSTALLER_DIR "ManuscriptStudioSetup-$env:PACKAGE_VERSION-win-x64.exe"
-          if (-not (Test-Path $installer)) {
-            throw "Expected installer not found: $installer"
-          }
-          "INSTALLER_PATH=$installer" >> $env:GITHUB_ENV
 
-      - name: Create SHA256 checksums
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $zipName = Split-Path $env:ZIP_PATH -Leaf
-          $exeName = Split-Path $env:INSTALLER_PATH -Leaf
-          $hashZip = (Get-FileHash $env:ZIP_PATH -Algorithm SHA256).Hash
-          $hashExe = (Get-FileHash $env:INSTALLER_PATH -Algorithm SHA256).Hash
-          $sumsPath = Join-Path $env:STAGING_DIR 'SHA256SUMS.txt'
-          @(
-            "$hashZip  $zipName"
-            "$hashExe  $exeName"
-          ) | Set-Content -Path $sumsPath -Encoding utf8NoBOM
-          "SUMS_PATH=$sumsPath" >> $env:GITHUB_ENV
+          $sumsPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts/SHA256SUMS.txt'
+          New-Item -ItemType Directory -Force -Path (Split-Path $sumsPath) | Out-Null
+          $lines | Set-Content -Path $sumsPath -Encoding utf8NoBOM
+          $assets += $sumsPath
 
-      - name: Create GitHub Release and upload assets
-        shell: pwsh
-        env:
-          PACKAGE_VERSION: ${{ steps.ver.outputs.package-version }}
-        run: |
-          $ErrorActionPreference = 'Stop'
           $tag = "v$env:PACKAGE_VERSION"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Manuscript Studio $env:PACKAGE_VERSION" --generate-notes
+            gh release create $tag --title "Novolis Apps $env:PACKAGE_VERSION" --generate-notes
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE." }
           }
-          gh release upload $tag $env:ZIP_PATH $env:INSTALLER_PATH $env:SUMS_PATH --clobber
+          gh release upload $tag @assets --clobber
           if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE." }

@@ -1,6 +1,6 @@
 # Release
 
-`novolis-apps` does not publish NuGet packages. Releases are application binaries distributed via GitHub Releases (installer, portable zip, checksums).
+`novolis-apps` does not publish NuGet packages. Releases are application binaries distributed via GitHub Releases (installers, portable zips, checksums).
 
 ## Versioning
 
@@ -12,12 +12,20 @@ Every merge to `main` runs `dotnet build Novolis.Apps.slnx` on Linux, then a Win
 
 | Asset | Pattern |
 |-------|---------|
-| Installer | `ManuscriptStudioSetup-{version}-win-x64.exe` |
-| Portable zip | `ManuscriptStudio-{version}-win-x64.zip` |
-| Checksums | `SHA256SUMS.txt` |
+| Manuscript Studio installer | `ManuscriptStudioSetup-{version}-win-x64.exe` |
+| Manuscript Studio portable | `ManuscriptStudio-{version}-win-x64.zip` |
+| Concept Studio installer | `ConceptStudioSetup-{version}-win-x64.exe` |
+| Concept Studio portable | `ConceptStudio-{version}-win-x64.zip` |
+| Checksums | `SHA256SUMS.txt` (all assets above) |
 
-Inno Setup scripts are generated via `Novolis.Avalonia.Packaging.Inno` (`NovolisGenerateInnoScript` MSBuild target).
+Inno Setup scripts are generated via `Novolis.Avalonia.Packaging.Inno` (`NovolisGenerateInnoScript` MSBuild target). Shared publish logic lives in [`scripts/Publish-NovolisApp.ps1`](../scripts/Publish-NovolisApp.ps1).
 
 ## Dependency order
 
-When Manuscript Studio depends on new `Novolis.Avalonia.*` APIs, merge and publish **novolis-avalonia** first, wait for GitHub Packages to contain the new build, then merge **novolis-apps**. Consumers use floating `2026.1.*` versions from GPR only (no local feeds).
+When apps depend on new `Novolis.Avalonia.*` or `Novolis.Rendering.*` APIs, merge and publish upstream repos first, wait for GitHub Packages, then merge **novolis-apps**. Consumers use floating `2026.1.*` versions from GPR only (no local feeds).
+
+Manual republish: run the **Release** workflow (choose `All`, `ManuscriptStudio`, or `ConceptStudio`) or locally:
+
+```powershell
+pwsh -File scripts/build-installer.ps1 -App All
+```

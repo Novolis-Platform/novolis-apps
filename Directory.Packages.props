@@ -24,9 +24,21 @@
     <PackageVersion Include="Novolis.Avalonia.Live" Version="2026.1.6.*" />
     <PackageVersion Include="Novolis.Avalonia.Markdown" Version="2026.1.6.*" />
     <PackageVersion Include="Novolis.Avalonia.Packaging.Inno" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Raylib" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Rendering" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Studio" Version="2026.1.6.*" />
     <PackageVersion Include="Novolis.Markup.Mermaid" Version="2026.1.1.*" />
+    <PackageVersion Include="Novolis.Raylib" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Rendering.Backends.Igpu" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Rendering.Compile" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Rendering.DependencyInjection" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Rendering.Materials" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Rendering.PathTrace.Demos" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Rendering.Presentation.Silk" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Rendering.Runtime" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Rendering.Scene" Version="2026.1.*" />
     <PackageVersion Include="QuestPDF" Version="2025.7.4" />
+    <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageVersion Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 </Project>
