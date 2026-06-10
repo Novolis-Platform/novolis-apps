@@ -7,6 +7,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using ManuscriptStudio.Components;
 using ManuscriptStudio.Core;
+using ManuscriptStudio.Extensions.BookAuthoring;
 using ManuscriptStudio.Extensions.GenericMarkdown;
 using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
@@ -163,6 +164,10 @@ internal sealed class MainWindow : Window
     private void ActivateExtension(IManuscriptExtension extension)
     {
         _activeExtension = extension;
+
+        _authoring.Editor.HighlightingProfile = extension.Id == BookAuthoringExtension.ExtensionId
+            ? MarkdownSourceHighlightingProfile.BookAuthoring
+            : MarkdownSourceHighlightingProfile.Markdown;
 
         TrimExtensionActions(_authoring.NavigationActionBar, 0);
         TrimExtensionActions(_authoring.EditorActionBar, _authoring.EditorBarBuiltInChildCount);
