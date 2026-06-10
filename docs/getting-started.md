@@ -17,12 +17,26 @@ dotnet build --no-restore
 
 ## Install (Windows)
 
-Download from [GitHub Releases](https://github.com/Novolis-Platform/novolis-apps/releases):
+Download only from official [GitHub Releases](https://github.com/Novolis-Platform/novolis-apps/releases) (`Novolis-Platform/novolis-apps`):
 
 | Asset | Use |
 |-------|-----|
-| `ManuscriptStudioSetup-*-win-x64.exe` | Installer — installs to `%LOCALAPPDATA%\Programs\Novolis\Manuscript Studio` (no admin) |
-| `ManuscriptStudio-*-win-x64.zip` | Portable — unzip and run `ManuscriptStudio.exe` |
+| `ManuscriptStudioSetup-*-win-x64.exe` | **Installer (recommended)** — installs to `%LOCALAPPDATA%\Programs\Novolis\Manuscript Studio` (no admin). Run a newer setup exe over an existing install to upgrade in place (same `AppId`, settings preserved). |
+| `ManuscriptStudio-*-win-x64.zip` | **Portable** — unzip and run `ManuscriptStudio.exe`; does not register for upgrades. |
+| `SHA256SUMS.txt` | SHA-256 hashes for the zip and setup exe on each release |
+
+### Verify downloads
+
+Before running the installer, verify the SHA-256 hash:
+
+```powershell
+Get-FileHash .\ManuscriptStudioSetup-*-win-x64.exe -Algorithm SHA256
+# Compare with the matching line in SHA256SUMS.txt from the same release
+```
+
+### SmartScreen (unsigned installer)
+
+Installers are not yet Authenticode-signed. Windows SmartScreen may show **"Windows protected your PC"** on first download. This is expected until code signing is added. To proceed: **More info** → **Run anyway**. Only install builds downloaded from the official releases page above.
 
 New releases are created automatically when changes merge to `main` (see Merge workflow).
 

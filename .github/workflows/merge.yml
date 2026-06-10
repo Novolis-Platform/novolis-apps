@@ -111,11 +111,21 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $scriptPath = Join-Path $env:INSTALLER_DIR 'manuscript-studio.iss'
-          & "${{ github.workspace }}/scripts/generate-manuscript-studio-iss.ps1" `
-            -AppVersion $env:PACKAGE_VERSION `
-            -PublishDir $env:APP_PUBLISH_DIR `
-            -OutputDir $env:INSTALLER_DIR `
-            -ScriptPath $scriptPath
+          dotnet msbuild $env:APP_PROJECT `
+            -t:NovolisGenerateInnoScript `
+            -p:NovolisInnoAppName='Manuscript Studio' `
+            -p:NovolisInnoAppVersion=$env:PACKAGE_VERSION `
+            -p:NovolisInnoPublishDir=$env:APP_PUBLISH_DIR `
+            -p:NovolisInnoAppExeName='ManuscriptStudio.exe' `
+            -p:NovolisInnoOutputDir=$env:INSTALLER_DIR `
+            -p:NovolisInnoAppId='Novolis.ManuscriptStudio' `
+            -p:NovolisInnoDefaultGroupName='Manuscript Studio' `
+            -p:NovolisInnoOutputBaseFilename="ManuscriptStudioSetup-$env:PACKAGE_VERSION-win-x64" `
+            -p:NovolisInnoInstallDirName='Novolis\Manuscript Studio' `
+            -p:NovolisInnoScriptPath=$scriptPath `
+            -p:NovolisInnoAppSupportURL='https://github.com/Novolis-Platform/novolis-apps/issues' `
+            -p:NovolisInnoAppUpdatesURL='https://github.com/Novolis-Platform/novolis-apps/releases'
+          if ($LASTEXITCODE -ne 0) { throw "Generating the Inno script failed with exit code $LASTEXITCODE." }
 
       - name: Install Inno Setup
         shell: pwsh
@@ -152,6 +162,21 @@ jobs:
           }
           "INSTALLER_PATH=$installer" >> $env:GITHUB_ENV
 
+      - name: Create SHA256 checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zipName = Split-Path $env:ZIP_PATH -Leaf
+          $exeName = Split-Path $env:INSTALLER_PATH -Leaf
+          $hashZip = (Get-FileHash $env:ZIP_PATH -Algorithm SHA256).Hash
+          $hashExe = (Get-FileHash $env:INSTALLER_PATH -Algorithm SHA256).Hash
+          $sumsPath = Join-Path $env:STAGING_DIR 'SHA256SUMS.txt'
+          @(
+            "$hashZip  $zipName"
+            "$hashExe  $exeName"
+          ) | Set-Content -Path $sumsPath -Encoding utf8NoBOM
+          "SUMS_PATH=$sumsPath" >> $env:GITHUB_ENV
+
       - name: Create GitHub Release and upload assets
         shell: pwsh
         env:
@@ -164,5 +189,5 @@ jobs:
             gh release create $tag --title "Manuscript Studio $env:PACKAGE_VERSION" --generate-notes
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE." }
           }
-          gh release upload $tag $env:ZIP_PATH $env:INSTALLER_PATH --clobber
+          gh release upload $tag $env:ZIP_PATH $env:INSTALLER_PATH $env:SUMS_PATH --clobber
           if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE." }

@@ -69,11 +69,21 @@ if ($SkipInstaller) {
 }
 
 $scriptPath = Join-Path $installerDir 'manuscript-studio.iss'
-& (Join-Path $PSScriptRoot 'generate-manuscript-studio-iss.ps1') `
-    -AppVersion $packageVersion `
-    -PublishDir $publishDir `
-    -OutputDir $installerDir `
-    -ScriptPath $scriptPath
+dotnet msbuild $appProject `
+    -t:NovolisGenerateInnoScript `
+    -p:NovolisInnoAppName='Manuscript Studio' `
+    -p:NovolisInnoAppVersion=$packageVersion `
+    -p:NovolisInnoPublishDir=$publishDir `
+    -p:NovolisInnoAppExeName='ManuscriptStudio.exe' `
+    -p:NovolisInnoOutputDir=$installerDir `
+    -p:NovolisInnoAppId='Novolis.ManuscriptStudio' `
+    -p:NovolisInnoDefaultGroupName='Manuscript Studio' `
+    -p:NovolisInnoOutputBaseFilename="ManuscriptStudioSetup-$packageVersion-win-x64" `
+    -p:NovolisInnoInstallDirName='Novolis\Manuscript Studio' `
+    -p:NovolisInnoScriptPath=$scriptPath `
+    -p:NovolisInnoAppSupportURL='https://github.com/Novolis-Platform/novolis-apps/issues' `
+    -p:NovolisInnoAppUpdatesURL='https://github.com/Novolis-Platform/novolis-apps/releases'
+if ($LASTEXITCODE -ne 0) { throw "Generating the Inno script failed with exit code $LASTEXITCODE." }
 
 $iscc = @(
     "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
@@ -93,3 +103,12 @@ if (-not (Test-Path $installer)) {
     throw "Expected installer not found: $installer"
 }
 Write-Host "Installer: $installer"
+
+$hashZip = (Get-FileHash $zipPath -Algorithm SHA256).Hash
+$hashExe = (Get-FileHash $installer -Algorithm SHA256).Hash
+$sumsPath = Join-Path $stagingDir 'SHA256SUMS.txt'
+@(
+    "$hashZip  $zipName"
+    "$hashExe  $(Split-Path $installer -Leaf)"
+) | Set-Content -Path $sumsPath -Encoding utf8NoBOM
+Write-Host "Checksums: $sumsPath"
