@@ -48,27 +48,6 @@ internal sealed class MainWindow : Window
     private Grid _viewportHost = null!;
     private readonly ListBox _partsList = new();
     private readonly PartInspectorPanel _inspector = new();
-    private readonly TextBlock _status = new() { Margin = new Thickness(8, 4) };
-    private readonly TextBlock _flash = new()
-    {
-        Margin = new Thickness(8, 0, 8, 4),
-        FontWeight = FontWeight.SemiBold,
-        Foreground = Brushes.LightGreen,
-    };
-    private readonly TextBlock _workspacePath = new() { Opacity = 0.7, FontSize = 11, Margin = new Thickness(8) };
-    private readonly Border _busyOverlay = new()
-    {
-        Background = new SolidColorBrush(Color.FromArgb(180, 0, 0, 0)),
-        IsVisible = false,
-        IsHitTestVisible = true,
-    };
-    private readonly TextBlock _busyText = new()
-    {
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-        FontSize = 16,
-        FontWeight = FontWeight.Bold,
-    };
     private readonly TextBlock _viewportHint = new()
     {
         HorizontalAlignment = HorizontalAlignment.Center,
@@ -82,6 +61,8 @@ internal sealed class MainWindow : Window
     private readonly Button _previewModeButton;
     private readonly Button _qualityModeButton;
     private readonly ComboBox _viewModeCombo = new() { MinWidth = 120, Margin = new Thickness(4, 0, 0, 0) };
+
+    private readonly TextBlock _workspacePath = new() { Opacity = 0.7, FontSize = 11, Margin = new Thickness(8) };
 
     private StudioFeedback _feedback = null!;
     private ConceptPartRecord? _selectedPart;
@@ -127,9 +108,6 @@ internal sealed class MainWindow : Window
         _viewModeCombo.SelectionChanged += OnViewModeChanged;
 
         Content = BuildLayout();
-        var chrome = StudioChrome.Create();
-        _feedback = chrome.CreateFeedback();
-        _busyOverlay.Child = _busyText;
 
         _coordinator.BindScene(
             () => _session.Document,
@@ -146,6 +124,9 @@ internal sealed class MainWindow : Window
 
     private Control BuildLayout()
     {
+        var chrome = StudioChrome.Create();
+        _feedback = chrome.CreateFeedback();
+
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(8) };
         toolbar.Children.Add(Button("Save", OnSave, "Ctrl+S"));
         toolbar.Children.Add(Separator());
@@ -175,7 +156,7 @@ internal sealed class MainWindow : Window
         _viewportHost.Children.Add(_frame);
         _viewportHost.Children.Add(_dimensionOverlay);
         _viewportHost.Children.Add(_viewportHint);
-        _viewportHost.Children.Add(_busyOverlay);
+        _viewportHost.Children.Add(chrome.BusyOverlay);
         _frame.IsVisible = false;
 
         _viewportHost.PointerPressed += OnViewportPointerPressed;
@@ -197,10 +178,10 @@ internal sealed class MainWindow : Window
         _inspector.PartChanged += (_, _) => OnInspectorEdited();
 
         var viewportPanel = new DockPanel();
-        DockPanel.SetDock(_flash, Dock.Bottom);
-        DockPanel.SetDock(_status, Dock.Bottom);
-        viewportPanel.Children.Add(_flash);
-        viewportPanel.Children.Add(_status);
+        DockPanel.SetDock(chrome.FlashLine, Dock.Bottom);
+        DockPanel.SetDock(chrome.StatusLine, Dock.Bottom);
+        viewportPanel.Children.Add(chrome.FlashLine);
+        viewportPanel.Children.Add(chrome.StatusLine);
         viewportPanel.Children.Add(_viewportHost);
 
         var center = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };

@@ -25,7 +25,8 @@ internal sealed class PartInspectorPanel : Border
     private readonly TextBox _sx = new();
     private readonly TextBox _sy = new();
     private readonly TextBox _sz = new();
-    private readonly TextBox _radius = new();
+    private readonly TextBox _cylinderRadius = new();
+    private readonly TextBox _sphereRadius = new();
     private readonly TextBox _height = new();
     private readonly TextBox _rotationY = new();
     private readonly ComboBox _material = new();
@@ -69,7 +70,9 @@ internal sealed class PartInspectorPanel : Border
         _sx.Text = F(part.HalfExtents, 0);
         _sy.Text = F(part.HalfExtents, 1);
         _sz.Text = F(part.HalfExtents, 2);
-        _radius.Text = part.Radius.ToString("0.###");
+        var radiusText = part.Radius.ToString("0.###");
+        _cylinderRadius.Text = radiusText;
+        _sphereRadius.Text = radiusText;
         _height.Text = part.Height.ToString("0.###");
         _rotationY.Text = part.RotationY.ToString("0.###");
         _material.SelectedItem = part.Material;
@@ -91,8 +94,8 @@ internal sealed class PartInspectorPanel : Border
         _editor.Children.Add(LabeledRow("Center X", _cx, "Y", _cy, "Z", _cz));
         _editor.Children.Add(Labeled("Rotation Y°", _rotationY));
         _boxSizePanel.Children.Add(LabeledRow("Half X", _sx, "Y", _sy, "Z", _sz));
-        _cylinderPanel.Children.Add(LabeledRow("Radius", _radius, "Height", _height, "", new TextBox()));
-        _spherePanel.Children.Add(Labeled("Radius", _radius));
+        _cylinderPanel.Children.Add(LabeledRow("Radius", _cylinderRadius, "Height", _height));
+        _spherePanel.Children.Add(Labeled("Radius", _sphereRadius));
         _editor.Children.Add(_boxSizePanel);
         _editor.Children.Add(_cylinderPanel);
         _editor.Children.Add(_spherePanel);
@@ -101,7 +104,7 @@ internal sealed class PartInspectorPanel : Border
         _editor.Children.Add(Labeled("Color G", _cg));
         _editor.Children.Add(Labeled("Color B", _cb));
 
-        foreach (var box in new[] { _name, _cx, _cy, _cz, _sx, _sy, _sz, _radius, _height, _rotationY })
+        foreach (var box in new[] { _name, _cx, _cy, _cz, _sx, _sy, _sz, _cylinderRadius, _sphereRadius, _height, _rotationY })
             box.LostFocus += (_, _) => CommitFromFields();
 
         _material.SelectionChanged += (_, _) =>
@@ -153,12 +156,12 @@ internal sealed class PartInspectorPanel : Border
         switch (_part.Kind.ToLowerInvariant())
         {
             case "sphere":
-                if (float.TryParse(_radius.Text, out var r))
+                if (float.TryParse(_sphereRadius.Text, out var r))
                     _part.Radius = Math.Clamp(r, 0.05f, 64f);
                 break;
             case "cylinder":
             case "cone":
-                if (float.TryParse(_radius.Text, out var cr))
+                if (float.TryParse(_cylinderRadius.Text, out var cr))
                     _part.Radius = Math.Clamp(cr, 0.05f, 64f);
                 if (float.TryParse(_height.Text, out var h))
                     _part.Height = Math.Clamp(h, 0.05f, 128f);
@@ -187,14 +190,20 @@ internal sealed class PartInspectorPanel : Border
         return row;
     }
 
+    private static Control LabeledRow(string l1, Control i1, string l2, Control i2)
+    {
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 6 };
+        AddCol(grid, 0, l1, i1);
+        AddCol(grid, 1, l2, i2);
+        return grid;
+    }
+
     private static Control LabeledRow(string l1, Control i1, string l2, Control i2, string l3, Control i3)
     {
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*"), ColumnSpacing = 6 };
         AddCol(grid, 0, l1, i1);
-        if (!string.IsNullOrEmpty(l2))
-            AddCol(grid, 1, l2, i2);
-        if (!string.IsNullOrEmpty(l3))
-            AddCol(grid, 2, l3, i3);
+        AddCol(grid, 1, l2, i2);
+        AddCol(grid, 2, l3, i3);
         return grid;
     }
 
