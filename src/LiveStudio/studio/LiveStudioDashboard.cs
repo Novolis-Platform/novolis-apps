@@ -166,7 +166,7 @@ internal sealed class LiveStudioDashboard : Grid
 
         header.Children.Add(new TextBlock
         {
-            Text = "Run the Launcher profile. Pulse Bloom should play within seconds — click presets to swap live.",
+            Text = "Demos load as editable Live DSL in the editor. F5 compiles. Open Graph / Piano / Interpretation windows.",
             FontSize = 13,
             Foreground = MutedBrush,
             TextWrapping = TextWrapping.Wrap,
@@ -276,10 +276,10 @@ internal sealed class LiveStudioDashboard : Grid
     private Control BuildPresetCard()
     {
         var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(BuildCardTitle("Showcase presets — click to play"));
+        panel.Children.Add(BuildCardTitle("Demos — click to load into editor & play"));
         panel.Children.Add(new TextBlock
         {
-            Text = "These are full multi-track programs (lead / bass / kick). Effects on the graph are labels only in v0.",
+            Text = "Each demo is real Live DSL source. Clicking replaces the editor buffer, then compiles.",
             Foreground = MutedBrush,
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,

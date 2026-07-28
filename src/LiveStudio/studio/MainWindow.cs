@@ -20,6 +20,7 @@ internal sealed class MainWindow : Window
         Content = _workspace;
 
         _session.StateChanged += OnStateChanged;
+        _session.EditorDocumentRequested += source => _workspace.SetEditorDocument(source);
         _workspace.CompileRequested += OnCompileRequested;
         _workspace.DemoRequested += OnDemoRequested;
         _workspace.PresetSelected += OnPresetSelected;

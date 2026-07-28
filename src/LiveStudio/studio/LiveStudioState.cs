@@ -16,4 +16,5 @@ internal sealed record LiveStudioState(
     string? ErrorMessage = null,
     bool HasFatalLauncherError = false,
     bool DemoSequenceRunning = false,
-    bool IsHostConnected = false);
+    bool IsHostConnected = false,
+    string? EditorSource = null);

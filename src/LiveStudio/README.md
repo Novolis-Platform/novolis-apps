@@ -1,43 +1,27 @@
 # LiveStudio
 
-Avalonia demo for **Novolis Audio Live** — typed live coding, queued swaps, and oscillator playback.
+Avalonia demo for **Novolis Audio Live** — editable Live DSL demos, Roslyn interpretation, visualizer windows, and oscillator playback.
 
-## Run the demo
+## Run
 
 ```bash
 dotnet run --project novolis-apps/src/LiveStudio/studio/LiveStudio.csproj
 ```
 
-The studio starts its own host if the launcher isn’t running. Prefer the launcher when you want supervised restarts:
-
-```bash
-dotnet run --project novolis-apps/src/LiveStudio/launcher/LiveStudio.Launcher.csproj
-```
-
-Headless smoke (no UI):
+Headless smoke:
 
 ```bash
 dotnet run --project novolis-apps/src/LiveStudio/studio/LiveStudio.csproj -- --headless-demo
 ```
 
-You should hear **Pulse Bloom** within a few seconds. Transport Beat/Bar/Phrase should tick continuously (audio-driven clock).
+## What you should experience
 
-## What you should see / hear
+1. **Pulse Bloom** loads **into the editor** as real Live DSL, then compiles and plays
+2. Click demos → editor buffer replaced → compile
+3. **Ctrl+Space** Live DSL completion; **F5** / **Ctrl+Enter** compile
+4. Child windows: **Graph**, **Piano roll**, **Interpretation** (code → structure)
+5. Beat / Bar / Phrase ticks (audio-driven clock)
 
-Within a few seconds of connect:
+## Component extract path
 
-1. **Pulse Bloom** auto-compiles and plays (lead / bass / kick)
-2. Transport shows **Beat · Bar · Phrase** ticking with a beat pulse
-3. After ~8s each, demo continues to **Signal Drift** then **Phrase Lift**
-4. Click any preset to swap immediately (cancels the auto demo)
-5. Edit `Note.Play(C4)` → `Note.Play(E5)`, press **F5** or **Ctrl+Enter**
-
-## Tips
-
-| Action | How |
-|--------|-----|
-| Replay the 3-preset demo | **Replay demo** |
-| Live swap policy | Toolbar **Swap** combo |
-| Reset the REPL buffer | **Reset buffer** |
-
-v0 render maps instruments to basic waveforms; effect names on the graph are labels only.
+Reusable pieces live under `studio/Components/Live/` (see README there) for a later move into `Novolis.Avalonia.Live`.

@@ -1,5 +1,6 @@
 using LiveStudio.Shared.Hosting;
 using LiveStudio.Shared.Launcher;
+using LiveStudio.Components.Live;
 using Novolis.Audio.Live;
 using Novolis.Audio.Live.Protocol;
 using Novolis.Audio.Live.Protocol.Dto;
@@ -35,8 +36,13 @@ internal sealed class LiveStudioSession : IAsyncDisposable
     private int _showcaseGeneration;
     private bool _started;
     private bool _demoSequenceRunning;
+    private readonly LiveScriptCompiler _scriptCompiler = new();
+    private string _editorSource = LiveDemoCatalog.DefaultBuffer;
 
     public event Action<LiveStudioState>? StateChanged;
+
+    /// <summary>Raised when a demo/document should replace the editor buffer.</summary>
+    public event Action<string>? EditorDocumentRequested;
 
     public IReadOnlyList<LiveProgramPreset> Presets => _presets;
 
@@ -94,14 +100,16 @@ internal sealed class LiveStudioSession : IAsyncDisposable
     public Task CompileSourceAsync(string source, SwapPolicy swapPolicy, CancellationToken cancellationToken = default)
     {
         CancelShowcase();
-        return CompileTextCoreAsync(LiveReplSource.Normalize(source), swapPolicy, cancellationToken);
+        _editorSource = source;
+        return CompileEditorSourceAsync(source, "Live buffer", swapPolicy, cancellationToken);
     }
 
     public Task LoadPresetAsync(LiveProgramPreset preset, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(preset);
         CancelShowcase();
-        return CompilePresetAsync(preset, cancellationToken);
+        RequestEditorDocument(preset.Source);
+        return CompileEditorSourceAsync(preset.Source, preset.Name, preset.SwapPolicy, cancellationToken);
     }
 
     public Task ReplayDemoAsync(CancellationToken cancellationToken = default)
@@ -276,7 +284,9 @@ internal sealed class LiveStudioSession : IAsyncDisposable
                 if (preset.DelayBeforeCompile > TimeSpan.Zero)
                     await Task.Delay(preset.DelayBeforeCompile, cancellationToken).ConfigureAwait(false);
 
-                await CompilePresetAsync(preset, cancellationToken).ConfigureAwait(false);
+                RequestEditorDocument(preset.Source);
+                await CompileEditorSourceAsync(preset.Source, preset.Name, preset.SwapPolicy, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             if (Volatile.Read(ref _showcaseGeneration) == generation && _demoSequenceRunning)
@@ -308,20 +318,16 @@ internal sealed class LiveStudioSession : IAsyncDisposable
         }
     }
 
-    private async Task CompileTextCoreAsync(string source, SwapPolicy swapPolicy, CancellationToken cancellationToken)
+    private async Task CompileEditorSourceAsync(
+        string source,
+        string displayName,
+        SwapPolicy swapPolicy,
+        CancellationToken cancellationToken)
     {
-        if (_hasFatalLauncherError)
+        if (_hasFatalLauncherError || !_client.IsConnected)
         {
             _activityStatus = "Host unavailable.";
-            _errorMessage = _errorMessage ?? "The launcher reported a fatal host error.";
-            PublishState();
-            return;
-        }
-
-        if (!_client.IsConnected)
-        {
-            _activityStatus = "Not connected yet.";
-            _errorMessage = "Wait for the host, or run: dotnet run --project novolis-apps/src/LiveStudio/launcher/LiveStudio.Launcher.csproj";
+            _errorMessage = _errorMessage ?? "Connect to the live host before compiling.";
             PublishState();
             return;
         }
@@ -329,26 +335,34 @@ internal sealed class LiveStudioSession : IAsyncDisposable
         if (string.IsNullOrWhiteSpace(source))
         {
             _activityStatus = "Empty buffer.";
-            _errorMessage = "Type Note.Play(C4); then press F5.";
+            _errorMessage = "Load a demo or write Live DSL, then press F5.";
             PublishState();
             return;
         }
 
         try
         {
-            _activityStatus = "Compiling live code on the host...";
+            _activityStatus = $"Interpreting {displayName}...";
+            _editorSource = source;
+            PublishState();
+
+            var definition = await _scriptCompiler.CompileAsync(source, cancellationToken).ConfigureAwait(false);
+
+            _activityStatus = $"Compiling {displayName} on the host...";
             PublishState();
 
             var response = await SendAsync(
-                token => _client.CompileTextAsync(source, swapPolicy, token),
+                token => _client.CompileAsync(definition, swapPolicy, token),
                 cancellationToken).ConfigureAwait(false);
 
-            _currentPresetName = "Live buffer";
-            _nextPresetName = null;
+            _currentPresetName = displayName;
+            _nextPresetName = _demoSequenceRunning
+                ? _presets.SkipWhile(p => p.Name != displayName).Skip(1).FirstOrDefault()?.Name
+                : null;
 
             if (response.Success && response.Program is not null)
             {
-                _activityStatus = $"Compiled live code as v{response.Program.Version} · swap {swapPolicy}.";
+                _activityStatus = $"Playing {displayName} as v{response.Program.Version} · swap {swapPolicy}.";
                 _diagnostics = response.Diagnostics;
 
                 lock (_stateGate)
@@ -360,11 +374,11 @@ internal sealed class LiveStudioSession : IAsyncDisposable
             }
             else
             {
-                _activityStatus = "Compile rejected.";
+                _activityStatus = $"Compile rejected for {displayName}.";
                 _diagnostics = response.Diagnostics;
                 _errorMessage = CompactError(response.Diagnostics.Length > 0
                     ? string.Join(" ", response.Diagnostics.Select(d => $"{d.Code}: {d.Message}"))
-                    : "Compile rejected by the live host.");
+                    : $"Compile rejected for {displayName}.");
             }
 
             await PublishSnapshotAsync(cancellationToken).ConfigureAwait(false);
@@ -372,73 +386,19 @@ internal sealed class LiveStudioSession : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            throw;
         }
         catch (Exception ex)
         {
-            _activityStatus = "Compile failed.";
+            _activityStatus = $"Unable to compile {displayName}.";
             _errorMessage = CompactError(ex.Message);
             PublishState();
         }
     }
 
-    private async Task CompilePresetAsync(LiveProgramPreset preset, CancellationToken cancellationToken)
+    private void RequestEditorDocument(string source)
     {
-        if (_hasFatalLauncherError || !_client.IsConnected)
-        {
-            _activityStatus = "Host unavailable.";
-            _errorMessage = _errorMessage
-                ?? "Connect to the live host before loading a preset.";
-            PublishState();
-            return;
-        }
-
-        try
-        {
-            _activityStatus = $"Loading {preset.Name}...";
-            PublishState();
-
-            var response = await SendAsync(
-                token => _client.CompileAsync(preset.Definition, preset.SwapPolicy, token),
-                cancellationToken).ConfigureAwait(false);
-
-            _currentPresetName = preset.Name;
-            _nextPresetName = _demoSequenceRunning ? NextPresetAfter(preset)?.Name : null;
-
-            if (response.Success && response.Program is not null)
-            {
-                _activityStatus = $"Playing {preset.Name} as v{response.Program.Version} · swap {preset.SwapPolicy}.";
-                _diagnostics = response.Diagnostics;
-
-                lock (_stateGate)
-                {
-                    _graph = LiveVisualProjection.FromProgram(response.Program.ToDomain());
-                }
-
-                _errorMessage = null;
-            }
-            else
-            {
-                _activityStatus = $"Compile rejected for {preset.Name}.";
-                _diagnostics = response.Diagnostics;
-                _errorMessage = CompactError(response.Diagnostics.Length > 0
-                    ? string.Join(" ", response.Diagnostics.Select(d => $"{d.Code}: {d.Message}"))
-                    : $"Compile rejected for {preset.Name}.");
-            }
-
-            await PublishSnapshotAsync(cancellationToken).ConfigureAwait(false);
-            PublishState();
-        }
-        catch (OperationCanceledException)
-        {
-            // Showcase cancellation or shutdown — ignore.
-        }
-        catch (Exception ex)
-        {
-            _activityStatus = $"Unable to compile {preset.Name}.";
-            _errorMessage = CompactError(ex.Message);
-            PublishState();
-        }
+        _editorSource = source;
+        EditorDocumentRequested?.Invoke(source);
     }
 
     private LiveProgramPreset? NextPresetAfter(LiveProgramPreset preset)
@@ -515,7 +475,14 @@ internal sealed class LiveStudioSession : IAsyncDisposable
             PublishState();
 
             if (_presets.Count > 0)
-                await CompilePresetAsync(_presets[0], cancellationToken).ConfigureAwait(false);
+            {
+                RequestEditorDocument(_presets[0].Source);
+                await CompileEditorSourceAsync(
+                    _presets[0].Source,
+                    _presets[0].Name,
+                    _presets[0].SwapPolicy,
+                    cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -599,7 +566,8 @@ internal sealed class LiveStudioSession : IAsyncDisposable
             ErrorMessage: _errorMessage,
             HasFatalLauncherError: _hasFatalLauncherError,
             DemoSequenceRunning: _demoSequenceRunning,
-            IsHostConnected: _client.IsConnected && !_hasFatalLauncherError));
+            IsHostConnected: _client.IsConnected && !_hasFatalLauncherError,
+            EditorSource: _editorSource));
     }
 
     private static string CompactError(string message)

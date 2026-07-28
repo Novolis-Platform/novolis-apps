@@ -3,25 +3,38 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
+using LiveStudio.Components.Live;
 using Novolis.Audio.Live;
 
 namespace LiveStudio.Components;
 
 internal sealed class LiveCodingWorkspace : Grid
 {
-    private static readonly SolidColorBrush WorkspaceBackground = new(Color.Parse("#0F172A"));
-    private static readonly SolidColorBrush ToolbarBackground = new(Color.Parse("#111827"));
-    private static readonly SolidColorBrush ToolbarBorder = new(Color.Parse("#243047"));
-    private static readonly SolidColorBrush TextBrush = new(Color.Parse("#E2E8F0"));
-    private static readonly SolidColorBrush MutedBrush = new(Color.Parse("#94A3B8"));
+    static readonly SolidColorBrush WorkspaceBackground = new(Color.Parse("#0F172A"));
+    static readonly SolidColorBrush ToolbarBackground = new(Color.Parse("#111827"));
+    static readonly SolidColorBrush ToolbarBorder = new(Color.Parse("#243047"));
+    static readonly SolidColorBrush TextBrush = new(Color.Parse("#E2E8F0"));
+    static readonly SolidColorBrush MutedBrush = new(Color.Parse("#94A3B8"));
 
-    private readonly LiveCodeEditor _editor = new();
-    private readonly LiveStudioDashboard _dashboard = new();
-    private readonly TextBlock _launcherStatus = new();
-    private readonly ComboBox _swapPolicy = new();
-    private readonly Button _compileButton = new() { Content = "Compile (F5)" };
-    private readonly Button _demoButton = new() { Content = "Replay demo" };
-    private readonly Button _loadDefaultButton = new() { Content = "Reset buffer" };
+    readonly LiveCodeEditorControl _editor = new();
+    readonly LiveStudioDashboard _dashboard = new();
+    readonly TextBlock _launcherStatus = new();
+    readonly ComboBox _swapPolicy = new();
+    readonly Button _compileButton = new() { Content = "Compile (F5)" };
+    readonly Button _demoButton = new() { Content = "Replay demo" };
+    readonly Button _loadDefaultButton = new() { Content = "Reset buffer" };
+    readonly Button _graphWindowButton = new() { Content = "Graph window" };
+    readonly Button _pianoWindowButton = new() { Content = "Piano roll" };
+    readonly Button _interpWindowButton = new() { Content = "Interpretation" };
+
+    readonly LiveProgramGraphVisualizer _graphViz = new();
+    readonly LivePianoRollVisualizer _pianoViz = new();
+    readonly LiveCodeInterpretationVisualizer _interpViz = new();
+    LiveVisualizerWindow? _graphWindow;
+    LiveVisualizerWindow? _pianoWindow;
+    LiveVisualizerWindow? _interpWindow;
+    LiveVisualizerModel _vizModel = new(null, 0, 1, 1, 120, null, null);
 
     public LiveCodingWorkspace()
     {
@@ -52,12 +65,19 @@ internal sealed class LiveCodingWorkspace : Grid
         Grid.SetColumn(dashboardHost, 1);
         Children.Add(dashboardHost);
 
-        _editor.Text = LiveCodeTemplates.DefaultSource;
         _compileButton.Click += (_, _) => CompileRequested?.Invoke(this, EventArgs.Empty);
         _demoButton.Click += (_, _) => DemoRequested?.Invoke(this, EventArgs.Empty);
-        _loadDefaultButton.Click += (_, _) => _editor.Text = LiveCodeTemplates.DefaultSource;
+        _loadDefaultButton.Click += (_, _) =>
+        {
+            _editor.Text = LiveDemoCatalog.DefaultBuffer;
+            _editor.FocusEditor();
+        };
         _editor.CompileRequested += (_, _) => CompileRequested?.Invoke(this, EventArgs.Empty);
         _dashboard.PresetSelected += preset => PresetSelected?.Invoke(preset);
+
+        _graphWindowButton.Click += (_, _) => OpenVisualizer(ref _graphWindow, _graphViz);
+        _pianoWindowButton.Click += (_, _) => OpenVisualizer(ref _pianoWindow, _pianoViz);
+        _interpWindowButton.Click += (_, _) => OpenVisualizer(ref _interpWindow, _interpViz);
 
         KeyDown += OnWorkspaceKeyDown;
         Focusable = true;
@@ -72,6 +92,15 @@ internal sealed class LiveCodingWorkspace : Grid
     public SwapPolicy SelectedSwapPolicy =>
         _swapPolicy.SelectedItem is SwapPolicy policy ? policy : SwapPolicy.Immediately;
 
+    public void SetEditorDocument(string source)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            _editor.Text = source;
+            _editor.FocusEditor();
+        });
+    }
+
     public void Bind(LiveStudioState state)
     {
         _launcherStatus.Text = state.LauncherStatus;
@@ -84,9 +113,49 @@ internal sealed class LiveCodingWorkspace : Grid
         _compileButton.IsEnabled = state.IsHostConnected && !state.HasFatalLauncherError;
 
         _dashboard.Bind(state);
+
+        _vizModel = new LiveVisualizerModel(
+            Graph: state.Graph,
+            Beat: state.Snapshot?.Beat ?? 0m,
+            Bar: state.Snapshot?.Bar ?? 1,
+            Phrase: state.Snapshot?.Phrase ?? 1,
+            Bpm: state.Snapshot?.Bpm ?? 120m,
+            ActivePreset: state.CurrentPresetName,
+            SourceExcerpt: Truncate(state.EditorSource ?? SourceText, 600));
+
+        _graphViz.Bind(_vizModel);
+        _pianoViz.Bind(_vizModel);
+        _interpViz.Bind(_vizModel);
+        _graphWindow?.Bind(_vizModel);
+        _pianoWindow?.Bind(_vizModel);
+        _interpWindow?.Bind(_vizModel);
     }
 
-    private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
+    void OpenVisualizer(ref LiveVisualizerWindow? window, ILiveVisualizer visualizer)
+    {
+        if (window is { IsVisible: true })
+        {
+            window.Activate();
+            window.Bind(_vizModel);
+            return;
+        }
+
+        var opened = new LiveVisualizerWindow(visualizer);
+        opened.Bind(_vizModel);
+        opened.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(opened, _graphWindow)) _graphWindow = null;
+            else if (ReferenceEquals(opened, _pianoWindow)) _pianoWindow = null;
+            else if (ReferenceEquals(opened, _interpWindow)) _interpWindow = null;
+        };
+        window = opened;
+        opened.Show();
+    }
+
+    static string Truncate(string value, int max) =>
+        value.Length <= max ? value : value[..max] + "…";
+
+    void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.F5)
         {
@@ -95,7 +164,7 @@ internal sealed class LiveCodingWorkspace : Grid
         }
     }
 
-    private Control BuildToolbar()
+    Control BuildToolbar()
     {
         var grid = new Grid
         {
@@ -119,7 +188,7 @@ internal sealed class LiveCodingWorkspace : Grid
         };
     }
 
-    private Control BuildTitleCluster()
+    Control BuildTitleCluster()
     {
         var panel = new StackPanel { Spacing = 4 };
         panel.Children.Add(new TextBlock
@@ -131,7 +200,7 @@ internal sealed class LiveCodingWorkspace : Grid
         });
         panel.Children.Add(new TextBlock
         {
-            Text = "Presets play full tracks. Editor is Note.Play only — F5 compiles when connected.",
+            Text = "Demos load into the editor. F5 compiles Live DSL. Ctrl+Space for completion. Open visualizer windows for interpretation.",
             Foreground = MutedBrush,
             FontSize = 12,
         });
@@ -139,7 +208,7 @@ internal sealed class LiveCodingWorkspace : Grid
         return panel;
     }
 
-    private Control BuildActionCluster()
+    Control BuildActionCluster()
     {
         var panel = new StackPanel
         {
@@ -155,11 +224,14 @@ internal sealed class LiveCodingWorkspace : Grid
             SwapPolicy.NextPhrase,
         };
         _swapPolicy.SelectedIndex = 0;
-        _swapPolicy.MinWidth = 150;
+        _swapPolicy.MinWidth = 140;
 
         StyleActionButton(_compileButton, primary: true);
         StyleActionButton(_demoButton, primary: false);
         StyleActionButton(_loadDefaultButton, primary: false);
+        StyleActionButton(_graphWindowButton, primary: false);
+        StyleActionButton(_pianoWindowButton, primary: false);
+        StyleActionButton(_interpWindowButton, primary: false);
 
         panel.Children.Add(new TextBlock
         {
@@ -172,12 +244,15 @@ internal sealed class LiveCodingWorkspace : Grid
         panel.Children.Add(_compileButton);
         panel.Children.Add(_demoButton);
         panel.Children.Add(_loadDefaultButton);
+        panel.Children.Add(_graphWindowButton);
+        panel.Children.Add(_pianoWindowButton);
+        panel.Children.Add(_interpWindowButton);
         return panel;
     }
 
-    private static void StyleActionButton(Button button, bool primary)
+    static void StyleActionButton(Button button, bool primary)
     {
-        button.Padding = new Thickness(14, 8);
+        button.Padding = new Thickness(12, 8);
         button.CornerRadius = new CornerRadius(8);
         button.Background = new SolidColorBrush(Color.Parse(primary ? "#1D4ED8" : "#334155"));
         button.Foreground = Brushes.White;
