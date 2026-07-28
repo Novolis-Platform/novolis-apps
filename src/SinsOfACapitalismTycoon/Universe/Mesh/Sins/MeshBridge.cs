@@ -5,7 +5,7 @@ namespace SinsOfACapitalismTycoon.Universe.Mesh;
 /// <summary>Maps Astro campaign hubs into <see cref="MeshState"/> (product glue).</summary>
 public static class MeshBridge
 {
-  public static MeshState FromBridge(
+  internal static MeshState FromBridge(
     AstroEconomyBridge.BridgeResult bridge,
     MeshPolicy? policy = null,
     int? bandwidthOverride = null)

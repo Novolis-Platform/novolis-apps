@@ -137,6 +137,25 @@ internal static class SpectreHeadlessReport
     logistics.AddRow("Plan fails", $"{world.TransportStats.FailedPlans}");
     console.Write(logistics);
 
+    var mesh = ids.Mesh;
+    var meshTable = new Table().Border(TableBorder.Simple).Title("Mesh (visibility, not delivery)")
+      .AddColumns("Metric", "Value");
+    meshTable.AddRow("Hubs / edges", $"{mesh.Hubs.Count} / {mesh.Edges.Length}");
+    meshTable.AddRow("Packets / drones / pending",
+      $"{mesh.Packets.Count} / {mesh.Drones.Length} / {mesh.Pending.Length}");
+    meshTable.AddRow(
+      "Publishes D/F/P",
+      $"{mesh.Stats.DirectedPublishes} / {mesh.Stats.FloodPublishes} / {mesh.Stats.PublicPublishes}");
+    meshTable.AddRow(
+      "Launched / arrived / lost",
+      $"{mesh.Stats.DronesLaunched} / {mesh.Stats.DronesArrived} / {mesh.Stats.DronesLost}");
+    meshTable.AddRow(
+      "Cache / mailbox credits",
+      $"{mesh.Stats.CacheCredits} / {mesh.Stats.MailboxCredits}");
+    meshTable.AddRow("Bandwidth deferred", $"{mesh.Stats.BandwidthDeferred}");
+    meshTable.AddRow("Mesh hour", $"{mesh.HourIndex}");
+    console.Write(meshTable);
+
     console.Write(new Rule("FTL profiles & ship registry").RuleStyle("cyan"));
     var profiles = new Table().Border(TableBorder.Simple).Title("Transit (active hulls)").AddColumns("Hull", "Profile", "Wear");
     foreach (var ship in world.Shipments.Where(s => !s.IsLegacy && s.Status == ShipmentStatus.InTransit)

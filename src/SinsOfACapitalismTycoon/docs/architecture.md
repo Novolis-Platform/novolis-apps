@@ -34,6 +34,7 @@ Reusable pieces live in packages; Sins owns campaign orchestration and Ops regis
 | Registry door (generic) | — (Sins-local) | `RegistryRecord` / `RegistryBook{T}` — ship, firm, license books |
 | Tape-aware gate price | `Novolis.Economy.Markets` (`TapeAwareGatePricing`) | Floor/SKU seed constants, agent wiring |
 | System roles from potentials | `Novolis.Astro.Assessment` (`SystemRole`, `RoleAssigner`, `SystemRoleInvariants`) | `AstroEconomyBridge`, HubOps dwell/berths, PortTier overlays |
+| Confederation mesh (visibility) | — (Sins-local BM; future `Novolis.Mesh.Core`) | `Universe/Mesh` + `MeshBridge` / `MeshPulse` on campaign hour |
 
 No shared `Novolis.Economy.Campaign` package yet — bridge + runner stay app-local.
 

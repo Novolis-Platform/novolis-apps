@@ -50,7 +50,9 @@ From Cycle daily-life primer — use in flavor and milestone copy:
 People experience the Confederation as registry paperwork and **Mesh** traffic:
 small pulse packets (fees, identity, warnings) vs bulk archives on cargo schedules.
 The Confederation does not deliver messages as a single courier; it ensures messages
-become **visible everywhere**.
+become **visible everywhere** the mesh reaches (place-directed or identity flood).
+
+See [Mesh and communications](mesh-and-communications.md) for the BM sim (`Universe/Mesh`).
 
 Wealth buys **distance and deniability** as much as guns.
 

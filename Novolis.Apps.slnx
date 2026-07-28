@@ -11,6 +11,9 @@
     <Project Path="src/ManuscriptStudio/ManuscriptStudio.csproj" />
     <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
+  </Folder>
   <Folder Name="/src/LiveStudio/">
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
     <Project Path="src/LiveStudio/launcher/LiveStudio.Launcher.csproj" />

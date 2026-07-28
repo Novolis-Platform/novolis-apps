@@ -236,8 +236,13 @@ internal static class CampaignRunner
         {
           _waiting = true;
           AwaitingDecision?.Invoke();
-          _dayGate.Reset();
-          await Task.Run(() => _dayGate.Wait(ct), ct).ConfigureAwait(false);
+          // Captain may ResumeToHorizon during AwaitingDecision — don't Reset over that Set.
+          if (PauseMode != CaptainPauseMode.Never)
+          {
+            _dayGate.Reset();
+            await Task.Run(() => _dayGate.Wait(ct), ct).ConfigureAwait(false);
+          }
+
           _waiting = false;
           // After StepDay, restore realtime-until-decision unless user set Never.
           if (PauseMode == CaptainPauseMode.EveryDay)

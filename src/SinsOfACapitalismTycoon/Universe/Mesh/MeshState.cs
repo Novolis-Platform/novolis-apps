@@ -20,6 +20,8 @@ public sealed record MeshState(
   ImmutableDictionary<string, int> BandwidthUsedThisHour,
   /// <summary>PacketId → hubs that already initiated flood fan-out this visit.</summary>
   ImmutableDictionary<string, ImmutableHashSet<string>> FloodSeededAt,
+  /// <summary>PacketKey → loss count (for MaxLossesPerPacket).</summary>
+  ImmutableDictionary<string, int> PacketLossCounts,
   MeshStats Stats)
 {
   public static MeshState Empty(MeshPolicy? policy = null) => new(
@@ -35,6 +37,7 @@ public sealed record MeshState(
     Identities: ImmutableDictionary<string, MeshIdentityBinding>.Empty,
     BandwidthUsedThisHour: ImmutableDictionary<string, int>.Empty,
     FloodSeededAt: ImmutableDictionary<string, ImmutableHashSet<string>>.Empty,
+    PacketLossCounts: ImmutableDictionary<string, int>.Empty,
     Stats: new MeshStats());
 
   public bool IsVisibleAt(PacketId packet, MeshHubId hub) =>

@@ -8,6 +8,8 @@ public sealed record MeshPolicy(
   double PulseLyPerHour = 0.641025641025641,
   double BulkLyPerHour = 0.03205128205128205,
   int DefaultPulseBandwidthPerHour = 8,
-  /// <summary>Deterministic loss: lose drone when (hash % Period) == 0; 0 disables.</summary>
+  /// <summary>Deterministic loss: lose on arrival when (hash(packet) % Period) == 0; 0 disables.</summary>
   int LossEveryNth = 0,
+  /// <summary>Cap losses per packet so retries can converge (0 = unlimited).</summary>
+  int MaxLossesPerPacket = 1,
   int MaxPendingPerHub = 256);

@@ -61,6 +61,7 @@
     <PackageVersion Include="Novolis.Astro.Catalog.Data" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Routing" Version="2026.1.*" />
     <PackageVersion Include="Spectre.Console" Version="0.54.0" />
+    <PackageVersion Include="TUnit" Version="1.44.39" />
     <PackageVersion Include="Novolis.Raylib" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Raylib.Bindings" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Raylib.Runtime" Version="2026.1.*" />

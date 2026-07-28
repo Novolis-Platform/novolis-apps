@@ -115,25 +115,40 @@ internal static class CaptainConsole
     }
 
     if (!runTask.IsCompleted) session.ResumeToHorizon();
-    await runTask.ConfigureAwait(false);
-    PrintStatus(session, banner: false);
-    AnsiConsole.WriteLine();
-    SpectreHeadlessReport.Write(AnsiConsole.Console, session.ToResult());
+    try
+    {
+      await runTask.ConfigureAwait(false);
+    }
+    catch (Exception ex)
+    {
+      Console.Error.WriteLine($"RUN FAILED: {ex}");
+      Console.Out.Flush();
+      Console.Error.Flush();
+      return 1;
+    }
 
     if (options.Playtest)
     {
       var legs = session.Biographies.ForFirm(session.Ids.Carrier).Any()
+                 || session.Sim.State.World.TransportStats.TransitSampleCount > 0
                  || session.Milestones.Entries.Any(m =>
                    m.Detail.Contains("Calypso", StringComparison.OrdinalIgnoreCase)
                    && m.Kind is "escrow" or "known-responsive");
       var ok = traveled && hauled && remoteReject && legs;
-      Console.WriteLine();
-      Console.WriteLine(ok
+      var line = ok
         ? $"PLAYTEST PASS — travel={traveled} haul={hauled} remote-reject={remoteReject}"
-        : $"PLAYTEST FAIL — travel={traveled} haul={hauled} remote-reject={remoteReject} legs={legs}");
+        : $"PLAYTEST FAIL — travel={traveled} haul={hauled} remote-reject={remoteReject} legs={legs}";
+      Console.WriteLine();
+      Console.WriteLine(line);
+      Console.Error.WriteLine(line);
+      Console.Out.Flush();
+      Console.Error.Flush();
       return ok ? 0 : 1;
     }
 
+    PrintStatus(session, banner: false);
+    AnsiConsole.WriteLine();
+    SpectreHeadlessReport.Write(AnsiConsole.Console, session.ToResult());
     return exitCode;
   }
 
@@ -416,7 +431,7 @@ internal static class CaptainConsole
 
       case "resume":
         session.ResumeToHorizon();
-        return HandleResult.Advanced;
+        return HandleResult.Quit;
 
       case "quit":
       case "exit":
@@ -478,7 +493,7 @@ internal static class CaptainConsole
     {
       var j = spots[i];
       Console.WriteLine(
-        $"    [{i}] {(j.AtOrigin ? "AT" : "  ")} {j.DistanceHint,-10} {j.Label}  Δ{j.Margin:0.#}  ×{j.Quantity:0}");
+        $"    [{i}] {j.DistanceHint,-12} {j.Label}  Δ{j.Margin:0.#}  ×{j.Quantity:0}");
     }
   }
 

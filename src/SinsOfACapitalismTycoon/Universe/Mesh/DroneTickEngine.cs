@@ -13,16 +13,19 @@ public static class DroneTickEngine
     }
 
     var nextDrones = ImmutableArray.CreateBuilder<InFlightDrone>();
+    var retries = new List<PendingLaunch>();
     foreach (var drone in state.Drones)
     {
       if (ShouldLose(state, drone))
       {
+        var pk = MeshState.PacketKey(drone.PacketId);
+        var losses = state.PacketLossCounts.TryGetValue(pk, out var c) ? c : 0;
         state = state with
         {
+          PacketLossCounts = state.PacketLossCounts.SetItem(pk, losses + 1),
           Stats = state.Stats with { DronesLost = state.Stats.DronesLost + 1 },
         };
-        // Retry from origin of this hop
-        state = MeshVisibility.EnqueueLaunch(state, new PendingLaunch(
+        retries.Add(new PendingLaunch(
           drone.PacketId,
           drone.From,
           drone.To,
@@ -42,7 +45,14 @@ public static class DroneTickEngine
       state = OnArrive(state, drone);
     }
 
-    return state with { Drones = nextDrones.ToImmutable() };
+    // Drop finished/lost drones before requeue so dedupe does not see ghosts.
+    state = state with { Drones = nextDrones.ToImmutable() };
+    foreach (var retry in retries)
+    {
+      state = MeshVisibility.EnqueueLaunch(state, retry);
+    }
+
+    return state;
   }
 
   private static bool ShouldLose(MeshState state, InFlightDrone drone)
@@ -53,7 +63,21 @@ public static class DroneTickEngine
       return false;
     }
 
-    var h = HashCode.Combine(drone.Id.Value, state.HourIndex, drone.PacketId.Value);
+    // Apply risk only on the arrival hour so multi-hour hops still make progress.
+    if (drone.RemainingHours != 1)
+    {
+      return false;
+    }
+
+    var pk = MeshState.PacketKey(drone.PacketId);
+    var losses = state.PacketLossCounts.TryGetValue(pk, out var c) ? c : 0;
+    if (state.Policy.MaxLossesPerPacket > 0 && losses >= state.Policy.MaxLossesPerPacket)
+    {
+      return false;
+    }
+
+    // Deterministic per packet (not per random drone id) so scenarios are stable.
+    var h = HashCode.Combine(drone.PacketId.Value);
     return (h & int.MaxValue) % n == 0;
   }
 

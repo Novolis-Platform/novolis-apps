@@ -20,6 +20,9 @@
     </PackageReference>
     <PackageReference Include="Novolis.Avalonia.StarMap" />
     <PackageReference Include="Novolis.Avalonia.Studio" />
+    <PackageReference Include="MessagePack" />
+    <PackageReference Include="Novolis.Avalonia.Agent" />
+    <PackageReference Include="Novolis.Avalonia.Agent.Protocol" />
     <PackageReference Include="Novolis.Astro.Abstractions" />
     <PackageReference Include="Novolis.Astro.Assessment" />
     <PackageReference Include="Novolis.Astro.Catalog" />

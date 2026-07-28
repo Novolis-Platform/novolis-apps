@@ -30,6 +30,7 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 3. Ops money + claims / escrow fees / actuarial load
 4. Ops vs Core (never summed)
 5. Logistics — WaitingBerth / Loading, wear, plan fails
+5b. **Mesh** — hubs/edges, drones, directed/flood publishes, visibility credits
 6. Registry (Rep / Life% / Lien) + port-tier sample
 7. **Life moments** scorecard + **Milestones** (`MILESTONE:` + vox line)
 8. Mega-hauler + top owner-master biographies
@@ -38,6 +39,7 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 11. Curtain line
 
 How to *play* the report: [gameplay.md](gameplay.md). Who is speaking: [characters.md](characters.md).
+Mesh doctrine: [mesh-and-communications.md](mesh-and-communications.md).
 
 ## Avalonia captain desk
 
@@ -66,8 +68,9 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 ```
 
 Captain verbs: `travel`, `spot`, `charters`, `accept N`, `manifest`, `depart`, `refuse`.
-Requires `Novolis.Avalonia.Briefing` (+ StarMap, Studio) on GitHub Packages `2026.1.*`, or
-ProjectRef for local sibling checkouts. Mid-tick map animation stays on the roadmap.
+Requires `Novolis.Avalonia.Briefing` (+ StarMap, Studio, Agent) on GitHub Packages `2026.1.*`, or
+ProjectRef for local sibling checkouts. Avalonia agent smoke: [AGENT-SMOKE.md](../AGENT-SMOKE.md).
+Mid-tick map animation stays on the roadmap.
 
 ## Core smoke
 

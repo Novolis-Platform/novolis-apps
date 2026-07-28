@@ -16,6 +16,7 @@ and the commercial weather of **The Calypso Cycle** (`references/` — CCA, Meri
 4. [Calypso canon](calypso-canon.md) — provenance and adaptation rules
 5. [Commerce stack](commerce-stack.md) — CCA, Meridian, escrow, HILS, CR, jump brief
 6. [Places and stations](places-and-stations.md) — Duckville→Tortuga tiers on roles
+6b. [Mesh and communications](mesh-and-communications.md) — publish/propagate BM sim
 
 ## Operators / contributors
 

@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Novolis.Avalonia.Agent;
+using Novolis.Avalonia.Agent.Protocol;
 using Novolis.Avalonia.Briefing;
 using Novolis.Avalonia.StarMap;
 using Novolis.Avalonia.Studio;
@@ -54,6 +56,7 @@ internal sealed class MainWindow : Window
   readonly Button _btnPremium;
   readonly Button _btnOverhaul;
   readonly Button _btnAcceptStandby;
+  readonly TextBox _travelSystem;
 
   CampaignRunner.LiveSession? _session;
   CaptainDeskModel? _desk;
@@ -74,6 +77,7 @@ internal sealed class MainWindow : Window
     _feedback = _chrome.CreateFeedback();
 
     var brand = new TextBlock { Text = "Calypso", FontSize = 28, FontWeight = FontWeight.Bold, Foreground = BrandBrush };
+    AgentProperties.SetId(brand, "calypso.brand");
     var title = new TextBlock
     {
       Text = "Captain Desk",
@@ -83,6 +87,7 @@ internal sealed class MainWindow : Window
       Margin = new Thickness(10, 0, 0, 2),
       Foreground = new SolidColorBrush(Color.Parse("#e8e8e8")),
     };
+    AgentProperties.SetId(title, "calypso.title");
     _subtitle = new TextBlock
     {
       Text = CampaignWorld.PlayerMasterLabel,
@@ -90,24 +95,34 @@ internal sealed class MainWindow : Window
       FontSize = 12,
       Margin = new Thickness(0, 4, 0, 0),
     };
+    AgentProperties.SetId(_subtitle, "calypso.subtitle");
 
-    _btnStep = TransportBtn("Step 1d");
-    _btnContinue = TransportBtn("Continue");
-    _btnResume = TransportBtn("To horizon");
-    _btnPause = TransportBtn("Pause next day");
-    _btnTravel = TransportBtn("Travel here");
+    _btnStep = TransportBtn("Step 1d", "calypso.step");
+    _btnContinue = TransportBtn("Continue", "calypso.continue");
+    _btnResume = TransportBtn("To horizon", "calypso.resume");
+    _btnPause = TransportBtn("Pause next day", "calypso.pause");
+    _btnTravel = TransportBtn("Travel here", "calypso.travel");
     _btnStep.Click += (_, _) => _session?.StepDay();
     _btnContinue.Click += (_, _) => { _session?.Continue(); _feedback.SetStatus("Running until next decision…"); };
     _btnResume.Click += (_, _) => { _session?.ResumeToHorizon(); _feedback.SetStatus("Running to horizon…"); };
     _btnPause.Click += (_, _) => { _session?.Pause(); _feedback.SetStatus("Will pause after current day"); };
     _btnTravel.Click += (_, _) => TravelToSelection();
 
+    _travelSystem = new TextBox
+    {
+      PlaceholderText = "system id (agent / typed travel)",
+      Width = 200,
+      FontSize = 12,
+    };
+    AgentProperties.SetId(_travelSystem, "calypso.travelSystem", AgentRoleNames.TextBox);
+    _travelSystem.TextChanged += (_, _) => UpdateTravelEnabled();
+
     var transport = new StackPanel
     {
       Orientation = Orientation.Horizontal,
       Spacing = 8,
       Margin = new Thickness(0, 8, 0, 0),
-      Children = { _btnStep, _btnContinue, _btnResume, _btnPause, _btnTravel },
+      Children = { _btnStep, _btnContinue, _btnResume, _btnPause, _travelSystem, _btnTravel },
     };
 
     var header = new StackPanel
@@ -124,6 +139,7 @@ internal sealed class MainWindow : Window
     };
 
     _map = new StarMapControl { MinHeight = 260 };
+    AgentProperties.SetId(_map, "calypso.map");
     _map.StarSelected += OnStarSelected;
     _hubDetail = new TextBlock
     {
@@ -133,6 +149,7 @@ internal sealed class MainWindow : Window
       Margin = new Thickness(0, 8, 0, 0),
       FontSize = 12,
     };
+    AgentProperties.SetId(_hubDetail, "calypso.hubDetail");
 
     var mapTitle = new TextBlock
     {
@@ -160,6 +177,10 @@ internal sealed class MainWindow : Window
     _hullStats = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#e8e8e8")), TextWrapping = TextWrapping.Wrap, FontSize = 13 };
     _decision = new TextBlock { Foreground = MutedBrush, TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
     _softFail = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#e07070")), TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+    AgentProperties.SetId(_voyage, "calypso.voyage");
+    AgentProperties.SetId(_hullStats, "calypso.hull");
+    AgentProperties.SetId(_decision, "calypso.decision");
+    AgentProperties.SetId(_softFail, "calypso.softFail");
 
     _profile = new ComboBox
     {
@@ -167,6 +188,7 @@ internal sealed class MainWindow : Window
       ItemsSource = new[] { "SlowEconomic", "StandardCommercial", "PriorityCommercial" },
       SelectedIndex = 1,
     };
+    AgentProperties.SetId(_profile, "calypso.profile", AgentRoleNames.ComboBox);
     _profile.SelectionChanged += (_, _) =>
     {
       if (_session is null || _profile.SelectedItem is not string name) return;
@@ -182,6 +204,7 @@ internal sealed class MainWindow : Window
       ItemsSource = new[] { "Network", "Berth" },
       SelectedIndex = _options.Board == JobBoardScope.Local ? 1 : 0,
     };
+    AgentProperties.SetId(_boardScope, "calypso.boardScope", AgentRoleNames.ComboBox);
     _boardScope.SelectionChanged += (_, _) =>
     {
       if (_session is null || _boardScope.SelectedItem is not string name) return;
@@ -189,13 +212,13 @@ internal sealed class MainWindow : Window
       RefreshDesk();
     };
 
-    _btnAcceptSpot = TransportBtn("Accept at berth");
-    _btnDepart = TransportBtn("Depart manifest");
-    _btnRefuseStandby = TransportBtn("Refuse standby");
-    _btnAcceptStandby = TransportBtn("Accept standby");
-    _btnWait = TransportBtn("Wait");
-    _btnPremium = TransportBtn("Pay premium");
-    _btnOverhaul = TransportBtn("Request overhaul");
+    _btnAcceptSpot = TransportBtn("Accept at berth", "calypso.acceptSpot");
+    _btnDepart = TransportBtn("Depart manifest", "calypso.depart");
+    _btnRefuseStandby = TransportBtn("Refuse standby", "calypso.refuseStandby");
+    _btnAcceptStandby = TransportBtn("Accept standby", "calypso.acceptStandby");
+    _btnWait = TransportBtn("Wait", "calypso.wait");
+    _btnPremium = TransportBtn("Pay premium", "calypso.premium");
+    _btnOverhaul = TransportBtn("Request overhaul", "calypso.overhaul");
     _btnAcceptSpot.Click += (_, _) => AcceptSelectedSpot();
     _btnDepart.Click += (_, _) =>
     {
@@ -211,8 +234,12 @@ internal sealed class MainWindow : Window
     _spot = new ListBox { MinHeight = 120, MaxHeight = 200 };
     _charters = new ListBox { MinHeight = 80, MaxHeight = 140 };
     _manifest = new ListBox { MinHeight = 60, MaxHeight = 120 };
+    AgentProperties.SetId(_spot, "calypso.spot", AgentRoleNames.ListBox);
+    AgentProperties.SetId(_charters, "calypso.charters", AgentRoleNames.ListBox);
+    AgentProperties.SetId(_manifest, "calypso.manifest", AgentRoleNames.ListBox);
 
     _intelTabs = new TabControl();
+    AgentProperties.SetId(_intelTabs, "calypso.boards", AgentRoleNames.TabControl);
     _intelTabs.Items.Add(MakeTab("Spot intel", new StackPanel
     {
       Spacing = 8,
@@ -421,7 +448,7 @@ internal sealed class MainWindow : Window
 
     _btnRefuseStandby.IsEnabled = desk.StandbyOffer;
     _btnAcceptStandby.IsEnabled = desk.StandbyOffer;
-    _btnTravel.IsEnabled = desk.DockedIdle && !string.IsNullOrEmpty(_mapSelection);
+    UpdateTravelEnabled();
     _btnAcceptSpot.IsEnabled = desk.DockedIdle;
     _btnDepart.IsEnabled = desk.DockedIdle && desk.ManifestUsed > 0m;
 
@@ -461,11 +488,26 @@ internal sealed class MainWindow : Window
     _session.Continue();
   }
 
+  void UpdateTravelEnabled()
+  {
+    var dest = ResolveTravelDest();
+    _btnTravel.IsEnabled = _desk is { DockedIdle: true } && !string.IsNullOrEmpty(dest);
+  }
+
+  string? ResolveTravelDest()
+  {
+    var typed = _travelSystem.Text?.Trim();
+    if (!string.IsNullOrEmpty(typed))
+      return typed;
+    return _mapSelection;
+  }
+
   void TravelToSelection()
   {
-    if (_session is null || string.IsNullOrEmpty(_mapSelection))
+    var dest = ResolveTravelDest();
+    if (_session is null || string.IsNullOrEmpty(dest))
     {
-      _feedback.Flash("Select a hub on the map");
+      _feedback.Flash("Select a hub on the map or type a system id");
       return;
     }
 
@@ -475,12 +517,12 @@ internal sealed class MainWindow : Window
       return;
     }
 
-    _session.Player.TravelTargetSystemId = _mapSelection;
+    _session.Player.TravelTargetSystemId = dest;
     _session.Player.Orders.Enqueue(new PlayerOrder(
       PlayerOrderKind.TravelTo,
-      DestSystemId: _mapSelection,
+      DestSystemId: dest,
       Profile: _session.Player.DefaultProfile));
-    _feedback.Flash($"Travel → {_mapSelection}");
+    _feedback.Flash($"Travel → {dest}");
     _session.Continue();
   }
 
@@ -510,6 +552,9 @@ internal sealed class MainWindow : Window
       _session.Player.TravelTargetSystemId = id;
     }
 
+    if (string.IsNullOrWhiteSpace(_travelSystem.Text))
+      _travelSystem.Text = id;
+
     if (_desk?.HubDetails.TryGetValue(id, out var hub) == true)
     {
       var at = string.Equals(id, _desk.CurrentHubSystemId, StringComparison.OrdinalIgnoreCase);
@@ -517,16 +562,21 @@ internal sealed class MainWindow : Window
         ? $"{hub.Name} · HERE (berth)\n{hub.ProfileHint}"
         : $"{hub.Name} · {hub.Role}\n{hub.ProfileHint}\n→ Travel here when idle";
       _hubDetail.Foreground = new SolidColorBrush(Color.Parse("#e8e8e8"));
-      _btnTravel.IsEnabled = _desk.DockedIdle && !at;
     }
     else
     {
       _hubDetail.Text = id;
     }
+
+    UpdateTravelEnabled();
   }
 
-  static Button TransportBtn(string text) =>
-    new() { Content = text, Padding = new Thickness(12, 6), Margin = new Thickness(0, 0, 4, 4) };
+  static Button TransportBtn(string text, string agentId)
+  {
+    var btn = new Button { Content = text, Padding = new Thickness(12, 6), Margin = new Thickness(0, 0, 4, 4) };
+    AgentProperties.SetId(btn, agentId, AgentRoleNames.Button);
+    return btn;
+  }
 
   static TabItem MakeTab(string header, Control content) =>
     new() { Header = header, Content = content };
