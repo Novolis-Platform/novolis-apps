@@ -25,7 +25,7 @@ When fiction and sim disagree, **sim ledgers win**; flavor annotates.
 
 | Calypso doctrine | Sins surface today |
 |------------------|-------------------|
-| Registry as door / standing | `ShipRegistry` / `CanOperate` |
+| Registry as door / standing | `CampaignRegistryDesk` / `ShipRegistry` / `CanOperate` |
 | Insurance prices freedom | `InsurancePulse` premiums + claims |
 | Speed burns life | `TransitProfile` wear × Priority |
 | Bulk vs tramp | `MV Bulk River` Slow vs owner-master Priority |

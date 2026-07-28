@@ -30,7 +30,8 @@ Reusable pieces live in packages; Sins owns campaign orchestration and Ops regis
 
 | Concern | Library | Sins still owns |
 |---------|---------|-----------------|
-| Hull premium / overhaul quote math | `Novolis.Economy.Logistics` (`HullRiskQuotes`, `FtlDriveLifePolicy`) | `ShipRegistry` standing, grace, liens, insurance pulses |
+| Hull premium / overhaul quote math | `Novolis.Economy.Logistics` (`HullRiskQuotes`, `FtlDriveLifePolicy`) | `CampaignRegistryDesk` + `ShipRegistry` standing, grace, liens, insurance pulses |
+| Registry door (generic) | — (Sins-local) | `RegistryRecord` / `RegistryBook{T}` — ship, firm, license books |
 | Tape-aware gate price | `Novolis.Economy.Markets` (`TapeAwareGatePricing`) | Floor/SKU seed constants, agent wiring |
 | System roles from potentials | `Novolis.Astro.Assessment` (`SystemRole`, `RoleAssigner`, `SystemRoleInvariants`) | `AstroEconomyBridge`, HubOps dwell/berths, PortTier overlays |
 

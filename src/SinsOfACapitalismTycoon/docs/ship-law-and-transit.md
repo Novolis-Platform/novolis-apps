@@ -18,7 +18,10 @@ burn that life. You overhaul in the elective window, or you wait and **guarantee
 
 | Fiction | Code |
 |---------|------|
-| Registry record / standing | `ShipRegistry` — insured, suspended, burned-out, overhaul-due, lien |
+| Registry record / standing | Generic `RegistryRecord` / `RegistryBook{T}` + `CampaignRegistryDesk` |
+| Ship registry door | `ShipRegistry` / `ShipRegistryEntry` — insured, drive life, `CanOperate` |
+| Firm registry | `FirmRegistryEntry` — solvent / encumbered / blacklisted |
+| License registry | `LicenseRegistryEntry` — Priority endorsements (term / revoked) |
 | Owner-master vs fleet | Tramps + ventures register as owner-master; mega as fleet |
 | Insurance premium | `InsurancePulse` daily; scales with **life fraction**, capped (not a terminal tax) |
 | Claims (loss ≠ erase) | `ClaimsPulse` on stall-abandon / Priority wear; deductible |

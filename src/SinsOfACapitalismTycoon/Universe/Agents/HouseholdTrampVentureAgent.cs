@@ -135,14 +135,14 @@ internal sealed class HouseholdTrampVentureAgent : IEconomicAgent
         bypassLimits: true);
     }
 
-    _ids.Registry.Register(new ShipRegistryEntry
-    {
-      FirmId = trampId,
-      RegistryName = name,
-      HullClass = "LightCommercial",
-      OwnerMaster = true,
-      LienPrincipal = HullLoan,
-    });
+    _ids.Registry.Register(ShipRegistryEntry.Create(
+      trampId, name, "LightCommercial", ownerMaster: true, lienPrincipal: HullLoan));
+    _ids.Desk.Firms.Register(FirmRegistryEntry.Create(trampId, $"{name} Co."));
+    _ids.Desk.Licenses.Register(LicenseRegistryEntry.Create(
+      LicenseRegistryEntry.IdFor(trampId, "priority-freight"),
+      $"{name} Priority endorsement",
+      scope: "priority-freight",
+      holderSubjectId: trampId.Value));
     _bios.Name(trampId, name);
 
     bool AvoidCongested(TransportHubId hub)

@@ -2,11 +2,13 @@
 
 ## Catalog
 
-Canonical seed: **100** Johnston-based near-Sol stars (same slice as the NearSol dogfood app),
-embedded as `data/nearsol-100.json`. Sorted by distance from origin; Sol must be present.
+Canonical seed: **100** Johnston-based near-Sol stars via Astro
+`CatalogPacks.NearSol100` (`Novolis.Astro.Catalog.Data`) — same pack as dogfood /
+Astro unit smokes. Sol must be present. No local JSON fork under `Universe/data/`.
 
 This is not a live “N nearest from HYG” query at runtime. Provenance stays fixed so
-determinism and CI smokes remain boring.
+determinism and CI smokes remain boring. Refresh the pack in Astro (`tools/pregen-catalog.cs`),
+not by editing Sins.
 
 ## Hop graph
 

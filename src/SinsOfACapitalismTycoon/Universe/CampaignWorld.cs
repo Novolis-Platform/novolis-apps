@@ -103,7 +103,11 @@ internal static class CampaignWorld
     public required VehicleClass Hull { get; init; }
     public required VehicleClassId MegaHullId { get; init; }
     public required VehicleClass MegaHull { get; init; }
-    public required ShipRegistry Registry { get; init; }
+    public required CampaignRegistryDesk Desk { get; init; }
+
+    /// <summary>Ship registry door (alias of <see cref="Desk"/>.Ships).</summary>
+    public ShipRegistry Registry => Desk.Ships;
+
     public ReputationLedger Reputation { get; set; } = new();
     public EscrowBook Escrow { get; set; } = new();
     public required AstroEconomyBridge.BridgeResult Bridge { get; init; }
@@ -412,32 +416,36 @@ internal static class CampaignWorld
 
     builder.SetOwnership(industry, station, 0.35m);
 
-    var registry = new ShipRegistry { Underwriter = station };
-    registry.Register(new ShipRegistryEntry
-    {
-      FirmId = carrier,
-      RegistryName = "MV Independent",
-      HullClass = "LightCommercial",
-      OwnerMaster = true,
-    });
+    var desk = new CampaignRegistryDesk();
+    desk.Ships.Underwriter = station;
+    desk.Ships.Register(ShipRegistryEntry.Create(carrier, "MV Independent", "LightCommercial"));
     for (var i = 1; i < carriers.Length; i++)
     {
-      registry.Register(new ShipRegistryEntry
-      {
-        FirmId = carriers[i],
-        RegistryName = $"MV Tramp {i + 1}",
-        HullClass = "LightCommercial",
-        OwnerMaster = true,
-      });
+      desk.Ships.Register(ShipRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1}", "LightCommercial"));
     }
 
-    registry.Register(new ShipRegistryEntry
+    desk.Ships.Register(ShipRegistryEntry.Create(megaHauler, "MV Bulk River", "MegaHauler", ownerMaster: false));
+
+    desk.Firms.Register(FirmRegistryEntry.Create(mining, "Sins Mining"));
+    desk.Firms.Register(FirmRegistryEntry.Create(industry, "Sins Industry"));
+    desk.Firms.Register(FirmRegistryEntry.Create(station, "Sins Station"));
+    desk.Firms.Register(FirmRegistryEntry.Create(carrier, "MV Independent Co."));
+    for (var i = 1; i < carriers.Length; i++)
     {
-      FirmId = megaHauler,
-      RegistryName = "MV Bulk River",
-      HullClass = "MegaHauler",
-      OwnerMaster = false,
-    });
+      desk.Firms.Register(FirmRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1} Co."));
+    }
+
+    desk.Firms.Register(FirmRegistryEntry.Create(megaHauler, "Bulk River Lines"));
+
+    // Commercial Priority endorsement per light hull (door for dense sprints later).
+    foreach (var ship in desk.Ships.Entries.Where(e => e.OwnerMaster))
+    {
+      desk.Licenses.Register(LicenseRegistryEntry.Create(
+        LicenseRegistryEntry.IdFor(ship.FirmId, "priority-freight"),
+        $"{ship.RegistryName} Priority endorsement",
+        scope: "priority-freight",
+        holderSubjectId: ship.SubjectId));
+    }
 
     var ids = new Ids
     {
@@ -458,7 +466,7 @@ internal static class CampaignWorld
       Hull = hull,
       MegaHullId = megaHullId,
       MegaHull = megaHull,
-      Registry = registry,
+      Desk = desk,
       Bridge = bridge,
       Sites = sites,
       RoleSummary = roleSummary,

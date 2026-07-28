@@ -80,6 +80,9 @@ internal static class SpectreHeadlessReport
     var lowDeg = ids.Bridge.Hubs.Count(h =>
       ids.Bridge.Graph.Adjacency.TryGetValue(h.SystemId, out var e) && e.Count <= 2);
     header.AddRow("Low-degree hubs", $"{lowDeg}");
+    header.AddRow(
+      "Registries",
+      $"ship {ids.Desk.Ships.Entries.Count} · firm {ids.Desk.Firms.Count} · license {ids.Desk.Licenses.Count}");
     console.Write(header);
 
     var money = new Table().Border(TableBorder.Simple).Title("Ops money (FirmLedgers)").AddColumns("Metric", "Amount");
@@ -165,6 +168,24 @@ internal static class SpectreHeadlessReport
     }
 
     console.Write(reg);
+
+    var firmReg = new Table().Border(TableBorder.Simple).Title("Firm registry")
+      .AddColumns("Firm", "Standing", "Lien");
+    foreach (var f in ids.Desk.Firms.Entries.OrderBy(x => x.RegistryName))
+    {
+      firmReg.AddRow(Markup.Escape(f.RegistryName), f.StandingLabel, $"{f.LienPrincipal:0}");
+    }
+
+    console.Write(firmReg);
+
+    var licReg = new Table().Border(TableBorder.Simple).Title("License registry (sample)")
+      .AddColumns("License", "Scope", "Standing");
+    foreach (var l in ids.Desk.Licenses.Entries.OrderBy(x => x.RegistryName).Take(8))
+    {
+      licReg.AddRow(Markup.Escape(l.RegistryName), Markup.Escape(l.Scope), l.StandingLabel);
+    }
+
+    console.Write(licReg);
 
     var tierSample = new Table().Border(TableBorder.Simple).Title("Port tiers (sample)")
       .AddColumns("Hub", "Role", "Tier");

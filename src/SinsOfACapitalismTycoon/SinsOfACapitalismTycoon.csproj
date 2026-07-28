@@ -23,6 +23,7 @@
     <PackageReference Include="Novolis.Astro.Abstractions" />
     <PackageReference Include="Novolis.Astro.Assessment" />
     <PackageReference Include="Novolis.Astro.Catalog" />
+    <PackageReference Include="Novolis.Astro.Catalog.Data" />
     <PackageReference Include="Novolis.Astro.Routing" />
     <PackageReference Include="Novolis.Economy.Core" />
     <PackageReference Include="Novolis.Economy.Production" />
@@ -33,8 +34,5 @@
     <PackageReference Include="Novolis.Economy.Simulation" />
     <PackageReference Include="Novolis.Economy.Finance" />
     <PackageReference Include="Novolis.Economy.Agents" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Universe\data\nearsol-100.json" LogicalName="SinsOfACapitalismTycoon.nearsol-100.json" />
   </ItemGroup>
 </Project>

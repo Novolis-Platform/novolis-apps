@@ -4,30 +4,27 @@ using Novolis.Economy.Logistics;
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
-/// Registry standing for a commercial hull — the "door" from owner-master memoir fiction.
-/// Drive life is mileage: speed × mass × distance burn the FTL; overhaul or guaranteed burnout.
-/// Quote math lives in <see cref="HullRiskQuotes"/> / <see cref="FtlDriveLifePolicy"/>.
+/// Hull record on the ship registry — drive life, insurance, owner-master standing.
+/// Inherits the generic door (<see cref="RegistryRecord.CanAct"/>) and adds FTL wear.
 /// </summary>
-internal sealed class ShipRegistryEntry
+internal sealed class ShipRegistryEntry : RegistryRecord
 {
   public required FirmId FirmId { get; init; }
-  public required string RegistryName { get; init; }
   public required string HullClass { get; init; }
   public bool OwnerMaster { get; init; } = true;
   public bool Insured { get; set; } = true;
-  public bool Suspended { get; set; }
   /// <summary>Acute stress since last overhaul (claims / soft metrics).</summary>
   public decimal DriveWear { get; set; }
   /// <summary>Life mileage consumed on the current drive stack (resets on overhaul).</summary>
   public decimal LifeUsed { get; set; }
-  /// <summary>Rated life before guaranteed burnout (hull-class). Overhaul before this — or burn out.</summary>
+  /// <summary>Rated life before guaranteed burnout.</summary>
   public decimal RatedLife { get; set; } = FtlDriveLifePolicy.RatedLifeLight;
   public int OverhaulCount { get; set; }
   public bool BurnedOut { get; set; }
   public decimal PremiumPaid { get; set; }
   public decimal MaintenancePaid { get; set; }
   public decimal ClaimsReceived { get; set; }
-  /// <summary>Consecutive days premium unpaid while still marked insured (grace before uninsured).</summary>
+  /// <summary>Consecutive days premium unpaid while still marked insured.</summary>
   public int PremiumArrearsDays { get; set; }
   public int PriorityLegs { get; set; }
   public int SlowLegs { get; set; }
@@ -35,17 +32,24 @@ internal sealed class ShipRegistryEntry
   public int LongLaneLegs { get; set; }
   /// <summary>Yard / overhaul cleared after suspension.</summary>
   public bool YardCleared { get; set; }
-  /// <summary>Debt that follows the hull (venture loan / escrow clawback).</summary>
-  public decimal LienPrincipal { get; set; }
 
   public decimal LifeFraction =>
     RatedLife <= 0m ? 1m : Math.Clamp(LifeUsed / RatedLife, 0m, 1.5m);
 
   public bool OverhaulDue => LifeUsed >= RatedLife * FtlDriveLifePolicy.ElectiveOverhaulFraction;
 
-  public bool CanOperate => Insured && !Suspended && !BurnedOut;
+  /// <summary>Hull door: insured + not suspended/burned-out/revoked.</summary>
+  public bool CanOperate => Insured && CanAct && !BurnedOut;
 
-  public string StandingLabel =>
+  public override bool CanAct => base.CanAct && !BurnedOut;
+
+  public override RegistryStandingKind Standing =>
+    BurnedOut || Revoked ? RegistryStandingKind.Revoked
+    : Suspended ? RegistryStandingKind.Suspended
+    : !Insured || PremiumArrearsDays > 0 || OverhaulDue ? RegistryStandingKind.Restricted
+    : RegistryStandingKind.Operable;
+
+  public override string StandingLabel =>
     BurnedOut ? "burned-out"
     : Suspended ? "suspended"
     : !Insured ? "uninsured"
@@ -53,21 +57,38 @@ internal sealed class ShipRegistryEntry
     : OverhaulDue ? "overhaul-due"
     : OwnerMaster ? "owner-master"
     : "fleet";
+
+  public static ShipRegistryEntry Create(
+    FirmId firm,
+    string registryName,
+    string hullClass,
+    bool ownerMaster = true,
+    decimal lienPrincipal = 0m) =>
+    new()
+    {
+      SubjectId = firm.Value,
+      Kind = RegistryKind.Ship,
+      RegistryName = registryName,
+      FirmId = firm,
+      HullClass = hullClass,
+      OwnerMaster = ownerMaster,
+      LienPrincipal = lienPrincipal,
+    };
 }
 
-/// <summary>Common commercial registry for campaign carriers (app-level commerce law).</summary>
+/// <summary>Ship registry book — campaign carriers under the generic <see cref="RegistryBook{T}"/> door.</summary>
 internal sealed class ShipRegistry
 {
-  private readonly Dictionary<FirmId, ShipRegistryEntry> _byFirm = new();
+  private readonly RegistryBook<ShipRegistryEntry> _book = new(RegistryKind.Ship);
 
-  public FirmId Underwriter { get; init; }
+  public FirmId Underwriter { get; set; }
 
   /// <summary>Global premium multiplier from underwriter solvency / claims.</summary>
   public decimal ActuarialLoad { get; set; } = 1m;
 
   public decimal ClaimsPaid { get; set; }
 
-  public IReadOnlyCollection<ShipRegistryEntry> Entries => _byFirm.Values;
+  public IReadOnlyCollection<ShipRegistryEntry> Entries => _book.Entries;
 
   public void Register(ShipRegistryEntry entry)
   {
@@ -76,11 +97,11 @@ internal sealed class ShipRegistry
       entry.RatedLife = FtlDriveLifePolicy.RatedLifeForHull(entry.HullClass);
     }
 
-    _byFirm[entry.FirmId] = entry;
+    _book.Register(entry);
   }
 
   public ShipRegistryEntry? TryGet(FirmId firm) =>
-    _byFirm.TryGetValue(firm, out var e) ? e : null;
+    _book.TryGet(firm.Value);
 
   public bool CanOperate(FirmId firm) =>
     TryGet(firm) is { } e && e.CanOperate;
@@ -134,9 +155,6 @@ internal sealed class ShipRegistry
     }
   }
 
-  /// <summary>
-  /// Daily insurance: host base premium + <see cref="HullRiskQuotes.DailyPremium"/>.
-  /// </summary>
   public decimal QuoteDailyPremium(ShipRegistryEntry e)
   {
     var basePremium = e.OwnerMaster ? 14m : 32m;
@@ -154,20 +172,17 @@ internal sealed class ShipRegistry
       idleOrSuspended: e.BurnedOut || e.Suspended);
   }
 
-  /// <summary>Elective overhaul (before burnout) — cheaper scheduled stack swap.</summary>
   public decimal QuoteElectiveOverhaul(ShipRegistryEntry e)
   {
     var hull = e.HullClass.Contains("Mega", StringComparison.OrdinalIgnoreCase) ? 1.8m : 1m;
     return HullRiskQuotes.ElectiveOverhaul(e.LifeUsed, hull);
   }
 
-  /// <summary>Forced overhaul after guaranteed burnout — yard emergency.</summary>
   public decimal QuoteBurnoutOverhaul(ShipRegistryEntry e) =>
     HullRiskQuotes.BurnoutOverhaul(
       e.LifeUsed,
       e.HullClass.Contains("Mega", StringComparison.OrdinalIgnoreCase) ? 1.8m : 1m);
 
-  /// <summary>Legacy alias: soft yard bill ≈ elective when not burned out.</summary>
   public decimal QuoteYardService(ShipRegistryEntry e) =>
     e.BurnedOut ? QuoteBurnoutOverhaul(e) : QuoteElectiveOverhaul(e);
 
@@ -179,7 +194,6 @@ internal sealed class ShipRegistry
     e.Suspended = false;
     e.YardCleared = true;
     e.OverhaulCount++;
-    // Fresh stack: damp profile history so premiums don't stay Priority-poisoned forever.
     e.PriorityLegs = Math.Max(0, e.PriorityLegs / 3);
     e.LongLaneLegs = Math.Max(0, e.LongLaneLegs / 3);
   }
