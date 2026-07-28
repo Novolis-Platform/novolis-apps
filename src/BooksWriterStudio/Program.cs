@@ -16,37 +16,47 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        QuestPDF.Settings.License = LicenseType.Community;
-
-        if (args.Length > 0 && Directory.Exists(args[0]))
-            StartupFolder = Path.GetFullPath(args[0]);
-
-        ApplicationHost = Host.CreateDefaultBuilder(args)
-            .ConfigureServices(services =>
-            {
-                services.AddSingleton<WriterSettingsStore>();
-                services.AddSingleton<WriterSession>();
-                services.AddSingleton<SpellService>();
-                services.AddSingleton<EdgeTtsManuscriptSynthesizer>();
-                services.AddSingleton<IManuscriptSynthesizer>(sp => sp.GetRequiredService<EdgeTtsManuscriptSynthesizer>());
-                services.AddSingleton<NaudioMp3Player>();
-                services.AddSingleton<IManuscriptAudioPlayer>(sp => sp.GetRequiredService<NaudioMp3Player>());
-                services.AddSingleton<ManuscriptSpeechPreview>();
-                services.AddTransient<MainWindow>();
-            })
-            .Build();
-
-        ApplicationHost.Start();
+        CrashLog.Install();
 
         try
         {
-            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            if (args.Length > 0 && Directory.Exists(args[0]))
+                StartupFolder = Path.GetFullPath(args[0]);
+
+            ApplicationHost = Host.CreateDefaultBuilder(args)
+                .ConfigureServices(services =>
+                {
+                    services.AddSingleton<WriterSettingsStore>();
+                    services.AddSingleton<WriterSession>();
+                    services.AddSingleton<SpellService>();
+                    services.AddSingleton<EdgeTtsManuscriptSynthesizer>();
+                    services.AddSingleton<IManuscriptSynthesizer>(sp => sp.GetRequiredService<EdgeTtsManuscriptSynthesizer>());
+                    services.AddSingleton<NaudioMp3Player>();
+                    services.AddSingleton<IManuscriptAudioPlayer>(sp => sp.GetRequiredService<NaudioMp3Player>());
+                    services.AddSingleton<ManuscriptSpeechPreview>();
+                    services.AddTransient<MainWindow>();
+                })
+                .Build();
+
+            ApplicationHost.Start();
+
+            try
+            {
+                BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            }
+            finally
+            {
+                ApplicationHost.StopAsync().GetAwaiter().GetResult();
+                ApplicationHost.Services.GetService<NaudioMp3Player>()?.Dispose();
+                ApplicationHost.Services.GetService<EdgeTtsManuscriptSynthesizer>()?.Dispose();
+            }
         }
-        finally
+        catch (Exception ex)
         {
-            ApplicationHost.StopAsync().GetAwaiter().GetResult();
-            ApplicationHost.Services.GetService<NaudioMp3Player>()?.Dispose();
-            ApplicationHost.Services.GetService<EdgeTtsManuscriptSynthesizer>()?.Dispose();
+            CrashLog.WriteAndOpen(ex, "Program.Main");
+            Environment.ExitCode = 1;
         }
     }
 
@@ -54,5 +64,6 @@ internal static class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
-            .LogToTrace();
+            .LogToTrace()
+            .AfterSetup(_ => CrashLog.InstallAvalonia(Avalonia.Threading.Dispatcher.UIThread));
 }

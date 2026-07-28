@@ -32,8 +32,8 @@ internal sealed class MainWindow : Window
     readonly PublishJobQueue _jobs = new();
     readonly GitRepositoryService _git = new();
 
-    readonly ComboBox _seriesCombo = new() { MinWidth = 140, Margin = new Thickness(0, 0, 6, 0) };
-    readonly ComboBox _bookCombo = new() { MinWidth = 160, Margin = new Thickness(0, 0, 6, 0) };
+    readonly ComboBox _seriesCombo = new() { MinWidth = 140, Margin = new Thickness(0, 0, 6, 0), PlaceholderText = "Series" };
+    readonly ComboBox _bookCombo = new() { MinWidth = 160, Margin = new Thickness(0, 0, 6, 0), PlaceholderText = "Book" };
     readonly ListBox _chapterList = new();
     readonly MarkdownSourceEditor _editor = new()
     {
@@ -80,6 +80,7 @@ internal sealed class MainWindow : Window
     bool _focusMode;
     bool _suppressEditorSync;
     bool _suppressChapterSelection;
+    bool _suppressCatalogSelection;
     bool _handlingExternalChange;
 
     public MainWindow(
@@ -445,76 +446,141 @@ internal sealed class MainWindow : Window
 
     void BindCatalogCombos(bool restoreSelection)
     {
-        _seriesCombo.Items.Clear();
-        _seriesCombo.Items.Add("(standalone books)");
-        foreach (var series in _session.Series)
-            _seriesCombo.Items.Add(series);
-
-        if (restoreSelection && !string.IsNullOrWhiteSpace(_settings.Settings.LastSeriesId))
+        _suppressCatalogSelection = true;
+        try
         {
-            var idx = _session.Series.ToList().FindIndex(s =>
-                s.Id.Equals(_settings.Settings.LastSeriesId, StringComparison.OrdinalIgnoreCase));
-            _seriesCombo.SelectedIndex = idx >= 0 ? idx + 1 : 0;
-        }
-        else
-        {
-            _seriesCombo.SelectedIndex = _session.Series.Count > 0 ? 1 : 0;
-        }
+            // Titles only (Manuscript Studio pattern) — SelectedIndex maps into session lists.
+            _seriesCombo.ItemsSource = null;
+            var seriesTitles = new List<string> { "(standalone books)" };
+            seriesTitles.AddRange(_session.Series.Select(s => string.IsNullOrWhiteSpace(s.Title) ? s.Id : s.Title));
+            _seriesCombo.ItemsSource = seriesTitles;
 
-        BindBookCombo(restoreSelection);
+            var seriesIndex = 0;
+            if (restoreSelection && !string.IsNullOrWhiteSpace(_settings.Settings.LastSeriesId))
+            {
+                var idx = _session.Series.ToList().FindIndex(s =>
+                    s.Id.Equals(_settings.Settings.LastSeriesId, StringComparison.OrdinalIgnoreCase));
+                if (idx >= 0)
+                    seriesIndex = idx + 1;
+            }
+            else if (_session.Series.Count > 0)
+            {
+                seriesIndex = 1;
+            }
+
+            _seriesCombo.SelectedIndex = seriesIndex;
+            ApplySeriesSelectionFromCombo(restoreBookId: restoreSelection ? _settings.Settings.LastBookId : null);
+        }
+        finally
+        {
+            _suppressCatalogSelection = false;
+        }
     }
 
-    void BindBookCombo(bool restoreSelection)
+    void BindBookCombo(string? restoreBookId)
     {
-        _bookCombo.Items.Clear();
-        IEnumerable<BookInfo> books = _session.SelectedSeries?.Books ?? _session.StandaloneBooks;
-        foreach (var book in books)
-            _bookCombo.Items.Add(book);
-
-        if (restoreSelection && !string.IsNullOrWhiteSpace(_settings.Settings.LastBookId))
+        _suppressCatalogSelection = true;
+        try
         {
-            var list = books.ToList();
-            var idx = list.FindIndex(b => b.Id.Equals(_settings.Settings.LastBookId, StringComparison.OrdinalIgnoreCase));
-            _bookCombo.SelectedIndex = idx >= 0 ? idx : 0;
+            var books = GetBooksForCurrentSeries();
+            _bookCombo.ItemsSource = books
+                .Select(b => string.IsNullOrWhiteSpace(b.Title) ? b.Id : b.Title)
+                .ToList();
+
+            var bookIndex = -1;
+            if (!string.IsNullOrWhiteSpace(restoreBookId))
+            {
+                bookIndex = books.FindIndex(b =>
+                    b.Id.Equals(restoreBookId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (bookIndex < 0 && books.Count > 0)
+                bookIndex = 0;
+
+            _bookCombo.SelectedIndex = bookIndex;
+            ApplyBookSelectionFromCombo();
+        }
+        finally
+        {
+            _suppressCatalogSelection = false;
+        }
+    }
+
+    List<BookInfo> GetBooksForCurrentSeries()
+    {
+        if (_session.SelectedSeries is not null)
+            return _session.SelectedSeries.Books.ToList();
+        return _session.StandaloneBooks.ToList();
+    }
+
+    void ApplySeriesSelectionFromCombo(string? restoreBookId)
+    {
+        var index = _seriesCombo.SelectedIndex;
+        if (index <= 0)
+        {
+            _session.SelectSeries(null);
+            _settings.Settings.LastSeriesId = null;
         }
         else
         {
-            _bookCombo.SelectedIndex = _bookCombo.ItemCount > 0 ? 0 : -1;
+            var seriesIdx = index - 1;
+            if (seriesIdx < 0 || seriesIdx >= _session.Series.Count)
+            {
+                _session.SelectSeries(null);
+                _settings.Settings.LastSeriesId = null;
+            }
+            else
+            {
+                var series = _session.Series[seriesIdx];
+                _session.SelectSeries(series);
+                _settings.Settings.LastSeriesId = series.Id;
+            }
         }
+
+        BindBookCombo(restoreBookId);
+    }
+
+    void ApplyBookSelectionFromCombo()
+    {
+        var books = GetBooksForCurrentSeries();
+        var index = _bookCombo.SelectedIndex;
+        if (index < 0 || index >= books.Count)
+        {
+            _session.SelectBook(null);
+            _settings.Settings.LastBookId = null;
+            return;
+        }
+
+        var book = books[index];
+        if (_session.SelectedSeries is null)
+            _session.SelectStandaloneBook(book);
+        else
+            _session.SelectBook(book);
+
+        _settings.Settings.LastBookId = book.Id;
     }
 
     void OnSeriesChanged()
     {
+        if (_suppressCatalogSelection)
+            return;
         if (_seriesCombo.SelectedIndex < 0)
             return;
 
-        if (_seriesCombo.SelectedIndex == 0)
-        {
-            _session.SelectSeries(null);
-            _session.SelectBook(_session.StandaloneBooks.FirstOrDefault());
-        }
-        else if (_seriesCombo.SelectedItem is SeriesInfo series)
-        {
-            _session.SelectSeries(series);
-        }
-
-        BindBookCombo(restoreSelection: false);
+        ApplySeriesSelectionFromCombo(restoreBookId: null);
         RefreshChapterList();
         _ = SelectFirstChapterAsync();
     }
 
     void OnBookChanged()
     {
-        if (_bookCombo.SelectedItem is not BookInfo book)
+        if (_suppressCatalogSelection)
+            return;
+        if (_bookCombo.SelectedIndex < 0)
             return;
 
-        if (_session.SelectedSeries is null)
-            _session.SelectStandaloneBook(book);
-        else
-            _session.SelectBook(book);
-
+        ApplyBookSelectionFromCombo();
         _settings.Settings.LastSeriesId = _session.SelectedSeries?.Id;
-        _settings.Settings.LastBookId = book.Id;
         RefreshChapterList();
         _ = SelectFirstChapterAsync();
     }
