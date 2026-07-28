@@ -508,21 +508,12 @@ internal static class CampaignWorld
 
     foreach (var ship in desk.Ships.Entries)
     {
-      var id = MeshIdentityId.From(ship.RegistryName);
-      if (id.Value.Equals(PlayerHullName, StringComparison.Ordinal))
+      if (ship.RegistryName.Equals(PlayerHullName, StringComparison.Ordinal))
       {
-        continue; // Calypso already registered under flavor id
+        continue; // Calypso registered under flavor id
       }
 
-      mesh = MeshBridge.RegisterIdentity(mesh, id, sol);
-    }
-
-    foreach (var (name, _) in new (string Name, FirmId Id)[]
-             {
-               ("Sins Mining", default),
-             })
-    {
-      _ = name;
+      mesh = MeshBridge.RegisterIdentity(mesh, MeshIdentityId.From(ship.RegistryName), sol);
     }
 
     mesh = MeshBridge.RegisterIdentity(mesh, MeshIdentityId.From("firm:mining"), sol);

@@ -5,6 +5,7 @@ using Novolis.Economy.Agents;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Production;
 using Novolis.Economy.Simulation;
+using SinsOfACapitalismTycoon.Universe.Mesh;
 using Spectre.Console;
 
 namespace SinsOfACapitalismTycoon.Universe;
@@ -267,6 +268,7 @@ internal static class CampaignRunner
         await Sim.AdvanceAsync(SimulationDuration.FromHours(1)).ConfigureAwait(false);
         Credits.ObserveAfterPulse(before);
         ObserveDeliveries(Sim, Ids, Biographies, Milestones);
+        Ids.Mesh = MeshPulse.TickHour(Ids.Mesh);
       }
 
       ClaimsPulse.TickDay(Sim, Ids.Registry, Ids, Milestones, Biographies);
