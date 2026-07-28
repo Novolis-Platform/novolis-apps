@@ -9,6 +9,8 @@ using DraftStudio.Core;
 using DraftStudio.Models;
 using DraftStudio.Services;
 using DraftStudio.Ui;
+using Novolis.Avalonia.Agent;
+using Novolis.Avalonia.Agent.Protocol;
 using Novolis.Avalonia.Raylib;
 using Novolis.Avalonia.Studio;
 
@@ -65,6 +67,8 @@ internal sealed class MainWindow : Window
     {
         var chrome = StudioChrome.Create();
         _feedback = chrome.CreateFeedback();
+        AgentProperties.SetId(chrome.StatusLine, "draft.status");
+        AgentProperties.SetId(chrome.FlashLine, "draft.flash");
 
         var toolbar = new StackPanel
         {
@@ -72,32 +76,35 @@ internal sealed class MainWindow : Window
             Spacing = 6,
             Margin = new Thickness(8),
         };
-        toolbar.Children.Add(Btn("Save", OnSave, "Ctrl+S"));
+        AgentProperties.SetId(toolbar, "draft.toolbar");
+        toolbar.Children.Add(Btn("Save", OnSave, "draft.tool.save", "Ctrl+S"));
         toolbar.Children.Add(Sep());
-        toolbar.Children.Add(Btn("Select", () => _dispatcher.EnterTool(DraftToolKind.Select)));
-        toolbar.Children.Add(Btn("Line", () => _dispatcher.EnterTool(DraftToolKind.Line), "L"));
-        toolbar.Children.Add(Btn("Circle", () => _dispatcher.EnterTool(DraftToolKind.Circle), "C"));
-        toolbar.Children.Add(Btn("Rect", () => _dispatcher.EnterTool(DraftToolKind.Rect), "R"));
-        toolbar.Children.Add(Btn("Spline", () => _dispatcher.EnterTool(DraftToolKind.Spline), "P"));
+        toolbar.Children.Add(Btn("Select", () => _dispatcher.EnterTool(DraftToolKind.Select), "draft.tool.select"));
+        toolbar.Children.Add(Btn("Line", () => _dispatcher.EnterTool(DraftToolKind.Line), "draft.tool.line", "L"));
+        toolbar.Children.Add(Btn("Circle", () => _dispatcher.EnterTool(DraftToolKind.Circle), "draft.tool.circle", "C"));
+        toolbar.Children.Add(Btn("Rect", () => _dispatcher.EnterTool(DraftToolKind.Rect), "draft.tool.rect", "R"));
+        toolbar.Children.Add(Btn("Spline", () => _dispatcher.EnterTool(DraftToolKind.Spline), "draft.tool.spline", "P"));
         toolbar.Children.Add(Sep());
-        toolbar.Children.Add(Btn("Box", () => Run("Box(1,1,1)")));
-        toolbar.Children.Add(Btn("Delete", () => Run("Delete"), "Del"));
-        toolbar.Children.Add(Btn("Undo", () => _bus.Undo(), "Ctrl+Z"));
-        toolbar.Children.Add(Btn("Redo", () => _bus.Redo(), "Ctrl+Y"));
+        toolbar.Children.Add(Btn("Box", () => Run("Box(1,1,1)"), "draft.tool.box"));
+        toolbar.Children.Add(Btn("Delete", () => Run("Delete"), "draft.tool.delete", "Del"));
+        toolbar.Children.Add(Btn("Undo", () => _bus.Undo(), "draft.undo", "Ctrl+Z"));
+        toolbar.Children.Add(Btn("Redo", () => _bus.Redo(), "draft.redo", "Ctrl+Y"));
         toolbar.Children.Add(Sep());
-        toolbar.Children.Add(Btn("Fit", OnFit, "F"));
-        toolbar.Children.Add(Btn("Draft", () => SetViewMode(DraftViewMode.Draft)));
-        toolbar.Children.Add(Btn("Model", () => SetViewMode(DraftViewMode.Model)));
+        toolbar.Children.Add(Btn("Fit", OnFit, "draft.fit", "F"));
+        toolbar.Children.Add(Btn("Draft", () => SetViewMode(DraftViewMode.Draft), "draft.view.draft"));
+        toolbar.Children.Add(Btn("Model", () => SetViewMode(DraftViewMode.Model), "draft.view.model"));
         toolbar.Children.Add(Sep());
-        toolbar.Children.Add(Btn("Export Phys", OnExportPhys));
+        toolbar.Children.Add(Btn("Export Phys", OnExportPhys, "draft.export.phys"));
 
         _draftViewport = new DraftViewport(_session, _settings, _dispatcher, _tools);
+        AgentProperties.SetId(_draftViewport, "draft.viewport");
         _raylibHost = new RaylibHostControl
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
             IsVisible = false,
         };
+        AgentProperties.SetId(_raylibHost, "draft.viewport.model");
         _modelRenderer.Bind(_raylibHost);
         _raylibHost.PointerPressed += OnModelPointerPressed;
         _raylibHost.PointerMoved += OnModelPointerMoved;
@@ -109,6 +116,7 @@ internal sealed class MainWindow : Window
         _viewportStack.Children.Add(_raylibHost);
 
         _commandBar = new StudioCommandBar();
+        AgentProperties.SetId(_commandBar, "draft.commandBar");
         _commandBar.Submitted += (_, e) =>
         {
             var err = _dispatcher.TryDispatch(e.Text);
@@ -134,6 +142,7 @@ internal sealed class MainWindow : Window
         var viewportWithStatus = StudioWorkspace.CreateViewportStack(center, chrome.FlashLine, chrome.StatusLine);
 
         _entityList = new ListBox();
+        AgentProperties.SetId(_entityList, "draft.entities", AgentRoleNames.ListBox);
         _entityList.ItemTemplate = new FuncDataTemplate<CadEntity>((item, _) =>
             new TextBlock { Text = item.Summary, Margin = new Thickness(4) }, true);
         _entityList.SelectionChanged += (_, _) =>
@@ -159,6 +168,7 @@ internal sealed class MainWindow : Window
             Margin = new Thickness(8),
             Opacity = 0.9,
         };
+        AgentProperties.SetId(_inspector, "draft.inspector");
         var right = new DockPanel { Margin = new Thickness(4) };
         var rightTitle = new TextBlock { Text = "Inspector", FontWeight = FontWeight.SemiBold, Margin = new Thickness(4) };
         DockPanel.SetDock(rightTitle, Dock.Top);
@@ -344,9 +354,10 @@ internal sealed class MainWindow : Window
         e.Handled = true;
     }
 
-    private static Button Btn(string text, Action action, string? tip = null)
+    private static Button Btn(string text, Action action, string agentId, string? tip = null)
     {
         var b = new Button { Content = text, Padding = new Thickness(10, 4) };
+        AgentProperties.SetId(b, agentId, AgentRoleNames.Button);
         if (tip is not null)
             ToolTip.SetTip(b, tip);
         b.Click += (_, _) => action();
