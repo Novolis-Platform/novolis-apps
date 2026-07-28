@@ -2,6 +2,8 @@ using Avalonia;
 using SinsOfACapitalismTycoon.Cli;
 using SinsOfACapitalismTycoon.Sim;
 using SinsOfACapitalismTycoon.Ui;
+using SinsOfACapitalismTycoon.Universe;
+using Spectre.Console;
 
 namespace SinsOfACapitalismTycoon;
 
@@ -12,15 +14,34 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
-        RunOptions options;
         try
         {
-            options = RunOptions.Parse(args);
+            return MainAsync(args).GetAwaiter().GetResult();
         }
         catch (ArgumentException ex)
         {
             Console.Error.WriteLine(ex.Message);
             return 2;
+        }
+    }
+
+    private static async Task<int> MainAsync(string[] args)
+    {
+        var options = RunOptions.Parse(args);
+
+        if (options.Engine == EngineKind.Campaign)
+        {
+            var result = await CampaignRunner.RunAsync(options.Seed, options.DaysHours, options.Quiet);
+            if (options.Mode == AppMode.Headless)
+            {
+                SpectreHeadlessReport.Write(AnsiConsole.Console, result);
+                TryWriteArtifact(result, options.Quiet);
+                return 0;
+            }
+
+            ReportText = CampaignRunner.FormatReport(result);
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            return 0;
         }
 
         Action<int, int>? progress = null;
@@ -49,6 +70,25 @@ internal static class Program
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
+    }
+
+    private static void TryWriteArtifact(CampaignRunner.Result result, bool quiet)
+    {
+        if (quiet)
+            return;
+        try
+        {
+            var days = result.RequestedHours / 24;
+            var dir = Path.Combine(AppContext.BaseDirectory, "artifacts");
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, $"sins-report-{days}d.txt");
+            File.WriteAllText(path, CampaignRunner.FormatReport(result));
+            Console.Error.WriteLine($"Wrote {path}");
+        }
+        catch
+        {
+            // non-fatal
+        }
     }
 
     public static AppBuilder BuildAvaloniaApp()

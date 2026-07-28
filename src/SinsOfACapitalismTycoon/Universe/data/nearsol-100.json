@@ -1,0 +1,965 @@
+[
+  {
+    "id": "sol",
+    "name": "Sol",
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0,
+    "spectral": "G",
+    "tags": [
+      "home"
+    ]
+  },
+  {
+    "id": "proxima-centauri",
+    "name": "Proxima Centauri",
+    "x": 2.945,
+    "y": -3.056,
+    "z": -0.143,
+    "spectral": "M",
+    "tags": [
+      "nearest"
+    ]
+  },
+  {
+    "id": "alpha-centauri",
+    "name": "Alpha Centauri",
+    "x": 3.126,
+    "y": -3.047,
+    "z": -0.052,
+    "spectral": "G",
+    "tags": [
+      "binary"
+    ]
+  },
+  {
+    "id": "barnards-star",
+    "name": "Barnard's Star",
+    "x": 4.958,
+    "y": 2.98,
+    "z": 1.449,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "wolf-359",
+    "name": "Wolf 359",
+    "x": -1.916,
+    "y": -3.938,
+    "z": 6.522,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lalande-21185",
+    "name": "Lalande 21185",
+    "x": -3.439,
+    "y": -0.308,
+    "z": 7.553,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "sirius",
+    "name": "Sirius",
+    "x": -5.809,
+    "y": -6.28,
+    "z": -1.338,
+    "spectral": "A",
+    "tags": [
+      "bright"
+    ]
+  },
+  {
+    "id": "luyten-726-8",
+    "name": "Luyten 726-8",
+    "x": -2.171,
+    "y": 0.171,
+    "z": -8.544,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "ross-154",
+    "name": "Ross 154",
+    "x": 9.365,
+    "y": 1.873,
+    "z": -1.733,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "ross-248",
+    "name": "Ross 248",
+    "x": -3.37,
+    "y": 9.265,
+    "z": -3.003,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "epsilon-eridani",
+    "name": "Epsilon Eridani",
+    "x": -6.753,
+    "y": -1.917,
+    "z": -7.811,
+    "spectral": "K",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "lacaille-9352",
+    "name": "Lacaille 9352",
+    "x": 4.352,
+    "y": 0.388,
+    "z": -9.794,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "ross-128",
+    "name": "Ross 128",
+    "x": 0.014,
+    "y": -5.577,
+    "z": 9.49,
+    "spectral": "M",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "ez-aquarii",
+    "name": "EZ Aquarii",
+    "x": 4.123,
+    "y": 4.432,
+    "z": -9.315,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "61-cygni",
+    "name": "61 Cygni",
+    "x": 1.516,
+    "y": 11.244,
+    "z": -1.156,
+    "spectral": "K",
+    "tags": [
+      "binary"
+    ]
+  },
+  {
+    "id": "procyon",
+    "name": "Procyon",
+    "x": -9.27,
+    "y": -6.183,
+    "z": 2.577,
+    "spectral": "F",
+    "tags": [
+      "bright"
+    ]
+  },
+  {
+    "id": "struve-2398",
+    "name": "Struve 2398",
+    "x": 0.13,
+    "y": 10.478,
+    "z": 4.716,
+    "spectral": "M",
+    "tags": [
+      "binary"
+    ]
+  },
+  {
+    "id": "groombridge-34",
+    "name": "Groombridge 34",
+    "x": -4.949,
+    "y": 9.849,
+    "z": -3.677,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "dx-cancri",
+    "name": "DX Cancri",
+    "x": -9.428,
+    "y": -2.885,
+    "z": 6.262,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "epsilon-indi",
+    "name": "Epsilon Indi",
+    "x": 7.259,
+    "y": -3.203,
+    "z": -8.825,
+    "spectral": "K",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "tau-ceti",
+    "name": "Tau Ceti",
+    "x": -3.369,
+    "y": 0.408,
+    "z": -11.412,
+    "spectral": "G",
+    "tags": [
+      "candidate"
+    ]
+  },
+  {
+    "id": "luyten-372-58",
+    "name": "GJ 1061",
+    "x": -2.249,
+    "y": -6.869,
+    "z": -9.559,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "yz-ceti",
+    "name": "YZ Ceti",
+    "x": -2.04,
+    "y": 1.192,
+    "z": -11.89,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "luytens-star",
+    "name": "Luyten's Star",
+    "x": -10.262,
+    "y": -6.499,
+    "z": 2.224,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "teegardens-star",
+    "name": "Teegarden's Star",
+    "x": -9.391,
+    "y": 3.369,
+    "z": -7.526,
+    "spectral": "M",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "kapteyns-star",
+    "name": "Kapteyn's Star",
+    "x": -3.46,
+    "y": -9.787,
+    "z": -7.542,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lacaille-8760",
+    "name": "Lacaille 8760",
+    "x": 9.252,
+    "y": 0.631,
+    "z": -9.036,
+    "spectral": "K",
+    "tags": []
+  },
+  {
+    "id": "kruger-60",
+    "name": "Kruger 60",
+    "x": -3.316,
+    "y": 12.651,
+    "z": -0.001,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "denis-j1048",
+    "name": "DENIS J1048-3956",
+    "x": 1.904,
+    "y": -12.468,
+    "z": 3.872,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "ross-614",
+    "name": "Ross 614",
+    "x": -11.202,
+    "y": -7.255,
+    "z": -1.447,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "wolf-1061",
+    "name": "Wolf 1061",
+    "x": 12.845,
+    "y": 0.752,
+    "z": 5.643,
+    "spectral": "M",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "van-maanens-star",
+    "name": "van Maanen's Star",
+    "x": -3.996,
+    "y": 6.424,
+    "z": -11.865,
+    "spectral": "Unknown",
+    "tags": [
+      "white-dwarf"
+    ]
+  },
+  {
+    "id": "wolf-424",
+    "name": "Wolf 424",
+    "x": 1.448,
+    "y": -4.264,
+    "z": 13.375,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "hd-225213",
+    "name": "GJ 1",
+    "x": 3.311,
+    "y": -0.977,
+    "z": -13.748,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "tz-arietis",
+    "name": "TZ Arietis",
+    "x": -8.48,
+    "y": 5.369,
+    "z": -10.573,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "bd-68-946",
+    "name": "BD+68 946",
+    "x": -1.883,
+    "y": 12.448,
+    "z": 7.856,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "cd-46-11540",
+    "name": "CD-46 11540",
+    "x": 14.102,
+    "y": -4.31,
+    "z": -1.752,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lhs-292",
+    "name": "LHS 292",
+    "x": -1.749,
+    "y": -11.036,
+    "z": 9.813,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "luyten-145-141",
+    "name": "Luyten 145-141",
+    "x": 6.625,
+    "y": -13.574,
+    "z": -0.753,
+    "spectral": "Unknown",
+    "tags": [
+      "white-dwarf"
+    ]
+  },
+  {
+    "id": "v1581-cygni",
+    "name": "V1581 Cygni",
+    "x": 2.905,
+    "y": 14.752,
+    "z": 2.25,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "ross-780",
+    "name": "Gliese 876",
+    "x": 4.743,
+    "y": 6.071,
+    "z": -13.148,
+    "spectral": "M",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "luyten-143-23",
+    "name": "Luyten 143-23",
+    "x": 4.928,
+    "y": -14.958,
+    "z": -0.555,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lhs-2",
+    "name": "LHS 2",
+    "x": -0.258,
+    "y": 5.986,
+    "z": -14.627,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "groombridge-1618",
+    "name": "Groombridge 1618",
+    "x": -9.453,
+    "y": 2.38,
+    "z": 12.543,
+    "spectral": "K",
+    "tags": []
+  },
+  {
+    "id": "lalande-21258",
+    "name": "Lalande 21258",
+    "x": -7.099,
+    "y": 1.444,
+    "z": 14.263,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "ad-leonis",
+    "name": "AD Leonis",
+    "x": -7.549,
+    "y": -5.577,
+    "z": 13.197,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "hd-204961",
+    "name": "Gliese 832",
+    "x": 10.984,
+    "y": -2.101,
+    "z": -11.722,
+    "spectral": "M",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "cd-44-11909",
+    "name": "CD-44 11909",
+    "x": 15.741,
+    "y": -3.929,
+    "z": -1.887,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "omicron2-eridani",
+    "name": "40 Eridani",
+    "x": -12.033,
+    "y": -4.56,
+    "z": -10.071,
+    "spectral": "K",
+    "tags": []
+  },
+  {
+    "id": "ev-lacertae",
+    "name": "EV Lacertae",
+    "x": -2.954,
+    "y": 15.775,
+    "z": -3.726,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "70-ophiuchi",
+    "name": "70 Ophiuchi",
+    "x": 14.2,
+    "y": 8.163,
+    "z": 3.293,
+    "spectral": "K",
+    "tags": [
+      "binary"
+    ]
+  },
+  {
+    "id": "altair",
+    "name": "Altair",
+    "x": 11.115,
+    "y": 12.234,
+    "z": -2.591,
+    "spectral": "A",
+    "tags": [
+      "bright"
+    ]
+  },
+  {
+    "id": "ei-cancri",
+    "name": "EI Cancri",
+    "x": -11.979,
+    "y": -6.249,
+    "z": 9.985,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "g-99-49",
+    "name": "G 99-49",
+    "x": -15.208,
+    "y": -6.951,
+    "z": -2.991,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lhs-2459",
+    "name": "LHS 2459",
+    "x": -8.104,
+    "y": 10.814,
+    "z": 10.538,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "wisea-j1540",
+    "name": "WISEA J1540-5101",
+    "x": 14.713,
+    "y": -9.182,
+    "z": 1.032,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lhs-1723",
+    "name": "LHS 1723",
+    "x": -13.929,
+    "y": -6.923,
+    "z": -8.087,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "wolf-498",
+    "name": "Wolf 498",
+    "x": 5.298,
+    "y": -0.785,
+    "z": 16.898,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "stein-2051",
+    "name": "Stein 2051",
+    "x": -15.151,
+    "y": 9.43,
+    "z": 2.29,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "wolf-294",
+    "name": "Wolf 294",
+    "x": -17.56,
+    "y": -0.901,
+    "z": 4.756,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lp-816-60",
+    "name": "LP 816-60",
+    "x": 13.106,
+    "y": 7.617,
+    "z": -10.308,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "wisea-j1835",
+    "name": "WISEA J1835+3259",
+    "x": 8.406,
+    "y": 15.577,
+    "z": 5.562,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "wolf-1453",
+    "name": "Wolf 1453",
+    "x": -15.64,
+    "y": -7.947,
+    "z": -6.194,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "hd-42581",
+    "name": "Gliese 229",
+    "x": -11.786,
+    "y": -13.374,
+    "z": -5.944,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "sigma-draconis",
+    "name": "Sigma Draconis",
+    "x": -3.419,
+    "y": 17.107,
+    "z": 7.005,
+    "spectral": "G",
+    "tags": []
+  },
+  {
+    "id": "ross-47",
+    "name": "Ross 47",
+    "x": -18.114,
+    "y": -4.418,
+    "z": -3.024,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lalande-27173",
+    "name": "Gliese 570",
+    "x": 15.009,
+    "y": -5.99,
+    "z": 10.366,
+    "spectral": "K",
+    "tags": []
+  },
+  {
+    "id": "luyten-205-128",
+    "name": "Luyten 205-128",
+    "x": 16.899,
+    "y": -7.771,
+    "z": -4.794,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "luyten-347-14",
+    "name": "Luyten 347-14",
+    "x": 17.464,
+    "y": -2.343,
+    "z": -7.809,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lalande-46650",
+    "name": "Lalande 46650",
+    "x": -0.655,
+    "y": 10.511,
+    "z": -16.143,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "wolf-1055",
+    "name": "Wolf 1055",
+    "x": 14.658,
+    "y": 12.495,
+    "z": -1.105,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "cd-40-9712",
+    "name": "CD-40 9712",
+    "x": 16.764,
+    "y": -8.662,
+    "z": 4.055,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "eta-cassiopeiae",
+    "name": "Eta Cassiopeiae",
+    "x": -10.379,
+    "y": 16.216,
+    "z": -1.703,
+    "spectral": "G",
+    "tags": []
+  },
+  {
+    "id": "luyten-722-22",
+    "name": "Luyten 722-22",
+    "x": 0.49,
+    "y": 4.595,
+    "z": -18.815,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "36-ophiuchi",
+    "name": "36 Ophiuchi",
+    "x": 19.266,
+    "y": -0.579,
+    "z": 2.325,
+    "spectral": "K",
+    "tags": []
+  },
+  {
+    "id": "ross-882",
+    "name": "Ross 882",
+    "x": -15.397,
+    "y": -11.128,
+    "z": 4.546,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "hd-191408",
+    "name": "HD 191408",
+    "x": 16.752,
+    "y": 1.534,
+    "z": -10.078,
+    "spectral": "K",
+    "tags": []
+  },
+  {
+    "id": "82-eridani",
+    "name": "82 Eridani",
+    "x": -3.626,
+    "y": -10.382,
+    "z": -16.351,
+    "spectral": "G",
+    "tags": []
+  },
+  {
+    "id": "ross-986",
+    "name": "Ross 986",
+    "x": -18.559,
+    "y": 0.339,
+    "z": 6.721,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "delta-pavonis",
+    "name": "Delta Pavonis",
+    "x": 14.509,
+    "y": -8.456,
+    "z": -10.664,
+    "spectral": "G",
+    "tags": []
+  },
+  {
+    "id": "hd-191849",
+    "name": "HD 191849",
+    "x": 16.798,
+    "y": -1.527,
+    "z": -10.943,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "lhs-455",
+    "name": "LHS 455",
+    "x": -3.453,
+    "y": 17.077,
+    "z": 10.339,
+    "spectral": "Unknown",
+    "tags": [
+      "white-dwarf"
+    ]
+  },
+  {
+    "id": "wolf-1481",
+    "name": "Wolf 1481",
+    "x": 13.836,
+    "y": -5.472,
+    "z": 13.95,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "eq-pegasi",
+    "name": "EQ Pegasi",
+    "x": -2.363,
+    "y": 15.667,
+    "z": -12.895,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "gliese-667",
+    "name": "Gliese 667",
+    "x": 18.2,
+    "y": -9.4,
+    "z": 6.8,
+    "spectral": "K",
+    "tags": [
+      "planet-host",
+      "triple"
+    ]
+  },
+  {
+    "id": "gliese-687",
+    "name": "Gliese 687",
+    "x": -5.2,
+    "y": 18.4,
+    "z": 10.1,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "gliese-581",
+    "name": "Gliese 581",
+    "x": 15.8,
+    "y": -4.1,
+    "z": 14.2,
+    "spectral": "M",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "gliese-752",
+    "name": "Gliese 752",
+    "x": 13.2,
+    "y": 12.8,
+    "z": -12.4,
+    "spectral": "M",
+    "tags": []
+  },
+  {
+    "id": "gliese-436",
+    "name": "Gliese 436",
+    "x": -16.4,
+    "y": -8.9,
+    "z": -12.1,
+    "spectral": "M",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "gliese-674-b",
+    "name": "HN Pegasi",
+    "x": -12.8,
+    "y": 8.4,
+    "z": -16.2,
+    "spectral": "G",
+    "tags": []
+  },
+  {
+    "id": "gliese-674",
+    "name": "Gliese 674",
+    "x": 14.5,
+    "y": -8.2,
+    "z": -15.1,
+    "spectral": "M",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "capella",
+    "name": "Capella",
+    "x": -18.6,
+    "y": 11.2,
+    "z": -6.4,
+    "spectral": "G",
+    "tags": [
+      "binary"
+    ]
+  },
+  {
+    "id": "gliese-849",
+    "name": "Gliese 849",
+    "x": 6.2,
+    "y": 14.8,
+    "z": -16.9,
+    "spectral": "M",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "pollux",
+    "name": "Pollux",
+    "x": -19.2,
+    "y": -10.8,
+    "z": 8.1,
+    "spectral": "K",
+    "tags": [
+      "planet-host"
+    ]
+  },
+  {
+    "id": "arcturus",
+    "name": "Arcturus",
+    "x": 9.1,
+    "y": -11.4,
+    "z": 18.6,
+    "spectral": "K",
+    "tags": [
+      "bright"
+    ]
+  },
+  {
+    "id": "fomalhaut-b",
+    "name": "Beta Hydri",
+    "x": 12.4,
+    "y": -18.6,
+    "z": -8.2,
+    "spectral": "G",
+    "tags": []
+  },
+  {
+    "id": "phecda",
+    "name": "Xi Bootis",
+    "x": 11.8,
+    "y": -6.4,
+    "z": 19.8,
+    "spectral": "G",
+    "tags": [
+      "binary"
+    ]
+  },
+  {
+    "id": "chara",
+    "name": "Chara",
+    "x": -8.4,
+    "y": 4.2,
+    "z": 22.1,
+    "spectral": "G",
+    "tags": []
+  },
+  {
+    "id": "gliese-876-b",
+    "name": "Fomalhaut",
+    "x": 7.7,
+    "y": -16.2,
+    "z": -16.8,
+    "spectral": "A",
+    "tags": [
+      "bright"
+    ]
+  },
+  {
+    "id": "vega",
+    "name": "Vega",
+    "x": -14.1,
+    "y": 19.2,
+    "z": 8.4,
+    "spectral": "A",
+    "tags": [
+      "bright"
+    ]
+  }
+]

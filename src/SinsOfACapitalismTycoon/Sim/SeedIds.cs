@@ -2,7 +2,7 @@ using Novolis.Economy.Core;
 
 namespace SinsOfACapitalismTycoon.Sim;
 
-/// <summary>Stable ids for the seeded polity (derived from run seed).</summary>
+/// <summary>Stable ids for the seeded Core smoke world (derived from run seed).</summary>
 internal sealed record SeedIds(
     RegionId MineRegion,
     RegionId FactoryRegion,

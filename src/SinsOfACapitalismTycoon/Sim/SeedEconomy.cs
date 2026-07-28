@@ -63,7 +63,7 @@ internal sealed record SeedKnobs(
         InsuranceDeductible: Money.Zero);
 }
 
-/// <summary>Two-region polity builder parameterized by scenario knobs.</summary>
+/// <summary>Two-region Core smoke builder parameterized by scenario knobs.</summary>
 internal static class SeedEconomy
 {
     public static (EconomyState State, SeedIds Ids, SeedKnobs Knobs) Create(ulong seed, SeedKnobs knobs)

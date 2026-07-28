@@ -41,10 +41,20 @@
     <PackageVersion Include="Novolis.Markup.Manuscript" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Markup.Mermaid" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Economy.Core" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Economy.Accounting" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Economy.Logistics" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Economy.Markets" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Economy.Population" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Economy.Production" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Economy.Simulation" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Economy.Finance" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Economy.Agents" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Abstractions" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Astro.Assessment" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Catalog" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Catalog.Data" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Routing" Version="2026.1.*" />
+    <PackageVersion Include="Spectre.Console" Version="0.54.0" />
     <PackageVersion Include="Novolis.Raylib" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Rendering.Backends.Igpu" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Rendering.Compile" Version="2026.1.*" />
