@@ -53,5 +53,7 @@ internal sealed class LiveStudioRuntime : IAsyncDisposable
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
         }
+        // Other failures are published onto LiveStudioSession state and rethrown
+        // so EnsureStartedAsync / MainWindow can observe them.
     }
 }

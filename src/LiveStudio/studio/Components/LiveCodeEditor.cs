@@ -68,7 +68,8 @@ internal sealed class LiveCodeEditor : Border
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        if (e.Key == Key.F5
+            || (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control)))
         {
             CompileRequested?.Invoke(this, EventArgs.Empty);
             e.Handled = true;

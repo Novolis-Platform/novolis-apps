@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using AvaloniaEdit;
 using BooksWriterStudio.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Novolis.Audio.Voice.EdgeTts;
 using Novolis.Audio.Voice.Manuscript;
 using Novolis.Avalonia.Controls;
 using Novolis.Avalonia.Markdown;
@@ -43,9 +44,6 @@ internal sealed class MainWindow : Window
     };
     readonly TabControl _contextTabs = new();
     readonly JobQueuePanel _jobPanel = new();
-    readonly TextBlock _statusText = new();
-    readonly Border _statusBar = new();
-    readonly Border _menuBar = new();
     readonly Border _topBar = new();
 
     readonly TextBox _metaNumber = new();
@@ -67,10 +65,11 @@ internal sealed class MainWindow : Window
     readonly TextBox _printPageHeight = new();
     readonly TextBox _printBodySize = new();
     readonly CheckBox _printIncludeCover = new() { Content = "Include cover" };
-    readonly TextBox _voiceId = new();
-    readonly TextBox _voiceRate = new();
-    readonly TextBox _voicePitch = new();
-    readonly TextBox _voiceVolume = new();
+    readonly ComboBox _voiceCombo = new() { MinWidth = 180 };
+    readonly ComboBox _voiceProfileCombo = new() { MinWidth = 160 };
+    readonly TextBox _voiceRate = new() { PlaceholderText = "-4" };
+    readonly TextBox _voicePitch = new() { PlaceholderText = "0" };
+    readonly TextBox _voiceVolume = new() { PlaceholderText = "0" };
 
     StudioFeedback _feedback = null!;
     Grid _bodyGrid = null!;
@@ -81,6 +80,7 @@ internal sealed class MainWindow : Window
     bool _suppressEditorSync;
     bool _suppressChapterSelection;
     bool _suppressCatalogSelection;
+    bool _suppressVoiceUi;
     bool _handlingExternalChange;
 
     public MainWindow(
@@ -107,8 +107,14 @@ internal sealed class MainWindow : Window
         _seriesCombo.SelectionChanged += (_, _) => OnSeriesChanged();
         _bookCombo.SelectionChanged += (_, _) => OnBookChanged();
         _chapterList.SelectionChanged += (_, _) => OnChapterSelectionChanged();
+        _voiceProfileCombo.SelectionChanged += (_, _) => OnVoiceProfileChanged();
         _jobs.Changed += () => Dispatcher.UIThread.Post(RefreshJobPanel);
         _session.FileWatcher.FileChanged += OnExternalFileChanged;
+
+        _voiceCombo.ItemsSource = EdgeVoiceCatalog.All.ToList();
+        _voiceCombo.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(EdgeVoiceEntry.DisplayName));
+        _voiceProfileCombo.ItemsSource = EdgeVoiceProfiles.All.ToList();
+        _voiceProfileCombo.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(EdgeVoiceProfile.DisplayName));
     }
 
     Control BuildLayout()
@@ -116,56 +122,31 @@ internal sealed class MainWindow : Window
         var chrome = StudioChrome.Create();
         _feedback = chrome.CreateFeedback();
 
-        _menuBar.Background = new SolidColorBrush(Color.Parse("#252526"));
-        _menuBar.Padding = new Thickness(10, 6);
-        _menuBar.Child = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Children =
-            {
-                Button("Open folder…", OnOpenFolder),
-                Button("Save", OnSave, "Ctrl+S"),
-                Button("Speak selection", OnSpeakSelection, "Ctrl+Shift+Space"),
-                Button("Stop speech", OnStopSpeech),
-            },
-        };
-
+        // Single toolbar: workspace actions + catalog (no duplicate Save/Speak bars).
         _topBar.Background = new SolidColorBrush(Color.Parse("#252526"));
         _topBar.Padding = new Thickness(10, 6);
         _topBar.BorderBrush = new SolidColorBrush(Color.Parse("#3F3F46"));
         _topBar.BorderThickness = new Thickness(0, 0, 0, 1);
         var topInner = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        topInner.Children.Add(Button("Open…", OnOpenFolder));
+        topInner.Children.Add(Button("Save", OnSave, "Ctrl+S"));
+        topInner.Children.Add(Button("Speak", OnSpeakSelection, "Ctrl+Shift+Space"));
+        topInner.Children.Add(Button("Stop", OnStopSpeech));
+        topInner.Children.Add(Button("Spell", OnCheckSpelling));
+        topInner.Children.Add(new Border
+        {
+            Width = 1,
+            Margin = new Thickness(6, 2),
+            Background = new SolidColorBrush(Color.Parse("#3F3F46")),
+        });
         topInner.Children.Add(_seriesCombo);
         topInner.Children.Add(_bookCombo);
-        topInner.Children.Add(Button("Refresh catalog", OnRefreshCatalog));
+        topInner.Children.Add(Button("Refresh", OnRefreshCatalog));
         _topBar.Child = topInner;
-
-        _statusText.Foreground = Brushes.White;
-        _statusBar.Padding = new Thickness(12, 5);
-        _statusBar.Background = StudioStatusBrushes.Clean;
-        _statusBar.Child = _statusText;
 
         BuildContextTabs();
 
-        var editorBar = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            Margin = new Thickness(8, 6),
-            Children =
-            {
-                Button("Save chapter", OnSave, "Ctrl+S"),
-                Button("Apply metadata", OnApplyMetadata),
-                Button("Speak", OnSpeakSelection),
-                Button("Stop", OnStopSpeech),
-                Button("Check spelling", OnCheckSpelling),
-            },
-        };
-
         var editorDock = new DockPanel();
-        DockPanel.SetDock(editorBar, Dock.Top);
-        editorDock.Children.Add(editorBar);
         editorDock.Children.Add(_editor);
 
         var navTitle = new TextBlock { Text = "Chapters", FontWeight = FontWeight.Bold, Margin = new Thickness(8, 8, 8, 4) };
@@ -185,6 +166,7 @@ internal sealed class MainWindow : Window
             BorderBrush = new SolidColorBrush(Color.Parse("#3F3F46")),
             BorderThickness = new Thickness(1, 0, 0, 0),
             Child = _contextTabs,
+            MinWidth = 360,
         };
 
         _bodyGrid = new Grid
@@ -210,13 +192,9 @@ internal sealed class MainWindow : Window
         workspaceHost.Children.Add(chrome.BusyOverlay);
 
         var root = new DockPanel();
-        DockPanel.SetDock(_menuBar, Dock.Top);
         DockPanel.SetDock(_topBar, Dock.Top);
-        DockPanel.SetDock(_statusBar, Dock.Bottom);
         DockPanel.SetDock(flashStatus, Dock.Bottom);
-        root.Children.Add(_menuBar);
         root.Children.Add(_topBar);
-        root.Children.Add(_statusBar);
         root.Children.Add(flashStatus);
         root.Children.Add(workspaceHost);
         return root;
@@ -280,35 +258,84 @@ internal sealed class MainWindow : Window
 
     Control BuildPublishPanel()
     {
-        var panel = new ScrollViewer
+        // Roomier layout: actions row, settings scroll, jobs fill remaining height.
+        var exportRow = new WrapPanel
         {
-            Content = new StackPanel
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        foreach (var btn in new[]
+                 {
+                     Button("Book PDF", OnExportBookPdf),
+                     Button("Reference PDF", OnExportReferencePdf),
+                     Button("Audiobook (MP3 + M4B)", OnGenerateAudiobook),
+                 })
+        {
+            btn.Margin = new Thickness(0, 0, 8, 8);
+            btn.MinWidth = 140;
+            btn.Padding = new Thickness(12, 8);
+            exportRow.Children.Add(btn);
+        }
+
+        var printPanel = new StackPanel
+        {
+            Spacing = 8,
+            Margin = new Thickness(0, 0, 0, 12),
+            Children =
             {
-                Margin = new Thickness(8),
-                Spacing = 8,
-                Children =
-                {
-                    new TextBlock { Text = "Export", FontWeight = FontWeight.Bold },
-                    Button("Export book PDF", OnExportBookPdf),
-                    Button("Export reference PDF", OnExportReferencePdf),
-                    Button("Generate audiobook (MP3 + M4B)", OnGenerateAudiobook),
-                    new TextBlock { Text = "Print settings", FontWeight = FontWeight.Bold, Margin = new Thickness(0, 8, 0, 0) },
-                    Labeled("Page width (in)", _printPageWidth),
-                    Labeled("Page height (in)", _printPageHeight),
-                    Labeled("Body font size", _printBodySize),
-                    _printIncludeCover,
-                    Button("Save print settings", OnSavePrintSettings),
-                    new TextBlock { Text = "Voice settings", FontWeight = FontWeight.Bold, Margin = new Thickness(0, 8, 0, 0) },
-                    Labeled("Voice", _voiceId),
-                    Labeled("Rate", _voiceRate),
-                    Labeled("Pitch", _voicePitch),
-                    Labeled("Volume", _voiceVolume),
-                    Button("Save voice settings", OnSaveVoiceSettings),
-                    new TextBlock { Text = "Jobs", FontWeight = FontWeight.Bold, Margin = new Thickness(0, 8, 0, 0) },
-                    _jobPanel,
-                },
+                new TextBlock { Text = "Print", FontWeight = FontWeight.SemiBold },
+                Labeled("Width (in)", _printPageWidth),
+                Labeled("Height (in)", _printPageHeight),
+                Labeled("Body size", _printBodySize),
+                _printIncludeCover,
+                Button("Save print settings", OnSavePrintSettings),
             },
         };
+
+        var voicePanel = new StackPanel
+        {
+            Spacing = 8,
+            Margin = new Thickness(0, 0, 0, 12),
+            Children =
+            {
+                new TextBlock { Text = "Voice", FontWeight = FontWeight.SemiBold },
+                Labeled("Profile", _voiceProfileCombo),
+                Labeled("Voice", _voiceCombo),
+                Labeled("Rate (%)", _voiceRate),
+                Labeled("Pitch (Hz)", _voicePitch),
+                Labeled("Volume (%)", _voiceVolume),
+                Button("Save voice settings", OnSaveVoiceSettings),
+            },
+        };
+
+        var settingsTabs = new TabControl
+        {
+            Margin = new Thickness(0, 0, 0, 8),
+            MinHeight = 220,
+        };
+        settingsTabs.Items.Add(new TabItem { Header = "Print", Content = new ScrollViewer { Content = printPanel } });
+        settingsTabs.Items.Add(new TabItem { Header = "Voice", Content = new ScrollViewer { Content = voicePanel } });
+
+        var jobsHeader = new TextBlock
+        {
+            Text = "Jobs",
+            FontWeight = FontWeight.SemiBold,
+            Margin = new Thickness(0, 0, 0, 6),
+        };
+
+        _jobPanel.MinHeight = 180;
+        _jobPanel.VerticalAlignment = VerticalAlignment.Stretch;
+
+        var jobsDock = new DockPanel();
+        DockPanel.SetDock(jobsHeader, Dock.Top);
+        jobsDock.Children.Add(jobsHeader);
+        jobsDock.Children.Add(_jobPanel);
+
+        var root = new DockPanel { Margin = new Thickness(10) };
+        DockPanel.SetDock(exportRow, Dock.Top);
+        DockPanel.SetDock(settingsTabs, Dock.Top);
+        root.Children.Add(exportRow);
+        root.Children.Add(settingsTabs);
+        root.Children.Add(jobsDock);
 
         _jobPanel.CancelRequested += row =>
         {
@@ -320,7 +347,7 @@ internal sealed class MainWindow : Window
             if (row.Tag is PublishJob { OutputPath: { } path } && File.Exists(path))
                 ShellOpen(path);
         };
-        return panel;
+        return root;
     }
 
     Control BuildScmPanel()
@@ -438,7 +465,7 @@ internal sealed class MainWindow : Window
         RefreshScmStatus();
         _feedback.Flash($"Opened {workspace.ContentRoot}");
 
-        if (restoreSelection && _session.SelectedBook is not null && _session.SelectedChapter is not null)
+        if (_session.SelectedChapter is not null)
             await LoadChapterAsync(_session.SelectedChapter, skipSavePrompt: true);
         else
             UpdateStatus();
@@ -449,8 +476,8 @@ internal sealed class MainWindow : Window
         _suppressCatalogSelection = true;
         try
         {
-            // Titles only (Manuscript Studio pattern) — SelectedIndex maps into session lists.
-            _seriesCombo.ItemsSource = null;
+            // Titles only — drive session from computed indices (Avalonia may not
+            // apply SelectedIndex synchronously right after ItemsSource assignment).
             var seriesTitles = new List<string> { "(standalone books)" };
             seriesTitles.AddRange(_session.Series.Select(s => string.IsNullOrWhiteSpace(s.Title) ? s.Id : s.Title));
             _seriesCombo.ItemsSource = seriesTitles;
@@ -468,8 +495,8 @@ internal sealed class MainWindow : Window
                 seriesIndex = 1;
             }
 
-            _seriesCombo.SelectedIndex = seriesIndex;
-            ApplySeriesSelectionFromCombo(restoreBookId: restoreSelection ? _settings.Settings.LastBookId : null);
+            ApplySeriesSelectionByIndex(seriesIndex, restoreSelection ? _settings.Settings.LastBookId : null);
+            SelectComboItem(_seriesCombo, seriesTitles, seriesIndex);
         }
         finally
         {
@@ -479,13 +506,15 @@ internal sealed class MainWindow : Window
 
     void BindBookCombo(string? restoreBookId)
     {
+        var outer = _suppressCatalogSelection;
         _suppressCatalogSelection = true;
         try
         {
             var books = GetBooksForCurrentSeries();
-            _bookCombo.ItemsSource = books
+            var bookTitles = books
                 .Select(b => string.IsNullOrWhiteSpace(b.Title) ? b.Id : b.Title)
                 .ToList();
+            _bookCombo.ItemsSource = bookTitles;
 
             var bookIndex = -1;
             if (!string.IsNullOrWhiteSpace(restoreBookId))
@@ -497,13 +526,28 @@ internal sealed class MainWindow : Window
             if (bookIndex < 0 && books.Count > 0)
                 bookIndex = 0;
 
-            _bookCombo.SelectedIndex = bookIndex;
-            ApplyBookSelectionFromCombo();
+            ApplyBookSelectionByIndex(bookIndex);
+            SelectComboItem(_bookCombo, bookTitles, bookIndex);
         }
         finally
         {
-            _suppressCatalogSelection = false;
+            _suppressCatalogSelection = outer;
         }
+    }
+
+    static void SelectComboItem(ComboBox combo, IReadOnlyList<string> items, int index)
+    {
+        if (index < 0 || index >= items.Count)
+        {
+            combo.SelectedIndex = -1;
+            combo.SelectedItem = null;
+            return;
+        }
+
+        // Prefer SelectedItem so the display text sticks even when SelectedIndex lags.
+        combo.SelectedItem = items[index];
+        if (combo.SelectedIndex != index)
+            combo.SelectedIndex = index;
     }
 
     List<BookInfo> GetBooksForCurrentSeries()
@@ -513,9 +557,8 @@ internal sealed class MainWindow : Window
         return _session.StandaloneBooks.ToList();
     }
 
-    void ApplySeriesSelectionFromCombo(string? restoreBookId)
+    void ApplySeriesSelectionByIndex(int index, string? restoreBookId)
     {
-        var index = _seriesCombo.SelectedIndex;
         if (index <= 0)
         {
             _session.SelectSeries(null);
@@ -540,10 +583,9 @@ internal sealed class MainWindow : Window
         BindBookCombo(restoreBookId);
     }
 
-    void ApplyBookSelectionFromCombo()
+    void ApplyBookSelectionByIndex(int index)
     {
         var books = GetBooksForCurrentSeries();
-        var index = _bookCombo.SelectedIndex;
         if (index < 0 || index >= books.Count)
         {
             _session.SelectBook(null);
@@ -567,7 +609,7 @@ internal sealed class MainWindow : Window
         if (_seriesCombo.SelectedIndex < 0)
             return;
 
-        ApplySeriesSelectionFromCombo(restoreBookId: null);
+        ApplySeriesSelectionByIndex(_seriesCombo.SelectedIndex, restoreBookId: null);
         RefreshChapterList();
         _ = SelectFirstChapterAsync();
     }
@@ -579,7 +621,7 @@ internal sealed class MainWindow : Window
         if (_bookCombo.SelectedIndex < 0)
             return;
 
-        ApplyBookSelectionFromCombo();
+        ApplyBookSelectionByIndex(_bookCombo.SelectedIndex);
         _settings.Settings.LastSeriesId = _session.SelectedSeries?.Id;
         RefreshChapterList();
         _ = SelectFirstChapterAsync();
@@ -763,37 +805,43 @@ internal sealed class MainWindow : Window
         if (_handlingExternalChange || _session.SelectedChapter?.FilePath != path)
             return;
 
-        _handlingExternalChange = true;
-        try
+        await Dispatcher.UIThread.InvokeAsync(async () =>
         {
-            var choice = await ChoiceDialog.ShowAsync(
-                this,
-                "External change",
-                "The file changed on disk while you were editing.",
-                Path.GetFileName(path),
-                [
-                    new ChoiceOption("keep", "Keep local", IsDefault: true),
-                    new ChoiceOption("reload", "Reload disk"),
-                    new ChoiceOption("compare", "Compare later", IsCancel: true),
-                ]);
+            if (_handlingExternalChange || _session.SelectedChapter?.FilePath != path)
+                return;
 
-            if (choice == "reload")
+            _handlingExternalChange = true;
+            try
             {
-                _suppressEditorSync = true;
-                var text = File.ReadAllText(path);
-                _session.LoadChapterText(text);
-                _editor.Text = text;
-                _suppressEditorSync = false;
-                LoadMetadataFromEditor();
-                RefreshChapterList();
-                UpdateStatus();
-                _feedback.Flash("Reloaded from disk.");
+                var choice = await ChoiceDialog.ShowAsync(
+                    this,
+                    "External change",
+                    "The file changed on disk while you were editing.",
+                    Path.GetFileName(path),
+                    [
+                        new ChoiceOption("keep", "Keep local", IsDefault: true),
+                        new ChoiceOption("reload", "Reload disk"),
+                        new ChoiceOption("compare", "Compare later", IsCancel: true),
+                    ]);
+
+                if (choice == "reload")
+                {
+                    _suppressEditorSync = true;
+                    var text = File.ReadAllText(path);
+                    _session.LoadChapterText(text);
+                    _editor.Text = text;
+                    _suppressEditorSync = false;
+                    LoadMetadataFromEditor();
+                    UpdateChapterListMarkers();
+                    UpdateStatus();
+                    _feedback.Flash("Reloaded from disk.");
+                }
             }
-        }
-        finally
-        {
-            _handlingExternalChange = false;
-        }
+            finally
+            {
+                _handlingExternalChange = false;
+            }
+        });
     }
 
     void LoadMetadataFromEditor()
@@ -970,13 +1018,70 @@ internal sealed class MainWindow : Window
         _jobs.Enqueue("Generate audiobook", async (job, ct) =>
         {
             job.Detail = outDir;
-            var result = await pipeline.GenerateAsync(book.Id, chapters, _voiceSettings, options, ct)
+            job.Progress = 0;
+            job.ProgressLabel = $"0/{chapters.Count} chapters";
+            job.ChapterProgress.Clear();
+            foreach (var chapter in chapters)
+            {
+                job.ChapterProgress.Add(new PublishJobChapterProgress
+                {
+                    Label = chapter.Title,
+                    Progress = 0,
+                    StatusLabel = "pending",
+                });
+            }
+
+            _jobs.NotifyProgress(force: true);
+
+            var progress = new Progress<AudiobookProgress>(snapshot =>
+            {
+                void Apply()
+                {
+                    job.Progress = snapshot.OverallFraction;
+                    job.ProgressLabel = snapshot.Message;
+                    job.Detail = $"{outDir} · {snapshot.Message}";
+                    job.Log = BuildAudiobookLog(snapshot);
+
+                    for (var i = 0; i < snapshot.Chapters.Count && i < job.ChapterProgress.Count; i++)
+                    {
+                        var src = snapshot.Chapters[i];
+                        var dst = job.ChapterProgress[i];
+                        dst.Progress = src.Fraction;
+                        dst.StatusLabel = src.StatusLabel;
+                    }
+
+                    _jobs.NotifyProgress();
+                }
+
+                if (Dispatcher.UIThread.CheckAccess())
+                    Apply();
+                else
+                    Dispatcher.UIThread.Post(Apply);
+            });
+
+            var result = await pipeline.GenerateAsync(book.Id, chapters, _voiceSettings, options, progress, ct)
                 .ConfigureAwait(false);
             job.OutputPath = result.ConcatenatedMp3Path ?? result.M4bPath ?? outDir;
-            job.Log = $"Chapters: {result.Manifest.Chapters.Count}; manifest written.";
+            job.Progress = 1;
+            job.ProgressLabel = $"Done — {result.Manifest.Chapters.Count} chapters";
+            job.Detail = outDir;
+            job.Log = $"Chapters: {result.Manifest.Chapters.Count}; manifest: {result.ManifestPath}";
+            _jobs.NotifyProgress(force: true);
         });
         RefreshJobPanel();
         _feedback.Flash("Audiobook generation queued.");
+    }
+
+    static string BuildAudiobookLog(AudiobookProgress snapshot)
+    {
+        var lines = new List<string>
+        {
+            snapshot.Message,
+            $"Overall: {snapshot.OverallFraction:P0} · phase: {snapshot.Phase}",
+        };
+        foreach (var chapter in snapshot.Chapters)
+            lines.Add($"{chapter.Title}: {chapter.StatusLabel} ({chapter.Fraction:P0})");
+        return string.Join(Environment.NewLine, lines);
     }
 
     void OnRefreshGitStatus(object? sender, RoutedEventArgs e) => RefreshScmStatus();
@@ -1036,15 +1141,55 @@ internal sealed class MainWindow : Window
         _printBodySize.Text = _printSettings.BodyFontSize.ToString("0.##");
         _printIncludeCover.IsChecked = _printSettings.IncludeCover;
 
-        if (File.Exists(_session.VoiceMapPath))
-        {
-            _voiceSettings = VoiceMapStore.Load(_session.VoiceMapPath);
-        }
+        _voiceSettings = File.Exists(_session.VoiceMapPath)
+            ? VoiceMapStore.Load(_session.VoiceMapPath)
+            : ManuscriptVoiceSettings.FromProfile(EdgeVoiceProfiles.Narrator);
 
-        _voiceId.Text = _voiceSettings.Voice;
-        _voiceRate.Text = _voiceSettings.Rate;
-        _voicePitch.Text = _voiceSettings.Pitch;
-        _voiceVolume.Text = _voiceSettings.Volume;
+        ApplyVoiceSettingsToUi(_voiceSettings);
+    }
+
+    void ApplyVoiceSettingsToUi(ManuscriptVoiceSettings settings)
+    {
+        _suppressVoiceUi = true;
+        try
+        {
+            EdgeVoiceEntry voiceEntry;
+            try
+            {
+                voiceEntry = EdgeVoiceCatalog.Get(settings.Voice);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                voiceEntry = EdgeVoiceCatalog.Get(EdgeVoice.EnUsAva);
+            }
+
+            // SelectedItem must match an ItemsSource entry for ComboBox display.
+            _voiceCombo.SelectedItem = EdgeVoiceCatalog.All.First(v => v.Voice == voiceEntry.Voice);
+            _voiceRate.Text = settings.Rate.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _voicePitch.Text = settings.Pitch.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _voiceVolume.Text = settings.Volume.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            var profile = EdgeVoiceProfiles.All.FirstOrDefault(p =>
+                p.Voice == settings.Voice
+                && p.Rate.Value == settings.Rate.Value
+                && p.Pitch.Value == settings.Pitch.Value
+                && p.Volume.Value == settings.Volume.Value);
+            _voiceProfileCombo.SelectedItem = profile;
+        }
+        finally
+        {
+            _suppressVoiceUi = false;
+        }
+    }
+
+    void OnVoiceProfileChanged()
+    {
+        if (_suppressVoiceUi)
+            return;
+        if (_voiceProfileCombo.SelectedItem is not EdgeVoiceProfile profile)
+            return;
+
+        ApplyVoiceSettingsToUi(ManuscriptVoiceSettings.FromProfile(profile, _voiceSettings.Pronunciation));
     }
 
     void OnSavePrintSettings(object? sender, RoutedEventArgs e)
@@ -1062,14 +1207,26 @@ internal sealed class MainWindow : Window
 
     void OnSaveVoiceSettings(object? sender, RoutedEventArgs e)
     {
+        var voice = _voiceCombo.SelectedItem is EdgeVoiceEntry entry
+            ? entry.Voice
+            : _voiceSettings.Voice;
+
+        if (!ProsodyPercent.TryParse(_voiceRate.Text, out var rate))
+            rate = _voiceSettings.Rate;
+        if (!ProsodyHertz.TryParse(_voicePitch.Text, out var pitch))
+            pitch = _voiceSettings.Pitch;
+        if (!ProsodyPercent.TryParse(_voiceVolume.Text, out var volume))
+            volume = _voiceSettings.Volume;
+
         _voiceSettings = new ManuscriptVoiceSettings
         {
-            Voice = _voiceId.Text?.Trim() ?? _voiceSettings.Voice,
-            Rate = _voiceRate.Text?.Trim() ?? _voiceSettings.Rate,
-            Pitch = _voicePitch.Text?.Trim() ?? _voiceSettings.Pitch,
-            Volume = _voiceVolume.Text?.Trim() ?? _voiceSettings.Volume,
+            Voice = voice,
+            Rate = rate,
+            Pitch = pitch,
+            Volume = volume,
             SceneBreakMs = _voiceSettings.SceneBreakMs,
             PauseMs = _voiceSettings.PauseMs,
+            MaxChunkChars = _voiceSettings.MaxChunkChars,
             Pronunciation = _voiceSettings.Pronunciation,
         };
         VoiceMapStore.Save(_session.VoiceMapPath, _voiceSettings);
@@ -1229,6 +1386,16 @@ internal sealed class MainWindow : Window
             LogTail = job.Log ?? job.Detail,
             CanCancel = job.Status is PublishJobStatus.Queued or PublishJobStatus.Running,
             CanOpenOutput = job.Status == PublishJobStatus.Succeeded && !string.IsNullOrWhiteSpace(job.OutputPath),
+            Progress = job.Progress,
+            ProgressLabel = job.ProgressLabel,
+            ChapterProgress = job.ChapterProgress.Count == 0
+                ? null
+                : job.ChapterProgress.Select(c => new JobChapterProgress
+                {
+                    Label = c.Label,
+                    Progress = c.Progress,
+                    StatusLabel = c.StatusLabel,
+                }).Cast<IJobChapterProgress>().ToList(),
             Tag = job,
         }).Cast<IJobQueueRow>().ToList();
 
@@ -1250,9 +1417,10 @@ internal sealed class MainWindow : Window
         var path = _session.SelectedChapter?.FilePath ?? "(no chapter)";
         var dirty = _session.IsDirty ? " *" : string.Empty;
         var text = $"{path}{dirty}  ·  {chapterWords} words  ·  book {bookWords} words";
-        _statusText.Text = text;
-        _statusBar.Background = StudioStatusBrushes.ForDirtyState(_session.IsDirty);
         _feedback.SetStatus(text);
+        _topBar.BorderBrush = _session.IsDirty
+            ? StudioStatusBrushes.Dirty
+            : new SolidColorBrush(Color.Parse("#3F3F46"));
     }
 
     void ApplyEditorSettings()
@@ -1275,7 +1443,7 @@ internal sealed class MainWindow : Window
     void ToggleFocusMode()
     {
         _focusMode = !_focusMode;
-        StudioFocusMode.Apply(_focusMode, _menuBar, _topBar, _statusBar);
+        StudioFocusMode.Apply(_focusMode, _topBar, _contextTabs);
         _feedback.Flash(_focusMode ? "Focus mode on" : "Focus mode off");
     }
 

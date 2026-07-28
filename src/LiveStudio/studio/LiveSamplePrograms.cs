@@ -21,14 +21,14 @@ internal static class LiveSamplePrograms
             Description: "A brighter transpose with a bass shift.",
             Version: 2,
             SwapPolicy: SwapPolicy.NextBeat,
-            DelayBeforeCompile: TimeSpan.FromSeconds(2),
+            DelayBeforeCompile: TimeSpan.FromSeconds(8),
             Definition: CreateProgram(2)),
         new LiveProgramPreset(
             Name: "Phrase Lift",
             Description: "The motif opens out and the accents lift on phrase boundaries.",
             Version: 3,
             SwapPolicy: SwapPolicy.NextPhrase,
-            DelayBeforeCompile: TimeSpan.FromSeconds(2),
+            DelayBeforeCompile: TimeSpan.FromSeconds(8),
             Definition: CreateProgram(3)),
     ];
 

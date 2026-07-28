@@ -14,4 +14,6 @@ internal sealed record LiveStudioState(
     IReadOnlyList<LiveDiagnosticDto> Diagnostics,
     IReadOnlyList<LiveProgramPreset> Presets,
     string? ErrorMessage = null,
-    bool HasFatalLauncherError = false);
+    bool HasFatalLauncherError = false,
+    bool DemoSequenceRunning = false,
+    bool IsHostConnected = false);

@@ -28,7 +28,23 @@ public sealed class LiveHostWatchdog : IAsyncDisposable
     {
         Publish(LiveLauncherStatus.Starting("Starting live host..."));
         await _host.StartAsync(cancellationToken).ConfigureAwait(false);
-        Publish(LiveLauncherStatus.Running("Live host is running.", _restartCount));
+        Publish(LiveLauncherStatus.Starting("Live host process started. Waiting for IPC..."));
+
+        try
+        {
+            await LiveHostEndpoint.WaitUntilListeningAsync(
+                LiveLauncherEndpoints.HostReadyTimeout,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Publish(LiveLauncherStatus.Fatal(
+                $"Live host process started but never opened its IPC endpoint. {ex.Message}",
+                _restartCount));
+            return;
+        }
+
+        Publish(LiveLauncherStatus.Running("Live host is listening.", _restartCount));
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -48,9 +64,12 @@ public sealed class LiveHostWatchdog : IAsyncDisposable
                 try
                 {
                     await _host.StartAsync(cancellationToken).ConfigureAwait(false);
+                    await LiveHostEndpoint.WaitUntilListeningAsync(
+                        LiveLauncherEndpoints.HostReadyTimeout,
+                        cancellationToken).ConfigureAwait(false);
                     _restartCount++;
                     recovered = true;
-                    Publish(LiveLauncherStatus.Running("Live host recovered and is running again.", _restartCount));
+                    Publish(LiveLauncherStatus.Running("Live host recovered and is listening again.", _restartCount));
                     break;
                 }
                 catch (Exception ex)

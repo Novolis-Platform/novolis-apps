@@ -1,4 +1,5 @@
 using Novolis.Audio.Live;
+using Novolis.Audio.Live.Host.Render;
 using Novolis.Audio.Live.Protocol;
 using Novolis.Audio.Live.Protocol.Dto;
 using Novolis.Transports.LocalIpc;
@@ -14,9 +15,11 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) => shutdown.Cancel();
 var endpoint = LiveTransportEndpoints.CreateDefault();
 await using var listener = LocalIpcTransport.CreateListener(endpoint);
 var session = new LiveSession();
-var clockTask = RunClockAsync(session, shutdown.Token);
+await using var engine = new OscillatorLiveAudioEngine();
+engine.Bind(session);
+await engine.StartAsync(shutdown.Token);
 
-Console.WriteLine($"Novolis Audio Live host listening on {endpoint.Kind} {endpoint.Address}");
+Console.WriteLine($"Novolis Audio Live host listening on {endpoint.Kind} {endpoint.Address} (oscillator render on; audio clock)");
 
 while (!shutdown.IsCancellationRequested)
 {
@@ -31,8 +34,7 @@ while (!shutdown.IsCancellationRequested)
     }
 }
 
-shutdown.Cancel();
-await clockTask;
+await engine.StopAsync();
 
 static async Task HandleConnectionAsync(ILocalIpcConnection connection, LiveSession session, CancellationToken cancellationToken)
 {
@@ -103,28 +105,4 @@ static async Task HandleQueueSwapAsync(ILocalIpcConnection connection, LocalIpcF
         LiveRpcMessageKinds.Response,
         LiveRpcMethodNames.QueueSwap,
         response);
-}
-
-static async Task RunClockAsync(LiveSession session, CancellationToken cancellationToken)
-{
-    try
-    {
-        var beat = 0m;
-
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(125), cancellationToken).ConfigureAwait(false);
-
-            beat += 0.25m;
-            var clock = new LiveClockState(
-                beat,
-                1 + (int)Math.Floor(beat / 4m),
-                1 + (int)Math.Floor(beat / 16m));
-
-            session.AdvanceTo(clock);
-        }
-    }
-    catch (OperationCanceledException)
-    {
-    }
 }

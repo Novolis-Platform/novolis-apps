@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using LiveStudio.Components;
-using Novolis.Audio.Live.Protocol.Dto;
 
 namespace LiveStudio;
 
@@ -22,6 +21,8 @@ internal sealed class MainWindow : Window
 
         _session.StateChanged += OnStateChanged;
         _workspace.CompileRequested += OnCompileRequested;
+        _workspace.DemoRequested += OnDemoRequested;
+        _workspace.PresetSelected += OnPresetSelected;
         Opened += OnOpened;
     }
 
@@ -31,25 +32,10 @@ internal sealed class MainWindow : Window
         {
             await Program.Runtime.EnsureStartedAsync().ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                var state = new LiveStudioState(
-                    LauncherStatus: "Launcher unavailable.",
-                    ConnectionStatus: "Could not reach the live host.",
-                    ActivityStatus: "Start the launcher before opening the studio.",
-                    CurrentPresetName: "Unavailable",
-                    NextPresetName: null,
-                    Snapshot: new LiveTransportSnapshotDto(null, null, 0m, 0m, 1, 1, null, null, ex.Message),
-                    Graph: null,
-                    Diagnostics: [],
-                    Presets: LiveSamplePrograms.CreateShowcasePresets(),
-                    ErrorMessage: ex.Message,
-                    HasFatalLauncherError: true);
-
-                _workspace.Bind(state);
-            });
+            // Session.ReportStartupFailure already published UI state.
+            Dispatcher.UIThread.Post(() => Title = "Novolis Audio Live Studio — host unavailable");
         }
     }
 
@@ -63,23 +49,31 @@ internal sealed class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                var state = new LiveStudioState(
-                    LauncherStatus: "Compile failed.",
-                    ConnectionStatus: "Compile failed.",
-                    ActivityStatus: ex.Message,
-                    CurrentPresetName: "Unavailable",
-                    NextPresetName: null,
-                    Snapshot: null,
-                    Graph: null,
-                    Diagnostics: [],
-                    Presets: LiveSamplePrograms.CreateShowcasePresets(),
-                    ErrorMessage: ex.Message,
-                    HasFatalLauncherError: true);
+            System.Diagnostics.Debug.WriteLine($"Compile request failed: {ex}");
+        }
+    }
 
-                _workspace.Bind(state);
-            });
+    private async void OnDemoRequested(object? sender, EventArgs e)
+    {
+        try
+        {
+            await _session.ReplayDemoAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Demo request failed: {ex}");
+        }
+    }
+
+    private async void OnPresetSelected(LiveProgramPreset preset)
+    {
+        try
+        {
+            await _session.LoadPresetAsync(preset).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Preset load failed: {ex}");
         }
     }
 
@@ -90,10 +84,11 @@ internal sealed class MainWindow : Window
             _workspace.Bind(state);
 
             if (state.HasFatalLauncherError)
-            {
-                Title = "Novolis Audio Live Studio — host stopped";
-                Close();
-            }
+                Title = "Novolis Audio Live Studio — host unavailable";
+            else if (state.Snapshot?.ActiveProgramId is not null)
+                Title = $"Novolis Audio Live — {state.CurrentPresetName} @ {state.Snapshot.Bpm:0} BPM";
+            else if (state.IsHostConnected)
+                Title = "Novolis Audio Live Studio";
         });
     }
 }

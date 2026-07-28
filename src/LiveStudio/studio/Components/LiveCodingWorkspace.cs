@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Novolis.Audio.Live;
@@ -18,8 +19,9 @@ internal sealed class LiveCodingWorkspace : Grid
     private readonly LiveStudioDashboard _dashboard = new();
     private readonly TextBlock _launcherStatus = new();
     private readonly ComboBox _swapPolicy = new();
-    private readonly Button _compileButton = new() { Content = "Compile to host" };
-    private readonly Button _loadDefaultButton = new() { Content = "Reset template" };
+    private readonly Button _compileButton = new() { Content = "Compile (F5)" };
+    private readonly Button _demoButton = new() { Content = "Replay demo" };
+    private readonly Button _loadDefaultButton = new() { Content = "Reset buffer" };
 
     public LiveCodingWorkspace()
     {
@@ -52,11 +54,18 @@ internal sealed class LiveCodingWorkspace : Grid
 
         _editor.Text = LiveCodeTemplates.DefaultSource;
         _compileButton.Click += (_, _) => CompileRequested?.Invoke(this, EventArgs.Empty);
+        _demoButton.Click += (_, _) => DemoRequested?.Invoke(this, EventArgs.Empty);
         _loadDefaultButton.Click += (_, _) => _editor.Text = LiveCodeTemplates.DefaultSource;
         _editor.CompileRequested += (_, _) => CompileRequested?.Invoke(this, EventArgs.Empty);
+        _dashboard.PresetSelected += preset => PresetSelected?.Invoke(preset);
+
+        KeyDown += OnWorkspaceKeyDown;
+        Focusable = true;
     }
 
     public event EventHandler? CompileRequested;
+    public event EventHandler? DemoRequested;
+    public event Action<LiveProgramPreset>? PresetSelected;
 
     public string SourceText => _editor.Text;
 
@@ -70,7 +79,20 @@ internal sealed class LiveCodingWorkspace : Grid
             ? new SolidColorBrush(Color.Parse("#FCA5A5"))
             : MutedBrush;
 
+        _demoButton.Content = state.DemoSequenceRunning ? "Demo playing…" : "Replay demo";
+        _demoButton.IsEnabled = state.IsHostConnected && !state.DemoSequenceRunning && !state.HasFatalLauncherError;
+        _compileButton.IsEnabled = state.IsHostConnected && !state.HasFatalLauncherError;
+
         _dashboard.Bind(state);
+    }
+
+    private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F5)
+        {
+            CompileRequested?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        }
     }
 
     private Control BuildToolbar()
@@ -109,7 +131,7 @@ internal sealed class LiveCodingWorkspace : Grid
         });
         panel.Children.Add(new TextBlock
         {
-            Text = "Edit on the left, compile to the host on the right. Ctrl+Enter compiles immediately.",
+            Text = "Presets play full tracks. Editor is Note.Play only — F5 compiles when connected.",
             Foreground = MutedBrush,
             FontSize = 12,
         });
@@ -135,8 +157,9 @@ internal sealed class LiveCodingWorkspace : Grid
         _swapPolicy.SelectedIndex = 0;
         _swapPolicy.MinWidth = 150;
 
-        StyleActionButton(_compileButton);
-        StyleActionButton(_loadDefaultButton);
+        StyleActionButton(_compileButton, primary: true);
+        StyleActionButton(_demoButton, primary: false);
+        StyleActionButton(_loadDefaultButton, primary: false);
 
         panel.Children.Add(new TextBlock
         {
@@ -147,15 +170,16 @@ internal sealed class LiveCodingWorkspace : Grid
         });
         panel.Children.Add(_swapPolicy);
         panel.Children.Add(_compileButton);
+        panel.Children.Add(_demoButton);
         panel.Children.Add(_loadDefaultButton);
         return panel;
     }
 
-    private static void StyleActionButton(Button button)
+    private static void StyleActionButton(Button button, bool primary)
     {
         button.Padding = new Thickness(14, 8);
         button.CornerRadius = new CornerRadius(8);
-        button.Background = new SolidColorBrush(Color.Parse("#1D4ED8"));
+        button.Background = new SolidColorBrush(Color.Parse(primary ? "#1D4ED8" : "#334155"));
         button.Foreground = Brushes.White;
     }
 }

@@ -9,6 +9,13 @@ internal enum PublishJobStatus
     Cancelled,
 }
 
+internal sealed class PublishJobChapterProgress
+{
+    public required string Label { get; init; }
+    public double Progress { get; set; }
+    public string? StatusLabel { get; set; }
+}
+
 internal sealed class PublishJob
 {
     public required string Id { get; init; }
@@ -17,6 +24,9 @@ internal sealed class PublishJob
     public string? Detail { get; set; }
     public string? Log { get; set; }
     public string? OutputPath { get; set; }
+    public double? Progress { get; set; }
+    public string? ProgressLabel { get; set; }
+    public List<PublishJobChapterProgress> ChapterProgress { get; } = [];
     public CancellationTokenSource Cts { get; } = new();
 }
 
@@ -24,6 +34,8 @@ internal sealed class PublishJobQueue
 {
     readonly List<PublishJob> _jobs = [];
     readonly object _gate = new();
+    readonly object _progressGate = new();
+    DateTime _lastProgressNotify = DateTime.MinValue;
 
     public event Action? Changed;
 
@@ -58,6 +70,20 @@ internal sealed class PublishJobQueue
             job.Cts.Cancel();
     }
 
+    /// <summary>Notifies listeners of progress updates, throttled to keep the UI responsive.</summary>
+    public void NotifyProgress(bool force = false)
+    {
+        lock (_progressGate)
+        {
+            var now = DateTime.UtcNow;
+            if (!force && now - _lastProgressNotify < TimeSpan.FromMilliseconds(200))
+                return;
+            _lastProgressNotify = now;
+        }
+
+        Changed?.Invoke();
+    }
+
     async Task RunJobAsync(PublishJob job, Func<PublishJob, CancellationToken, Task> work)
     {
         job.Status = PublishJobStatus.Running;
@@ -74,6 +100,7 @@ internal sealed class PublishJobQueue
             else
             {
                 job.Status = PublishJobStatus.Succeeded;
+                job.Progress ??= 1;
             }
         }
         catch (OperationCanceledException)
