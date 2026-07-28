@@ -116,7 +116,15 @@ internal sealed class MainWindow : Window
         _viewportStack.Children.Add(_raylibHost);
 
         _commandBar = new StudioCommandBar();
-        AgentProperties.SetId(_commandBar, "draft.commandBar");
+        AgentProperties.SetId(_commandBar, "draft.commandBar.host");
+        if (_commandBar.Content is Border { Child: Panel commandRow })
+        {
+            foreach (var child in commandRow.Children)
+            {
+                if (child is TextBox input)
+                    AgentProperties.SetId(input, "draft.commandBar", AgentRoleNames.TextBox);
+            }
+        }
         _commandBar.Submitted += (_, e) =>
         {
             var err = _dispatcher.TryDispatch(e.Text);

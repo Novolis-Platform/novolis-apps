@@ -47,14 +47,14 @@ public static class MeshPulse
       sol,
       MeshAddress.ToPlace(dest),
       priority: 2,
-      id: directedId ?? PacketId.From(Guid.Parse("00000000-0000-4000-8000-00000000m001")));
+      id: directedId ?? PacketId.From(Guid.Parse("00000000-0000-4000-8000-00000000f001")));
 
     (state, _) = PublishEngine.PublishPulse(
       state,
       sol,
       MeshAddress.ToIdentity(calypsoIdentity),
       priority: 1,
-      id: floodId ?? PacketId.From(Guid.Parse("00000000-0000-4000-8000-00000000m002")));
+      id: floodId ?? PacketId.From(Guid.Parse("00000000-0000-4000-8000-00000000f002")));
 
     // Drain pending launches for hour 0 so smoke is in-flight immediately
     state = LaunchEngine.LaunchPending(state);

@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Novolis.Astro.Routing;
 
 namespace SinsOfACapitalismTycoon.Universe.Mesh;
 
