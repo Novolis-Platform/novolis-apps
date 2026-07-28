@@ -5,6 +5,7 @@ using Novolis.Economy.Logistics;
 using Novolis.Economy.Population;
 using Novolis.Economy.Production;
 using Novolis.Economy.Simulation;
+using SinsOfACapitalismTycoon.Universe.Mesh;
 
 namespace SinsOfACapitalismTycoon.Universe;
 
@@ -120,6 +121,8 @@ internal static class CampaignWorld
 
     public ReputationLedger Reputation { get; set; } = new();
     public EscrowBook Escrow { get; set; } = new();
+    /// <summary>Confederation mesh BM state — replaced each hour by <see cref="MeshPulse.TickHour"/>.</summary>
+    public MeshState Mesh { get; set; } = MeshState.Empty();
     public required AstroEconomyBridge.BridgeResult Bridge { get; init; }
     public required IReadOnlyDictionary<string, Site> Sites { get; init; }
     public required string RoleSummary { get; init; }
@@ -485,11 +488,49 @@ internal static class CampaignWorld
       RoleSummary = roleSummary,
     };
 
+    ids.Mesh = SeedMesh(bridge, desk);
     var sim = new EconomySimulation(seed, builder.Build());
     SeedInventory(sim, ids);
     ApplyStoreLimits(sim, ids);
     SeedInvariants.Assert(ids, sim);
     return (sim, ids);
+  }
+
+  private static MeshState SeedMesh(AstroEconomyBridge.BridgeResult bridge, CampaignRegistryDesk desk)
+  {
+    var mesh = MeshBridge.FromBridge(bridge);
+    var sol = MeshHubId.From("sol");
+    var calypso = MeshIdentityId.From(PlayerFlavorId);
+    mesh = MeshBridge.RegisterIdentity(
+      mesh,
+      calypso,
+      bridge.BySystemId.ContainsKey("sol") ? sol : null);
+
+    foreach (var ship in desk.Ships.Entries)
+    {
+      var id = MeshIdentityId.From(ship.RegistryName);
+      if (id.Value.Equals(PlayerHullName, StringComparison.Ordinal))
+      {
+        continue; // Calypso already registered under flavor id
+      }
+
+      mesh = MeshBridge.RegisterIdentity(mesh, id, sol);
+    }
+
+    foreach (var (name, _) in new (string Name, FirmId Id)[]
+             {
+               ("Sins Mining", default),
+             })
+    {
+      _ = name;
+    }
+
+    mesh = MeshBridge.RegisterIdentity(mesh, MeshIdentityId.From("firm:mining"), sol);
+    mesh = MeshBridge.RegisterIdentity(mesh, MeshIdentityId.From("firm:industry"), sol);
+    mesh = MeshBridge.RegisterIdentity(mesh, MeshIdentityId.From("firm:station"), sol);
+    mesh = MeshPulse.SeedSmokePublishes(mesh, calypso);
+    InvariantChecker.AssertAll(mesh);
+    return mesh;
   }
 
   /// <summary>Hard warehouse caps + soft surplus thresholds (export policy reads soft).</summary>
