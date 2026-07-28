@@ -63,7 +63,7 @@ jobs:
           choco install innosetup -y --no-progress
           if ($LASTEXITCODE -ne 0) { throw "Chocolatey failed to install Inno Setup." }
 
-      - name: Publish apps and build installers
+      - name: Publish all apps and build installers
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ steps.ver.outputs.package-version }}
@@ -73,13 +73,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           . ./scripts/Publish-NovolisApp.ps1
 
-          $apps = @(
-            @{ Key = 'manuscript-studio'; Project = 'src/ManuscriptStudio/ManuscriptStudio.csproj' },
-            @{ Key = 'concept-studio'; Project = 'src/ConceptStudio/ConceptStudio.csproj' }
-          )
-
           $published = [System.Collections.Generic.List[object]]::new()
-          foreach ($app in $apps) {
+          foreach ($app in (Get-NovolisAppCatalog)) {
             $item = Publish-NovolisApp `
               -RepoRoot $env:GITHUB_WORKSPACE `
               -AppKey $app.Key `

@@ -8,7 +8,10 @@ on:
         options:
           - All
           - ManuscriptStudio
+          - BooksWriterStudio
           - ConceptStudio
+          - SinsOfACapitalismTycoon
+          - LiveStudio
         default: All
 
 jobs:
@@ -61,15 +64,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           . ./scripts/Publish-NovolisApp.ps1
 
-          $allApps = @(
-            @{ Key = 'manuscript-studio'; Project = 'src/ManuscriptStudio/ManuscriptStudio.csproj' },
-            @{ Key = 'concept-studio'; Project = 'src/ConceptStudio/ConceptStudio.csproj' }
-          )
-
-          $selected = switch ($env:SELECTED_APP) {
-            'ManuscriptStudio' { @($allApps[0]) }
-            'ConceptStudio' { @($allApps[1]) }
-            default { $allApps }
+          $catalog = Get-NovolisAppCatalog
+          $selected = if ($env:SELECTED_APP -eq 'All') {
+            $catalog
+          } else {
+            @($catalog | Where-Object { $_.Choice -eq $env:SELECTED_APP })
+          }
+          if ($selected.Count -eq 0) {
+            throw "Unknown app selection: $($env:SELECTED_APP)"
           }
 
           $published = [System.Collections.Generic.List[object]]::new()
@@ -89,11 +91,23 @@ jobs:
             $published.Add($item)
           }
 
+          $lines = @()
           $assets = [System.Collections.Generic.List[string]]::new()
           foreach ($item in $published) {
             $assets.Add($item.ZipPath)
-            if ($item.InstallerPath) { $assets.Add($item.InstallerPath) }
+            $hashZip = (Get-FileHash -LiteralPath $item.ZipPath -Algorithm SHA256).Hash
+            $lines += "$hashZip  $($item.ZipName)"
+            if ($item.InstallerPath) {
+              $assets.Add($item.InstallerPath)
+              $hashExe = (Get-FileHash -LiteralPath $item.InstallerPath -Algorithm SHA256).Hash
+              $lines += "$hashExe  $($item.InstallerName)"
+            }
           }
+
+          $sumsPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts/SHA256SUMS.txt'
+          New-Item -ItemType Directory -Force -Path (Split-Path $sumsPath) | Out-Null
+          $lines | Set-Content -Path $sumsPath -Encoding utf8NoBOM
+          $assets.Add($sumsPath)
 
           $tag = "v$env:PACKAGE_VERSION"
           gh release view $tag 2>$null

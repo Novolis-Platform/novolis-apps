@@ -24,6 +24,10 @@
     <PackageReference Include="Novolis.Audio.MusicTheory" />
     <PackageReference Include="Novolis.Audio.Patterns" />
     <PackageReference Include="Novolis.Avalonia.Live" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <Target Name="BundleLiveHostOnPublish" AfterTargets="Publish">
     <PropertyGroup>

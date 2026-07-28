@@ -15,20 +15,22 @@ dotnet run --project src/ManuscriptStudio
 
 ## Releases
 
-Every successful merge to `main` (non-doc paths) publishes a [GitHub Release](https://github.com/Novolis-Platform/novolis-apps/releases) with:
+Every successful merge to `main` (non-doc paths) publishes a [GitHub Release](https://github.com/Novolis-Platform/novolis-apps/releases) with portable zips + Inno installers for **every** catalog app, plus `SHA256SUMS.txt`.
 
-- `ManuscriptStudioSetup-{version}-win-x64.exe` — Manuscript Studio installer (per-user, no admin)
-- `ManuscriptStudio-{version}-win-x64.zip` — Manuscript Studio portable publish folder
-- `ConceptStudioSetup-{version}-win-x64.exe` — Concept Studio installer
-- `ConceptStudio-{version}-win-x64.zip` — Concept Studio portable publish folder
-- `SHA256SUMS.txt` — checksums for all release assets
+| App | Installer | Portable zip |
+|-----|-----------|--------------|
+| Manuscript Studio | `ManuscriptStudioSetup-{version}-win-x64.exe` | `ManuscriptStudio-{version}-win-x64.zip` |
+| Books Writer Studio | `BooksWriterStudioSetup-{version}-win-x64.exe` | `BooksWriterStudio-{version}-win-x64.zip` |
+| Concept Studio | `ConceptStudioSetup-{version}-win-x64.exe` | `ConceptStudio-{version}-win-x64.zip` |
+| Sins of a Capitalism Tycoon | `SinsOfACapitalismTycoonSetup-{version}-win-x64.exe` | `SinsOfACapitalismTycoon-{version}-win-x64.zip` |
+| Live Studio | `LiveStudioSetup-{version}-win-x64.exe` | `Novolis.Audio.Live.Studio-{version}-win-x64.zip` |
 
 Version format: `YEAR.MAJOR.MINOR.BUILD` from `build/version.json` plus CI build number (e.g. `2026.1.0.42`).
 
-Manual republish: run the **Release** workflow from Actions, or locally:
+Manual republish: run the **Release** workflow from Actions (All or one app), or locally:
 
 ```powershell
-pwsh -File scripts/build-installer.ps1
+pwsh -File scripts/build-installer.ps1 -App All
 ```
 
 ## Apps
@@ -39,8 +41,10 @@ pwsh -File scripts/build-installer.ps1
 | Books Writer Studio | `src/BooksWriterStudio` | Three-column book authoring: chapter nav, markdown editor, metadata/publish/SCM |
 | Concept Studio | `src/ConceptStudio` | Simple 3D concept CAD for ship/prop blockout, ortho views, SVG/PNG export |
 | Sins of a Capitalism Tycoon | `src/SinsOfACapitalismTycoon` | Headless/Avalonia BM economy sim (`Novolis.Economy.Core`) |
+| Live Studio | `src/LiveStudio/studio` | Avalonia demo for Novolis Audio Live (DSL editor + visuals) |
 
 ## Related
 
 - [docs/design.md](docs/design.md)
+- [docs/release.md](docs/release.md)
 - [nuget-only-policy](https://github.com/Novolis-Platform/novolis-governance/blob/main/docs/nuget-only-policy.md)

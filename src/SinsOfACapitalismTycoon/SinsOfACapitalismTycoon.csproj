@@ -12,6 +12,10 @@
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Novolis.Astro.Abstractions" />
     <PackageReference Include="Novolis.Astro.Assessment" />
     <PackageReference Include="Novolis.Astro.Catalog" />

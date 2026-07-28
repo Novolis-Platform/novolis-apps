@@ -1,8 +1,8 @@
 #Requires -Version 7.0
-# Publish novolis-apps WinExe projects (win-x64) with optional Inno Setup installers.
+# Publish novolis-apps projects (win-x64) with optional Inno Setup installers.
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
-    [ValidateSet('ManuscriptStudio', 'ConceptStudio', 'All')]
+    [ValidateSet('ManuscriptStudio', 'BooksWriterStudio', 'ConceptStudio', 'SinsOfACapitalismTycoon', 'LiveStudio', 'All')]
     [string]$App = 'All',
     [int]$BuildNumber = 0,
     [switch]$SkipInstaller
@@ -28,23 +28,23 @@ $packageVersion = "$platform.$BuildNumber"
 $assemblyVersion = "$year.$major.0.0"
 $fileVersion = $packageVersion
 
-$apps = switch ($App) {
-    'ManuscriptStudio' { @('manuscript-studio') }
-    'ConceptStudio' { @('concept-studio') }
-    default { @('manuscript-studio', 'concept-studio') }
+$catalog = Get-NovolisAppCatalog
+$selected = if ($App -eq 'All') {
+    $catalog
 }
-
-$projectMap = @{
-    'manuscript-studio' = 'src/ManuscriptStudio/ManuscriptStudio.csproj'
-    'concept-studio'    = 'src/ConceptStudio/ConceptStudio.csproj'
+else {
+    @($catalog | Where-Object { $_.Choice -eq $App })
+}
+if ($selected.Count -eq 0) {
+    throw "Unknown app selection: $App"
 }
 
 $published = [System.Collections.Generic.List[object]]::new()
-foreach ($appKey in $apps) {
+foreach ($entry in $selected) {
     $item = Publish-NovolisApp `
         -RepoRoot $RepoRoot `
-        -AppKey $appKey `
-        -ProjectRelativePath $projectMap[$appKey] `
+        -AppKey $entry.Key `
+        -ProjectRelativePath $entry.Project `
         -PackageVersion $packageVersion `
         -AssemblyVersion $assemblyVersion `
         -FileVersion $fileVersion `
@@ -52,7 +52,7 @@ foreach ($appKey in $apps) {
         Where-Object { $_.ZipPath } |
         Select-Object -Last 1
     if (-not $item -or -not $item.ZipPath) {
-        throw "Publish-NovolisApp did not return a ZipPath for $appKey."
+        throw "Publish-NovolisApp did not return a ZipPath for $($entry.Key)."
     }
     $published.Add($item)
 }
