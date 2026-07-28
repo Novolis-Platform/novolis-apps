@@ -69,4 +69,5 @@ internal static class BookViewIds
     public const string Timeline = "timeline";
     public const string Relationships = "relationships";
     public const string Map = "map";
+    public const string Stars = "stars";
 }

@@ -8,7 +8,11 @@ using ManuscriptStudio.Extensions.BookAuthoring.Helpers;
 using ManuscriptStudio.Extensions.BookAuthoring.Navigation;
 using ManuscriptStudio.Extensions.BookAuthoring.Rendering;
 using ManuscriptStudio.Extensions.BookAuthoring.Views;
+using Novolis.Astro.Abstractions;
+using Novolis.Astro.Catalog;
+using Novolis.Astro.Routing;
 using Novolis.Avalonia.Markdown;
+using Novolis.Avalonia.StarMap;
 using Novolis.Avalonia.Studio;
 
 namespace ManuscriptStudio.Extensions.BookAuthoring;
@@ -33,6 +37,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
     private Grid? _rightRailRoot;
     private StackPanel? _mermaidHeader;
     private DockPanel? _mermaidPanel;
+    private StarMapControl? _starMap;
     private IReadOnlyList<SeriesInfo> _series = [];
     private BookInfo? _currentBook;
     private string _activeViewId = BookViewIds.Preview;
@@ -155,6 +160,7 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
             new RightRailViewDescriptor(BookViewIds.Timeline, "Timeline"),
             new RightRailViewDescriptor(BookViewIds.Relationships, "Relationships"),
             new RightRailViewDescriptor(BookViewIds.Map, "Map"),
+            new RightRailViewDescriptor(BookViewIds.Stars, "Stars"),
         ];
 
     public Control CreateRightRail(ManuscriptHostContext host, string viewId)
@@ -189,8 +195,10 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
         _mermaidPanel.Children.Add(_mermaidSource);
 
         _rightRailRoot = new Grid();
+        _starMap = new StarMapControl { Margin = new Avalonia.Thickness(4) };
         _rightRailRoot.Children.Add(_previewPanel);
         _rightRailRoot.Children.Add(_mermaidPanel);
+        _rightRailRoot.Children.Add(_starMap);
 
         ApplyViewVisibility(viewId);
         return _rightRailRoot;
@@ -226,12 +234,14 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
 
     private void ApplyViewVisibility(string viewId)
     {
-        if (_rightRailRoot is null || _previewPanel is null || _mermaidPanel is null)
+        if (_rightRailRoot is null || _previewPanel is null || _mermaidPanel is null || _starMap is null)
             return;
 
         var isPreview = viewId == BookViewIds.Preview;
+        var isStars = viewId == BookViewIds.Stars;
         _previewPanel.IsVisible = isPreview;
-        _mermaidPanel.IsVisible = !isPreview;
+        _mermaidPanel.IsVisible = !isPreview && !isStars;
+        _starMap.IsVisible = isStars;
     }
 
     private void RefreshRightRailContent(string viewId)
@@ -252,6 +262,12 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
             return;
         }
 
+        if (viewId == BookViewIds.Stars)
+        {
+            RefreshStarMap();
+            return;
+        }
+
         if (_mermaidSource is null || _currentBook is null)
         {
             if (_mermaidSource is not null)
@@ -267,6 +283,40 @@ internal sealed class BookAuthoringExtension : IManuscriptExtension
             BookViewIds.Map => map,
             _ => string.Empty,
         };
+    }
+
+    private void RefreshStarMap()
+    {
+        if (_starMap is null)
+            return;
+
+        var catalog = new StarCatalog();
+        catalog.Add(new StarSystem("sol", "Sol", new StarCoords(0, 0, 0), SpectralClass.G));
+        catalog.Add(new StarSystem("a", "Alpha", new StarCoords(8, 0, 1), SpectralClass.K));
+        catalog.Add(new StarSystem("b", "Beta", new StarCoords(15, 0, -2), SpectralClass.M));
+        catalog.Add(new StarSystem("c", "Gamma", new StarCoords(4, 0, 6), SpectralClass.F));
+
+        var cost = RangeBandCostModel.CreatePrototypeCompatible();
+        var graph = RouteGraph.Build(catalog.All, maxRangeLy: 12, cost);
+        var route = RoutePlanner.Find("sol", "b", graph);
+
+        var points = catalog.All
+            .Select(s => new StarMapPoint { Id = s.Id.Value, Label = s.Name, X = s.Coords.X, Y = s.Coords.Z })
+            .ToList();
+        var edges = new List<StarMapEdge>();
+        if (route.Found)
+        {
+            for (var i = 1; i < route.WaypointIds.Count; i++)
+            {
+                edges.Add(new StarMapEdge
+                {
+                    FromId = route.WaypointIds[i - 1],
+                    ToId = route.WaypointIds[i],
+                });
+            }
+        }
+
+        _starMap.SetMap(points, edges);
     }
 
     private void SyncViewCombo(string viewId)

@@ -14,12 +14,19 @@
     <PackageReference Include="Markdig" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Novolis.Avalonia.Markdown" />
+    <PackageReference Include="Novolis.Avalonia.StarMap" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Novolis.Avalonia.Studio" />
+    <PackageReference Include="Novolis.IO.Git" />
+    <PackageReference Include="Novolis.IO.Recovery" />
+    <PackageReference Include="Novolis.Markup.Manuscript" />
     <PackageReference Include="Novolis.Markup.Mermaid" />
+    <PackageReference Include="Novolis.Astro.Abstractions" />
+    <PackageReference Include="Novolis.Astro.Catalog" />
+    <PackageReference Include="Novolis.Astro.Routing" />
     <PackageReference Include="QuestPDF" />
     <PackageReference Include="YamlDotNet" />
   </ItemGroup>

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Novolis.Markup.Manuscript;
 
 namespace ManuscriptStudio.Extensions.BookAuthoring.Content;
 
@@ -15,7 +16,32 @@ internal static class ChapterMetadata
 
     public static List<(string Tag, string Value)> ParseFromMarkdown(string markdown)
     {
-        var rows = new List<(string, string)>();
+        var (meta, _, format) = ManuscriptMetadata.Parse(markdown);
+        if (format != ManuscriptMetadataFormat.None)
+        {
+            var rows = new List<(string, string)>();
+            void Add(string tag, string? value)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    rows.Add((tag, value!));
+            }
+
+            Add("date", meta.Date);
+            Add("time", meta.Time);
+            Add("system", meta.System);
+            Add("location", meta.Location);
+            Add("pov", meta.Pov);
+            Add("characters", meta.Characters);
+            Add("status", meta.Status);
+            Add("notes", meta.Notes);
+            foreach (var kv in meta.Extra)
+                Add(kv.Key, kv.Value);
+            if (rows.Count > 0)
+                return rows;
+        }
+
+        // Fallback: multi-tag lines
+        var list = new List<(string, string)>();
         foreach (var line in markdown.Split(["\r\n", "\n"], StringSplitOptions.None))
         {
             var trimmed = line.TrimStart();
@@ -26,10 +52,10 @@ internal static class ChapterMetadata
             if (plain.Length == 0)
                 continue;
 
-            rows.AddRange(SplitFieldsFromPlain(plain));
+            list.AddRange(SplitFieldsFromPlain(plain));
         }
 
-        return rows;
+        return list;
     }
 
     public static List<(string Tag, string Value)> FilterForBuild(List<(string Tag, string Value)> rows, bool debugMode)

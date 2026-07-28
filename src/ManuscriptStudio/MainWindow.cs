@@ -11,6 +11,8 @@ using ManuscriptStudio.Extensions.BookAuthoring;
 using ManuscriptStudio.Extensions.GenericMarkdown;
 using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
+using Novolis.IO.Git;
+using Novolis.Markup.Manuscript;
 
 namespace ManuscriptStudio;
 
@@ -258,11 +260,29 @@ internal sealed class MainWindow : Window
     private void UpdateStatus()
     {
         var path = _session.SelectedFilePath ?? "No file selected";
-        var words = _session.CountWords(_session.EditorText);
+        var words = ManuscriptMetadata.CountWords(_session.EditorText);
         var dirty = _session.IsDirty ? " (unsaved)" : string.Empty;
         var editor = _settings.Settings.Editor;
+        var gitLabel = TryGitStatusLabel(_settings.Settings.ContentRoot);
         _feedback.SetStatus(
-            $"{path}{dirty} — {words} words — ed {Math.Round(_authoring.Editor.ZoomScale * 100)}% · pv {Math.Round(editor.PreviewZoomScale * 100)}%");
+            $"{path}{dirty} — {words} words — ed {Math.Round(_authoring.Editor.ZoomScale * 100)}% · pv {Math.Round(editor.PreviewZoomScale * 100)}%{gitLabel}");
+    }
+
+    private static string TryGitStatusLabel(string? contentRoot)
+    {
+        if (string.IsNullOrWhiteSpace(contentRoot) || !Directory.Exists(contentRoot))
+            return string.Empty;
+        try
+        {
+            var git = new GitRepositoryService();
+            var status = git.GetStatus(contentRoot);
+            var state = status.Dirty ? "dirty" : "clean";
+            return $" — git {status.Branch} {state}";
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private async Task<string?> PickFolderAsync()
