@@ -52,6 +52,10 @@ public static class TtlEngine
       .Where(p => !dead.Contains(MeshState.PacketKey(p.PacketId)))
       .ToImmutableArray();
 
+    var drones = state.Drones
+      .Where(d => !dead.Contains(MeshState.PacketKey(d.PacketId)))
+      .ToImmutableArray();
+
     var flood = state.FloodSeededAt;
     foreach (var k in dead)
     {
@@ -64,6 +68,7 @@ public static class TtlEngine
       HubCaches = caches,
       Mailboxes = mailboxes,
       Pending = pending,
+      Drones = drones,
       FloodSeededAt = flood,
     };
   }

@@ -21,6 +21,8 @@ public static class LaunchEngine
     var remaining = ImmutableArray.CreateBuilder<PendingLaunch>();
     var drones = state.Drones.ToBuilder();
     var bandwidth = state.BandwidthUsedThisHour;
+    var launched = 0L;
+    var deferred = 0L;
 
     foreach (var launch in ordered)
     {
@@ -43,10 +45,7 @@ public static class LaunchEngine
       if (used >= hub.PulseBandwidthPerHour)
       {
         remaining.Add(launch);
-        state = state with
-        {
-          Stats = state.Stats with { BandwidthDeferred = state.Stats.BandwidthDeferred + 1 },
-        };
+        deferred++;
         continue;
       }
 
@@ -68,11 +67,7 @@ public static class LaunchEngine
         launch.Priority));
 
       bandwidth = bandwidth.SetItem(launch.From.Value, used + 1);
-      state = state with
-      {
-        Stats = state.Stats with { DronesLaunched = state.Stats.DronesLaunched + 1 },
-        BandwidthUsedThisHour = bandwidth,
-      };
+      launched++;
     }
 
     return state with
@@ -80,6 +75,11 @@ public static class LaunchEngine
       Pending = remaining.ToImmutable(),
       Drones = drones.ToImmutable(),
       BandwidthUsedThisHour = bandwidth,
+      Stats = state.Stats with
+      {
+        DronesLaunched = state.Stats.DronesLaunched + launched,
+        BandwidthDeferred = state.Stats.BandwidthDeferred + deferred,
+      },
     };
   }
 }
