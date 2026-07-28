@@ -6,6 +6,7 @@
   <ItemGroup>
     <PackageVersion Include="Avalonia" Version="12.0.2" />
     <PackageVersion Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
+    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.0.0" />
     <PackageVersion Include="Avalonia.Desktop" Version="12.0.2" />
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.0.2" />
     <PackageVersion Include="Avalonia.HtmlRenderer" Version="12.0.0" />
@@ -23,6 +24,7 @@
     <PackageVersion Include="Novolis.Audio.MusicTheory" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Audio.Patterns" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.LocalIpc" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Briefing" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Controls" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Layout" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Live" Version="2026.1.*" />

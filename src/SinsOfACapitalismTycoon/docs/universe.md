@@ -31,4 +31,8 @@ Each hub binds to:
 - Optional Core region mapping via bridge (`HubRegions`)
 - Cohorts and habitats where inhabited
 
-Travel constant (v1): **1.3 days per light-year** on corridors (inherited from dogfood tuning).
+Travel constant (v1): **1.3 days per light-year** on corridors (dogfood tuning).
+Calypso jump brief for flavor: **ten ly routine, twelve hurts** — see
+[commerce-stack.md](commerce-stack.md) and [ship-law-and-transit.md](ship-law-and-transit.md).
+Station *tiers* (Duckville → Tortuga) overlay roles without renaming stars —
+[places-and-stations.md](places-and-stations.md).

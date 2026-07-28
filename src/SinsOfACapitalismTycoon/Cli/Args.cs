@@ -20,7 +20,9 @@ internal sealed record RunOptions(
     long DaysHours,
     ulong Seed,
     int LogEvery,
-    bool Quiet)
+    bool Quiet,
+    bool Drama,
+    bool Story)
 {
     public static RunOptions Default { get; } = new(
         AppMode.Headless,
@@ -30,7 +32,9 @@ internal sealed record RunOptions(
         DaysHours: 10L * 24,
         Seed: 1001,
         LogEvery: 0,
-        Quiet: false);
+        Quiet: false,
+        Drama: true,
+        Story: false);
 
     public static RunOptions Parse(string[] args)
     {
@@ -42,6 +46,8 @@ internal sealed record RunOptions(
         var seed = Default.Seed;
         var logEvery = 0;
         var quiet = false;
+        var drama = true;
+        var story = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -134,6 +140,38 @@ internal sealed record RunOptions(
                 continue;
             }
 
+            if (a.Equals("--drama", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                drama = ParseDrama(args[++i]);
+                continue;
+            }
+
+            if (a.StartsWith("--drama=", StringComparison.OrdinalIgnoreCase))
+            {
+                drama = ParseDrama(a["--drama=".Length..]);
+                continue;
+            }
+
+            if (a is "--story")
+            {
+                if (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
+                {
+                    story = ParseDrama(args[++i]);
+                }
+                else
+                {
+                    story = true;
+                }
+
+                continue;
+            }
+
+            if (a.StartsWith("--story=", StringComparison.OrdinalIgnoreCase))
+            {
+                story = ParseDrama(a["--story=".Length..]);
+                continue;
+            }
+
             if (a is "-q" or "--quiet")
             {
                 quiet = true;
@@ -147,8 +185,16 @@ internal sealed record RunOptions(
             }
         }
 
-        return new RunOptions(mode, engine, scenario, periods, daysHours, seed, logEvery, quiet);
+        return new RunOptions(mode, engine, scenario, periods, daysHours, seed, logEvery, quiet, drama, story);
     }
+
+    private static bool ParseDrama(string value) =>
+        value.Trim().ToLowerInvariant() switch
+        {
+            "on" or "true" or "1" or "yes" => true,
+            "off" or "false" or "0" or "no" => false,
+            _ => throw new ArgumentException("--drama must be on or off.")
+        };
 
     private static AppMode ParseMode(string value) =>
         value.Trim().ToLowerInvariant() switch
@@ -196,8 +242,10 @@ internal sealed record RunOptions(
               --engine campaign|core   Runtime (default: campaign)
               --days Nd                Campaign duration (default: 10d)
               --seed U                 Seed (default: 1001 campaign / use with core too)
-              --mode headless|avalonia Output shell (default: headless)
+              --mode headless|avalonia Output shell (default: headless; avalonia = briefing room)
               --quiet / -q             Hide progress
+              --drama on|off           Campaign shocks (default: on)
+              --story [on|off]         Live vox tickers + overture (default: off; headless)
 
             Core smoke only:
               --engine core --scenario NAME --periods N

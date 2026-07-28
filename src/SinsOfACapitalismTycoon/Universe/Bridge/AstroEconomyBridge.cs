@@ -76,7 +76,8 @@ internal static class AstroEconomyBridge
       var profile = profiles[s.Id.Value];
       var loc = InventoryLocationId.From(builder.NextGuid());
       var hubId = TransportHubId.From(builder.NextGuid());
-      var (dwell, berths) = HubOps(role);
+      var (dwellBase, berths) = HubOps(role);
+      var dwell = Math.Max(1L, (long)Math.Ceiling(dwellBase * (double)PortTier.DwellFactor(PortTier.ForRole(role))));
       var hub = new TransportHub(hubId, loc, s.Name, dwell, berths);
       var binding = new HubBinding(s.Id.Value, s.Name, role, hubId, loc, hub, profile);
       hubs.Add(binding);
@@ -113,7 +114,10 @@ internal static class AstroEconomyBridge
         var b = bySystem[edge.To.Value];
         var hours = TransitHours(edge.DistanceLy);
         var difficulty = edge.BandTag is "long" ? 3m : 1m;
-        var toll = Money.From(Math.Max(1m, (decimal)edge.DistanceLy * TollPerLy));
+        var tollFactor = Math.Max(
+          PortTier.TollFactor(PortTier.ForRole(a.Role)),
+          PortTier.TollFactor(PortTier.ForRole(b.Role)));
+        var toll = Money.From(Math.Max(1m, (decimal)edge.DistanceLy * TollPerLy * tollFactor));
 
         var ab = new TransportCorridor(
           TransportCorridorId.From(builder.NextGuid()),
@@ -141,11 +145,11 @@ internal static class AstroEconomyBridge
   private static (long Dwell, int Berths) HubOps(SystemRole role) => role switch
   {
     // Time capacity: Capital dwell/berths bind unload rate.
-    SystemRole.Capital => (3, 5),
+    SystemRole.Capital => (3, 3),
     SystemRole.Industrial => (2, 4),
     SystemRole.Inhabited => (2, 3),
     SystemRole.Mining => (3, 2),
-    SystemRole.Transit => (1, 5),
-    _ => (2, 2),
+    SystemRole.Transit => (1, 4),
+    _ => (2, 1),
   };
 }

@@ -16,7 +16,12 @@ public sealed class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.MainWindow = new MainWindow(Program.ReportText);
+        {
+            var options = Program.UiOptions ?? Cli.RunOptions.Default;
+            desktop.MainWindow = options.Engine == Cli.EngineKind.Campaign
+                ? new MainWindow(options)
+                : new CoreReportWindow(Program.ReportText);
+        }
 
         base.OnFrameworkInitializationCompleted();
     }

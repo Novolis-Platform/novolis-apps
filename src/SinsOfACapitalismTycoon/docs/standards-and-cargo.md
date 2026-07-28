@@ -14,11 +14,15 @@ makes participation less dependent on knowing every port’s private habits.
 
 | Fiction | Code (now) | Code (later — see roadmap) |
 |---------|------------|----------------------------|
-| C10 / C20 / C40 quantum | Hull cargo capacity & corridor `MaxCargo` as hard envelopes | Explicit C-series SKU / TEU-like quantum in Logistics |
+| C10 / C20 / C40 / HILS-P1 | Hull cargo capacity & corridor `MaxCargo` as hard envelopes | Explicit HILS SKU / PM quantum in Logistics |
 | Common lock / handshake | Hub berths, dwell hours, corridor entry | Ship bay lock registry |
 | Identification plate | FirmId / shipment ids / ledger memos | Portable container registry + inspection dates |
 | Liability portable | Accounting notes, Finance loans, insurance coverages | Bonded freight + salvage claims |
-| Not a life-support standard | Cargo SKUs Raw/Capital/Final/Energy only | Passenger / livestock modules forbidden as cargo |
+| “If it fits the pallet…” | Capacity envelopes | Full HILS accounting integers |
+
+Calypso Cycle cargo refs (`references/cargo/`) are the detailed grammar:
+EURO pallet **PM**, container length family, empty masses, clamp-free gravity pinning.
+See [commerce-stack.md](commerce-stack.md).
 
 ## What is modeled now
 

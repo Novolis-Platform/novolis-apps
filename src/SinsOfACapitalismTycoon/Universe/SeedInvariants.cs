@@ -1,3 +1,4 @@
+using Novolis.Astro.Assessment;
 using Novolis.Economy;
 using Novolis.Economy.Simulation;
 
@@ -10,24 +11,8 @@ internal static class SeedInvariants
   {
     var failures = new List<string>();
 
-    foreach (var hub in ids.Bridge.Hubs)
-    {
-      var agri = hub.Profile.Potential.Agriculture;
-      var mining = hub.Profile.Potential.Mining;
-
-      if (hub.Role == SystemRole.Mining && mining < RoleAssigner.MiningThreshold)
-      {
-        failures.Add($"Mining hub {hub.SystemId} has Mining={mining:0.###} < {RoleAssigner.MiningThreshold}");
-      }
-
-      if (hub.Role is SystemRole.Capital or SystemRole.Inhabited or SystemRole.Industrial)
-      {
-        if (agri <= 0)
-        {
-          failures.Add($"Settlement hub {hub.SystemId} ({hub.Role}) has Agriculture={agri:0.###}");
-        }
-      }
-    }
+    failures.AddRange(SystemRoleInvariants.CollectFailures(
+      ids.Bridge.Hubs.Select(h => (h.SystemId, h.Role, h.Profile.Potential))));
 
     // Map cohort area → hub via facility Area bindings created at seed.
     var areaToHub = new Dictionary<GeographicAreaId, AstroEconomyBridge.HubBinding>();

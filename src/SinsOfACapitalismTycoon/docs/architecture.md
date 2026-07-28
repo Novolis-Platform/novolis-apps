@@ -24,6 +24,18 @@ Johnston 100-star catalog (embedded JSON)
 Astro is **seed and geography**. Runtime authority for ops commerce is Simulation;
 Core advances at period boundaries and remains the BM stock authority when bridged.
 
+## Library vs app (fundamentals)
+
+Reusable pieces live in packages; Sins owns campaign orchestration and Ops registry theater:
+
+| Concern | Library | Sins still owns |
+|---------|---------|-----------------|
+| Hull premium / overhaul quote math | `Novolis.Economy.Logistics` (`HullRiskQuotes`, `FtlDriveLifePolicy`) | `ShipRegistry` standing, grace, liens, insurance pulses |
+| Tape-aware gate price | `Novolis.Economy.Markets` (`TapeAwareGatePricing`) | Floor/SKU seed constants, agent wiring |
+| System roles from potentials | `Novolis.Astro.Assessment` (`SystemRole`, `RoleAssigner`, `SystemRoleInvariants`) | `AstroEconomyBridge`, HubOps dwell/berths, PortTier overlays |
+
+No shared `Novolis.Economy.Campaign` package yet — bridge + runner stay app-local.
+
 ## Ops vs Core money
 
 - **Ops:** `FirmLedger` cash, invoices, notes — Simulation Accounting.

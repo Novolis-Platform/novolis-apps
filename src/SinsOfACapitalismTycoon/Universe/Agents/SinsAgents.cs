@@ -1,6 +1,7 @@
 using Novolis.Economy;
 using Novolis.Economy.Agents;
 using Novolis.Economy.Logistics;
+using Novolis.Economy.Markets;
 using Novolis.Economy.Simulation;
 
 namespace SinsOfACapitalismTycoon.Universe;
@@ -18,10 +19,15 @@ internal static class SinsAgents
     public required RetailFirmAgent Station { get; init; }
     public required CarrierFirmAgent Carrier { get; init; }
     public required List<CarrierFirmAgent> Carriers { get; init; }
+    public required CarrierFirmAgent MegaHauler { get; init; }
     public required TreasuryFirmAgent Treasury { get; init; }
     public required IReadOnlyList<HouseholdFirmAgent> Households { get; init; }
     public required SolExportHubAgent SolExport { get; init; }
+    public required CapacityInvestAgent Capacity { get; init; }
+    public required LoanRepayAgent LoanRepay { get; init; }
     public HouseholdTrampVentureAgent VenturesAgent { get; set; } = null!;
+    public MilestoneLog Milestones { get; init; } = null!;
+    public ShipBiographyLog Biographies { get; init; } = null!;
 
     public IReadOnlyList<IEconomicAgent> PulseOrder => _pulse;
 
@@ -34,9 +40,11 @@ internal static class SinsAgents
       _pulse.Add(Industry);
       _pulse.Add(Station);
       _pulse.AddRange(Carriers);
+      _pulse.Add(MegaHauler);
       _pulse.Add(Treasury);
+      _pulse.Add(Capacity);
+      _pulse.Add(LoanRepay);
       _pulse.AddRange(Households);
-      // SolExport + VenturesAgent appended when enabled (see Create).
       if (SolExportEnabled)
       {
         _pulse.Add(SolExport);
@@ -59,11 +67,14 @@ internal static class SinsAgents
     {
       Carriers.Add(agent);
       _ventures.Add((tramp, household, name));
-      // Pulse rebuild happens after TickAll snapshot (Program.PulseAsync).
     }
   }
 
-  public static Bundle Create(EconomySimulation sim, CampaignWorld.Ids ids)
+  public static Bundle Create(
+    EconomySimulation sim,
+    CampaignWorld.Ids ids,
+    MilestoneLog milestones,
+    ShipBiographyLog biographies)
   {
     AgentSite Site(CampaignWorld.Site s) => new(
       s.Hub.LocationId, s.Facility, s.Hub.HubId, s.Hub.Name);
@@ -78,7 +89,6 @@ internal static class SinsAgents
       .Where(s => s.Hub.Role == SystemRole.Industrial && s.MfgFacility is not null)
       .Select(MfgSite)
       .ToList();
-    // Final retail shelves only (Station Sales) — consumption sink sites.
     var retailSites = ids.Sites.Values
       .Where(s => s.Facility is not null
                   && s.Hub.Role is SystemRole.Capital or SystemRole.Inhabited or SystemRole.Mining)
@@ -95,6 +105,30 @@ internal static class SinsAgents
         s.Hub.LocationId, s.Facility ?? s.MfgFacility ?? s.CarrierPost, s.Hub.HubId, s.Hub.Name))
       .ToList();
 
+    decimal Floor(ProductId p)
+    {
+      if (p.Equals(ids.Ore)) return CampaignWorld.OreBuy;
+      if (p.Equals(ids.Parts)) return CampaignWorld.PartsBuy;
+      if (p.Equals(ids.Goods)) return CampaignWorld.GoodsFactory;
+      return CampaignWorld.FuelUnitCost;
+    }
+
+    decimal Gate(ProductId p) =>
+      TapeAwareGatePricing.Gate(sim.State.World.MarketBook, p, Floor(p));
+
+    bool AvoidCongested(TransportHubId hub)
+    {
+      var world = sim.State.World;
+      if (!world.Hubs.TryGetValue(hub, out var h) || h.BerthCapacity <= 0)
+      {
+        return false;
+      }
+
+      var waiting = world.Shipments.Count(s =>
+        !s.IsLegacy && s.Phase == ShipmentPhase.WaitingBerth && s.CurrentHubId.Equals(hub));
+      return waiting >= h.BerthCapacity;
+    }
+
     var mining = new ExtractiveFirmAgent(ids.Mining, new ExtractiveFirmAgentPolicy(
       miningSites, ids.Ore, ids.Parts,
       BaseOutputRate: 3.5m, OutputCap: CampaignWorld.MineOreCap,
@@ -105,11 +139,9 @@ internal static class SinsAgents
     var industry = new ManufacturingFirmAgent(ids.Industry, new ManufacturingFirmAgentPolicy(
       plantSites, ids.Ore, CampaignWorld.PlantOreFloor + 12m, CampaignWorld.OreDelivered,
       [
-        // Capital intermediates keep mines alive (not a household sink).
         new ManufacturedSkuPolicy(
           ids.Parts, BaseRate: 6m, StockTarget: 55m, MinInputOnHand: 1m, RequiredInput: ids.Ore,
           SellAboveStock: 3m, SellKeepFloor: 2m, SellMaxQty: 24m, GatePrice: CampaignWorld.PartsBuy),
-        // Final — freight to Station shelves; household retail is the sink.
         new ManufacturedSkuPolicy(
           ids.Goods, BaseRate: 5.5m, StockTarget: CampaignWorld.RetailStockTarget,
           MinInputOnHand: 1m, RequiredInput: ids.Parts,
@@ -122,7 +154,6 @@ internal static class SinsAgents
     var station = new RetailFirmAgent(ids.Station, new RetailFirmAgentPolicy(
       retailSites, bunkerSites,
       [
-        // Only Final on the consumer shelf — the closed-loop sink.
         new RetailSkuPolicy(
           ids.Goods, CampaignWorld.GoodsSell, CampaignWorld.RetailStockTarget,
           CampaignWorld.GoodsDelivered, PostRetailPrice: true),
@@ -131,15 +162,6 @@ internal static class SinsAgents
         ids.Fuel, MinStock: 28m, BuyLimitPrice: CampaignWorld.FuelUnitCost * 1.25m,
         SellPrice: CampaignWorld.FuelUnitCost, AllowProcurement: true)));
 
-    decimal Gate(ProductId p)
-    {
-      if (p.Equals(ids.Ore)) return CampaignWorld.OreBuy;
-      if (p.Equals(ids.Parts)) return CampaignWorld.PartsBuy;
-      if (p.Equals(ids.Goods)) return CampaignWorld.GoodsFactory;
-      return CampaignWorld.FuelUnitCost;
-    }
-
-    // Home hubs: cycle Sol / mines / plants so the larger tramp fleet fans out.
     var homeHubs = new List<TransportHubId>();
     var mineHomes = miningSites.Where(s => s.HubId is not null).Select(s => s.HubId!.Value).ToList();
     var plantHomes = plantSites.Where(s => s.HubId is not null).Select(s => s.HubId!.Value).ToList();
@@ -156,22 +178,58 @@ internal static class SinsAgents
       homeHubs.Add(pool[i % pool.Count]);
     }
 
+    foreach (var (name, firm) in ids.Firms)
+    {
+      if (ids.Registry.TryGet(firm) is not null)
+      {
+        biographies.Name(firm, name.StartsWith("Tramp", StringComparison.Ordinal)
+          ? ids.Registry.TryGet(firm)!.RegistryName
+          : ids.Registry.TryGet(firm)?.RegistryName ?? name);
+      }
+    }
+
+    foreach (var e in ids.Registry.Entries)
+    {
+      biographies.Name(e.FirmId, e.RegistryName);
+    }
+
     var trampAgents = new List<CarrierFirmAgent>(ids.Carriers.Count);
     for (var i = 0; i < ids.Carriers.Count; i++)
     {
+      var firm = ids.Carriers[i];
       trampAgents.Add(new CarrierFirmAgent(
-        ids.Carriers[i],
+        firm,
         new CarrierFirmAgentPolicy(
           allSites, [ids.Ore, ids.Parts, ids.Goods], ids.Fuel,
           ids.HullId, ids.Hull, CampaignWorld.MinMargin, Gate,
           FuelBuyLimitPrice: CampaignWorld.FuelUnitCost * 1.5m,
-          MinBunkerFuel: 8m),
+          MinBunkerFuel: 8m,
+          ChooseTransitProfile: p => TransitChooser.ForTramp(p, ids),
+          CanOperate: () => ids.Registry.CanOperate(firm),
+          AvoidHub: AvoidCongested,
+          EffectiveMinMargin: () => ids.Reputation.EffectiveMinMargin(firm, CampaignWorld.MinMargin),
+          RefuseHaul: (sku, origin, dest, profile) => JumpBandGate.ShouldRefuse(
+            sim.State.World, ids, ids.Reputation, ids.Escrow, firm, sku, origin, dest, profile,
+            milestones, sim.State.Clock.Date.DayIndex)),
         homeHubs[i],
         rngSalt: 0x43415252UL ^ (ulong)(i + 1) * 0x9E3779B97F4A7C15UL));
     }
 
+    var mega = new CarrierFirmAgent(
+      ids.MegaHauler,
+      new CarrierFirmAgentPolicy(
+        allSites, [ids.Ore, ids.Fuel], ids.Fuel,
+        ids.MegaHullId, ids.MegaHull, CampaignWorld.MinMargin * 0.5m, Gate,
+        FuelBuyLimitPrice: CampaignWorld.FuelUnitCost * 1.35m,
+        MinBunkerFuel: 16m,
+        ChooseTransitProfile: p => TransitChooser.ForMegaHauler(p, ids),
+        CanOperate: () => ids.Registry.CanOperate(ids.MegaHauler),
+        AvoidHub: AvoidCongested),
+      ids.Sites["sol"].Hub.HubId,
+      rngSalt: 0x4D454741UL);
+
     var treasury = new TreasuryFirmAgent(ids.Station, new TreasuryFirmAgentPolicy(
-      [ids.Mining, ids.Industry, .. ids.Carriers],
+      [ids.Mining, ids.Industry, .. ids.Carriers, ids.MegaHauler],
       CashFloorToLend: 4_000m,
       BorrowerCashFloor: CampaignWorld.FirmCashFloor + 400m,
       LoanPrincipal: Money.From(2_000m),
@@ -188,7 +246,6 @@ internal static class SinsAgents
       .Select(c => new HouseholdFirmAgent(
         c.Definition.HouseholdFirmId!.Value,
         new HouseholdFirmAgentPolicy(
-          // Invest into Mining float; leave working-capital credit to Civic treasury.
           PreferredBorrower: null,
           PreferredIssuer: ids.Mining,
           PurchaseFraction: 0.01m,
@@ -196,6 +253,8 @@ internal static class SinsAgents
           MaxActiveLoans: 1)))
       .ToList();
 
+    var capacity = new CapacityInvestAgent(ids, milestones);
+    var repay = new LoanRepayAgent(ids, milestones);
     var solExport = new SolExportHubAgent(ids);
     var bundle = new Bundle
     {
@@ -204,15 +263,19 @@ internal static class SinsAgents
       Station = station,
       Carrier = trampAgents[0],
       Carriers = trampAgents,
+      MegaHauler = mega,
       Treasury = treasury,
       Households = households,
       SolExport = solExport,
+      Capacity = capacity,
+      LoanRepay = repay,
       VenturesAgent = null!,
+      Milestones = milestones,
+      Biographies = biographies,
     };
-    bundle.VenturesAgent = new HouseholdTrampVentureAgent(ids, bundle, allSites, pool, Gate);
+    bundle.VenturesAgent = new HouseholdTrampVentureAgent(ids, bundle, allSites, pool, Gate, milestones, biographies);
     bundle.SolExportEnabled = true;
-    // Ventures still starve haul after entry — keep agent wired, gate off until berth/fuel entry is fixed.
-    bundle.VenturesEnabled = false;
+    bundle.VenturesEnabled = true;
     bundle.RebuildPulse();
     return bundle;
   }

@@ -10,6 +10,7 @@ namespace SinsOfACapitalismTycoon;
 internal static class Program
 {
     internal static string ReportText { get; private set; } = "";
+    internal static RunOptions? UiOptions { get; private set; }
 
     [STAThread]
     public static int Main(string[] args)
@@ -31,16 +32,18 @@ internal static class Program
 
         if (options.Engine == EngineKind.Campaign)
         {
-            var result = await CampaignRunner.RunAsync(options.Seed, options.DaysHours, options.Quiet);
-            if (options.Mode == AppMode.Headless)
+            if (options.Mode == AppMode.Avalonia)
             {
-                SpectreHeadlessReport.Write(AnsiConsole.Console, result);
-                TryWriteArtifact(result, options.Quiet);
+                // UI-first: window runs the campaign and binds the briefing.
+                UiOptions = options;
+                BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
                 return 0;
             }
 
-            ReportText = CampaignRunner.FormatReport(result);
-            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            var result = await CampaignRunner.RunAsync(
+                options.Seed, options.DaysHours, options.Quiet, options.Drama, options.Story);
+            SpectreHeadlessReport.Write(AnsiConsole.Console, result);
+            TryWriteArtifact(result, options.Quiet);
             return 0;
         }
 
@@ -68,6 +71,7 @@ internal static class Program
             return 0;
         }
 
+        UiOptions = options;
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
     }

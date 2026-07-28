@@ -47,6 +47,9 @@ internal static class CampaignWorld
 
   /// <summary>Independent tramp firms (one hull each — CarrierFirmAgent is single-ship).</summary>
   public const int TrampFleetSize = 8;
+  /// <summary>Mega-hauler cargo envelope (bulk SlowEconomic only).</summary>
+  public const decimal MegaHullCargoCapacity = 120m;
+  public const decimal MegaFuelTank = 48m;
   public const decimal MineOreCap = 100m;
   public const decimal MinePartsFloor = 10m;
   public const decimal PlantOreFloor = 18m;
@@ -87,6 +90,7 @@ internal static class CampaignWorld
     public required FirmId Industry { get; init; }
     public required FirmId Station { get; init; }
     public required FirmId Carrier { get; init; }
+    public required FirmId MegaHauler { get; init; }
     public required IReadOnlyList<FirmId> Carriers { get; init; }
     public required ProductId Ore { get; init; }
     public required ProductId Parts { get; init; }
@@ -97,6 +101,11 @@ internal static class CampaignWorld
     public required ProductCategoryId GoodsCat { get; init; }
     public required VehicleClassId HullId { get; init; }
     public required VehicleClass Hull { get; init; }
+    public required VehicleClassId MegaHullId { get; init; }
+    public required VehicleClass MegaHull { get; init; }
+    public required ShipRegistry Registry { get; init; }
+    public ReputationLedger Reputation { get; set; } = new();
+    public EscrowBook Escrow { get; set; } = new();
     public required AstroEconomyBridge.BridgeResult Bridge { get; init; }
     public required IReadOnlyDictionary<string, Site> Sites { get; init; }
     public required string RoleSummary { get; init; }
@@ -113,6 +122,8 @@ internal static class CampaignWorld
         {
           yield return ($"Tramp{i + 1}", Carriers[i]);
         }
+
+        yield return ("MegaHauler", MegaHauler);
       }
     }
   }
@@ -127,6 +138,7 @@ internal static class CampaignWorld
       .Select(i => FirmId.From(Guid.Parse($"00000000-0000-4000-8000-00000000{(0xb0 + i):x4}")))
       .ToArray();
     var carrier = carriers[0];
+    var megaHauler = FirmId.From(Guid.Parse("00000000-0000-4000-8000-0000000000c1"));
 
     var builder = new EconomyWorldBuilder(new EconomyPolicy
     {
@@ -138,11 +150,13 @@ internal static class CampaignWorld
       TollBeneficiaryFirmId = station,
       PriceElasticity = 0.8m,
       HouseholdComfortThresholdPerHousehold = Money.From(40m),
+      EnableSpoilage = true,
     });
 
     var bridge = AstroEconomyBridge.Build(catalog, builder, seed);
     var roleSummary = RoleAssigner.Summarize(bridge.Roles)
-      + " · " + RoleAssigner.SummarizePotentials(bridge.Hubs);
+      + " · " + RoleAssigner.SummarizePotentials(
+        bridge.Hubs.Select(h => (h.Role, h.Profile.Potential)));
 
     var oreCat = ProductCategoryId.From(builder.NextGuid());
     var partsCat = ProductCategoryId.From(builder.NextGuid());
@@ -154,6 +168,7 @@ internal static class CampaignWorld
     var fuel = ProductId.From(builder.NextGuid());
     var process = ProductionProcessId.From(Guid.Parse("00000000-0000-4000-8000-000000000099"));
     var hullId = VehicleClassId.From(builder.NextGuid());
+    var megaHullId = VehicleClassId.From(builder.NextGuid());
     var areas = new Dictionary<string, GeographicAreaId>(StringComparer.OrdinalIgnoreCase);
     foreach (var hub in bridge.Hubs)
     {
@@ -169,10 +184,12 @@ internal static class CampaignWorld
       ImmutableArray<ProductAttributeDefinition>.Empty, process, null);
     var goodsDef = new ProductDefinition(
       goods, goodsCat, ImmutableArray.Create(new ProductInput(parts, Quantity.From(1m))),
-      ImmutableArray<ProductAttributeDefinition>.Empty, process, null);
+      ImmutableArray<ProductAttributeDefinition>.Empty, process,
+      new ShelfLife(SimulationHour.HoursPerDay * 40));
     var fuelDef = new ProductDefinition(
       fuel, fuelCat, ImmutableArray.Create(new ProductInput(ore, Quantity.From(OrePerFuel))),
-      ImmutableArray<ProductAttributeDefinition>.Empty, process, null);
+      ImmutableArray<ProductAttributeDefinition>.Empty, process,
+      new ShelfLife(SimulationHour.HoursPerDay * 120));
 
     var hull = new VehicleClass(
       hullId,
@@ -181,26 +198,36 @@ internal static class CampaignWorld
       CrewLaborPerUnderwayHour: 0.02m,
       // Large enough for typical multi-leg burns when origin tops off the tank.
       FuelTankCapacity: Quantity.From(24m));
+    var megaHull = new VehicleClass(
+      megaHullId,
+      Quantity.From(MegaHullCargoCapacity),
+      FuelBurnPerDifficultyHour: FuelBurnPerDifficultyHour * 1.4m,
+      CrewLaborPerUnderwayHour: 0.01m,
+      FuelTankCapacity: Quantity.From(MegaFuelTank));
 
     builder
       .AddProduct(oreDef)
       .AddProduct(partsDef)
       .AddProduct(goodsDef)
       .AddProduct(fuelDef)
-      .AddFirm(mining, "Near-Sol Mining", Money.From(OpeningFirmCash))
-      .AddFirm(industry, "Near-Sol Industry", Money.From(OpeningFirmCash))
-      .AddCivic(station, "Near-Sol Station", Money.From(OpeningFirmCash), "nearsol-civic")
+      .AddFirm(mining, "Sins Mining", Money.From(OpeningFirmCash))
+      .AddFirm(industry, "Sins Industry", Money.From(OpeningFirmCash))
+      .AddCivic(station, "Sins Station", Money.From(OpeningFirmCash), "sins-civic")
       .AddFirm(carrier, "MV Independent", Money.From(OpeningFirmCash));
     for (var i = 1; i < carriers.Length; i++)
     {
-      builder.AddFirm(carriers[i], $"MV Tramp {i + 1}", Money.From(OpeningFirmCash * 0.45m));
+      builder.AddFirm(carriers[i], $"MV Tramp {i + 1}", Money.From(OpeningFirmCash * 0.7m));
     }
+
+    builder.AddFirm(megaHauler, "MV Bulk River", Money.From(OpeningFirmCash * 1.8m));
 
     // Carrier crew labor only — region pools supply manufacturing firms.
     builder
       .AddVehicleClass(hull)
+      .AddVehicleClass(megaHull)
       .SetTransportFuel(fuel, Money.From(FuelUnitCost))
-      .SetLabor(carrier, 32m);
+      .SetLabor(carrier, 32m)
+      .SetLabor(megaHauler, 40m);
     foreach (var tramp in carriers.Skip(1))
     {
       builder.SetLabor(tramp, 28m);
@@ -385,12 +412,40 @@ internal static class CampaignWorld
 
     builder.SetOwnership(industry, station, 0.35m);
 
+    var registry = new ShipRegistry { Underwriter = station };
+    registry.Register(new ShipRegistryEntry
+    {
+      FirmId = carrier,
+      RegistryName = "MV Independent",
+      HullClass = "LightCommercial",
+      OwnerMaster = true,
+    });
+    for (var i = 1; i < carriers.Length; i++)
+    {
+      registry.Register(new ShipRegistryEntry
+      {
+        FirmId = carriers[i],
+        RegistryName = $"MV Tramp {i + 1}",
+        HullClass = "LightCommercial",
+        OwnerMaster = true,
+      });
+    }
+
+    registry.Register(new ShipRegistryEntry
+    {
+      FirmId = megaHauler,
+      RegistryName = "MV Bulk River",
+      HullClass = "MegaHauler",
+      OwnerMaster = false,
+    });
+
     var ids = new Ids
     {
       Mining = mining,
       Industry = industry,
       Station = station,
       Carrier = carrier,
+      MegaHauler = megaHauler,
       Carriers = carriers,
       Ore = ore,
       Parts = parts,
@@ -401,6 +456,9 @@ internal static class CampaignWorld
       GoodsCat = goodsCat,
       HullId = hullId,
       Hull = hull,
+      MegaHullId = megaHullId,
+      MegaHull = megaHull,
+      Registry = registry,
       Bridge = bridge,
       Sites = sites,
       RoleSummary = roleSummary,
@@ -460,6 +518,8 @@ internal static class CampaignWorld
             Add(tramp, hub.LocationId, ids.Fuel, 10m, FuelUnitCost);
           }
 
+          Add(ids.MegaHauler, hub.LocationId, ids.Fuel, 20m, FuelUnitCost);
+
           break;
         case SystemRole.Industrial:
           Add(ids.Industry, hub.LocationId, ids.Ore, 55m, OreBuy);
@@ -471,6 +531,8 @@ internal static class CampaignWorld
           {
             Add(tramp, hub.LocationId, ids.Fuel, 10m, FuelUnitCost);
           }
+
+          Add(ids.MegaHauler, hub.LocationId, ids.Fuel, 20m, FuelUnitCost);
 
           break;
         case SystemRole.Capital:
@@ -495,18 +557,18 @@ internal static class CampaignWorld
 
           break;
         case SystemRole.Transit:
-          Add(ids.Station, hub.LocationId, ids.Fuel, 32m, FuelUnitCost);
+          Add(ids.Station, hub.LocationId, ids.Fuel, 10m, FuelUnitCost);
           foreach (var tramp in ids.Carriers)
           {
-            Add(tramp, hub.LocationId, ids.Fuel, 9m, FuelUnitCost);
+            Add(tramp, hub.LocationId, ids.Fuel, 3m, FuelUnitCost);
           }
 
           break;
         default:
-          Add(ids.Station, hub.LocationId, ids.Fuel, 14m, FuelUnitCost);
+          Add(ids.Station, hub.LocationId, ids.Fuel, 4m, FuelUnitCost);
           foreach (var tramp in ids.Carriers)
           {
-            Add(tramp, hub.LocationId, ids.Fuel, 6m, FuelUnitCost);
+            Add(tramp, hub.LocationId, ids.Fuel, 2m, FuelUnitCost);
           }
 
           break;
