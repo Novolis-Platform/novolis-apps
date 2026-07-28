@@ -79,6 +79,7 @@ internal sealed class MainWindow : Window
     DispatcherTimer? _autosaveTimer;
     bool _focusMode;
     bool _suppressEditorSync;
+    bool _suppressChapterSelection;
     bool _handlingExternalChange;
 
     public MainWindow(
@@ -532,6 +533,8 @@ internal sealed class MainWindow : Window
 
     async void OnChapterSelectionChanged()
     {
+        if (_suppressChapterSelection)
+            return;
         if (_chapterList.SelectedItem is not ListBoxItem { Tag: MarkedListRow row }
             || row.Tag is not ChapterInfo chapter)
             return;
@@ -579,7 +582,7 @@ internal sealed class MainWindow : Window
 
         LoadMetadataFromEditor();
         _session.FileWatcher.Watch(chapter.FilePath);
-        RefreshChapterList();
+        UpdateChapterListMarkers();
         UpdateStatus();
         _editor.FocusEditor();
     }
@@ -598,13 +601,21 @@ internal sealed class MainWindow : Window
 
     void SelectChapterInList(ChapterInfo chapter)
     {
-        foreach (var item in _chapterList.Items)
+        _suppressChapterSelection = true;
+        try
         {
-            if (item is ListBoxItem { Tag: MarkedListRow row } && row.Tag is ChapterInfo c && c.Id == chapter.Id)
+            foreach (var item in _chapterList.Items)
             {
-                _chapterList.SelectedItem = item;
-                break;
+                if (item is ListBoxItem { Tag: MarkedListRow row } && row.Tag is ChapterInfo c && c.Id == chapter.Id)
+                {
+                    _chapterList.SelectedItem = item;
+                    break;
+                }
             }
+        }
+        finally
+        {
+            _suppressChapterSelection = false;
         }
     }
 
@@ -1079,30 +1090,67 @@ internal sealed class MainWindow : Window
     void RefreshChapterList()
     {
         var book = _session.SelectedBook;
-        _chapterList.Items.Clear();
-        if (book is null)
-            return;
-
-        var rows = book.Chapters.Select((ch, i) =>
+        _suppressChapterSelection = true;
+        try
         {
-            var words = ManuscriptMetadata.CountWords(File.Exists(ch.FilePath)
-                ? (_session.SelectedChapter?.FilePath == ch.FilePath ? _session.EditorText : File.ReadAllText(ch.FilePath))
-                : string.Empty);
-            var dirty = _session.IsChapterDirty(ch.FilePath) ? "*" : null;
-            return new MarkedListRow(dirty, (i + 1).ToString(), ch.Title, words.ToString(), ch);
-        }).ToList();
+            _chapterList.SelectedItem = null;
+            _chapterList.Items.Clear();
+            if (book is null)
+                return;
 
-        foreach (var row in rows)
-        {
-            _chapterList.Items.Add(new ListBoxItem
+            var rows = book.Chapters.Select((ch, i) =>
             {
-                Content = MarkedListBox.CreateItem(row),
-                Tag = row,
-            });
-        }
+                var words = ManuscriptMetadata.CountWords(File.Exists(ch.FilePath)
+                    ? (_session.SelectedChapter?.FilePath == ch.FilePath ? _session.EditorText : File.ReadAllText(ch.FilePath))
+                    : string.Empty);
+                var dirty = _session.IsChapterDirty(ch.FilePath) ? "*" : null;
+                return new MarkedListRow(dirty, (i + 1).ToString(), ch.Title, words.ToString(), ch);
+            }).ToList();
 
-        if (_session.SelectedChapter is not null)
-            SelectChapterInList(_session.SelectedChapter);
+            foreach (var row in rows)
+            {
+                _chapterList.Items.Add(new ListBoxItem
+                {
+                    Content = MarkedListBox.CreateItem(row),
+                    Tag = row,
+                });
+            }
+
+            if (_session.SelectedChapter is not null)
+            {
+                foreach (var item in _chapterList.Items)
+                {
+                    if (item is ListBoxItem { Tag: MarkedListRow row } && row.Tag is ChapterInfo c
+                        && c.Id == _session.SelectedChapter.Id)
+                    {
+                        _chapterList.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _suppressChapterSelection = false;
+        }
+    }
+
+    void UpdateChapterListMarkers()
+    {
+        foreach (var raw in _chapterList.Items)
+        {
+            if (raw is not ListBoxItem item || item.Tag is not MarkedListRow row || row.Tag is not ChapterInfo ch)
+                continue;
+
+            var dirty = _session.IsChapterDirty(ch.FilePath) ? "*" : null;
+            var words = ManuscriptMetadata.CountWords(
+                _session.SelectedChapter?.FilePath == ch.FilePath
+                    ? _session.EditorText
+                    : File.Exists(ch.FilePath) ? File.ReadAllText(ch.FilePath) : string.Empty);
+            var updated = new MarkedListRow(dirty, row.Leading, ch.Title, words.ToString(), ch);
+            item.Tag = updated;
+            item.Content = MarkedListBox.CreateItem(updated);
+        }
     }
 
     void RefreshJobPanel()
