@@ -72,21 +72,27 @@ jobs:
             default { $allApps }
           }
 
-          $published = @()
+          $published = [System.Collections.Generic.List[object]]::new()
           foreach ($app in $selected) {
-            $published += Publish-NovolisApp `
+            $item = Publish-NovolisApp `
               -RepoRoot $env:GITHUB_WORKSPACE `
               -AppKey $app.Key `
               -ProjectRelativePath $app.Project `
               -PackageVersion $env:PACKAGE_VERSION `
               -AssemblyVersion $env:ASSEMBLY_VERSION `
-              -FileVersion $env:FILE_VERSION
+              -FileVersion $env:FILE_VERSION |
+              Where-Object { $_.ZipPath } |
+              Select-Object -Last 1
+            if (-not $item -or -not $item.ZipPath) {
+              throw "Publish-NovolisApp did not return a ZipPath for $($app.Key)."
+            }
+            $published.Add($item)
           }
 
-          $assets = @()
+          $assets = [System.Collections.Generic.List[string]]::new()
           foreach ($item in $published) {
-            $assets += $item.ZipPath
-            if ($item.InstallerPath) { $assets += $item.InstallerPath }
+            $assets.Add($item.ZipPath)
+            if ($item.InstallerPath) { $assets.Add($item.InstallerPath) }
           }
 
           $tag = "v$env:PACKAGE_VERSION"
@@ -95,5 +101,5 @@ jobs:
             gh release create $tag --title "Novolis Apps $env:PACKAGE_VERSION" --generate-notes
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE." }
           }
-          gh release upload $tag @assets --clobber
+          gh release upload $tag @($assets.ToArray()) --clobber
           if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE." }

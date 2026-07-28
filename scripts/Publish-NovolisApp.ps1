@@ -41,23 +41,24 @@ function Publish-NovolisApp {
     }
 
     Write-Host "Publishing $AppKey $PackageVersion (win-x64)..."
-    dotnet restore $appProject -r win-x64 @cfgArgs @versionArgs
+    # Keep external command output off the success stream so callers do not capture it.
+    & dotnet restore $appProject -r win-x64 @cfgArgs @versionArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Restore failed with exit code $LASTEXITCODE." }
 
-    dotnet publish $appProject `
+    & dotnet publish $appProject `
         -c Release `
         -r win-x64 `
         --self-contained true `
         --no-restore `
         -o $publishDir `
-        @versionArgs
+        @versionArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Publish failed with exit code $LASTEXITCODE." }
 
     $exeBase = [System.IO.Path]::GetFileNameWithoutExtension($appProject)
     $zipName = "$exeBase-$PackageVersion-win-x64.zip"
     $zipPath = Join-Path $stagingDir $zipName
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-    Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath
+    Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath | Out-Null
     Write-Host "Portable zip: $zipPath"
 
     $result = [ordered]@{
@@ -73,9 +74,9 @@ function Publish-NovolisApp {
     }
 
     $inno = Get-NovolisAppInnoProfile -AppKey $AppKey -PackageVersion $PackageVersion -PublishDir $publishDir -InstallerDir $installerDir
-    dotnet msbuild $appProject `
+    & dotnet msbuild $appProject `
         -t:NovolisGenerateInnoScript `
-        @($inno.MsBuildArgs.GetEnumerator() | ForEach-Object { "-p:$($_.Key)=$($_.Value)" })
+        @($inno.MsBuildArgs.GetEnumerator() | ForEach-Object { "-p:$($_.Key)=$($_.Value)" }) | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Generating the Inno script failed with exit code $LASTEXITCODE." }
 
     $iscc = @(
@@ -90,7 +91,7 @@ function Publish-NovolisApp {
         return [pscustomobject]$result
     }
 
-    & $iscc $inno.ScriptPath
+    & $iscc $inno.ScriptPath | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
     if (-not (Test-Path $inno.InstallerPath)) {
         throw "Expected installer not found: $($inno.InstallerPath)"

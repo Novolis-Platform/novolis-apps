@@ -27,8 +27,8 @@
     <PackageVersion Include="Novolis.Avalonia.Layout" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Live" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Markdown" Version="2026.1.*" />
-    <PackageVersion Include="Novolis.Audio.Voice.EdgeTts" Version="2026.1.1.*" />
-    <PackageVersion Include="Novolis.Audio.Voice.Manuscript" Version="2026.1.1.*" />
+    <PackageVersion Include="Novolis.Audio.Voice.EdgeTts" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Audio.Voice.Manuscript" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Paths" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Watching" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.StarMap" Version="2026.1.*" />
@@ -38,7 +38,7 @@
     <PackageVersion Include="Novolis.Avalonia.Studio" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Git" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Recovery" Version="2026.1.*" />
-    <PackageVersion Include="Novolis.Markup.Manuscript" Version="2026.1.1.*" />
+    <PackageVersion Include="Novolis.Markup.Manuscript" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Markup.Mermaid" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Catalog" Version="2026.1.*" />

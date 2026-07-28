@@ -78,26 +78,32 @@ jobs:
             @{ Key = 'concept-studio'; Project = 'src/ConceptStudio/ConceptStudio.csproj' }
           )
 
-          $published = @()
+          $published = [System.Collections.Generic.List[object]]::new()
           foreach ($app in $apps) {
-            $published += Publish-NovolisApp `
+            $item = Publish-NovolisApp `
               -RepoRoot $env:GITHUB_WORKSPACE `
               -AppKey $app.Key `
               -ProjectRelativePath $app.Project `
               -PackageVersion $env:PACKAGE_VERSION `
               -AssemblyVersion $env:ASSEMBLY_VERSION `
-              -FileVersion $env:FILE_VERSION
+              -FileVersion $env:FILE_VERSION |
+              Where-Object { $_.ZipPath } |
+              Select-Object -Last 1
+            if (-not $item -or -not $item.ZipPath) {
+              throw "Publish-NovolisApp did not return a ZipPath for $($app.Key)."
+            }
+            $published.Add($item)
           }
 
           $lines = @()
-          $assets = @()
+          $assets = [System.Collections.Generic.List[string]]::new()
           foreach ($item in $published) {
-            $assets += $item.ZipPath
-            $hashZip = (Get-FileHash $item.ZipPath -Algorithm SHA256).Hash
+            $assets.Add($item.ZipPath)
+            $hashZip = (Get-FileHash -LiteralPath $item.ZipPath -Algorithm SHA256).Hash
             $lines += "$hashZip  $($item.ZipName)"
             if ($item.InstallerPath) {
-              $assets += $item.InstallerPath
-              $hashExe = (Get-FileHash $item.InstallerPath -Algorithm SHA256).Hash
+              $assets.Add($item.InstallerPath)
+              $hashExe = (Get-FileHash -LiteralPath $item.InstallerPath -Algorithm SHA256).Hash
               $lines += "$hashExe  $($item.InstallerName)"
             }
           }
@@ -105,7 +111,7 @@ jobs:
           $sumsPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts/SHA256SUMS.txt'
           New-Item -ItemType Directory -Force -Path (Split-Path $sumsPath) | Out-Null
           $lines | Set-Content -Path $sumsPath -Encoding utf8NoBOM
-          $assets += $sumsPath
+          $assets.Add($sumsPath)
 
           $tag = "v$env:PACKAGE_VERSION"
           gh release view $tag 2>$null
@@ -113,5 +119,5 @@ jobs:
             gh release create $tag --title "Novolis Apps $env:PACKAGE_VERSION" --generate-notes
             if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE." }
           }
-          gh release upload $tag @assets --clobber
+          gh release upload $tag @($assets.ToArray()) --clobber
           if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE." }

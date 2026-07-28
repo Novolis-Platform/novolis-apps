@@ -39,16 +39,22 @@ $projectMap = @{
     'concept-studio'    = 'src/ConceptStudio/ConceptStudio.csproj'
 }
 
-$published = @()
+$published = [System.Collections.Generic.List[object]]::new()
 foreach ($appKey in $apps) {
-    $published += Publish-NovolisApp `
+    $item = Publish-NovolisApp `
         -RepoRoot $RepoRoot `
         -AppKey $appKey `
         -ProjectRelativePath $projectMap[$appKey] `
         -PackageVersion $packageVersion `
         -AssemblyVersion $assemblyVersion `
         -FileVersion $fileVersion `
-        -SkipInstaller:$SkipInstaller
+        -SkipInstaller:$SkipInstaller |
+        Where-Object { $_.ZipPath } |
+        Select-Object -Last 1
+    if (-not $item -or -not $item.ZipPath) {
+        throw "Publish-NovolisApp did not return a ZipPath for $appKey."
+    }
+    $published.Add($item)
 }
 
 if ($SkipInstaller) {
@@ -57,12 +63,12 @@ if ($SkipInstaller) {
 
 $lines = @()
 foreach ($item in $published) {
-    if (Test-Path $item.ZipPath) {
-        $hashZip = (Get-FileHash $item.ZipPath -Algorithm SHA256).Hash
+    if (Test-Path -LiteralPath $item.ZipPath) {
+        $hashZip = (Get-FileHash -LiteralPath $item.ZipPath -Algorithm SHA256).Hash
         $lines += "$hashZip  $($item.ZipName)"
     }
-    if ($item.InstallerPath -and (Test-Path $item.InstallerPath)) {
-        $hashExe = (Get-FileHash $item.InstallerPath -Algorithm SHA256).Hash
+    if ($item.InstallerPath -and (Test-Path -LiteralPath $item.InstallerPath)) {
+        $hashExe = (Get-FileHash -LiteralPath $item.InstallerPath -Algorithm SHA256).Hash
         $lines += "$hashExe  $($item.InstallerName)"
     }
 }
