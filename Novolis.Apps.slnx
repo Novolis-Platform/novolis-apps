@@ -7,6 +7,7 @@
   <Folder Name="/src/">
     <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
     <Project Path="src/ConceptStudio/ConceptStudio.csproj" />
+    <Project Path="src/DraftStudio/DraftStudio.csproj" />
     <Project Path="src/ManuscriptStudio/ManuscriptStudio.csproj" />
     <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
   </Folder>

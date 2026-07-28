@@ -175,8 +175,9 @@ internal sealed class CampaignBriefingModel
     };
     for (var i = 0; i < Math.Min(3, agents.Carriers.Count); i++)
     {
-      var label = i == 0 ? "Carrier" : $"Tramp{i + 1}";
-      agentRows.Add(new MetricRow(label, agents.Carriers[i].LastDecision));
+      var label = i == 0 ? CampaignWorld.PlayerHullName : $"Tramp{i + 1}";
+      var decision = i == 0 ? agents.CarrierPulse.LastDecision : agents.Carriers[i].LastDecision;
+      agentRows.Add(new MetricRow(label, decision));
     }
 
     var mega = result.Biographies.ForFirm(ids.MegaHauler).TakeLast(12)
@@ -192,7 +193,7 @@ internal sealed class CampaignBriefingModel
     {
       TitleLine = "Sins of a Capitalism Tycoon",
       SubtitleLine =
-        $"day {day} · {DurationArg.Format(result.RequestedHours)} · drama {(result.DramaEnabled ? "on" : "off")}",
+        $"{CampaignWorld.PlayerMasterLabel} · day {day} · {DurationArg.Format(result.RequestedHours)} · drama {(result.DramaEnabled ? "on" : "off")}",
       HashLine = $"hash {sim.State.Hash:X16} · wall {result.Wall.TotalSeconds:0.#}s · hubs {ids.Bridge.Hubs.Count}",
       MapPoints = points,
       MapEdges = edges,

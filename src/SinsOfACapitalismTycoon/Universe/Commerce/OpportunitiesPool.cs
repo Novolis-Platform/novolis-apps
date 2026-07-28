@@ -32,6 +32,26 @@ internal sealed class OpportunitiesPool
 
   public FirmId? ActiveStandbyTramp => _standbyTramp;
 
+  public FirmId? PreferTramp { get; set; }
+
+  /// <summary>Player refuse: clears window without actuarial spike (standby-pass).</summary>
+  public bool TryRefuse(FirmId firm, int day)
+  {
+    if (_standbyTramp is not { } tramp || !tramp.Equals(firm))
+    {
+      return false;
+    }
+
+    var name = _ids.Registry.TryGet(tramp)?.RegistryName ?? "tramp";
+    _milestones.Add(day, "standby-pass",
+      $"{name} refused — refusal ≠ premium hit");
+    _standbyTramp = null;
+    _standbyBonusLeft = 0m;
+    _standbyUntilDay = -1;
+    _completionPaid = false;
+    return true;
+  }
+
   public void TickHour(EconomySimulation sim, ulong seed)
   {
     var day = sim.State.Clock.Date.DayIndex;
@@ -44,7 +64,13 @@ internal sealed class OpportunitiesPool
       return;
     }
 
-    // First life-moment: day 18. Later offers every 35–45d from seed hash.
+    // First life-moment: day 18 (day 12 when a preferred player tramp is set).
+    if (PreferTramp is not null && day == 12 && _offeredDays.Add(12))
+    {
+      Offer(sim, day, force: true);
+      return;
+    }
+
     if (day == 18 && _offeredDays.Add(18))
     {
       Offer(sim, day, force: true);
@@ -96,7 +122,13 @@ internal sealed class OpportunitiesPool
 
   private void Offer(EconomySimulation sim, int day, bool force)
   {
-    var tramp = _reputation.PreferOperable(
+    FirmId? tramp = null;
+    if (PreferTramp is { } prefer && _ids.Registry.CanOperate(prefer))
+    {
+      tramp = prefer;
+    }
+
+    tramp ??= _reputation.PreferOperable(
       _ids.Carriers.Concat(_ids.Registry.Entries.Where(e => e.OwnerMaster).Select(e => e.FirmId)).Distinct(),
       _ids.Registry.CanOperate);
     if (tramp is null || tramp.Value.Value == Guid.Empty)

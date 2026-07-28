@@ -40,8 +40,14 @@ internal static class Program
                 return 0;
             }
 
+            if (options.Mode == AppMode.Captain || options.Playtest)
+            {
+                return await CaptainConsole.RunAsync(options);
+            }
+
             var result = await CampaignRunner.RunAsync(
-                options.Seed, options.DaysHours, options.Quiet, options.Drama, options.Story);
+                options.Seed, options.DaysHours, options.Quiet, options.Drama, options.Story,
+                playerControl: options.Player, autopilot: options.Autopilot);
             SpectreHeadlessReport.Write(AnsiConsole.Console, result);
             TryWriteArtifact(result, options.Quiet);
             return 0;

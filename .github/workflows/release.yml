@@ -10,6 +10,7 @@ on:
           - ManuscriptStudio
           - BooksWriterStudio
           - ConceptStudio
+          - DraftStudio
           - SinsOfACapitalismTycoon
           - LiveStudio
         default: All

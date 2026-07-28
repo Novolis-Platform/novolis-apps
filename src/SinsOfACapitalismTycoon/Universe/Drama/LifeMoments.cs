@@ -24,6 +24,8 @@ internal static class LifeMoments
     "overhaul",
     "upgrade",
     "default",
+    "tutorial",
+    "soft-fail",
   ];
 
   public static int Count(MilestoneLog log) =>
@@ -64,6 +66,8 @@ internal static class LifeMoments
       "burnout" or "overhaul" => "Drive life demanded yard time",
       "upgrade" => "Capacity chased scarcity",
       "default" => "Due-now arrived",
+      "tutorial" => "Marsh / CCA onboarding beat",
+      "soft-fail" => "Grounded long enough to fail soft",
       _ => kind,
     };
 }

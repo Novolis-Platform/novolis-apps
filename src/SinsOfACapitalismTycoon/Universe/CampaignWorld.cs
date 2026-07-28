@@ -45,7 +45,17 @@ internal static class CampaignWorld
   /// </summary>
   public const decimal MinMargin = 0.20m;
 
-  /// <summary>Independent tramp firms (one hull each — CarrierFirmAgent is single-ship).</summary>
+  /// <summary>Player owner-master hull (James Simmons / ST Calypso).</summary>
+  public const string PlayerHullName = "ST Calypso";
+  public const string PlayerFirmName = "Simmons Transport";
+  public const string PlayerMasterLabel = "James Simmons · ST Calypso";
+  public const string PlayerFlavorId = "ST-7749-63325116";
+  /// <summary>Lean opening cash ≈ post-cert scrap (~0.35× fleet working capital).</summary>
+  public const decimal PlayerOpeningCashFactor = 0.35m;
+  /// <summary>Optional restoration loan recorded as registry lien.</summary>
+  public const decimal PlayerRestorationLien = 4_500m;
+
+  /// <summary>Tramp firms (one hull each — CarrierFirmAgent is single-ship). Slot 0 = Calypso.</summary>
   public const int TrampFleetSize = 8;
   /// <summary>Mega-hauler cargo envelope (bulk SlowEconomic only).</summary>
   public const decimal MegaHullCargoCapacity = 120m;
@@ -217,7 +227,7 @@ internal static class CampaignWorld
       .AddFirm(mining, "Sins Mining", Money.From(OpeningFirmCash))
       .AddFirm(industry, "Sins Industry", Money.From(OpeningFirmCash))
       .AddCivic(station, "Sins Station", Money.From(OpeningFirmCash), "sins-civic")
-      .AddFirm(carrier, "MV Independent", Money.From(OpeningFirmCash));
+      .AddFirm(carrier, PlayerHullName, Money.From(OpeningFirmCash * PlayerOpeningCashFactor));
     for (var i = 1; i < carriers.Length; i++)
     {
       builder.AddFirm(carriers[i], $"MV Tramp {i + 1}", Money.From(OpeningFirmCash * 0.7m));
@@ -418,7 +428,8 @@ internal static class CampaignWorld
 
     var desk = new CampaignRegistryDesk();
     desk.Ships.Underwriter = station;
-    desk.Ships.Register(ShipRegistryEntry.Create(carrier, "MV Independent", "LightCommercial"));
+    desk.Ships.Register(ShipRegistryEntry.Create(
+      carrier, PlayerHullName, "LightCommercial", ownerMaster: true, lienPrincipal: PlayerRestorationLien));
     for (var i = 1; i < carriers.Length; i++)
     {
       desk.Ships.Register(ShipRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1}", "LightCommercial"));
@@ -429,7 +440,9 @@ internal static class CampaignWorld
     desk.Firms.Register(FirmRegistryEntry.Create(mining, "Sins Mining"));
     desk.Firms.Register(FirmRegistryEntry.Create(industry, "Sins Industry"));
     desk.Firms.Register(FirmRegistryEntry.Create(station, "Sins Station"));
-    desk.Firms.Register(FirmRegistryEntry.Create(carrier, "MV Independent Co."));
+    var playerFirm = FirmRegistryEntry.Create(carrier, PlayerFirmName);
+    playerFirm.LienPrincipal = PlayerRestorationLien;
+    desk.Firms.Register(playerFirm);
     for (var i = 1; i < carriers.Length; i++)
     {
       desk.Firms.Register(FirmRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1} Co."));

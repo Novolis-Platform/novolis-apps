@@ -8,7 +8,7 @@
 | **core** | `--engine core --scenario … --periods N` | Core `EconomyState` + host policies + period pipeline | BM regression / drama packs |
 
 Shell UI (`--mode headless|avalonia`) is orthogonal: headless prints Spectre (campaign) or
-plain text (core); Avalonia shows the same text blob for now.
+plain text (core); Avalonia is the **captain desk** (live Calypso orders when `--player on`).
 
 ## Layering
 

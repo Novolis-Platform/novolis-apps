@@ -1,8 +1,11 @@
 # Gameplay
 
-Sins is a **headless tycoon watch**: you seed a universe, let it run for days, then
-read the Spectre report like a CCA briefing that learned to swear politely. You do not
-click starships. You *judge* them.
+Sins is a **Near-Sol trade memoir** with two shells:
+
+- **Headless** — seed a universe, let NPCs run, read Spectre like a CCA briefing.
+- **Avalonia captain desk** — you are **James Simmons** aboard **ST Calypso**; pause/step
+  days, travel empty, commit spot lots at berth, refuse standby, while the Johnston
+  100-system campaign keeps moving.
 
 Tone models:
 
@@ -13,15 +16,46 @@ Tone models:
 
 ## The loop (one sentence)
 
-Firms dig, make, and sell; ST tramps and a mega-hauler move cargo under registry and
-insurance; households eat **Final**; drama and wear try to kill the margin; you read
-who stayed legible.
+Firms dig, make, and sell; ST Calypso (player or AI) and other tramps plus a mega-hauler
+move cargo under registry and insurance; households eat **Final**; drama and wear try to
+kill the margin; you either **captain** Calypso or **judge** the report.
+
+## Captain desk (Avalonia / `--player on` / `--mode captain`)
+
+You play owner-master of **ST Calypso** (`ST-7749-63325116` flavor): lean cash, restoration
+lien, Priority endorsement. Time runs until Calypso needs a decision (idle on berth / standby /
+grounded); then it pauses so you can get bearings.
+
+**CCA glass rule:** plenty of opportunity on the intel boards; **acceptance is a dock act.**
+See spot/charter postings network-wide; they can vanish or shrink while you steam. Accept
+spot lots only when docked at the load hub. Travel empty (`PlanReposition`) to any routable
+hub — not a fake haul.
+
+| Zone | Job |
+|------|-----|
+| Voyage strip | Berth or Underway: hub, cash, life%, hold used/36, decision; if underway: origin→dest, SKU×qty, profile, phase |
+| Map | Select hub = travel target; **Travel here** when idle |
+| Intel — Spot | Network sell→buy spreads (read-only). Accept enabled only at origin berth |
+| Intel — Charters | Standby + short escrow-framed offers; never mixed into Spot |
+| Berth — Manifest | Commit lots up to hull capacity (36); same SKU merges; **Depart** issues `PlanShipment` |
+| Transport | Step 1d / Continue / To horizon (pause until decision) |
+
+`--board network` (default) shows network intel; `--board berth` filters spot list to current hub.
+CLI mirrors GUI: `travel`, `spot`, `charters`, `accept N`, `manifest`, `depart`, `refuse`.
+
+Agent-playable text desk: `--mode captain` or `--playtest`.
+
+Victory is **survival with standing** (insured, fueled, escrow-clean) over the run horizon.
+Soft fail toast after **7+ days** grounded (`!CanOperate`). Refuse ugly standby →
+`standby-pass` (≠ premium spike). Headless without `--player` leaves Calypso AI-driven
+(judge mode).
 
 ## What you are playing
 
 | Layer | Your job |
 |-------|----------|
 | Seed | Pick `--seed` / `--days` / `--drama` — deterministic theater |
+| Captain | `--mode avalonia` (player on) — orders + step days |
 | Watch | Progress (unless `--quiet`); greppable `MILESTONE:` after |
 | Judge | Spectre: money, registry, mega biography, agent last decisions |
 | Compare | Same seed → same hash sins; new seed → new sins |
@@ -86,7 +120,10 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
   -p:NovolisUseProjectReferences=true -- --engine campaign --days 30d --seed 1001 --story
 
 dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
-  -p:NovolisUseProjectReferences=true -- --engine campaign --days 30d --seed 1001 --mode avalonia
+  -p:NovolisUseProjectReferences=true -- --engine campaign --days 30d --seed 1001 --mode avalonia --player on
+
+dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
+  -p:NovolisUseProjectReferences=true -- --engine campaign --days 60d --seed 1001 --playtest
 
 dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
   -p:NovolisUseProjectReferences=true -- --engine campaign --days 100d --seed 1001 --quiet
@@ -106,6 +143,7 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 | Escrow | Open / release / clawback; issuer 5% + contractor skim |
 | Jump refuse | Dense Priority band refused (unless rep/escrow) |
 | Lien | Venture debt follows hull when uninsured |
+| Tutorial / soft-fail | Marsh registration beat; grounded ≥7d |
 
 ```text
 MILESTONE:
@@ -132,7 +170,10 @@ Port tiers: [places-and-stations.md](places-and-stations.md).
 | `--days` | `10d` | `100d` / `1000d` |
 | `--drama` | `off` | `on` (default) |
 | `--story` | off | on (live radio) |
-| `--mode` | `headless` | `avalonia` (briefing room) |
+| `--mode` | `headless` | `avalonia` (GUI) / `captain` (text REPL) |
+| `--player` | `off` (judge) | `on` (James / Calypso) |
+| `--autopilot` | `on` | `off` (await orders) |
+| `--board` | `berth` | `network` (default — see all hubs; accept still berth-gated) |
 | `--seed` | `1001` known theater | other seeds |
 | Quiet | off | on (autopsy only) |
 

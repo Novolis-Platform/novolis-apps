@@ -25,6 +25,8 @@ Download only from official [GitHub Releases](https://github.com/Novolis-Platfor
 | `ManuscriptStudio-*-win-x64.zip` | Manuscript Studio portable |
 | `ConceptStudioSetup-*-win-x64.exe` | **Concept Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Concept Studio` |
 | `ConceptStudio-*-win-x64.zip` | Concept Studio portable |
+| `DraftStudioSetup-*-win-x64.exe` | **Draft Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Draft Studio` |
+| `DraftStudio-*-win-x64.zip` | Draft Studio portable |
 | `SHA256SUMS.txt` | SHA-256 hashes for all zip and setup exe files on each release |
 
 ### Verify downloads
@@ -48,9 +50,26 @@ Build installer locally (requires Inno Setup 6 for the setup exe):
 pwsh -File scripts/build-installer.ps1 -App All
 # Single app:
 pwsh -File scripts/build-installer.ps1 -App ConceptStudio
+pwsh -File scripts/build-installer.ps1 -App DraftStudio
 # Skip Inno compile (publish + zip only):
 pwsh -File scripts/build-installer.ps1 -App All -SkipInstaller
 ```
+
+## Draft Studio
+
+```powershell
+dotnet run --project src/DraftStudio
+# Headless pipeline check (DSL → .cadjson → .cadphys.json):
+dotnet run --project src/DraftStudio -- --smoke
+# Local multi-repo iteration (optional):
+# dotnet run --project src/DraftStudio -p:NovolisUseProjectReferences=true
+```
+
+Command-driven CAD-light: type `Line(0,0,2,0)`, `Circle(0,0,5)`, `Spline(0,0,1,1,2,0)`, `Box(1,1,1)` in the command bar, or use **Line / Circle / Rect / Spline** tools (same commands). Toggle **Draft** (XZ plan canvas) and **Model** (Raylib orbit). **Export Phys** writes `draft.cadphys.json`.
+
+- Workspace: `%LocalAppData%\Novolis\Draft Studio\default-workspace\draft.cadjson`
+- Formats: [cadjson.md](../../novolis-governance/docs/cadjson.md)
+- Shortcuts: `Ctrl+S` save, `Ctrl+Z` / `Ctrl+Y` undo/redo, `Del` delete, `F` fit, `Esc` cancel tool, `Enter` finish spline
 
 ## Concept Studio
 

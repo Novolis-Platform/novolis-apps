@@ -22,6 +22,7 @@ Every successful merge to `main` (non-doc paths) publishes a [GitHub Release](ht
 | Manuscript Studio | `ManuscriptStudioSetup-{version}-win-x64.exe` | `ManuscriptStudio-{version}-win-x64.zip` |
 | Books Writer Studio | `BooksWriterStudioSetup-{version}-win-x64.exe` | `BooksWriterStudio-{version}-win-x64.zip` |
 | Concept Studio | `ConceptStudioSetup-{version}-win-x64.exe` | `ConceptStudio-{version}-win-x64.zip` |
+| Draft Studio | `DraftStudioSetup-{version}-win-x64.exe` | `DraftStudio-{version}-win-x64.zip` |
 | Sins of a Capitalism Tycoon | `SinsOfACapitalismTycoonSetup-{version}-win-x64.exe` | `SinsOfACapitalismTycoon-{version}-win-x64.zip` |
 | Live Studio | `LiveStudioSetup-{version}-win-x64.exe` | `Novolis.Audio.Live.Studio-{version}-win-x64.zip` |
 
@@ -40,6 +41,7 @@ pwsh -File scripts/build-installer.ps1 -App All
 | Manuscript Studio | `src/ManuscriptStudio` | Markdown editor with Generic + Book Authoring + Concept Assets modes |
 | Books Writer Studio | `src/BooksWriterStudio` | Three-column book authoring: chapter nav, markdown editor, metadata/publish/SCM |
 | Concept Studio | `src/ConceptStudio` | Simple 3D concept CAD for ship/prop blockout, ortho views, SVG/PNG export |
+| Draft Studio | `src/DraftStudio` | Command-driven 2D/3D CAD-light (`.cadjson` + phys export) |
 | Sins of a Capitalism Tycoon | `src/SinsOfACapitalismTycoon` | Headless/Avalonia BM economy sim (`Novolis.Economy.Core`) |
 | Live Studio | `src/LiveStudio/studio` | Avalonia demo for Novolis Audio Live (DSL editor + visuals) |
 

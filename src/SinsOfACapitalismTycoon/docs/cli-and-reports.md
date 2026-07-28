@@ -15,7 +15,12 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 | `--seed U` | `1001` | Campaign seed |
 | `--drama on\|off` | `on` | Fuel famine / production / fiscal / Calypso dock beats |
 | `--story` / `--story on` | off | Live `[vox.*]` tickers + session overture on stderr |
-| `--mode headless\|avalonia` | `headless` | Output shell — Avalonia opens the **campaign briefing room** (map + radio + scorecard) |
+| `--mode headless\|avalonia\|captain` | `headless` | Spectre / GUI desk / text REPL |
+| `--player on\|off` | on in avalonia/captain / off headless | James / ST Calypso agency vs AI tramp |
+| `--autopilot on\|off` | `off` | When player on: AI hauls if order queue empty |
+| `--board local\|network` | `local` | Job board at current berth (default) or all hubs |
+| `--commands "…"` | — | Captain script (`status;jobs;accept 0;continue;…`) |
+| `--playtest` | — | Built-in captain acceptance (agent-friendly) |
 | `--quiet` / `-q` | off | Hide progress; still print report (headless) |
 
 ## Spectre narrative sections
@@ -34,15 +39,29 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 
 How to *play* the report: [gameplay.md](gameplay.md). Who is speaking: [characters.md](characters.md).
 
-## Avalonia briefing room
+## Avalonia captain desk
 
 ```powershell
 dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
   -p:NovolisUseProjectReferences=true -- `
-  --engine campaign --days 30d --seed 1001 --mode avalonia
+  --engine campaign --days 30d --seed 1001 --mode avalonia --player on
 ```
 
-Opens a dark briefing shell: star map, live progress overlay while the campaign runs, then radio feed / life-moments scorecard / Ops vs Core strip / registry tabs. Raw Spectre text remains on the **Raw** tab.
+Live cockpit for **ST Calypso**: star map (berth highlight), radio feed, **local** job board,
+hull standing, Step 1d / Continue / To horizon. Time keeps moving until a decision is needed.
+
+## Text captain / playtest (agent-friendly)
+
+```powershell
+dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
+  -p:NovolisUseProjectReferences=true -- `
+  --engine campaign --days 60d --seed 1001 --playtest
+
+dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
+  -p:NovolisUseProjectReferences=true -- `
+  --engine campaign --days 30d --seed 1001 --mode captain `
+  --commands "status;jobs;accept 0;continue;resume"
+```
 
 Requires `Novolis.Avalonia.Briefing` (+ StarMap, Studio) on GitHub Packages `2026.1.*`, or ProjectRef for local sibling checkouts. Mid-tick map animation stays on the roadmap.
 

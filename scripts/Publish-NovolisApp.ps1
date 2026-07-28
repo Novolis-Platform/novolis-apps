@@ -40,6 +40,18 @@ function Get-NovolisAppCatalog {
             ScriptFile    = 'concept-studio.iss'
         }
         [pscustomobject]@{
+            Key           = 'draft-studio'
+            Choice        = 'DraftStudio'
+            Project       = 'src/DraftStudio/DraftStudio.csproj'
+            DisplayName   = 'Draft Studio'
+            AppId         = 'Novolis.DraftStudio'
+            ExeName       = 'DraftStudio.exe'
+            GroupName     = 'Draft Studio'
+            InstallDir    = 'Novolis\Draft Studio'
+            SetupBase     = 'DraftStudioSetup'
+            ScriptFile    = 'draft-studio.iss'
+        }
+        [pscustomobject]@{
             Key           = 'sins-of-a-capitalism-tycoon'
             Choice        = 'SinsOfACapitalismTycoon'
             Project       = 'src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj'

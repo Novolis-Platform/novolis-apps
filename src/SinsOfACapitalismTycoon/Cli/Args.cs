@@ -3,13 +3,21 @@ namespace SinsOfACapitalismTycoon.Cli;
 internal enum AppMode
 {
     Headless,
-    Avalonia
+    Avalonia,
+    /// <summary>Interactive / scripted text captain desk (agent- and human-playable).</summary>
+    Captain
 }
 
 internal enum EngineKind
 {
     Campaign,
     Core
+}
+
+internal enum JobBoardScope
+{
+    Local,
+    Network
 }
 
 internal sealed record RunOptions(
@@ -22,7 +30,12 @@ internal sealed record RunOptions(
     int LogEvery,
     bool Quiet,
     bool Drama,
-    bool Story)
+    bool Story,
+    bool Player,
+    bool Autopilot,
+    JobBoardScope Board,
+    string? Commands,
+    bool Playtest)
 {
     public static RunOptions Default { get; } = new(
         AppMode.Headless,
@@ -34,7 +47,12 @@ internal sealed record RunOptions(
         LogEvery: 0,
         Quiet: false,
         Drama: true,
-        Story: false);
+        Story: false,
+        Player: false,
+        Autopilot: false,
+        Board: JobBoardScope.Network,
+        Commands: null,
+        Playtest: false);
 
     public static RunOptions Parse(string[] args)
     {
@@ -48,6 +66,11 @@ internal sealed record RunOptions(
         var quiet = false;
         var drama = true;
         var story = false;
+        bool? player = null;
+        var autopilot = false;
+        var board = JobBoardScope.Network;
+        string? commands = null;
+        var playtest = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -178,6 +201,61 @@ internal sealed record RunOptions(
                 continue;
             }
 
+            if (a.Equals("--player", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                player = ParseOnOff(args[++i], "--player");
+                continue;
+            }
+
+            if (a.StartsWith("--player=", StringComparison.OrdinalIgnoreCase))
+            {
+                player = ParseOnOff(a["--player=".Length..], "--player");
+                continue;
+            }
+
+            if (a.Equals("--autopilot", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                autopilot = ParseOnOff(args[++i], "--autopilot");
+                continue;
+            }
+
+            if (a.StartsWith("--autopilot=", StringComparison.OrdinalIgnoreCase))
+            {
+                autopilot = ParseOnOff(a["--autopilot=".Length..], "--autopilot");
+                continue;
+            }
+
+            if (a.Equals("--board", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                board = ParseBoard(args[++i]);
+                continue;
+            }
+
+            if (a.StartsWith("--board=", StringComparison.OrdinalIgnoreCase))
+            {
+                board = ParseBoard(a["--board=".Length..]);
+                continue;
+            }
+
+            if (a.Equals("--commands", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                commands = args[++i];
+                continue;
+            }
+
+            if (a.StartsWith("--commands=", StringComparison.OrdinalIgnoreCase))
+            {
+                commands = a["--commands=".Length..];
+                continue;
+            }
+
+            if (a is "--playtest")
+            {
+                playtest = true;
+                mode = AppMode.Captain;
+                continue;
+            }
+
             if (a is "-h" or "--help")
             {
                 PrintHelp();
@@ -185,15 +263,30 @@ internal sealed record RunOptions(
             }
         }
 
-        return new RunOptions(mode, engine, scenario, periods, daysHours, seed, logEvery, quiet, drama, story);
+        // Avalonia / captain imply player unless explicitly disabled.
+        var playerOn = player ?? (mode is AppMode.Avalonia or AppMode.Captain);
+        return new RunOptions(
+            mode, engine, scenario, periods, daysHours, seed, logEvery, quiet, drama, story,
+            playerOn, autopilot, board, commands, playtest);
     }
 
     private static bool ParseDrama(string value) =>
+        ParseOnOff(value, "--drama");
+
+    private static bool ParseOnOff(string value, string flag) =>
         value.Trim().ToLowerInvariant() switch
         {
             "on" or "true" or "1" or "yes" => true,
             "off" or "false" or "0" or "no" => false,
-            _ => throw new ArgumentException("--drama must be on or off.")
+            _ => throw new ArgumentException($"{flag} must be on or off.")
+        };
+
+    private static JobBoardScope ParseBoard(string value) =>
+        value.Trim().ToLowerInvariant() switch
+        {
+            "local" or "berth" or "hub" => JobBoardScope.Local,
+            "network" or "all" or "global" => JobBoardScope.Network,
+            _ => throw new ArgumentException("--board must be local or network.")
         };
 
     private static AppMode ParseMode(string value) =>
@@ -201,7 +294,8 @@ internal sealed record RunOptions(
         {
             "headless" or "cli" => AppMode.Headless,
             "avalonia" or "ui" or "gui" => AppMode.Avalonia,
-            _ => throw new ArgumentException($"Unknown --mode '{value}'. Use headless or avalonia.")
+            "captain" or "console" or "repl" => AppMode.Captain,
+            _ => throw new ArgumentException($"Unknown --mode '{value}'. Use headless, avalonia, or captain.")
         };
 
     private static EngineKind ParseEngine(string value) =>
@@ -242,7 +336,15 @@ internal sealed record RunOptions(
               --engine campaign|core   Runtime (default: campaign)
               --days Nd                Campaign duration (default: 10d)
               --seed U                 Seed (default: 1001 campaign / use with core too)
-              --mode headless|avalonia Output shell (default: headless; avalonia = briefing room)
+              --mode headless|avalonia|captain
+                                       headless = Spectre report
+                                       avalonia = GUI captain desk
+                                       captain  = text REPL / scripted play (agent-friendly)
+              --player on|off          James / ST Calypso agency (default: on in avalonia/captain)
+              --autopilot on|off       AI hauls when player queue empty (default: off)
+              --board local|network    Spot intel filter (default: network; accept still requires berth)
+              --commands "a;b;c"       Captain script (status|jobs|accept N|wait|refuse|…)
+              --playtest               Run built-in captain acceptance script
               --quiet / -q             Hide progress
               --drama on|off           Campaign shocks (default: on)
               --story [on|off]         Live vox tickers + overture (default: off; headless)

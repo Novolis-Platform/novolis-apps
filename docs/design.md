@@ -32,6 +32,15 @@ WinExe for simple 3D concept blockout (ship hulls, props) with CAD-style materia
 - Data: `%LocalAppData%\Novolis\Concept Studio\default-workspace\concept.json`
 - Consumes `Novolis.Avalonia.Raylib`, `Novolis.Rendering.*` from GitHub Packages (NuGet-only)
 
+## Draft Studio
+
+WinExe for command-driven 2D/3D CAD-light drafting (LibreCAD/AutoCAD-light): typed DSL (`Line(0,0,1,0)`), mouse tools that emit the same commands, plan-view canvas, Raylib model view, `.cadjson` persistence, and optional `.cadphys.json` export.
+
+- Path: `src/DraftStudio/`
+- Data: `%LocalAppData%\Novolis\Draft Studio\default-workspace\draft.cadjson`
+- Formats: [`cadjson.md`](../../novolis-governance/docs/cadjson.md)
+- Consumes `Novolis.Avalonia.Studio` (`StudioCommandBar`), `Novolis.Commands.Expressions`, `Novolis.Math.Geometry`, `Novolis.Avalonia.Raylib` from GitHub Packages (NuGet-only)
+
 ## Sins of a Capitalism Tycoon
 
 Exe with dual shell for the bounded-minimum economy package:

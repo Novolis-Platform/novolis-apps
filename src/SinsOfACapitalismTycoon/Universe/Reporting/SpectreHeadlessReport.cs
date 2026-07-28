@@ -326,8 +326,11 @@ internal static class SpectreHeadlessReport
     agentsTable.AddRow("Ventures", Markup.Escape(agents.VenturesAgent.LastDecision));
     for (var i = 0; i < Math.Min(3, agents.Carriers.Count); i++)
     {
-      var label = i == 0 ? "Carrier" : $"Tramp{i + 1}";
-      agentsTable.AddRow(label, Markup.Escape(agents.Carriers[i].LastDecision));
+      var label = i == 0 ? CampaignWorld.PlayerHullName : $"Tramp{i + 1}";
+      var decision = i == 0
+        ? agents.CarrierPulse.LastDecision
+        : agents.Carriers[i].LastDecision;
+      agentsTable.AddRow(label, Markup.Escape(decision));
     }
 
     console.Write(agentsTable);

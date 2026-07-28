@@ -45,6 +45,10 @@ internal static class VoxBank
         $"Opportunities window closed — {Truncate(detail)}. Refusal is not a premium event."),
       "lien" => new("vox.cca",
         $"Hull lien — {Truncate(detail)}. Debt follows the registry name."),
+      "tutorial" => new("vox.james",
+        Truncate(detail)),
+      "soft-fail" => new("vox.james",
+        $"Soft fail — {Truncate(detail)}. Standing closed long enough to matter."),
       "berth-fee" => new("vox.dock",
         $"Port standing — {Truncate(detail)}. Fee-heavy hubs eat small balances."),
       "upgrade" => new("vox.ledger",
@@ -61,7 +65,7 @@ internal static class VoxBank
     yield return new("vox.ledger",
       $"Seed {seed}. {days}d. Drama {(drama ? "on" : "off")}. Ops and Core never summed.");
     yield return new("vox.cca",
-      "Job boards behind glass. Plenty of opportunity. All of it locked behind registration.");
+      $"Job boards behind glass. {CampaignWorld.PlayerMasterLabel} — registration is the door.");
     yield return new("vox.varr",
       "Watch the Priority column. That is where premiums go to hunt.");
     if (drama)

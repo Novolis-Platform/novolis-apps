@@ -15,6 +15,7 @@ Every merge to `main` runs `dotnet build Novolis.Apps.slnx` on Linux, then a Win
 | Manuscript Studio installer / zip | `ManuscriptStudioSetup-{version}-win-x64.exe` / `ManuscriptStudio-{version}-win-x64.zip` |
 | Books Writer Studio installer / zip | `BooksWriterStudioSetup-{version}-win-x64.exe` / `BooksWriterStudio-{version}-win-x64.zip` |
 | Concept Studio installer / zip | `ConceptStudioSetup-{version}-win-x64.exe` / `ConceptStudio-{version}-win-x64.zip` |
+| Draft Studio installer / zip | `DraftStudioSetup-{version}-win-x64.exe` / `DraftStudio-{version}-win-x64.zip` |
 | Sins of a Capitalism Tycoon installer / zip | `SinsOfACapitalismTycoonSetup-{version}-win-x64.exe` / `SinsOfACapitalismTycoon-{version}-win-x64.zip` |
 | Live Studio installer / zip | `LiveStudioSetup-{version}-win-x64.exe` / `Novolis.Audio.Live.Studio-{version}-win-x64.zip` |
 | Checksums | `SHA256SUMS.txt` |
@@ -29,5 +30,5 @@ Manual republish:
 
 ```powershell
 pwsh -File scripts/build-installer.ps1 -App All
-# or: ManuscriptStudio | BooksWriterStudio | ConceptStudio | SinsOfACapitalismTycoon | LiveStudio
+# or: ManuscriptStudio | BooksWriterStudio | ConceptStudio | DraftStudio | SinsOfACapitalismTycoon | LiveStudio
 ```

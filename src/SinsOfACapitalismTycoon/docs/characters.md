@@ -17,7 +17,7 @@ Inspiration strands:
 | **Sins Mining** | Ore camps, spare parts hoarders | Blunt, urgent, marks everything “urgent” for six years | Over-promises Raw when Capital parts are late |
 | **Sins Industry** | Plants at Industrial hubs | Optimistic schedules, thin working capital | Expands output before haul capacity exists |
 | **Sins Station** | Civic + underwriter + retail shelves | Actuarial calm; bad chairs in the cargo office | Treats tramp schedules like a public utility |
-| **MV Independent** | First tramp, owner-master | Present, tired, refuses bomb-edging sermons it sometimes ignores | Accepts “flexible means cheap” customers |
+| **ST Calypso** | James Simmons / Simmons Transport — player owner-master | Present, tired, refuses bomb-edging sermons it sometimes ignores | Accepts “flexible means cheap” customers; lean cash + restoration lien |
 | **MV Tramp 2–8** | Sibling light commercial hulls | Same rules, different homes (Sol / mines / plants) | Fan out; die separately |
 | **MV Bulk River** | Mega-hauler, fleet (not owner-master) | Weather with lawyers: punctual when it wants | Will not break schedule for four pallets and a frightened technician |
 
@@ -86,12 +86,12 @@ Makes main routes livable. Leaves edges to tramps.
 
 ## Calypso Cycle faces (flavor cast — not separate save entities)
 
-Use for milestone VO, Avalonia later, and documentary asides. Virtues/sins condensed
+Use for milestone VO, Avalonia captain desk, and documentary asides. Virtues/sins condensed
 from Cycle character refs + Eska arc.
 
 | Face | Role | Virtue | Sin | Wire as |
 |------|------|--------|-----|---------|
-| **James** | Reluctant owner-captain | Finishes the job; won’t take uninsurable range | Avoidance; underprices danger | `vox.james` / tramp chorus |
+| **James** | Reluctant owner-captain (ST Calypso) | Finishes the job; won’t take uninsurable range | Avoidance; underprices danger | `vox.james` / captain desk |
 | **Ixa Ven** | Contracts / underwriter-reader | Borlingly compliant; institutional credibility | Masks problems too well | `vox.ixa` |
 | **Mira** | Pilot / engineer | Envelope-pusher; pays for real safety | Impatience with timid captaincy | tramp FO lines |
 | **Kethra Sel** | Systems / standards | Math over hope | Contempt for optimistic models | wear / service |

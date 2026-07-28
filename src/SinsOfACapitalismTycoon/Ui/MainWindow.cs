@@ -6,12 +6,13 @@ using Avalonia.Threading;
 using Novolis.Avalonia.Briefing;
 using Novolis.Avalonia.StarMap;
 using Novolis.Avalonia.Studio;
+using Novolis.Economy.Logistics;
 using SinsOfACapitalismTycoon.Cli;
 using SinsOfACapitalismTycoon.Universe;
 
 namespace SinsOfACapitalismTycoon.Ui;
 
-/// <summary>Campaign briefing room: progress while running, then map + radio + scorecard.</summary>
+/// <summary>Captain’s desk: voyage, travel, spot/charter intel, berth manifest.</summary>
 internal sealed class MainWindow : Window
 {
   static readonly IBrush BrandBrush = new SolidColorBrush(Color.Parse("#d4a017"));
@@ -23,56 +24,90 @@ internal sealed class MainWindow : Window
   readonly StudioFeedback _feedback;
   readonly StarMapControl _map;
   readonly TextBlock _hubDetail;
+  readonly TextBlock _subtitle;
+  readonly TextBlock _voyage;
+  readonly TextBlock _hullStats;
+  readonly TextBlock _decision;
+  readonly TextBlock _softFail;
+  readonly ListBox _spot;
+  readonly ListBox _charters;
+  readonly ListBox _manifest;
+  readonly ComboBox _profile;
+  readonly ComboBox _boardScope;
   readonly FeedPanel _feed;
   readonly ScorecardView _scorecard;
   readonly DualMetricStrip _ledgers;
   readonly MetricTableView _registry;
-  readonly MetricTableView _logistics;
   readonly MetricTableView _money;
   readonly MetricTableView _agents;
-  readonly MetricTableView _mega;
-  readonly TextBlock _curtain;
   readonly TextBox _raw;
-  readonly TabControl _tabs;
-  readonly Grid _root;
-  CampaignBriefingModel? _model;
+  readonly TabControl _intelTabs;
+  readonly Button _btnStep;
+  readonly Button _btnContinue;
+  readonly Button _btnResume;
+  readonly Button _btnPause;
+  readonly Button _btnTravel;
+  readonly Button _btnAcceptSpot;
+  readonly Button _btnDepart;
+  readonly Button _btnRefuseStandby;
+  readonly Button _btnWait;
+  readonly Button _btnPremium;
+  readonly Button _btnOverhaul;
+  readonly Button _btnAcceptStandby;
+
+  CampaignRunner.LiveSession? _session;
+  CaptainDeskModel? _desk;
+  CampaignBriefingModel? _briefing;
+  string? _mapSelection;
 
   public MainWindow(RunOptions options)
   {
     _options = options;
-    Title = "Sins of a Capitalism Tycoon";
-    Width = 1280;
-    Height = 820;
-    MinWidth = 900;
-    MinHeight = 560;
+    Title = "Sins — Captain Desk · ST Calypso";
+    Width = 1420;
+    Height = 880;
+    MinWidth = 980;
+    MinHeight = 620;
     Background = new SolidColorBrush(Color.Parse("#0b1020"));
 
     _chrome = StudioChrome.Create();
     _feedback = _chrome.CreateFeedback();
 
-    var brand = new TextBlock
-    {
-      Text = "Sins",
-      FontSize = 28,
-      FontWeight = FontWeight.Bold,
-      Foreground = BrandBrush,
-    };
+    var brand = new TextBlock { Text = "Calypso", FontSize = 28, FontWeight = FontWeight.Bold, Foreground = BrandBrush };
     var title = new TextBlock
     {
-      Text = "of a Capitalism Tycoon",
+      Text = "Captain Desk",
       FontSize = 18,
       FontWeight = FontWeight.SemiBold,
       VerticalAlignment = VerticalAlignment.Bottom,
       Margin = new Thickness(10, 0, 0, 2),
       Foreground = new SolidColorBrush(Color.Parse("#e8e8e8")),
     };
-    var subtitle = new TextBlock
+    _subtitle = new TextBlock
     {
-      Name = "Subtitle",
-      Text = $"seed {_options.Seed} · {DurationArg.Format(_options.DaysHours)} · drama {(_options.Drama ? "on" : "off")}",
+      Text = CampaignWorld.PlayerMasterLabel,
       Foreground = MutedBrush,
       FontSize = 12,
       Margin = new Thickness(0, 4, 0, 0),
+    };
+
+    _btnStep = TransportBtn("Step 1d");
+    _btnContinue = TransportBtn("Continue");
+    _btnResume = TransportBtn("To horizon");
+    _btnPause = TransportBtn("Pause next day");
+    _btnTravel = TransportBtn("Travel here");
+    _btnStep.Click += (_, _) => _session?.StepDay();
+    _btnContinue.Click += (_, _) => { _session?.Continue(); _feedback.SetStatus("Running until next decision…"); };
+    _btnResume.Click += (_, _) => { _session?.ResumeToHorizon(); _feedback.SetStatus("Running to horizon…"); };
+    _btnPause.Click += (_, _) => { _session?.Pause(); _feedback.SetStatus("Will pause after current day"); };
+    _btnTravel.Click += (_, _) => TravelToSelection();
+
+    var transport = new StackPanel
+    {
+      Orientation = Orientation.Horizontal,
+      Spacing = 8,
+      Margin = new Thickness(0, 8, 0, 0),
+      Children = { _btnStep, _btnContinue, _btnResume, _btnPause, _btnTravel },
     };
 
     var header = new StackPanel
@@ -80,22 +115,19 @@ internal sealed class MainWindow : Window
       Margin = new Thickness(16, 12, 16, 8),
       Children =
       {
-        new StackPanel
-        {
-          Orientation = Orientation.Horizontal,
-          Children = { brand, title },
-        },
-        subtitle,
+        new StackPanel { Orientation = Orientation.Horizontal, Children = { brand, title } },
+        _subtitle,
         _chrome.StatusLine,
         _chrome.FlashLine,
+        transport,
       },
     };
 
-    _map = new StarMapControl { MinHeight = 280 };
+    _map = new StarMapControl { MinHeight = 260 };
     _map.StarSelected += OnStarSelected;
     _hubDetail = new TextBlock
     {
-      Text = "Select a hub on the map.",
+      Text = "Select a hub → Travel here (when docked idle).",
       Foreground = MutedBrush,
       TextWrapping = TextWrapping.Wrap,
       Margin = new Thickness(0, 8, 0, 0),
@@ -104,7 +136,7 @@ internal sealed class MainWindow : Window
 
     var mapTitle = new TextBlock
     {
-      Text = "Near-Sol campaign",
+      Text = "Near-Sol · select destination to travel",
       FontWeight = FontWeight.SemiBold,
       Foreground = BrandBrush,
       Margin = new Thickness(0, 0, 0, 6),
@@ -124,22 +156,123 @@ internal sealed class MainWindow : Window
       Child = mapDock,
     };
 
-    _feed = new FeedPanel { MinHeight = 160 };
+    _voyage = new TextBlock { Foreground = BrandBrush, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, FontSize = 14 };
+    _hullStats = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#e8e8e8")), TextWrapping = TextWrapping.Wrap, FontSize = 13 };
+    _decision = new TextBlock { Foreground = MutedBrush, TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
+    _softFail = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#e07070")), TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+
+    _profile = new ComboBox
+    {
+      Width = 180,
+      ItemsSource = new[] { "SlowEconomic", "StandardCommercial", "PriorityCommercial" },
+      SelectedIndex = 1,
+    };
+    _profile.SelectionChanged += (_, _) =>
+    {
+      if (_session is null || _profile.SelectedItem is not string name) return;
+      if (!Enum.TryParse<TransitProfile>(name, out var p)) return;
+      _session.Player.DefaultProfile = p;
+      _session.Player.Orders.Enqueue(new PlayerOrder(PlayerOrderKind.SetDefaultProfile, Profile: p));
+      _feedback.Flash($"Profile → {p}");
+    };
+
+    _boardScope = new ComboBox
+    {
+      Width = 120,
+      ItemsSource = new[] { "Network", "Berth" },
+      SelectedIndex = _options.Board == JobBoardScope.Local ? 1 : 0,
+    };
+    _boardScope.SelectionChanged += (_, _) =>
+    {
+      if (_session is null || _boardScope.SelectedItem is not string name) return;
+      _session.Player.LocalBoardOnly = name.Equals("Berth", StringComparison.OrdinalIgnoreCase);
+      RefreshDesk();
+    };
+
+    _btnAcceptSpot = TransportBtn("Accept at berth");
+    _btnDepart = TransportBtn("Depart manifest");
+    _btnRefuseStandby = TransportBtn("Refuse standby");
+    _btnAcceptStandby = TransportBtn("Accept standby");
+    _btnWait = TransportBtn("Wait");
+    _btnPremium = TransportBtn("Pay premium");
+    _btnOverhaul = TransportBtn("Request overhaul");
+    _btnAcceptSpot.Click += (_, _) => AcceptSelectedSpot();
+    _btnDepart.Click += (_, _) =>
+    {
+      Enqueue(new PlayerOrder(PlayerOrderKind.DepartManifest));
+      _feedback.Flash("Depart queued");
+    };
+    _btnRefuseStandby.Click += (_, _) => Enqueue(new PlayerOrder(PlayerOrderKind.RefuseStandby));
+    _btnAcceptStandby.Click += (_, _) => Enqueue(new PlayerOrder(PlayerOrderKind.AcceptStandby));
+    _btnWait.Click += (_, _) => Enqueue(new PlayerOrder(PlayerOrderKind.Wait));
+    _btnPremium.Click += (_, _) => Enqueue(new PlayerOrder(PlayerOrderKind.PayPremium));
+    _btnOverhaul.Click += (_, _) => Enqueue(new PlayerOrder(PlayerOrderKind.RequestOverhaul));
+
+    _spot = new ListBox { MinHeight = 120, MaxHeight = 200 };
+    _charters = new ListBox { MinHeight = 80, MaxHeight = 140 };
+    _manifest = new ListBox { MinHeight = 60, MaxHeight = 120 };
+
+    _intelTabs = new TabControl();
+    _intelTabs.Items.Add(MakeTab("Spot intel", new StackPanel
+    {
+      Spacing = 8,
+      Children =
+      {
+        new StackPanel
+        {
+          Orientation = Orientation.Horizontal,
+          Spacing = 8,
+          Children =
+          {
+            new TextBlock { Text = "Filter", VerticalAlignment = VerticalAlignment.Center, Foreground = MutedBrush, FontSize = 11 },
+            _boardScope,
+          },
+        },
+        _spot,
+        _btnAcceptSpot,
+      },
+    }));
+    _intelTabs.Items.Add(MakeTab("Charters", new StackPanel
+    {
+      Spacing = 8,
+      Children = { _charters, new WrapPanel { Children = { _btnAcceptStandby, _btnRefuseStandby } } },
+    }));
+    _intelTabs.Items.Add(MakeTab("Manifest", new StackPanel
+    {
+      Spacing = 8,
+      Children = { _manifest, _btnDepart },
+    }));
+
+    var voyagePanel = Section("Voyage", new StackPanel
+    {
+      Spacing = 6,
+      Children =
+      {
+        _voyage,
+        _hullStats,
+        _decision,
+        _softFail,
+        new StackPanel
+        {
+          Orientation = Orientation.Horizontal,
+          Spacing = 8,
+          Children =
+          {
+            new TextBlock { Text = "Profile", VerticalAlignment = VerticalAlignment.Center, Foreground = MutedBrush },
+            _profile,
+          },
+        },
+        new WrapPanel { Children = { _btnPremium, _btnOverhaul, _btnWait } },
+      },
+    });
+
+    _feed = new FeedPanel { MinHeight = 120 };
     _scorecard = new ScorecardView();
     _ledgers = new DualMetricStrip();
-    _ledgers.SetPair("Ops", "…", "Core", "…", "Ops vs Core — never summed");
+    _ledgers.SetPair("Calypso", "…", "Ops", "…", "Owner-master vs system liquid");
     _registry = new MetricTableView();
-    _logistics = new MetricTableView();
     _money = new MetricTableView();
     _agents = new MetricTableView();
-    _mega = new MetricTableView();
-    _curtain = new TextBlock
-    {
-      Foreground = BrandBrush,
-      FontStyle = FontStyle.Italic,
-      TextWrapping = TextWrapping.Wrap,
-      Margin = new Thickness(0, 8, 0, 0),
-    };
     _raw = new TextBox
     {
       IsReadOnly = true,
@@ -149,13 +282,11 @@ internal sealed class MainWindow : Window
       FontSize = 12,
     };
 
-    _tabs = new TabControl();
-    _tabs.Items.Add(MakeTab("Registry", _registry));
-    _tabs.Items.Add(MakeTab("Money", WrapScroll(_money)));
-    _tabs.Items.Add(MakeTab("Logistics", WrapScroll(_logistics)));
-    _tabs.Items.Add(MakeTab("Agents", WrapScroll(_agents)));
-    _tabs.Items.Add(MakeTab("Bulk River", WrapScroll(_mega)));
-    _tabs.Items.Add(MakeTab("Raw", _raw));
+    var ledgerTabs = new TabControl();
+    ledgerTabs.Items.Add(MakeTab("Registry", _registry));
+    ledgerTabs.Items.Add(MakeTab("Money", WrapScroll(_money)));
+    ledgerTabs.Items.Add(MakeTab("Agents", WrapScroll(_agents)));
+    ledgerTabs.Items.Add(MakeTab("Raw", _raw));
 
     var rightScroll = new ScrollViewer
     {
@@ -166,25 +297,26 @@ internal sealed class MainWindow : Window
         Margin = new Thickness(0, 0, 4, 0),
         Children =
         {
+          voyagePanel,
+          Section("Boards", _intelTabs),
           Section("Radio", _feed),
           Section("Life moments", _scorecard),
           Section("Ledgers", _ledgers),
-          _curtain,
-          _tabs,
+          ledgerTabs,
         },
       },
     };
 
     var body = new Grid
     {
-      ColumnDefinitions = new ColumnDefinitions("1.2*,*"),
+      ColumnDefinitions = new ColumnDefinitions("1.15*,*"),
       ColumnSpacing = 12,
       Margin = new Thickness(16, 0, 16, 8),
       Children = { mapPanel, rightScroll },
     };
     Grid.SetColumn(rightScroll, 1);
 
-    _root = new Grid
+    Content = new Grid
     {
       RowDefinitions = new RowDefinitions("Auto,*,Auto"),
       Children = { header, body, _chrome.BusyOverlay },
@@ -193,39 +325,60 @@ internal sealed class MainWindow : Window
     Grid.SetRow(_chrome.BusyOverlay, 0);
     Grid.SetRowSpan(_chrome.BusyOverlay, 3);
 
-    Content = _root;
-    Opened += async (_, _) => await RunCampaignAsync(subtitle);
+    Opened += (_, _) => StartSession();
   }
 
-  async Task RunCampaignAsync(TextBlock subtitle)
+  void StartSession()
   {
-    _feedback.SetBusy("Campaign running…");
-    _feedback.SetStatus("Seeding Near-Sol…");
+    _feedback.SetBusy("Seeding Near-Sol…");
     try
     {
-      var result = await Task.Run(async () =>
-        await CampaignRunner.RunAsync(
-          _options.Seed,
-          _options.DaysHours,
-          quiet: true,
-          drama: _options.Drama,
-          story: false,
-          progress: (done, total) =>
-          {
-            var pct = (int)(done * 100 / Math.Max(1, total));
-            Dispatcher.UIThread.Post(() =>
-            {
-              _feedback.SetBusy($"Campaign {DurationArg.Format(done)} / {DurationArg.Format(total)} ({pct}%)");
-              _feedback.SetStatus($"Simulating… {pct}%");
-            });
-          })).ConfigureAwait(true);
+      _session = new CampaignRunner.LiveSession(
+        _options.Seed,
+        _options.DaysHours,
+        _options.Drama,
+        playerControl: _options.Player,
+        autopilot: _options.Autopilot,
+        localBoard: _options.Board == JobBoardScope.Local);
+      _session.PauseMode = _options.Player ? CaptainPauseMode.UntilDecision : CaptainPauseMode.Never;
+      _session.DayEnded += () => Dispatcher.UIThread.Post(RefreshDesk);
+      _session.AwaitingDecision += () => Dispatcher.UIThread.Post(() =>
+      {
+        RefreshDesk();
+        _feedback.ClearBusy();
+        _feedback.Flash("Decision — dock act or travel");
+        _feedback.SetStatus("Paused · Accept only at load berth · Travel via map");
+      });
 
-      var model = CampaignBriefingModel.From(result);
-      Bind(model);
-      subtitle.Text = model.SubtitleLine;
+      _ = Task.Run(async () =>
+      {
+        try
+        {
+          await _session.RunAsync(quiet: true, story: false).ConfigureAwait(false);
+          Dispatcher.UIThread.Post(() =>
+          {
+            var briefing = CampaignBriefingModel.From(_session.ToResult());
+            _briefing = briefing;
+            _raw.Text = briefing.RawReport;
+            _feedback.ClearBusy();
+            _feedback.Flash($"Horizon complete — {briefing.LifeMomentHits} life moments");
+            SetTransportEnabled(false);
+          });
+        }
+        catch (Exception ex)
+        {
+          Dispatcher.UIThread.Post(() =>
+          {
+            _feedback.ClearBusy();
+            _feedback.FlashError(ex.Message);
+          });
+        }
+      });
+
       _feedback.ClearBusy();
-      _feedback.SetStatus(model.HashLine);
-      _feedback.Flash($"Briefing ready — {model.LifeMomentHits} life moments in {model.MilestoneCount} beats");
+      _feedback.SetStatus(_options.Player
+        ? "See intel anywhere · accept only at berth · travel empty"
+        : "Spectator run…");
     }
     catch (Exception ex)
     {
@@ -234,34 +387,146 @@ internal sealed class MainWindow : Window
     }
   }
 
-  void Bind(CampaignBriefingModel model)
+  void RefreshDesk()
   {
-    _model = model;
-    _map.SetMap(model.MapPoints, model.MapEdges);
-    _feed.SetLines(model.Feed);
-    _scorecard.SetRows(model.Scorecard, model.ScorecardTitle);
-    _ledgers.SetPair("Ops", model.OpsCash, "Core", model.CoreCash, $"Never summed · {model.OpsNote} | {model.CoreNote}");
-    _registry.SetRows(model.RegistryRows);
-    _logistics.SetRows(model.LogisticsRows);
-    _money.SetRows(model.MoneyRows);
-    _agents.SetRows(model.AgentRows);
-    _mega.SetRows(model.MegaRows);
-    _curtain.Text = model.CurtainLine;
-    _raw.Text = model.RawReport;
+    if (_session is null) return;
+    var desk = CaptainDeskModel.From(_session);
+    _desk = desk;
+    _subtitle.Text = desk.SubtitleLine;
+    _voyage.Text = desk.VoyageLine;
+    _hullStats.Text = $"Cash {desk.CashLine} · {desk.StandingLine}\n{desk.HullLine}\n{desk.HoldLine}";
+    _decision.Text = desk.DecisionLine;
+    _softFail.Text = desk.SoftFailLine;
+    _softFail.IsVisible = !string.IsNullOrEmpty(desk.SoftFailLine);
+    _map.SetMap(desk.MapPoints, desk.MapEdges);
+
+    _spot.ItemsSource = desk.SpotJobs
+      .Select(j => $"{(j.AtOrigin ? "●" : "○")} [{j.DistanceHint}] {j.Label}  Δ{j.Margin:0.#}  ×{j.Quantity:0}")
+      .ToList();
+    _charters.ItemsSource = desk.Charters
+      .Select(c => $"[{c.Kind}] {c.Label} — {c.Detail}")
+      .ToList();
+    _manifest.ItemsSource = desk.ManifestLines.Count > 0
+      ? desk.ManifestLines
+      : new List<string> { "(empty — accept spot at berth)" };
+
+    _feed.SetLines(desk.Feed);
+    _scorecard.SetRows(desk.Scorecard, desk.ScorecardTitle);
+    _ledgers.SetPair("Calypso", desk.CashLine, "Ops",
+      desk.MoneyRows.FirstOrDefault(r => r.Key == "Ops liquid")?.Value ?? "—",
+      "Never summed with Core");
+    _registry.SetRows(desk.RegistryRows);
+    _money.SetRows(desk.MoneyRows);
+    _agents.SetRows(desk.AgentRows);
+
+    _btnRefuseStandby.IsEnabled = desk.StandbyOffer;
+    _btnAcceptStandby.IsEnabled = desk.StandbyOffer;
+    _btnTravel.IsEnabled = desk.DockedIdle && !string.IsNullOrEmpty(_mapSelection);
+    _btnAcceptSpot.IsEnabled = desk.DockedIdle;
+    _btnDepart.IsEnabled = desk.DockedIdle && desk.ManifestUsed > 0m;
+
+    if (desk.SoftFail) _feedback.FlashError(desk.SoftFailLine);
+    if (_session.IsWaitingForCaptain && !desk.Complete)
+    {
+      _feedback.ClearBusy();
+      _feedback.SetStatus($"Day {desk.Day} — {desk.VoyageLine}");
+    }
+  }
+
+  void AcceptSelectedSpot()
+  {
+    if (_session is null || _desk is null || _spot.SelectedIndex < 0 || _spot.SelectedIndex >= _desk.SpotJobs.Count)
+    {
+      _feedback.Flash("Select a spot posting");
+      return;
+    }
+
+    var job = _desk.SpotJobs[_spot.SelectedIndex];
+    if (!job.AtOrigin)
+    {
+      _feedback.FlashError($"Not at load berth — travel to {job.OriginName} first (intel can vanish meanwhile)");
+      return;
+    }
+
+    _session.Player.Orders.Enqueue(new PlayerOrder(
+      PlayerOrderKind.CommitSpot,
+      OriginSystemId: job.OriginSystemId,
+      DestSystemId: job.DestSystemId,
+      SkuLabel: job.SkuLabel,
+      Quantity: job.Quantity,
+      LiftLimit: job.LiftLimit,
+      DestBid: job.DestBid,
+      Profile: job.Profile));
+    _feedback.Flash($"Manifest + {job.Label}");
+    _session.Continue();
+  }
+
+  void TravelToSelection()
+  {
+    if (_session is null || string.IsNullOrEmpty(_mapSelection))
+    {
+      _feedback.Flash("Select a hub on the map");
+      return;
+    }
+
+    if (_desk is { DockedIdle: false })
+    {
+      _feedback.FlashError("Hull busy — wait for berth");
+      return;
+    }
+
+    _session.Player.TravelTargetSystemId = _mapSelection;
+    _session.Player.Orders.Enqueue(new PlayerOrder(
+      PlayerOrderKind.TravelTo,
+      DestSystemId: _mapSelection,
+      Profile: _session.Player.DefaultProfile));
+    _feedback.Flash($"Travel → {_mapSelection}");
+    _session.Continue();
+  }
+
+  void Enqueue(PlayerOrder order)
+  {
+    if (_session is null) return;
+    _session.Player.Orders.Enqueue(order);
+    _session.Continue();
+  }
+
+  void SetTransportEnabled(bool on)
+  {
+    _btnStep.IsEnabled = on;
+    _btnContinue.IsEnabled = on;
+    _btnResume.IsEnabled = on;
+    _btnPause.IsEnabled = on;
+    _btnTravel.IsEnabled = on;
+    _btnAcceptSpot.IsEnabled = on;
+    _btnDepart.IsEnabled = on;
   }
 
   void OnStarSelected(string id)
   {
-    if (_model?.HubDetails.TryGetValue(id, out var hub) == true)
+    _mapSelection = id;
+    if (_session is not null)
     {
-      _hubDetail.Text = $"{hub.Name} · {hub.Role}\n{hub.ProfileHint}";
+      _session.Player.TravelTargetSystemId = id;
+    }
+
+    if (_desk?.HubDetails.TryGetValue(id, out var hub) == true)
+    {
+      var at = string.Equals(id, _desk.CurrentHubSystemId, StringComparison.OrdinalIgnoreCase);
+      _hubDetail.Text = at
+        ? $"{hub.Name} · HERE (berth)\n{hub.ProfileHint}"
+        : $"{hub.Name} · {hub.Role}\n{hub.ProfileHint}\n→ Travel here when idle";
       _hubDetail.Foreground = new SolidColorBrush(Color.Parse("#e8e8e8"));
+      _btnTravel.IsEnabled = _desk.DockedIdle && !at;
     }
     else
     {
       _hubDetail.Text = id;
     }
   }
+
+  static Button TransportBtn(string text) =>
+    new() { Content = text, Padding = new Thickness(12, 6), Margin = new Thickness(0, 0, 4, 4) };
 
   static TabItem MakeTab(string header, Control content) =>
     new() { Header = header, Content = content };
@@ -284,12 +549,7 @@ internal sealed class MainWindow : Window
         Spacing = 8,
         Children =
         {
-          new TextBlock
-          {
-            Text = title,
-            FontWeight = FontWeight.SemiBold,
-            Foreground = BrandBrush,
-          },
+          new TextBlock { Text = title, FontWeight = FontWeight.SemiBold, Foreground = BrandBrush },
           child,
         },
       },

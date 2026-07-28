@@ -19,6 +19,8 @@ internal static class SinsAgents
     public required RetailFirmAgent Station { get; init; }
     public required CarrierFirmAgent Carrier { get; init; }
     public required List<CarrierFirmAgent> Carriers { get; init; }
+    /// <summary>Pulse slot 0 — <see cref="PlayerTrampAgent"/> when player control, else Carrier.</summary>
+    public IEconomicAgent CarrierPulse { get; set; } = null!;
     public required CarrierFirmAgent MegaHauler { get; init; }
     public required TreasuryFirmAgent Treasury { get; init; }
     public required IReadOnlyList<HouseholdFirmAgent> Households { get; init; }
@@ -28,6 +30,7 @@ internal static class SinsAgents
     public HouseholdTrampVentureAgent VenturesAgent { get; set; } = null!;
     public MilestoneLog Milestones { get; init; } = null!;
     public ShipBiographyLog Biographies { get; init; } = null!;
+    public PlayerControlState? Player { get; set; }
 
     public IReadOnlyList<IEconomicAgent> PulseOrder => _pulse;
 
@@ -39,7 +42,12 @@ internal static class SinsAgents
       _pulse.Add(Mining);
       _pulse.Add(Industry);
       _pulse.Add(Station);
-      _pulse.AddRange(Carriers);
+      _pulse.Add(CarrierPulse ?? Carriers[0]);
+      for (var i = 1; i < Carriers.Count; i++)
+      {
+        _pulse.Add(Carriers[i]);
+      }
+
       _pulse.Add(MegaHauler);
       _pulse.Add(Treasury);
       _pulse.Add(Capacity);
@@ -74,7 +82,8 @@ internal static class SinsAgents
     EconomySimulation sim,
     CampaignWorld.Ids ids,
     MilestoneLog milestones,
-    ShipBiographyLog biographies)
+    ShipBiographyLog biographies,
+    PlayerControlState? player = null)
   {
     AgentSite Site(CampaignWorld.Site s) => new(
       s.Hub.LocationId, s.Facility, s.Hub.HubId, s.Hub.Name);
@@ -188,6 +197,8 @@ internal static class SinsAgents
       }
     }
 
+    biographies.Name(ids.Carrier, CampaignWorld.PlayerHullName);
+
     foreach (var e in ids.Registry.Entries)
     {
       biographies.Name(e.FirmId, e.RegistryName);
@@ -204,7 +215,10 @@ internal static class SinsAgents
           ids.HullId, ids.Hull, CampaignWorld.MinMargin, Gate,
           FuelBuyLimitPrice: CampaignWorld.FuelUnitCost * 1.5m,
           MinBunkerFuel: 8m,
-          ChooseTransitProfile: p => TransitChooser.ForTramp(p, ids),
+          ChooseTransitProfile: p =>
+            player is { Enabled: true } && firm.Equals(ids.Carrier) && !player.Autopilot
+              ? player.DefaultProfile
+              : TransitChooser.ForTramp(p, ids),
           CanOperate: () => ids.Registry.CanOperate(firm),
           AvoidHub: AvoidCongested,
           EffectiveMinMargin: () => ids.Reputation.EffectiveMinMargin(firm, CampaignWorld.MinMargin),
@@ -276,6 +290,16 @@ internal static class SinsAgents
     bundle.VenturesAgent = new HouseholdTrampVentureAgent(ids, bundle, allSites, pool, Gate, milestones, biographies);
     bundle.SolExportEnabled = true;
     bundle.VenturesEnabled = true;
+    bundle.Player = player;
+    if (player is { Enabled: true })
+    {
+      bundle.CarrierPulse = new PlayerTrampAgent(trampAgents[0], player, ids);
+    }
+    else
+    {
+      bundle.CarrierPulse = trampAgents[0];
+    }
+
     bundle.RebuildPulse();
     return bundle;
   }

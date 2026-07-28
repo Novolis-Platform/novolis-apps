@@ -96,6 +96,11 @@ internal sealed class EscrowBook
       return;
     }
 
+    if (ship.Quantity.Value <= 0m)
+    {
+      return; // Empty reposition — no CCA escrow.
+    }
+
     var entry = ids.Registry.TryGet(ship.FirmId);
     if (entry is null || !entry.OwnerMaster)
     {
