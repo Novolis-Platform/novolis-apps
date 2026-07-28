@@ -36,6 +36,7 @@ pwsh -File scripts/build-installer.ps1
 | App | Path | Description |
 |-----|------|-------------|
 | Manuscript Studio | `src/ManuscriptStudio` | Markdown editor with Generic + Book Authoring + Concept Assets modes |
+| Books Writer Studio | `src/BooksWriterStudio` | Three-column book authoring: chapter nav, markdown editor, metadata/publish/SCM |
 | Concept Studio | `src/ConceptStudio` | Simple 3D concept CAD for ship/prop blockout, ortho views, SVG/PNG export |
 
 ## Related
