@@ -22,7 +22,7 @@ bureaucracy that is **boring on purpose**.
 
 | Piece | Canon shape | Sins mapping (now / later) |
 |-------|-------------|----------------------------|
-| Posted work | Cargo / charter / courier behind registration | Hub orders + tramp haul (now); CCA board UI later |
+| Posted work | Cargo / charter / courier behind registration | Hub orders + tramp haul (now); captain Spot vs Charters intel (now) |
 | Escrow | Payment held until delivery confirmation | `EscrowBook` Ops hold + release / clawback (now) |
 | Issuer fee | **~5%** of contract value (client) | Station books issuer fee on escrow open (now) |
 | Contractor insurance | **≥10%** + risk modifiers (contractor) | Escrow contractor skim ≥10% → UW + `InsurancePulse` (now) |
@@ -34,6 +34,8 @@ bureaucracy that is **boring on purpose**.
 | Port tiers | Hub / refinery / edge friction | `PortTier` dwell/toll/berth fee (now) |
 
 **Aphorism:** plenty of opportunity — all of it locked behind registration.
+Captain desk adds: **plenty of opportunity; acceptance is a dock act** — network intel,
+empty `PlanReposition` travel, berth-gated spot accept, separate Spot vs Charter panels.
 
 ### Quote engine (tramp margin — flavor numbers)
 

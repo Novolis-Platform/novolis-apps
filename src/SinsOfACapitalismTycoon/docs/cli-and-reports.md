@@ -18,8 +18,8 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 | `--mode headless\|avalonia\|captain` | `headless` | Spectre / GUI desk / text REPL |
 | `--player on\|off` | on in avalonia/captain / off headless | James / ST Calypso agency vs AI tramp |
 | `--autopilot on\|off` | `off` | When player on: AI hauls if order queue empty |
-| `--board local\|network` | `local` | Job board at current berth (default) or all hubs |
-| `--commands "…"` | — | Captain script (`status;jobs;accept 0;continue;…`) |
+| `--board local\|network` | `network` | Spot intel filter (`berth`/`local` = current hub only; accept still berth-gated) |
+| `--commands "…"` | — | Captain script (`status;spot;travel X;accept 0;depart;…`) |
 | `--playtest` | — | Built-in captain acceptance (agent-friendly) |
 | `--quiet` / `-q` | off | Hide progress; still print report (headless) |
 
@@ -47,8 +47,10 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
   --engine campaign --days 30d --seed 1001 --mode avalonia --player on
 ```
 
-Live cockpit for **ST Calypso**: star map (berth highlight), radio feed, **local** job board,
-hull standing, Step 1d / Continue / To horizon. Time keeps moving until a decision is needed.
+Live cockpit for **ST Calypso**: voyage strip, star map (travel target + berth highlight),
+Spot | Charters | Manifest tabs, Step 1d / Continue / To horizon. See network intel;
+accept spot only at load berth; travel empty with **Travel here**. Time keeps moving until
+a decision is needed.
 
 ## Text captain / playtest (agent-friendly)
 
@@ -60,10 +62,12 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
   -p:NovolisUseProjectReferences=true -- `
   --engine campaign --days 30d --seed 1001 --mode captain `
-  --commands "status;jobs;accept 0;continue;resume"
+  --commands "status;spot;travel-to-best;continue;accept-at-berth;depart;resume"
 ```
 
-Requires `Novolis.Avalonia.Briefing` (+ StarMap, Studio) on GitHub Packages `2026.1.*`, or ProjectRef for local sibling checkouts. Mid-tick map animation stays on the roadmap.
+Captain verbs: `travel`, `spot`, `charters`, `accept N`, `manifest`, `depart`, `refuse`.
+Requires `Novolis.Avalonia.Briefing` (+ StarMap, Studio) on GitHub Packages `2026.1.*`, or
+ProjectRef for local sibling checkouts. Mid-tick map animation stays on the roadmap.
 
 ## Core smoke
 
