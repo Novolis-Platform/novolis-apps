@@ -8,6 +8,7 @@
     <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
     <Project Path="src/ConceptStudio/ConceptStudio.csproj" />
     <Project Path="src/ManuscriptStudio/ManuscriptStudio.csproj" />
+    <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
   </Folder>
   <Folder Name="/src/LiveStudio/">
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />

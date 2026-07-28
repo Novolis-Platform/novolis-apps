@@ -32,6 +32,15 @@ WinExe for simple 3D concept blockout (ship hulls, props) with CAD-style materia
 - Data: `%LocalAppData%\Novolis\Concept Studio\default-workspace\concept.json`
 - Consumes `Novolis.Avalonia.Raylib`, `Novolis.Rendering.*` from GitHub Packages (NuGet-only)
 
+## Sins of a Capitalism Tycoon
+
+Exe with dual shell for the bounded-minimum economy package:
+
+- Path: `src/SinsOfACapitalismTycoon/`
+- `--mode headless` — period loop + console report (agent entrypoint)
+- `--mode avalonia` — same report in a desktop window
+- Consumes `Novolis.Economy.Core` from GitHub Packages (NuGet-only)
+
 ## Package sources
 
 | Source | URL |
