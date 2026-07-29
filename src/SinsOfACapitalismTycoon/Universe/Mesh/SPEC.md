@@ -4,15 +4,11 @@ A **bounded minimum mesh model** is the smallest information-propagation model t
 preserves Confederation mesh doctrine while excluding operational detail that does not
 affect visibility, lag, or capacity questions.
 
-It is **bounded** because it declares what exists, what does not, and where aggregation occurs.
-
-It is **minimum** because each concept must explain a distinct mesh phenomenon.
-
 Doctrine (Galactic Confederation Review — *The Confederation Does Not Deliver Messages*):
 
 - The mesh **publishes and propagates**; it does not guarantee delivery to a person.
-- Success = a signed packet becomes **visible** at a hub cache and/or identity mailbox.
-- Place addresses use **directed** pulse paths; identity/public use **flood**.
+- Success = a signed packet becomes **visible** at a node cache, and/or reaches a mailbox / feed inbox under the rules below.
+- Place addresses use **directed** pulse paths; identity and feeds use **flood** among nodes.
 - Pulse drones are tiny, mostly disposable FTL carriers; bulk is slower freight-class hops.
 
 ---
@@ -20,73 +16,70 @@ Doctrine (Galactic Confederation Review — *The Confederation Does Not Deliver 
 ## 1. Boundary
 
 ```text
-Hubs
-Edges (hub→hub, pulse vs bulk travel hours)
-Identities (optional last-known hub — bias only)
-Packets (pulse | bulk | public; sealed; opaque signature; priority; TTL)
-In-flight drones (aggregate carriers)
-Hub caches (visibility)
-Identity mailboxes
+Nodes (star-system relays)
+Edges (node→node, pulse vs bulk travel hours)
+Mailboxes (person | household | firm | ship | thing + location node)
+Feed subscriptions (News.* voluntary; Emergency mandatory)
+Packets (pulse | bulk | feed; sealed; opaque signature; priority; TTL)
+In-flight drones
+Node caches (visibility)
+Mailbox pushed packets (private identity mail)
+Feed inboxes (pulled + forced Emergency)
 Pending launches (bandwidth-gated)
 ```
 
 **Out of boundary:** real cryptography, ansible, per-drone physics, Economy cash postage,
-TCP/HTTP, Limbo ceremony as a special event type, captain UI compose.
+TCP/HTTP, Limbo ceremony, captain UI compose.
 
 ---
 
 ## 2. Contract
 
-| Address | Propagation | Guarantee |
-|---------|-------------|-----------|
-| Place(Hub) | Directed hop path | Visible at destination hub eventually (lag/loss may delay) |
-| Identity(Id) | Flood among hubs | Visible in mailbox when a hub that holds the packet “connects” identity (mailbox credit on flood arrival at any hub; identity need not be online) |
-| Public | Flood | Visible in every hub cache that receives a hop |
+| Address | Propagation | How you receive it |
+|---------|-------------|--------------------|
+| Place(Node) | Directed hop path | Visible at destination **node** cache |
+| Identity(Id) | Flood among nodes | **Push** into that identity's **mailbox** only while the mailbox is co-located with a node that holds the packet |
+| Feed(FeedId) | Flood among nodes | **Pull** subscribed channels into feed inbox. `News.General` ≠ `News.Prices`. |
+| Feed(`Emergency`) | Flood among nodes | **Mandatory**: every mailbox is subscribed; cannot unsubscribe; force-delivered into feed inboxes of all mailboxes co-located with a node that holds it |
 
 There is **no** `IsDeliveredToHuman` API.
+
+### Mailbox owners
+
+Use `MeshIdentityIds` (`person:`, `household:`, `firm:`, `ship:`, `thing:`) and `MeshIdentityKind` on `MeshMailbox`.
+
+### Mailbox push
+
+A mailbox is parked at a star system (`LocationNodeId`). When an identity-addressed packet becomes visible at that node, it is pushed into the mailbox. Move the mailbox (ship jumps) and catch-up push runs at the new node (including pending Emergency).
+
+### Feed pull (Atom/RSS-ish) + Emergency
+
+Voluntary feed packets populate node caches and are pulled only if subscribed. `Emergency` is always in the effective subscription set and is also **forced** into co-located feed inboxes as soon as the packet is visible at the node (`FeedEngine.ForceMandatoryAtNode`).
 
 ---
 
 ## 3. Timing
 
 - One `MeshEngine.Advance` = one campaign hour.
-- Pulse travel hours = `ceil(ly / PulseLyPerHour)`; default PulseLyPerHour ≈ **20× tramp cruise**
-  (`CruiseDaysPerLy = 1.3` ⇒ tramp ~0.032 ly/h; pulse ~0.64 ly/h).
-- Bulk travel hours use slower ly/h (near tramp) so layers differ mechanically.
-- Hub `PulseBandwidthPerHour` caps new drone launches from that hub each hour.
-- Higher `Priority` wins bandwidth contention.
+- Pulse travel hours = `ceil(ly / PulseLyPerHour)`; default ≈ **20× tramp cruise**.
+- Bulk travel hours use slower ly/h.
+- Node `PulseBandwidthPerHour` caps new drone launches; higher priority wins.
 
 ---
 
-## 4. Stocks vs flows
+## 4. Period pipeline (`DefaultMeshPipeline`)
 
-**Stocks:** hubs, edges, packets, caches, mailboxes, identities, in-flight drones, pending launches.
-
-**Flows:** publish, drone hop progress, arrival visibility credit, flood fan-out, loss+requeue, TTL expiry.
-
----
-
-## 5. Invariants
-
-- Packet ids unique in `Packets`.
-- Every in-flight / pending launch references a known packet and hubs.
-- Cache/mailbox entries reference known packets.
-- Non-negative remaining hours on drones.
-- Bandwidth used per hub per hour ≤ `PulseBandwidthPerHour` (enforced at launch).
+1. `DroneTick`
+2. `FloodDispatch` (identity + feed)
+3. `LaunchPending`
+4. `FeedPullAll` (subscribed channels at each mailbox location)
+5. `TtlExpire`
+6. `HourAdvance`
 
 ---
 
-## 6. Period pipeline (`DefaultMeshPipeline`)
+## 5. Promotion
 
-1. `DroneTick` — decrement ETAs; apply loss; on arrive credit cache/mailbox; continue directed path or mark flood seed.
-2. `FloodDispatch` — from hubs that hold flood/public packets, enqueue neighbor launches (deduped).
-3. `LaunchPending` — consume bandwidth by priority; spawn drones.
-4. `TtlExpire` — drop expired packets from caches/mailboxes/pending (in-flight may finish).
-5. `HourAdvance` — `HourIndex++`, reset per-hour bandwidth counters.
-
----
-
-## 7. Promotion
-
-This kernel lives under Sins (`Universe/Mesh/`) until lifted to `Novolis.Mesh.Core`.
-Product glue stays in `Universe/Mesh/Sins/`. Do not put fiction mesh into `Novolis.Transports.*`.
+Kernel under Sins (`Universe/Mesh/`) until `Novolis.Mesh.Core`. Glue in `Universe/Mesh/Sins/`.
+Do not put fiction mesh into `Novolis.Transports.*`. Prefer **Node**, not Hub, in mesh terminology
+(Economy `TransportHub` remains a separate logistics concept).

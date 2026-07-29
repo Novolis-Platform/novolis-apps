@@ -35,7 +35,9 @@ internal sealed record RunOptions(
     bool Autopilot,
     JobBoardScope Board,
     string? Commands,
-    bool Playtest)
+    bool Playtest,
+    bool LastTramp = false,
+    string? LoadSave = null)
 {
     public static RunOptions Default { get; } = new(
         AppMode.Headless,
@@ -52,7 +54,9 @@ internal sealed record RunOptions(
         Autopilot: false,
         Board: JobBoardScope.Network,
         Commands: null,
-        Playtest: false);
+        Playtest: false,
+        LastTramp: false,
+        LoadSave: null);
 
     public static RunOptions Parse(string[] args)
     {
@@ -71,6 +75,8 @@ internal sealed record RunOptions(
         var board = JobBoardScope.Network;
         string? commands = null;
         var playtest = false;
+        var lastTramp = false;
+        string? loadSave = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -253,6 +259,45 @@ internal sealed record RunOptions(
             {
                 playtest = true;
                 mode = AppMode.Captain;
+                if (daysHours == Default.DaysHours)
+                {
+                    daysHours = 60L * 24;
+                }
+
+                continue;
+            }
+
+            if (a is "--last-tramp" or "--lasttramp")
+            {
+                lastTramp = true;
+                continue;
+            }
+
+            if (a is "--playtest-last-tramp" or "--playtest-lasttramp")
+            {
+                playtest = true;
+                lastTramp = true;
+                autopilot = true;
+                mode = AppMode.Captain;
+                if (daysHours == Default.DaysHours)
+                {
+                    daysHours = 120L * 24;
+                }
+
+                continue;
+            }
+
+            if (a.Equals("--load", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                loadSave = args[++i].Trim();
+                player ??= true;
+                continue;
+            }
+
+            if (a.StartsWith("--load=", StringComparison.OrdinalIgnoreCase))
+            {
+                loadSave = a["--load=".Length..].Trim();
+                player ??= true;
                 continue;
             }
 
@@ -265,9 +310,14 @@ internal sealed record RunOptions(
 
         // Avalonia / captain imply player unless explicitly disabled.
         var playerOn = player ?? (mode is AppMode.Avalonia or AppMode.Captain);
+        if (lastTramp)
+        {
+            playerOn = true;
+        }
+
         return new RunOptions(
             mode, engine, scenario, periods, daysHours, seed, logEvery, quiet, drama, story,
-            playerOn, autopilot, board, commands, playtest);
+            playerOn, autopilot, board, commands, playtest, lastTramp, loadSave);
     }
 
     private static bool ParseDrama(string value) =>
@@ -344,7 +394,10 @@ internal sealed record RunOptions(
               --autopilot on|off       AI hauls when player queue empty (default: off)
               --board local|network    Spot intel filter (default: network; accept still requires berth)
               --commands "a;b;c"       Captain script (status|jobs|accept N|wait|refuse|…)
-              --playtest               Run built-in captain acceptance script
+              --playtest               60d captain acceptance (travel/haul/berth gate)
+              --last-tramp             Last-tramp victory mode (rival pressure; Calypso sole operable)
+              --playtest-last-tramp    120d captain autopilot last-tramp acceptance
+              --load latest|<guid>     Resume campaign checkpoint (Novolis.Storage.Json)
               --quiet / -q             Hide progress
               --drama on|off           Campaign shocks (default: on)
               --story [on|off]         Live vox tickers + overture (default: off; headless)

@@ -43,4 +43,13 @@ internal sealed class PlayerControlState
   public int SoftFailGroundedDays { get; set; }
 
   public bool SoftFailRaised { get; set; }
+
+  /// <summary>Memoir mode: thin rival tramps; win when Calypso is sole operable light-commercial.</summary>
+  public bool LastTrampMode { get; set; }
+
+  public bool LastTrampWon { get; set; }
+
+  public bool LastTrampLost { get; set; }
+
+  public TrampSurvival.Snapshot? LastSurvival { get; set; }
 }

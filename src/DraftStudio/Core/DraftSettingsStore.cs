@@ -13,6 +13,24 @@ internal sealed class DraftSettings
     public float GridStep { get; set; } = 0.5f;
 
     public string ViewMode { get; set; } = "draft";
+
+    /// <summary>UI display unit; document coords remain meters.</summary>
+    public string DisplayUnit { get; set; } = DraftUnits.Meter;
+
+    /// <summary>Last opened/saved .cadjson path (null = default workspace file).</summary>
+    public string? LastDocumentPath { get; set; }
+
+    /// <summary>World-Y elevation of the active drawing plane (plan is XZ).</summary>
+    public float DrawElevation { get; set; }
+
+    /// <summary>When true, Line tool chains from the previous endpoint.</summary>
+    public bool ContinuousLine { get; set; }
+
+    /// <summary>When true, only entities near the draw elevation are hit-tested / fully bright.</summary>
+    public bool IsolateLevel { get; set; } = true;
+
+    /// <summary>Meters tolerance when matching entity elevation to draw level.</summary>
+    public float LevelTolerance { get; set; } = 0.05f;
 }
 
 internal sealed class DraftSettingsStore

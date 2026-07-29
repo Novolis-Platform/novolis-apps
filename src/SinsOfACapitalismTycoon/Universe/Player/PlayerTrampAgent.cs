@@ -41,6 +41,16 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
   {
     if (!_state.Enabled || _state.Autopilot)
     {
+      if (_state is { Enabled: true, Autopilot: true })
+      {
+        var queued = SurvivalCaptain.Tick(this, context, _ids, _state);
+        if (queued && _state.Orders.TryDequeue(out var survivalOrder))
+        {
+          Execute(survivalOrder, context);
+          return;
+        }
+      }
+
       _inner.Tick(context);
       LastDecision = _inner.LastDecision;
       return;

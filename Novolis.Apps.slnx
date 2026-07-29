@@ -12,6 +12,7 @@
     <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
   </Folder>
   <Folder Name="/src/LiveStudio/">

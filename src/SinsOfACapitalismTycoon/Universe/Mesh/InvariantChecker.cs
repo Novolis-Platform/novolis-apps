@@ -29,9 +29,9 @@ public static class InvariantChecker
         errors.Add($"Drone {drone.Id.Value} references missing packet.");
       }
 
-      if (!state.Hubs.ContainsKey(drone.From.Value) || !state.Hubs.ContainsKey(drone.To.Value))
+      if (!state.Nodes.ContainsKey(drone.From.Value) || !state.Nodes.ContainsKey(drone.To.Value))
       {
-        errors.Add($"Drone {drone.Id.Value} references unknown hub.");
+        errors.Add($"Drone {drone.Id.Value} references unknown node.");
       }
     }
 
@@ -43,11 +43,11 @@ public static class InvariantChecker
       }
     }
 
-    foreach (var kv in state.HubCaches)
+    foreach (var kv in state.NodeCaches)
     {
-      if (!state.Hubs.ContainsKey(kv.Key))
+      if (!state.Nodes.ContainsKey(kv.Key))
       {
-        errors.Add($"Cache for unknown hub {kv.Key}.");
+        errors.Add($"Cache for unknown node {kv.Key}.");
       }
 
       foreach (var pk in kv.Value)
@@ -59,26 +59,33 @@ public static class InvariantChecker
       }
     }
 
-    foreach (var kv in state.BandwidthUsedThisHour)
+    foreach (var kv in state.Mailboxes)
     {
-      if (!state.Hubs.TryGetValue(kv.Key, out var hub))
+      if (!state.Nodes.ContainsKey(kv.Value.LocationNodeId.Value))
       {
-        errors.Add($"Bandwidth counter for unknown hub {kv.Key}.");
-        continue;
-      }
-
-      if (kv.Value > hub.PulseBandwidthPerHour)
-      {
-        errors.Add($"Hub {kv.Key} exceeded bandwidth {kv.Value}/{hub.PulseBandwidthPerHour}.");
+        errors.Add($"Mailbox {kv.Key} at unknown node {kv.Value.LocationNodeId}.");
       }
     }
 
-    // Edge endpoints exist
+    foreach (var kv in state.BandwidthUsedThisHour)
+    {
+      if (!state.Nodes.TryGetValue(kv.Key, out var node))
+      {
+        errors.Add($"Bandwidth counter for unknown node {kv.Key}.");
+        continue;
+      }
+
+      if (kv.Value > node.PulseBandwidthPerHour)
+      {
+        errors.Add($"Node {kv.Key} exceeded bandwidth {kv.Value}/{node.PulseBandwidthPerHour}.");
+      }
+    }
+
     foreach (var e in state.Edges)
     {
-      if (!state.Hubs.ContainsKey(e.From.Value) || !state.Hubs.ContainsKey(e.To.Value))
+      if (!state.Nodes.ContainsKey(e.From.Value) || !state.Nodes.ContainsKey(e.To.Value))
       {
-        errors.Add($"Edge {e.From}→{e.To} has unknown hub.");
+        errors.Add($"Edge {e.From}→{e.To} has unknown node.");
       }
 
       if (e.PulseTravelHours < 1 || e.BulkTravelHours < 1)
@@ -94,10 +101,11 @@ public static class InvariantChecker
   {
     var sb = new StringBuilder();
     sb.Append("hour=").Append(state.HourIndex);
-    sb.Append(" hubs=").Append(state.Hubs.Count);
+    sb.Append(" nodes=").Append(state.Nodes.Count);
     sb.Append(" packets=").Append(state.Packets.Count);
     sb.Append(" drones=").Append(state.Drones.Length);
     sb.Append(" pending=").Append(state.Pending.Length);
+    sb.Append(" mailboxes=").Append(state.Mailboxes.Count);
     return sb.ToString();
   }
 }

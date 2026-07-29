@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace SinsOfACapitalismTycoon.Universe.Mesh;
 
-/// <summary>Consume hub bandwidth to turn pending launches into in-flight drones.</summary>
+/// <summary>Consume node bandwidth to turn pending launches into in-flight drones.</summary>
 public static class LaunchEngine
 {
   public static MeshState LaunchPending(MeshState state)
@@ -26,7 +26,7 @@ public static class LaunchEngine
 
     foreach (var launch in ordered)
     {
-      if (!state.Hubs.TryGetValue(launch.From.Value, out var hub))
+      if (!state.Nodes.TryGetValue(launch.From.Value, out var node))
       {
         continue;
       }
@@ -42,7 +42,7 @@ public static class LaunchEngine
       }
 
       var used = bandwidth.TryGetValue(launch.From.Value, out var u) ? u : 0;
-      if (used >= hub.PulseBandwidthPerHour)
+      if (used >= node.PulseBandwidthPerHour)
       {
         remaining.Add(launch);
         deferred++;

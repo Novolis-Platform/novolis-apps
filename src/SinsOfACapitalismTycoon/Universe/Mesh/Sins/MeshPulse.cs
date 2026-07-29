@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace SinsOfACapitalismTycoon.Universe.Mesh;
 
 /// <summary>Campaign hour tick + smoke publish helpers.</summary>
@@ -13,33 +11,34 @@ public static class MeshPulse
   }
 
   /// <summary>
-  /// Seed directed Sol→first non-Sol hub + identity flood for Calypso.
-  /// Call once after mesh + identities are registered.
+  /// Seed directed Sol→Wolf, identity mail for Calypso, News.General (opt-in),
+  /// and Emergency (forced to every co-located mailbox).
   /// </summary>
   public static MeshState SeedSmokePublishes(
     MeshState state,
     MeshIdentityId calypsoIdentity,
     PacketId? directedId = null,
-    PacketId? floodId = null)
+    PacketId? identityId = null,
+    PacketId? feedId = null,
+    PacketId? emergencyId = null)
   {
-    if (!state.Hubs.ContainsKey("sol"))
+    if (!state.Nodes.ContainsKey("sol"))
     {
       return state;
     }
 
-    var sol = MeshHubId.From("sol");
-    var dest = state.Hubs.Values
-      .Select(h => h.Id)
-      .FirstOrDefault(h => !h.Value.Equals("sol", StringComparison.OrdinalIgnoreCase));
-    if (dest.Value is null)
+    var sol = MeshNodeId.From("sol");
+    var dest = state.Nodes.Values
+      .Select(n => n.Id)
+      .FirstOrDefault(n => !n.Value.Equals("sol", StringComparison.OrdinalIgnoreCase));
+    if (string.IsNullOrEmpty(dest.Value))
     {
       return state;
     }
 
-    // Prefer wolf359 if present
-    if (state.Hubs.ContainsKey("wolf359"))
+    if (state.Nodes.ContainsKey("wolf359"))
     {
-      dest = MeshHubId.From("wolf359");
+      dest = MeshNodeId.From("wolf359");
     }
 
     (state, _) = PublishEngine.PublishPulse(
@@ -54,10 +53,26 @@ public static class MeshPulse
       sol,
       MeshAddress.ToIdentity(calypsoIdentity),
       priority: 1,
-      id: floodId ?? PacketId.From(Guid.Parse("00000000-0000-4000-8000-00000000f002")));
+      id: identityId ?? PacketId.From(Guid.Parse("00000000-0000-4000-8000-00000000f002")));
 
-    // Drain pending launches for hour 0 so smoke is in-flight immediately
+    (state, _) = PublishEngine.PublishPulse(
+      state,
+      sol,
+      MeshAddress.ToFeed(MeshFeedId.NewsGeneral),
+      priority: 1,
+      id: feedId ?? PacketId.From(Guid.Parse("00000000-0000-4000-8000-00000000f003")));
+
+    (state, _) = PublishEngine.PublishPulse(
+      state,
+      sol,
+      MeshAddress.ToFeed(MeshFeedId.Emergency),
+      priority: 10,
+      id: emergencyId ?? PacketId.From(Guid.Parse("00000000-0000-4000-8000-00000000f004")));
+
+    state = FeedEngine.Subscribe(state, calypsoIdentity, MeshFeedId.NewsGeneral);
+
     state = LaunchEngine.LaunchPending(state);
+    state = FeedEngine.Pull(state, calypsoIdentity);
     return state;
   }
 }

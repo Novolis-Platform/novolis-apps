@@ -2,14 +2,14 @@ using System.Collections.Immutable;
 
 namespace SinsOfACapitalismTycoon.Universe.Mesh;
 
-/// <summary>Fan-out flood/public packets from hubs that hold them but have not yet seeded neighbors.</summary>
+/// <summary>Fan-out identity/feed packets from nodes that hold them but have not yet seeded neighbors.</summary>
 public static class FloodEngine
 {
   public static MeshState Dispatch(MeshState state)
   {
     foreach (var packet in state.Packets.Values)
     {
-      if (packet.Destination.Kind is not (MeshAddressKind.Identity or MeshAddressKind.Public))
+      if (packet.Destination.Kind is not (MeshAddressKind.Identity or MeshAddressKind.Feed))
       {
         continue;
       }
@@ -19,30 +19,29 @@ public static class FloodEngine
         ? set
         : ImmutableHashSet<string>.Empty;
 
-      // Prefer last-known hub bias: process that hub first by ordering
-      var hubsHolding = state.HubCaches
+      var nodesHolding = state.NodeCaches
         .Where(kv => kv.Value.Contains(pk))
         .Select(kv => kv.Key)
         .ToList();
 
+      // Bias: if identity mailbox location is known, seed from there first when it holds the packet.
       if (packet.Destination.Kind == MeshAddressKind.Identity
           && packet.Destination.Identity is { } id
-          && state.Identities.TryGetValue(id.Value, out var binding)
-          && binding.LastKnownHub is { } last
-          && hubsHolding.Contains(last.Value))
+          && state.Mailboxes.TryGetValue(id.Value, out var box)
+          && nodesHolding.Contains(box.LocationNodeId.Value))
       {
-        hubsHolding.Remove(last.Value);
-        hubsHolding.Insert(0, last.Value);
+        nodesHolding.Remove(box.LocationNodeId.Value);
+        nodesHolding.Insert(0, box.LocationNodeId.Value);
       }
 
-      foreach (var hubKey in hubsHolding)
+      foreach (var nodeKey in nodesHolding)
       {
-        if (seeded.Contains(hubKey))
+        if (seeded.Contains(nodeKey))
         {
           continue;
         }
 
-        var from = MeshHubId.From(hubKey);
+        var from = MeshNodeId.From(nodeKey);
         foreach (var edge in state.Edges)
         {
           if (!edge.From.Equals(from))
@@ -59,12 +58,12 @@ public static class FloodEngine
             packet.Id,
             from,
             edge.To,
-            ImmutableArray<MeshHubId>.Empty,
+            ImmutableArray<MeshNodeId>.Empty,
             IsFloodHop: true,
             packet.Priority));
         }
 
-        seeded = seeded.Add(hubKey);
+        seeded = seeded.Add(nodeKey);
         state = state with
         {
           FloodSeededAt = state.FloodSeededAt.SetItem(pk, seeded),

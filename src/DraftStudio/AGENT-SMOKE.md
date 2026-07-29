@@ -2,11 +2,11 @@
 
 Wire-up uses the shared Avalonia agent protocol (`Novolis.Avalonia.Agent`) and Cursor MCP `avalonia-agent`.
 
-## Build
+## Build / tests
 
 ```powershell
 dotnet build d:\novolis\novolis-apps\src\DraftStudio -p:NovolisUseProjectReferences=true
-dotnet build d:\novolis\novolis-dogfooding\apps\AvaloniaAgentMcp -p:NovolisUseProjectReferences=true
+dotnet test d:\novolis\novolis-apps\tests\DraftStudio.Unit -p:NovolisUseProjectReferences=true
 ```
 
 ## Run Draft Studio with agent host
@@ -16,12 +16,21 @@ $env:NOVOLIS_AVALONIA_AGENT = "1"
 dotnet run --project d:\novolis\novolis-apps\src\DraftStudio -p:NovolisUseProjectReferences=true
 ```
 
-## MCP checks
+## MCP checks (commands → save → inspect → dump)
 
-Enable the `avalonia-agent` server in Cursor (`.cursor/mcp.json`), then:
+1. `UiHello` — title contains `Draft Studio`
+2. `UiType` into `draft.commandBar`: `Level(3)` then `Rect(0,0,8,6)` then `Box(2,1,3)`
+3. `UiType` `Save` — or `UiClick` `draft.tool.save`
+4. Read `%LocalAppData%\Novolis\Draft Studio\dumps\last-document.path` (or workspace document) and inspect `.cadjson`
+5. `UiType` `Dump` — or `UiClick` `draft.dump`
+6. Read `dumps/last-artifact.json` for `documentPath`, `draftPngPath`, `modelPngPath`, `windowPngPath`
+7. `UiScreenshot` — Avalonia UI capture; model PNG uses Raylib presented framebuffer via `RaylibHostControl.TrySaveLastPresentedFramePng`
 
-1. `UiHello` — expect title containing `Draft Studio`
-2. `UiTree` — expect `draft.tool.line`, `draft.undo`, `draft.entities`, `draft.commandBar`
-3. `UiClick` with `controlId=draft.tool.line` — Line tool active
-4. `UiType` with `controlId=draft.commandBar`, `text=Box(1,1,1)`, `keys=["Enter"]` — entity appears
-5. `UiScreenshot` — PNG under `%TEMP%/novolis-avalonia-agent/`
+## Agent ids (extras)
+
+| Id | Control |
+|----|---------|
+| `draft.dump` | Dump artifacts button |
+| `draft.elevation` | Level NumericUpDown |
+| `draft.continuous` | Continuous line checkbox |
+| `draft.shapes` | Shape strip above command bar |

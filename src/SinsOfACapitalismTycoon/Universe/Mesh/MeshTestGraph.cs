@@ -5,24 +5,22 @@ namespace SinsOfACapitalismTycoon.Universe.Mesh;
 /// <summary>Build a tiny mesh for unit tests (no Astro dependency).</summary>
 public static class MeshTestGraph
 {
-  public static readonly MeshHubId Sol = MeshHubId.From("sol");
-  public static readonly MeshHubId Wolf = MeshHubId.From("wolf359");
-  public static readonly MeshHubId Proxima = MeshHubId.From("proxima");
-  public static readonly MeshHubId Other = MeshHubId.From("other");
+  public static readonly MeshNodeId Sol = MeshNodeId.From("sol");
+  public static readonly MeshNodeId Wolf = MeshNodeId.From("wolf359");
+  public static readonly MeshNodeId Proxima = MeshNodeId.From("proxima");
+  public static readonly MeshNodeId Other = MeshNodeId.From("other");
 
   public static MeshState Triangle(MeshPolicy? policy = null, int bandwidth = 8)
   {
     var p = policy ?? new MeshPolicy(LossEveryNth: 0);
-    var hubs = ImmutableDictionary<string, MeshHub>.Empty
-      .Add(Sol.Value, new MeshHub(Sol, Sol.Value, "Sol", bandwidth))
-      .Add(Wolf.Value, new MeshHub(Wolf, Wolf.Value, "Wolf 359", bandwidth))
-      .Add(Proxima.Value, new MeshHub(Proxima, Proxima.Value, "Proxima", bandwidth))
-      .Add(Other.Value, new MeshHub(Other, Other.Value, "Other", bandwidth));
+    var nodes = ImmutableDictionary<string, MeshNode>.Empty
+      .Add(Sol.Value, new MeshNode(Sol, Sol.Value, "Sol", bandwidth))
+      .Add(Wolf.Value, new MeshNode(Wolf, Wolf.Value, "Wolf 359", bandwidth))
+      .Add(Proxima.Value, new MeshNode(Proxima, Proxima.Value, "Proxima", bandwidth))
+      .Add(Other.Value, new MeshNode(Other, Other.Value, "Other", bandwidth));
 
-    // sol — wolf — proxima; other isolated from sol except via proxima? 
-    // sol-wolf, wolf-proxima, sol-proxima (triangle); other only linked to proxima
     var edges = ImmutableArray.CreateBuilder<MeshEdge>();
-    void Bidirectional(MeshHubId a, MeshHubId b, int pulseHours, int bulkHours = 20)
+    void Bidirectional(MeshNodeId a, MeshNodeId b, int pulseHours, int bulkHours = 20)
     {
       edges.Add(new MeshEdge(a, b, pulseHours, bulkHours, pulseHours));
       edges.Add(new MeshEdge(b, a, pulseHours, bulkHours, pulseHours));
@@ -35,7 +33,7 @@ public static class MeshTestGraph
 
     return MeshState.Empty(p) with
     {
-      Hubs = hubs,
+      Nodes = nodes,
       Edges = edges.ToImmutable(),
     };
   }

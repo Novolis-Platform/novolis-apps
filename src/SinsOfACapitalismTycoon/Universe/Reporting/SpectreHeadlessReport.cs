@@ -140,18 +140,20 @@ internal static class SpectreHeadlessReport
     var mesh = ids.Mesh;
     var meshTable = new Table().Border(TableBorder.Simple).Title("Mesh (visibility, not delivery)")
       .AddColumns("Metric", "Value");
-    meshTable.AddRow("Hubs / edges", $"{mesh.Hubs.Count} / {mesh.Edges.Length}");
+    meshTable.AddRow("Nodes / edges", $"{mesh.Nodes.Count} / {mesh.Edges.Length}");
     meshTable.AddRow("Packets / drones / pending",
       $"{mesh.Packets.Count} / {mesh.Drones.Length} / {mesh.Pending.Length}");
     meshTable.AddRow(
-      "Publishes D/F/P",
-      $"{mesh.Stats.DirectedPublishes} / {mesh.Stats.FloodPublishes} / {mesh.Stats.PublicPublishes}");
+      "Publishes D/I/F",
+      $"{mesh.Stats.DirectedPublishes} / {mesh.Stats.IdentityPublishes} / {mesh.Stats.FeedPublishes}");
     meshTable.AddRow(
       "Launched / arrived / lost",
       $"{mesh.Stats.DronesLaunched} / {mesh.Stats.DronesArrived} / {mesh.Stats.DronesLost}");
     meshTable.AddRow(
-      "Cache / mailbox credits",
-      $"{mesh.Stats.CacheCredits} / {mesh.Stats.MailboxCredits}");
+      "Cache / mailbox / feed / emergency",
+      $"{mesh.Stats.CacheCredits} / {mesh.Stats.MailboxPushes} / {mesh.Stats.FeedPulls} / {mesh.Stats.EmergencyForced}");
+    meshTable.AddRow("Mailboxes / subscriptions",
+      $"{mesh.Mailboxes.Count} / {mesh.Subscriptions.Count}");
     meshTable.AddRow("Bandwidth deferred", $"{mesh.Stats.BandwidthDeferred}");
     meshTable.AddRow("Mesh hour", $"{mesh.HourIndex}");
     console.Write(meshTable);
@@ -187,6 +189,20 @@ internal static class SpectreHeadlessReport
     }
 
     console.Write(reg);
+
+    if (result.Survival is not null || result.Player?.LastTrampMode == true)
+    {
+      var snap = result.Survival ?? TrampSurvival.Capture(ids);
+      console.Write(new Rule("Last tramp").RuleStyle("green"));
+      var lt = new Table().Border(TableBorder.Simple).AddColumns("Field", "Value");
+      lt.AddRow("Mode", result.Player?.LastTrampMode == true ? "on" : "off");
+      lt.AddRow("Won", result.LastTrampWon ? "yes" : "no");
+      lt.AddRow("Lost", result.LastTrampLost ? "yes" : "no");
+      lt.AddRow("Operable", $"{snap.OperableCount}/{snap.TotalLightCommercial}");
+      lt.AddRow("Calypso", snap.CalypsoOperable ? "OK" : "DOWN");
+      lt.AddRow("Names", Markup.Escape(string.Join(", ", snap.OperableNames)));
+      console.Write(lt);
+    }
 
     var firmReg = new Table().Border(TableBorder.Simple).Title("Firm registry")
       .AddColumns("Firm", "Standing", "Lien");

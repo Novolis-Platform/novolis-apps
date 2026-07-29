@@ -141,3 +141,80 @@ internal sealed class MoveEntitiesCommand : IDraftCommand
             CadVec.TranslateEntity(entity, dx, dy, dz);
     }
 }
+
+/// <summary>Undoable geometry mutation for grip edits (line endpoints, box extents, …).</summary>
+internal sealed class MutateEntityGeometryCommand : IDraftCommand
+{
+    private readonly Guid _id;
+    private readonly EntityGeometrySnapshot _before;
+    private readonly EntityGeometrySnapshot _after;
+
+    public MutateEntityGeometryCommand(Guid id, EntityGeometrySnapshot before, EntityGeometrySnapshot after)
+    {
+        _id = id;
+        _before = before;
+        _after = after;
+    }
+
+    public string Label => "Edit geometry";
+
+    public void Execute(DraftSession session) => Apply(session, _after);
+
+    public void Undo(DraftSession session) => Apply(session, _before);
+
+    private void Apply(DraftSession session, EntityGeometrySnapshot snap)
+    {
+        var entity = session.Document.Entities.FirstOrDefault(e => e.Id == _id);
+        if (entity is null)
+            return;
+        snap.ApplyTo(entity);
+        session.SelectedId = _id;
+    }
+}
+
+internal sealed class EntityGeometrySnapshot
+{
+    public float[]? A { get; init; }
+    public float[]? B { get; init; }
+    public float[]? Center { get; init; }
+    public float[]? HalfExtents { get; init; }
+    public float Radius { get; init; }
+    public float Height { get; init; }
+    public List<float[]>? ControlPoints { get; init; }
+    public float[]? Knots { get; init; }
+    public float[]? Weights { get; init; }
+    public List<float[]>? FitPoints { get; init; }
+    public bool Closed { get; init; }
+
+    public static EntityGeometrySnapshot Capture(CadEntity e) => new()
+    {
+        A = Clone(e.A),
+        B = Clone(e.B),
+        Center = Clone(e.Center),
+        HalfExtents = Clone(e.HalfExtents),
+        Radius = e.Radius,
+        Height = e.Height,
+        ControlPoints = e.ControlPoints?.Select(Clone!).Where(p => p is not null).Cast<float[]>().ToList(),
+        Knots = Clone(e.Knots),
+        Weights = Clone(e.Weights),
+        FitPoints = e.FitPoints?.Select(Clone!).Where(p => p is not null).Cast<float[]>().ToList(),
+        Closed = e.Closed,
+    };
+
+    public void ApplyTo(CadEntity e)
+    {
+        e.A = Clone(A);
+        e.B = Clone(B);
+        e.Center = Clone(Center);
+        e.HalfExtents = Clone(HalfExtents);
+        e.Radius = Radius;
+        e.Height = Height;
+        e.ControlPoints = ControlPoints?.Select(Clone!).Where(p => p is not null).Cast<float[]>().ToList();
+        e.Knots = Clone(Knots);
+        e.Weights = Clone(Weights);
+        e.FitPoints = FitPoints?.Select(Clone!).Where(p => p is not null).Cast<float[]>().ToList();
+        e.Closed = Closed;
+    }
+
+    private static float[]? Clone(float[]? v) => v is null ? null : (float[])v.Clone();
+}

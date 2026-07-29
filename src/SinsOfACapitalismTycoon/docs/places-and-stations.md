@@ -49,8 +49,11 @@ From Cycle daily-life primer — use in flavor and milestone copy:
 
 People experience the Confederation as registry paperwork and **Mesh** traffic:
 small pulse packets (fees, identity, warnings) vs bulk archives on cargo schedules.
+Identity mail **pushes** when your mailbox is at the same system **node** that holds the packet;
+public channels are **feeds** you pull (`News.General` ≠ `News.Prices`), except **`Emergency`**,
+which is forced to every person, household, firm, ship, and thing mailbox at that node.
 The Confederation does not deliver messages as a single courier; it ensures messages
-become **visible everywhere** the mesh reaches (place-directed or identity flood).
+become **visible** where the mesh reaches.
 
 See [Mesh and communications](mesh-and-communications.md) for the BM sim (`Universe/Mesh`).
 

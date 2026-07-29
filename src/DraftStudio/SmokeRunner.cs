@@ -48,7 +48,7 @@ internal static class SmokeRunner
             var settings = new DraftSettingsStore(root);
             var session = new DraftSession(settings);
             var bus = new DraftCommandBus(session);
-            var dispatcher = new DraftCommandDispatcher(session, bus);
+            var dispatcher = new DraftCommandDispatcher(session, bus, settings);
 
             session.OpenOrCreateDefault();
             Check("starter entities", session.Document.Entities.Count >= 2);

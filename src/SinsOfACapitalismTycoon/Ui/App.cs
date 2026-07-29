@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
 using Novolis.Avalonia.Agent;
+using Novolis.Avalonia.Agent.Protocol;
 
 namespace SinsOfACapitalismTycoon.Ui;
 
@@ -26,7 +27,17 @@ public sealed class App : Application
                 ? new MainWindow(options)
                 : new CoreReportWindow(Program.ReportText);
             desktop.MainWindow = window;
-            s_agentHost = AgentHost.TryAttachFromEnvironment(window);
+            // Dedicated pipe so Draft Studio (default novolis-avalonia-agent) cannot steal the desk.
+            if (AgentHost.IsEnabledByEnvironment())
+            {
+                var endpoint = Environment.GetEnvironmentVariable(UiTransportEndpoints.EndpointEnvVar);
+                if (string.IsNullOrWhiteSpace(endpoint))
+                {
+                    endpoint = "novolis-avalonia-agent-sins";
+                }
+
+                s_agentHost = AgentHost.Attach(window, endpoint);
+            }
         }
 
         base.OnFrameworkInitializationCompleted();

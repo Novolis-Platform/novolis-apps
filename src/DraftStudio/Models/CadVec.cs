@@ -9,10 +9,29 @@ internal static class CadVec
 
     public static float[] Xyz(float x, float y, float z) => [x, y, z];
 
+    public static float[] Plan(float x, float z, float elevation) => [x, elevation, z];
+
     public static float[] From(Vector3 v) => [v.X, v.Y, v.Z];
 
     public static Vector3 To(float[]? v, Vector3 fallback = default) =>
         v is { Length: >= 3 } ? new Vector3(v[0], v[1], v[2]) : fallback;
+
+    public static Vector3 OnPlane(float x, float z, float elevation) => new(x, elevation, z);
+
+    /// <summary>Representative elevation (world Y) for level filtering.</summary>
+    public static float ElevationOf(CadEntity entity) => entity.Kind.ToLowerInvariant() switch
+    {
+        "line" => To(entity.A).Y,
+        "rect" => To(entity.A).Y,
+        "circle" or "arc" => To(entity.Center).Y,
+        "spline" when entity.FitPoints is { Count: > 0 } => To(entity.FitPoints[0]).Y,
+        "spline" when entity.ControlPoints is { Count: > 0 } => To(entity.ControlPoints[0]).Y,
+        "box" or "wedge" or "cylinder" or "cone" or "sphere" => To(entity.Center).Y,
+        _ => To(entity.Center).Y,
+    };
+
+    public static bool MatchesLevel(CadEntity entity, float elevation, float tolerance) =>
+        MathF.Abs(ElevationOf(entity) - elevation) <= Math.Max(0.001f, tolerance);
 
     public static void Translate(float[]? v, float dx, float dy, float dz)
     {

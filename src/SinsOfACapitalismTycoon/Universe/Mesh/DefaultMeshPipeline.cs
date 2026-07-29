@@ -1,6 +1,6 @@
 namespace SinsOfACapitalismTycoon.Universe.Mesh;
 
-/// <summary>SPEC §6 ordered hour pipeline.</summary>
+/// <summary>SPEC ordered hour pipeline.</summary>
 public static class DefaultMeshPipeline
 {
   public static MeshEngine CreateEngine() => new(
@@ -8,6 +8,7 @@ public static class DefaultMeshPipeline
     new NamedStep("DroneTick", DroneTickEngine.Tick),
     new NamedStep("FloodDispatch", FloodEngine.Dispatch),
     new NamedStep("LaunchPending", LaunchEngine.LaunchPending),
+    new NamedStep("FeedPullAll", FeedEngine.PullAll),
     new NamedStep("TtlExpire", TtlEngine.Expire),
     new NamedStep("HourAdvance", HourAdvance),
   ]);

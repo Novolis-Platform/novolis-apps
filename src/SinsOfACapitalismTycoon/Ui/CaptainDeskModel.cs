@@ -20,6 +20,7 @@ internal sealed class CaptainDeskModel
   public required string CashLine { get; init; }
   public required string DecisionLine { get; init; }
   public required string SoftFailLine { get; init; }
+  public required string SurvivalLine { get; init; }
   public required string CurrentHubSystemId { get; init; }
   public required string CurrentHubName { get; init; }
   public required bool Underway { get; init; }
@@ -201,6 +202,11 @@ internal sealed class CaptainDeskModel
       CashLine = $"{cash:0.####}",
       DecisionLine = decision,
       SoftFailLine = soft,
+      SurvivalLine = TrampSurvival.FormatLine(
+        session.Player.LastSurvival ?? TrampSurvival.Capture(ids),
+        session.Player.LastTrampMode,
+        session.Player.LastTrampWon,
+        session.Player.LastTrampLost),
       CurrentHubSystemId = currentHub,
       CurrentHubName = currentName,
       Underway = underway,

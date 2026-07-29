@@ -60,6 +60,12 @@ internal sealed class HouseholdTrampVentureAgent : IEconomicAgent
 
   public void Tick(AgentContext context)
   {
+    if (_bundle.Player?.LastTrampMode == true)
+    {
+      LastDecision = "venture locked (last-tramp)";
+      return;
+    }
+
     if (context.Clock.HourIndex % SimulationHour.HoursPerDay != 6)
     {
       LastDecision = "venture wait";

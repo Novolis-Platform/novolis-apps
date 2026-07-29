@@ -5,10 +5,10 @@ namespace SinsOfACapitalismTycoon.Universe.Mesh;
 /// <summary>Shortest path on pulse travel hours (Dijkstra).</summary>
 public static class MeshPathfinder
 {
-  public static ImmutableArray<MeshHubId>? FindPath(
+  public static ImmutableArray<MeshNodeId>? FindPath(
     MeshState state,
-    MeshHubId origin,
-    MeshHubId destination)
+    MeshNodeId origin,
+    MeshNodeId destination)
   {
     if (origin.Equals(destination))
     {
@@ -16,7 +16,7 @@ public static class MeshPathfinder
     }
 
     var adjacency = BuildAdjacency(state);
-    if (!adjacency.ContainsKey(origin.Value) || !state.Hubs.ContainsKey(destination.Value))
+    if (!adjacency.ContainsKey(origin.Value) || !state.Nodes.ContainsKey(destination.Value))
     {
       return null;
     }
@@ -57,18 +57,18 @@ public static class MeshPathfinder
       return null;
     }
 
-    var stack = new Stack<MeshHubId>();
+    var stack = new Stack<MeshNodeId>();
     string? cur = destination.Value;
     while (cur is not null)
     {
-      stack.Push(MeshHubId.From(cur));
+      stack.Push(MeshNodeId.From(cur));
       prev.TryGetValue(cur, out cur);
     }
 
     return stack.ToImmutableArray();
   }
 
-  public static int TravelHours(MeshState state, MeshHubId from, MeshHubId to, MeshTrafficLayer layer)
+  public static int TravelHours(MeshState state, MeshNodeId from, MeshNodeId to, MeshTrafficLayer layer)
   {
     foreach (var e in state.Edges)
     {

@@ -24,7 +24,10 @@ internal static class CampaignRunner
     long RequestedHours,
     TimeSpan Wall,
     bool DramaEnabled,
-    PlayerControlState? Player = null);
+    PlayerControlState? Player = null,
+    bool LastTrampWon = false,
+    bool LastTrampLost = false,
+    TrampSurvival.Snapshot? Survival = null);
 
   /// <summary>Interactive captain session — pause when a decision is needed (or each day).</summary>
   public sealed class LiveSession
@@ -44,7 +47,8 @@ internal static class CampaignRunner
       bool drama,
       bool playerControl,
       bool autopilot,
-      bool localBoard = true)
+      bool localBoard = true,
+      bool lastTramp = false)
     {
       ClaimsPulse.ResetSeen();
       Milestones = new MilestoneLog();
@@ -59,8 +63,16 @@ internal static class CampaignRunner
         Enabled = playerControl,
         Autopilot = autopilot,
         LocalBoardOnly = localBoard,
+        LastTrampMode = lastTramp,
       };
       Agents = SinsAgents.Create(sim, ids, Milestones, Biographies, playerControl ? Player : null);
+      if (lastTramp)
+      {
+        // No household prospects while the memoir thins the board — win is sole operable LightCommercial.
+        Agents.VenturesEnabled = false;
+        Agents.RebuildPulse();
+      }
+
       _opportunities = new OpportunitiesPool(ids, Milestones, ids.Reputation);
       if (playerControl)
       {
@@ -182,6 +194,54 @@ internal static class CampaignRunner
 
     public void Pause() => PauseMode = CaptainPauseMode.EveryDay;
 
+    /// <summary>
+    /// Deterministic warm: pulse the campaign forward without captain pauses.
+    /// Used to rebuild a world from a <see cref="CampaignSaveRecord"/> checkpoint.
+    /// </summary>
+    public async Task AdvanceHoursAsync(long hours, bool quiet = true, CancellationToken ct = default)
+    {
+      if (hours <= 0 || _remaining <= 0)
+      {
+        return;
+      }
+
+      var priorPause = PauseMode;
+      var priorAuto = Player.Autopilot;
+      PauseMode = CaptainPauseMode.Never;
+      // Keep Calypso solvent while replaying empty captain seats.
+      if (Player.Enabled)
+      {
+        Player.Autopilot = true;
+      }
+
+      try
+      {
+        var targetDone = Math.Min(HoursDone + hours, RequestedHours);
+        var hoursPerPulse = 24L;
+        while (_remaining > 0 && HoursDone < targetDone)
+        {
+          ct.ThrowIfCancellationRequested();
+          var step = (int)Math.Min(hoursPerPulse, Math.Min(_remaining, targetDone - HoursDone));
+          if (step <= 0)
+          {
+            break;
+          }
+
+          await PulseDaysAsync(step).ConfigureAwait(false);
+          _remaining -= step;
+        }
+      }
+      finally
+      {
+        Player.Autopilot = priorAuto;
+        PauseMode = priorPause;
+        if (!quiet)
+        {
+          EmitLiveTickers(Milestones, story: false);
+        }
+      }
+    }
+
     public async Task RunAsync(
       bool quiet,
       bool story,
@@ -254,6 +314,26 @@ internal static class CampaignRunner
 
       _sw.Stop();
       Credits.CaptureFinalMilestone();
+      if (Player.LastTrampMode && !Player.LastTrampWon && !Player.LastTrampLost)
+      {
+        var snap = TrampSurvival.Capture(Ids);
+        Player.LastSurvival = snap;
+        if (snap.CalypsoIsSoleSurvivor)
+        {
+          Player.LastTrampWon = true;
+          Milestones.AddOnce(Sim.State.Clock.Date.DayIndex, "last-tramp",
+            $"{CampaignWorld.PlayerHullName} sole operable tramp at horizon");
+        }
+        else
+        {
+          Player.LastTrampLost = true;
+          Milestones.AddOnce(Sim.State.Clock.Date.DayIndex, "last-tramp-lose",
+            snap.CalypsoOperable
+              ? $"horizon — {snap.OperableCount} operable tramps remain"
+              : $"{CampaignWorld.PlayerHullName} down at horizon");
+        }
+      }
+
       _completed = true;
       DayEnded?.Invoke();
     }
@@ -282,15 +362,88 @@ internal static class CampaignRunner
       JumpBandGate.TickBerthFees(Sim, Ids, Milestones);
       LienPulse.TickDay(Sim, Ids, Milestones);
       InsurancePulse.TickDay(Sim, Ids.Registry, Milestones, Credits);
+      if (Player.LastTrampMode)
+      {
+        LastTrampPressure.TickDay(Sim, Ids, Milestones);
+      }
+
       Ids.Reputation.TickDay(Sim.State.Clock.Date.DayIndex);
       _dramaHost.TickDayEnd(Sim);
       _tutorial?.TickDayEnd(Sim);
       ObserveFinalStockout(Sim, Ids, Milestones);
+      EvaluateLastTramp();
+    }
+
+    private void EvaluateLastTramp()
+    {
+      var snap = TrampSurvival.Capture(Ids);
+      Player.LastSurvival = snap;
+      if (!Player.LastTrampMode || Player.LastTrampWon || Player.LastTrampLost)
+      {
+        return;
+      }
+
+      var day = Sim.State.Clock.Date.DayIndex;
+        if (snap.CalypsoIsSoleSurvivor)
+        {
+          Player.LastTrampWon = true;
+          Milestones.AddOnce(day, "last-tramp",
+            $"{CampaignWorld.PlayerHullName} sole operable tramp — board cleared");
+          _remaining = 0;
+          try
+          {
+            _ = CampaignSaveStore.Default.SaveAsync(this, "auto-win").AsTask();
+          }
+          catch
+          {
+            // non-fatal
+          }
+
+          return;
+        }
+
+      if (!snap.CalypsoOperable && Player.SoftFailRaised)
+      {
+        Player.LastTrampLost = true;
+        Milestones.AddOnce(day, "last-tramp-lose",
+          $"{CampaignWorld.PlayerHullName} grounded; {snap.OperableCount} rivals still operate");
+      }
     }
 
     public Result ToResult() =>
       new(Sim, Ids, Credits, Agents, Milestones, Biographies, OpeningLiquid, RequestedHours,
-        _sw.Elapsed, DramaEnabled, Player);
+        _sw.Elapsed, DramaEnabled, Player,
+        Player.LastTrampWon, Player.LastTrampLost, Player.LastSurvival ?? TrampSurvival.Capture(Ids));
+
+    /// <summary>Write a Json storage checkpoint (seed + hours; world rebuilt on load).</summary>
+    public ValueTask<CampaignSaveRecord> SaveCheckpointAsync(string? label = null, CancellationToken ct = default) =>
+      CampaignSaveStore.Default.SaveAsync(this, label, ct);
+
+    /// <summary>Build a live session and warm it to a saved checkpoint.</summary>
+    public static async Task<LiveSession> FromSaveAsync(
+      CampaignSaveRecord save,
+      CancellationToken ct = default)
+    {
+      var session = new LiveSession(
+        save.Seed,
+        save.HorizonHours,
+        save.Drama,
+        playerControl: save.Player,
+        autopilot: save.Autopilot,
+        localBoard: save.LocalBoardOnly,
+        lastTramp: save.LastTramp);
+
+      if (save.HoursDone > 0)
+      {
+        await session.AdvanceHoursAsync(save.HoursDone, quiet: true, ct).ConfigureAwait(false);
+      }
+
+      // Re-apply terminal flags in case warm stopped early / late relative to evaluate.
+      session.Player.LastTrampWon = save.LastTrampWon;
+      session.Player.LastTrampLost = save.LastTrampLost;
+      session.Player.LastSurvival = TrampSurvival.Capture(session.Ids);
+      return session;
+    }
   }
 
   public static async Task<Result> RunAsync(
@@ -301,9 +454,10 @@ internal static class CampaignRunner
     bool story = false,
     Action<long, long>? progress = null,
     bool playerControl = false,
-    bool autopilot = false)
+    bool autopilot = false,
+    bool lastTramp = false)
   {
-    var session = new LiveSession(seed, hours, drama, playerControl, autopilot);
+    var session = new LiveSession(seed, hours, drama, playerControl, autopilot, lastTramp: lastTramp);
     session.PauseMode = CaptainPauseMode.Never;
     await session.RunAsync(quiet, story, progress).ConfigureAwait(false);
     return session.ToResult();

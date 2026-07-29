@@ -14,8 +14,6 @@ internal sealed class DraftSession
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    public DraftSession(DraftSettingsStore settings) => _settings = settings;
-
     public CadDocument Document { get; private set; } = new();
 
     public bool IsDirty { get; private set; }
@@ -24,47 +22,87 @@ internal sealed class DraftSession
 
     public string WorkspacePath => _settings.WorkspacePath;
 
-    public string DocumentPath => _settings.DocumentPath;
+    /// <summary>Active document path (may differ from the default workspace file).</summary>
+    public string DocumentPath { get; private set; }
 
     public event Action? Changed;
+
+    public DraftSession(DraftSettingsStore settings)
+    {
+        _settings = settings;
+        DocumentPath = settings.DocumentPath;
+    }
 
     public void OpenOrCreateDefault()
     {
         _settings.Load();
         Directory.CreateDirectory(_settings.WorkspacePath);
-        var path = _settings.DocumentPath;
+        var preferred = _settings.Settings.LastDocumentPath;
+        var path = !string.IsNullOrWhiteSpace(preferred) && File.Exists(preferred)
+            ? preferred!
+            : _settings.DocumentPath;
         var legacy = Path.Combine(_settings.WorkspacePath, "draft.json");
         if (File.Exists(path))
         {
-            Document = JsonSerializer.Deserialize<CadDocument>(File.ReadAllText(path), _json) ?? CreateStarter();
+            OpenFromPath(path);
+            return;
         }
-        else if (File.Exists(legacy))
+
+        if (File.Exists(legacy))
         {
             // Prefer new path; leave legacy file in place.
             Document = CreateStarter();
+            DocumentPath = _settings.DocumentPath;
             Save();
-        }
-        else
-        {
-            Document = CreateStarter();
-            Save();
+            return;
         }
 
+        Document = CreateStarter();
+        DocumentPath = _settings.DocumentPath;
+        Save();
+    }
+
+    public void NewDocument()
+    {
+        Document = CreateStarter();
+        DocumentPath = _settings.DocumentPath;
+        SelectedId = null;
+        IsDirty = true;
+        Notify();
+    }
+
+    public void OpenFromPath(string path)
+    {
+        var text = File.ReadAllText(path);
+        Document = JsonSerializer.Deserialize<CadDocument>(text, _json) ?? CreateStarter();
         CadVec.EnsureDefaultLayer(Document);
+        DocumentPath = path;
+        _settings.Settings.LastDocumentPath = path;
+        SelectedId = null;
         IsDirty = false;
         Notify();
     }
 
-    public void Save()
+    public void Save() => SaveTo(DocumentPath);
+
+    public void SaveTo(string path)
     {
-        Directory.CreateDirectory(_settings.WorkspacePath);
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(dir))
+            Directory.CreateDirectory(dir);
+
         Document.Format = "novolis.cad";
         Document.SchemaVersion = 1;
+        Document.LinearUnit = "meter";
+        if (Document.UnitScaleMeters <= 0)
+            Document.UnitScaleMeters = 1f;
         Document.ModifiedAt = DateTime.UtcNow.ToString("O");
         Document.CreatedAt ??= Document.ModifiedAt;
         Document.Generator = new CadGenerator { Name = "DraftStudio", Version = "2026.1.0" };
         CadVec.EnsureDefaultLayer(Document);
-        File.WriteAllText(_settings.DocumentPath, JsonSerializer.Serialize(Document, _json));
+        File.WriteAllText(path, JsonSerializer.Serialize(Document, _json));
+        DocumentPath = path;
+        _settings.Settings.LastDocumentPath = path;
         IsDirty = false;
         Notify();
     }

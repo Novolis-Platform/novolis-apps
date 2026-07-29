@@ -18,7 +18,6 @@ public sealed class MeshValidationScenariosTests
     await Assert.That(state.IsVisibleAt(id, MeshTestGraph.Wolf)).IsFalse();
     await Assert.That(state.IsVisibleAt(id, MeshTestGraph.Other)).IsFalse();
 
-    // Pulse hop Sol→Wolf is 2 hours
     state = DefaultMeshPipeline.Advance(state);
     await Assert.That(state.IsVisibleAt(id, MeshTestGraph.Wolf)).IsFalse();
     state = DefaultMeshPipeline.Advance(state);
@@ -28,58 +27,108 @@ public sealed class MeshValidationScenariosTests
   }
 
   [Test]
-  public async Task Identity_Flood_Eventually_Visible_Everywhere()
+  public async Task Identity_Push_Only_When_Mailbox_CoLocated()
   {
     var state = MeshTestGraph.Triangle(bandwidth: 32);
-    var identity = MeshIdentityId.From("ship:calypso");
-    state = MeshBridge.RegisterIdentity(state, identity, MeshTestGraph.Sol);
+    var identity = MeshIdentityIds.Ship("calypso");
+    // Mailbox parked at Wolf — publish at Sol should not push until packet reaches Wolf.
+    state = MailboxEngine.Register(state, identity, MeshTestGraph.Wolf, MeshIdentityKind.Ship);
     var id = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111102"));
     (state, _) = PublishEngine.PublishPulse(
       state, MeshTestGraph.Sol, MeshAddress.ToIdentity(identity), priority: 1, id: id);
 
+    await Assert.That(state.IsInMailbox(id, identity)).IsFalse();
+    await Assert.That(state.IsVisibleAt(id, MeshTestGraph.Sol)).IsTrue();
+
     for (var i = 0; i < 40; i++)
     {
       state = DefaultMeshPipeline.Advance(state);
+      if (state.IsInMailbox(id, identity))
+      {
+        break;
+      }
     }
 
-    foreach (var hub in state.Hubs.Values)
-    {
-      await Assert.That(state.IsVisibleAt(id, hub.Id)).IsTrue();
-    }
-
+    await Assert.That(state.IsVisibleAt(id, MeshTestGraph.Wolf)).IsTrue();
     await Assert.That(state.IsInMailbox(id, identity)).IsTrue();
     InvariantChecker.AssertAll(state);
   }
 
   [Test]
-  public async Task Offline_Identity_Mailbox_Holds_Without_Delivered_Api()
+  public async Task Feed_Pull_Only_Subscribed_Channels()
   {
-    var state = MeshTestGraph.Triangle();
-    var identity = MeshIdentityId.From("offline-captain");
-    // No LastKnownHub — still mailboxed on publish
-    state = MeshBridge.RegisterIdentity(state, identity);
-    var id = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111103"));
-    (state, _) = PublishEngine.PublishPulse(
-      state, MeshTestGraph.Sol, MeshAddress.ToIdentity(identity), id: id);
+    var state = MeshTestGraph.Triangle(bandwidth: 32);
+    var identity = MeshIdentityIds.Person("reader");
+    state = MailboxEngine.Register(state, identity, MeshTestGraph.Sol, MeshIdentityKind.Person);
+    state = FeedEngine.Subscribe(state, identity, MeshFeedId.NewsGeneral);
 
-    await Assert.That(state.IsInMailbox(id, identity)).IsTrue();
-    // Reflect: MeshState has no IsDelivered — visibility only
-    await Assert.That(typeof(MeshState).GetMethod("IsDelivered")).IsNull();
+    var general = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111103"));
+    var prices = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111104"));
+    var whales = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111105"));
+    var emergency = PacketId.From(Guid.Parse("11111111-1111-4111-8111-11111111110a"));
+
+    (state, _) = PublishEngine.PublishPulse(
+      state, MeshTestGraph.Sol, MeshAddress.ToFeed(MeshFeedId.NewsGeneral), id: general);
+    (state, _) = PublishEngine.PublishPulse(
+      state, MeshTestGraph.Sol, MeshAddress.ToFeed(MeshFeedId.NewsPrices), id: prices);
+    (state, _) = PublishEngine.PublishPulse(
+      state, MeshTestGraph.Sol, MeshAddress.ToFeed(MeshFeedId.NewsSpaceWhales), id: whales);
+    (state, _) = PublishEngine.PublishPulse(
+      state, MeshTestGraph.Sol, MeshAddress.ToFeed(MeshFeedId.Emergency), priority: 10, id: emergency);
+
+    // Voluntary feeds do not push into personal mailbox; Emergency force-fills feed inbox.
+    await Assert.That(state.IsInMailbox(general, identity)).IsFalse();
+    await Assert.That(state.IsInFeedInbox(emergency, identity)).IsTrue();
+    await Assert.That(state.Stats.EmergencyForced).IsGreaterThan(0);
+
+    // Cannot drop Emergency
+    state = FeedEngine.Unsubscribe(state, identity, MeshFeedId.Emergency);
+    await Assert.That(FeedEngine.EffectiveFeedIds(state, identity).Contains(MeshFeedId.Emergency.Value))
+      .IsTrue();
+
+    state = FeedEngine.Pull(state, identity);
+
+    await Assert.That(state.IsInFeedInbox(general, identity)).IsTrue();
+    await Assert.That(state.IsInFeedInbox(prices, identity)).IsFalse();
+    await Assert.That(state.IsInFeedInbox(whales, identity)).IsFalse();
+
+    state = FeedEngine.Subscribe(state, identity, MeshFeedId.NewsSpaceWhales);
+    state = FeedEngine.Pull(state, identity);
+    await Assert.That(state.IsInFeedInbox(whales, identity)).IsTrue();
+    await Assert.That(state.IsInFeedInbox(prices, identity)).IsFalse();
   }
 
   [Test]
-  public async Task Bandwidth_Flood_Defers_Lower_Priority()
+  public async Task Household_And_Thing_Mailboxes_Receive_Emergency()
+  {
+    var state = MeshTestGraph.Triangle(bandwidth: 8);
+    var hh = MeshIdentityIds.Household("cohort-sol");
+    var thing = MeshIdentityIds.Thing("facility:kiosk");
+    state = MailboxEngine.Register(state, hh, MeshTestGraph.Sol, MeshIdentityKind.Household);
+    state = MailboxEngine.Register(state, thing, MeshTestGraph.Sol, MeshIdentityKind.Thing);
+
+    var emergency = PacketId.From(Guid.Parse("11111111-1111-4111-8111-11111111110b"));
+    (state, _) = PublishEngine.PublishPulse(
+      state, MeshTestGraph.Sol, MeshAddress.ToFeed(MeshFeedId.Emergency), priority: 10, id: emergency);
+
+    await Assert.That(state.IsInFeedInbox(emergency, hh)).IsTrue();
+    await Assert.That(state.IsInFeedInbox(emergency, thing)).IsTrue();
+    await Assert.That(state.Mailboxes[hh.Value].Kind).IsEqualTo(MeshIdentityKind.Household);
+    await Assert.That(state.Mailboxes[thing.Value].Kind).IsEqualTo(MeshIdentityKind.Thing);
+  }
+
+  [Test]
+  public async Task Bandwidth_Feed_Defers_Lower_Priority()
   {
     var state = MeshTestGraph.Triangle(bandwidth: 1);
-    var hi = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111104"));
-    var lo = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111105"));
+    var hi = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111106"));
+    var lo = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111107"));
 
     (state, _) = PublishEngine.PublishPulse(
-      state, MeshTestGraph.Sol, MeshAddress.ToPublic(), priority: 10, id: hi);
+      state, MeshTestGraph.Sol, MeshAddress.ToFeed(MeshFeedId.NewsGeneral), priority: 10, id: hi);
     (state, _) = PublishEngine.PublishPulse(
       state, MeshTestGraph.Sol, MeshAddress.ToPlace(MeshTestGraph.Wolf), priority: 1, id: lo);
 
-    // FloodDispatch + LaunchPending once without hour advance
     state = FloodEngine.Dispatch(state);
     state = LaunchEngine.LaunchPending(state);
 
@@ -124,5 +173,22 @@ public sealed class MeshValidationScenariosTests
     await Assert.That(state.Stats.DronesLost).IsEqualTo(1);
     await Assert.That(state.IsVisibleAt(id, MeshTestGraph.Wolf)).IsTrue();
     InvariantChecker.AssertAll(state);
+  }
+
+  [Test]
+  public async Task Moving_Mailbox_Gets_CatchUp_Push()
+  {
+    var state = MeshTestGraph.Triangle(bandwidth: 32);
+    var identity = MeshIdentityIds.Ship("tramp");
+    state = MailboxEngine.Register(state, identity, MeshTestGraph.Other, MeshIdentityKind.Ship);
+    var id = PacketId.From(Guid.Parse("11111111-1111-4111-8111-111111111108"));
+    (state, _) = PublishEngine.PublishPulse(
+      state, MeshTestGraph.Sol, MeshAddress.ToIdentity(identity), id: id);
+
+    await Assert.That(state.IsVisibleAt(id, MeshTestGraph.Sol)).IsTrue();
+    await Assert.That(state.IsInMailbox(id, identity)).IsFalse();
+
+    state = MailboxEngine.Move(state, identity, MeshTestGraph.Sol);
+    await Assert.That(state.IsInMailbox(id, identity)).IsTrue();
   }
 }

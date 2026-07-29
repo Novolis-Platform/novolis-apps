@@ -21,11 +21,13 @@ internal sealed class DraftCommandDispatcher
 {
     private readonly DraftSession _session;
     private readonly DraftCommandBus _bus;
+    private readonly DraftSettingsStore _settings;
 
-    public DraftCommandDispatcher(DraftSession session, DraftCommandBus bus)
+    public DraftCommandDispatcher(DraftSession session, DraftCommandBus bus, DraftSettingsStore settings)
     {
         _session = session;
         _bus = bus;
+        _settings = settings;
     }
 
     public DraftToolKind ActiveTool { get; private set; } = DraftToolKind.Select;
@@ -33,6 +35,12 @@ internal sealed class DraftCommandDispatcher
     public event Action? ToolChanged;
 
     public event Action? FitRequested;
+
+    public event Action? SaveRequested;
+
+    public event Action? DumpArtifactsRequested;
+
+    public event Action? ElevationChanged;
 
     public string? TryDispatch(string prompt)
     {
@@ -56,6 +64,9 @@ internal sealed class DraftCommandDispatcher
                 "redo" => Do(() => _bus.Redo()),
                 "delete" => DeleteSelection(),
                 "fit" => Do(() => FitRequested?.Invoke()),
+                "save" => Do(() => SaveRequested?.Invoke()),
+                "dump" or "dumpall" or "dumpmodel" or "dumpui" => Do(() => DumpArtifactsRequested?.Invoke()),
+                "level" or "elevation" or "zlevel" => "Level(y) sets drawing elevation (world Y).",
                 "box" => "Box requires arguments: Box(w,h,d) or Box(x,y,z,w,h,d).",
                 _ => $"Unknown command '{call.Name}'.",
             };
@@ -71,6 +82,9 @@ internal sealed class DraftCommandDispatcher
             "cylinder" => AddCylinder(call),
             "sphere" => AddSphere(call),
             "move" => Move(call),
+            "level" or "elevation" or "zlevel" => SetLevel(call),
+            "save" => Do(() => SaveRequested?.Invoke()),
+            "dump" or "dumpall" or "dumpmodel" or "dumpui" => Do(() => DumpArtifactsRequested?.Invoke()),
             "delete" => DeleteSelection(),
             "undo" => Do(() => _bus.Undo()),
             "redo" => Do(() => _bus.Redo()),
@@ -79,10 +93,11 @@ internal sealed class DraftCommandDispatcher
         };
     }
 
-    public void EmitAdd(CadEntity entity)
+    public void EmitAdd(CadEntity entity, bool keepTool = false)
     {
         _bus.Execute(new AddEntityCommand(entity));
-        EnterTool(DraftToolKind.Select);
+        if (!keepTool)
+            EnterTool(DraftToolKind.Select);
     }
 
     public string? EnterTool(DraftToolKind tool)
@@ -96,12 +111,13 @@ internal sealed class DraftCommandDispatcher
     {
         if (!RequireNumbers(call, 4, out var n, out var err))
             return err;
+        var y = _settings.Settings.DrawElevation;
         _bus.Execute(new AddEntityCommand(new CadEntity
         {
             Name = NextName("Line"),
             Kind = "line",
-            A = CadVec.Xz((float)n[0], (float)n[1]),
-            B = CadVec.Xz((float)n[2], (float)n[3]),
+            A = CadVec.Plan((float)n[0], (float)n[1], y),
+            B = CadVec.Plan((float)n[2], (float)n[3], y),
             Style = new CadStyle { Linetype = "Continuous" },
         }));
         return null;
@@ -111,11 +127,12 @@ internal sealed class DraftCommandDispatcher
     {
         if (!RequireNumbers(call, 3, out var n, out var err))
             return err;
+        var y = _settings.Settings.DrawElevation;
         _bus.Execute(new AddEntityCommand(new CadEntity
         {
             Name = NextName("Circle"),
             Kind = "circle",
-            Center = CadVec.Xz((float)n[0], (float)n[1]),
+            Center = CadVec.Plan((float)n[0], (float)n[1], y),
             Radius = (float)n[2],
             Normal = [0f, 1f, 0f],
         }));
@@ -126,12 +143,13 @@ internal sealed class DraftCommandDispatcher
     {
         if (!RequireNumbers(call, 4, out var n, out var err))
             return err;
+        var y = _settings.Settings.DrawElevation;
         _bus.Execute(new AddEntityCommand(new CadEntity
         {
             Name = NextName("Rect"),
             Kind = "rect",
-            A = CadVec.Xz((float)n[0], (float)n[1]),
-            B = CadVec.Xz((float)n[2], (float)n[3]),
+            A = CadVec.Plan((float)n[0], (float)n[1], y),
+            B = CadVec.Plan((float)n[2], (float)n[3], y),
             Normal = [0f, 1f, 0f],
         }));
         return null;
@@ -139,16 +157,17 @@ internal sealed class DraftCommandDispatcher
 
     private string? AddSpline(FunctionCall call)
     {
-        // Spline(x1,z1,x2,z2,...) flat XZ pairs
+        // Spline(x1,z1,x2,z2,...) flat XZ pairs on current elevation
         if (call.Arguments.Count < 4 || call.Arguments.Count % 2 != 0)
             return "Spline expects an even number of XZ values (at least two points).";
 
+        var y = _settings.Settings.DrawElevation;
         var fit = new List<Vector3>();
         for (var i = 0; i < call.Arguments.Count; i += 2)
         {
             if (call.Arguments[i].Number is not { } x || call.Arguments[i + 1].Number is not { } z)
                 return $"Spline arguments {i + 1}/{i + 2} must be numbers.";
-            fit.Add(new Vector3((float)x, 0f, (float)z));
+            fit.Add(new Vector3((float)x, y, (float)z));
         }
 
         var (degree, controls, knots, weights) = NurbsCurve.FromFitPoints(fit);
@@ -164,6 +183,15 @@ internal sealed class DraftCommandDispatcher
             Closed = false,
             Normal = [0f, 1f, 0f],
         }));
+        return null;
+    }
+
+    private string? SetLevel(FunctionCall call)
+    {
+        if (!RequireNumbers(call, 1, out var n, out var err))
+            return err;
+        _settings.Settings.DrawElevation = (float)n[0];
+        ElevationChanged?.Invoke();
         return null;
     }
 
@@ -197,9 +225,9 @@ internal sealed class DraftCommandDispatcher
 
     private string? AddCylinder(FunctionCall call)
     {
-        if (call.Arguments.Count == 3)
+        if (call.Arguments.Count == 2)
         {
-            if (!RequireNumbers(call, 3, out var n, out var err))
+            if (!RequireNumbers(call, 2, out var n, out var err))
                 return err;
             _bus.Execute(new AddEntityCommand(new CadEntity
             {

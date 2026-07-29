@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace SinsOfACapitalismTycoon.Universe.Mesh;
 
-/// <summary>Drop TTL-expired packets from caches, mailboxes, and pending (drones may finish).</summary>
+/// <summary>Drop TTL-expired packets from caches, mailboxes, feed inboxes, and pending.</summary>
 public static class TtlEngine
 {
   public static MeshState Expire(MeshState state)
@@ -32,8 +32,8 @@ public static class TtlEngine
       packets = packets.Remove(k);
     }
 
-    var caches = state.HubCaches;
-    foreach (var kv in state.HubCaches)
+    var caches = state.NodeCaches;
+    foreach (var kv in state.NodeCaches)
     {
       var next = kv.Value.Except(dead).ToImmutableHashSet(StringComparer.Ordinal);
       caches = next.Count == 0 ? caches.Remove(kv.Key) : caches.SetItem(kv.Key, next);
@@ -42,10 +42,19 @@ public static class TtlEngine
     var mailboxes = state.Mailboxes;
     foreach (var kv in state.Mailboxes)
     {
+      mailboxes = mailboxes.SetItem(
+        kv.Key,
+        kv.Value with
+        {
+          PushedPacketKeys = kv.Value.PushedPacketKeys.Except(dead).ToImmutableHashSet(StringComparer.Ordinal),
+        });
+    }
+
+    var inboxes = state.FeedInboxes;
+    foreach (var kv in state.FeedInboxes)
+    {
       var next = kv.Value.Except(dead).ToImmutableHashSet(StringComparer.Ordinal);
-      mailboxes = next.Count == 0
-        ? mailboxes.Remove(kv.Key)
-        : mailboxes.SetItem(kv.Key, next);
+      inboxes = next.Count == 0 ? inboxes.Remove(kv.Key) : inboxes.SetItem(kv.Key, next);
     }
 
     var pending = state.Pending
@@ -65,8 +74,9 @@ public static class TtlEngine
     return state with
     {
       Packets = packets,
-      HubCaches = caches,
+      NodeCaches = caches,
       Mailboxes = mailboxes,
+      FeedInboxes = inboxes,
       Pending = pending,
       Drones = drones,
       FloodSeededAt = flood,

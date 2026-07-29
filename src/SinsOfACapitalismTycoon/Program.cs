@@ -1,4 +1,5 @@
 using Avalonia;
+using Novolis.Avalonia.Agent;
 using SinsOfACapitalismTycoon.Cli;
 using SinsOfACapitalismTycoon.Sim;
 using SinsOfACapitalismTycoon.Ui;
@@ -15,6 +16,7 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        CrashGuard.Install("SinsOfACapitalismTycoon");
         try
         {
             return MainAsync(args).GetAwaiter().GetResult();
@@ -23,6 +25,11 @@ internal static class Program
         {
             Console.Error.WriteLine(ex.Message);
             return 2;
+        }
+        catch (Exception ex)
+        {
+            CrashGuard.Report(ex, "Program.Main", openEditor: true, writeMiniDump: true);
+            return 1;
         }
     }
 
@@ -47,7 +54,7 @@ internal static class Program
 
             var result = await CampaignRunner.RunAsync(
                 options.Seed, options.DaysHours, options.Quiet, options.Drama, options.Story,
-                playerControl: options.Player, autopilot: options.Autopilot);
+                playerControl: options.Player, autopilot: options.Autopilot, lastTramp: options.LastTramp);
             SpectreHeadlessReport.Write(AnsiConsole.Console, result);
             TryWriteArtifact(result, options.Quiet);
             return 0;
@@ -105,5 +112,6 @@ internal static class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
-            .LogToTrace();
+            .LogToTrace()
+            .AfterSetup(_ => CrashGuard.InstallAvalonia(Avalonia.Threading.Dispatcher.UIThread));
 }

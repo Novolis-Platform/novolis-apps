@@ -105,7 +105,8 @@ internal static class CaptainJobBoard
     var sells = new Dictionary<ProductId, List<HubOrder>>();
     var buys = new Dictionary<ProductId, List<HubOrder>>();
 
-    foreach (var o in world.HubOrders)
+    // Snapshot: HubOrders mutates on the sim thread while the desk refreshes on the UI thread.
+    foreach (var o in world.HubOrders.ToArray())
     {
       if (o.IsFilled || o.FirmId.Equals(ids.Carrier) || !freight.Any(p => p.Equals(o.ProductId)))
       {

@@ -37,5 +37,9 @@
     <PackageReference Include="Novolis.Economy.Simulation" />
     <PackageReference Include="Novolis.Economy.Finance" />
     <PackageReference Include="Novolis.Economy.Agents" />
+    <PackageReference Include="Novolis.Storage.Abstractions" />
+    <PackageReference Include="Novolis.Storage.Json" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Physical" />
   </ItemGroup>
 </Project>

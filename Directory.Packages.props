@@ -54,6 +54,10 @@
     <PackageVersion Include="Novolis.Economy.Simulation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Economy.Finance" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Economy.Agents" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Storage.Abstractions" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Storage.Json" Version="2026.1.*" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="10.0.8" />
     <PackageVersion Include="Novolis.Math.Geometry" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Assessment" Version="2026.1.*" />

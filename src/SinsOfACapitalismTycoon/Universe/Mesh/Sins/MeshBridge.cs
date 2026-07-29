@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace SinsOfACapitalismTycoon.Universe.Mesh;
 
-/// <summary>Maps Astro campaign hubs into <see cref="MeshState"/> (product glue).</summary>
+/// <summary>Maps Astro campaign systems into <see cref="MeshState"/> (product glue).</summary>
 public static class MeshBridge
 {
   internal static MeshState FromBridge(
@@ -13,11 +13,11 @@ public static class MeshBridge
     var p = policy ?? new MeshPolicy();
     var bw = bandwidthOverride ?? p.DefaultPulseBandwidthPerHour;
 
-    var hubs = ImmutableDictionary.CreateBuilder<string, MeshHub>(StringComparer.OrdinalIgnoreCase);
+    var nodes = ImmutableDictionary.CreateBuilder<string, MeshNode>(StringComparer.OrdinalIgnoreCase);
     foreach (var h in bridge.Hubs)
     {
-      var id = MeshHubId.From(h.SystemId);
-      hubs[id.Value] = new MeshHub(id, h.SystemId, h.Name, bw);
+      var id = MeshNodeId.From(h.SystemId);
+      nodes[id.Value] = new MeshNode(id, h.SystemId, h.Name, bw);
     }
 
     var edges = ImmutableArray.CreateBuilder<MeshEdge>();
@@ -25,14 +25,14 @@ public static class MeshBridge
 
     foreach (var (fromId, adj) in bridge.Graph.Adjacency)
     {
-      if (!hubs.ContainsKey(fromId))
+      if (!nodes.ContainsKey(fromId))
       {
         continue;
       }
 
       foreach (var edge in adj)
       {
-        if (!hubs.ContainsKey(edge.To.Value))
+        if (!nodes.ContainsKey(edge.To.Value))
         {
           continue;
         }
@@ -44,8 +44,8 @@ public static class MeshBridge
         }
 
         edges.Add(ToMeshEdge(
-          MeshHubId.From(fromId),
-          MeshHubId.From(edge.To.Value),
+          MeshNodeId.From(fromId),
+          MeshNodeId.From(edge.To.Value),
           edge.DistanceLy,
           p));
       }
@@ -53,21 +53,17 @@ public static class MeshBridge
 
     return MeshState.Empty(p) with
     {
-      Hubs = hubs.ToImmutable(),
+      Nodes = nodes.ToImmutable(),
       Edges = edges.ToImmutable(),
     };
   }
 
-  public static MeshState RegisterIdentity(
+  public static MeshState RegisterMailbox(
     MeshState state,
     MeshIdentityId id,
-    MeshHubId? lastKnownHub = null) =>
-    state with
-    {
-      Identities = state.Identities.SetItem(
-        id.Value,
-        new MeshIdentityBinding(id, lastKnownHub)),
-    };
+    MeshNodeId location,
+    MeshIdentityKind? kind = null) =>
+    MailboxEngine.Register(state, id, location, kind);
 
   public static int PulseTravelHours(double distanceLy, MeshPolicy policy) =>
     Math.Max(1, (int)Math.Ceiling(distanceLy / policy.PulseLyPerHour));
@@ -76,8 +72,8 @@ public static class MeshBridge
     Math.Max(1, (int)Math.Ceiling(distanceLy / policy.BulkLyPerHour));
 
   private static MeshEdge ToMeshEdge(
-    MeshHubId from,
-    MeshHubId to,
+    MeshNodeId from,
+    MeshNodeId to,
     double ly,
     MeshPolicy policy) =>
     new(

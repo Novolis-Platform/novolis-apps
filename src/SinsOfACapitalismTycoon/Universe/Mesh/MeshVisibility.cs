@@ -2,14 +2,14 @@ using System.Collections.Immutable;
 
 namespace SinsOfACapitalismTycoon.Universe.Mesh;
 
-/// <summary>Credit visibility and mailboxes; enqueue launches.</summary>
+/// <summary>Credit node caches; enqueue launches.</summary>
 public static class MeshVisibility
 {
-  public static MeshState CreditHub(MeshState state, PacketId packet, MeshHubId hub)
+  public static MeshState CreditNode(MeshState state, PacketId packet, MeshNodeId node)
   {
     var key = MeshState.PacketKey(packet);
-    var hubKey = hub.Value;
-    var existing = state.HubCaches.TryGetValue(hubKey, out var set)
+    var nodeKey = node.Value;
+    var existing = state.NodeCaches.TryGetValue(nodeKey, out var set)
       ? set
       : ImmutableHashSet<string>.Empty;
     if (existing.Contains(key))
@@ -17,36 +17,17 @@ public static class MeshVisibility
       return state;
     }
 
-    var next = existing.Add(key);
-    return state with
+    state = state with
     {
-      HubCaches = state.HubCaches.SetItem(hubKey, next),
+      NodeCaches = state.NodeCaches.SetItem(nodeKey, existing.Add(key)),
       Stats = state.Stats with { CacheCredits = state.Stats.CacheCredits + 1 },
     };
-  }
-
-  public static MeshState CreditMailbox(MeshState state, PacketId packet, MeshIdentityId identity)
-  {
-    var key = MeshState.PacketKey(packet);
-    var idKey = identity.Value;
-    var existing = state.Mailboxes.TryGetValue(idKey, out var set)
-      ? set
-      : ImmutableHashSet<string>.Empty;
-    if (existing.Contains(key))
-    {
-      return state;
-    }
-
-    return state with
-    {
-      Mailboxes = state.Mailboxes.SetItem(idKey, existing.Add(key)),
-      Stats = state.Stats with { MailboxCredits = state.Stats.MailboxCredits + 1 },
-    };
+    state = MailboxEngine.PushAtNode(state, packet, node);
+    return FeedEngine.ForceMandatoryAtNode(state, packet, node);
   }
 
   public static MeshState EnqueueLaunch(MeshState state, PendingLaunch launch)
   {
-    // Dedupe identical pending
     foreach (var p in state.Pending)
     {
       if (p.PacketId.Equals(launch.PacketId)
@@ -58,7 +39,6 @@ public static class MeshVisibility
       }
     }
 
-    // Skip if already visible at destination (flood) or drone already en route same hop
     if (launch.IsFloodHop && state.IsVisibleAt(launch.PacketId, launch.To))
     {
       return state;
@@ -72,8 +52,8 @@ public static class MeshVisibility
       }
     }
 
-    var pendingAtHub = state.Pending.Count(p => p.From.Equals(launch.From));
-    if (pendingAtHub >= state.Policy.MaxPendingPerHub)
+    var pendingAtNode = state.Pending.Count(p => p.From.Equals(launch.From));
+    if (pendingAtNode >= state.Policy.MaxPendingPerHub)
     {
       return state with
       {

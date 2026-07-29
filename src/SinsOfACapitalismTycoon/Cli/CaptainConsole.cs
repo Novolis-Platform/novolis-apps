@@ -14,13 +14,25 @@ internal static class CaptainConsole
 {
   public static async Task<int> RunAsync(RunOptions options)
   {
-    var session = new CampaignRunner.LiveSession(
-      options.Seed,
-      options.DaysHours,
-      options.Drama,
-      playerControl: true,
-      autopilot: options.Autopilot,
-      localBoard: options.Board == JobBoardScope.Local);
+    CampaignRunner.LiveSession session;
+    if (!string.IsNullOrWhiteSpace(options.LoadSave))
+    {
+      var save = await CampaignSaveResolver.ResolveAsync(options.LoadSave).ConfigureAwait(false)
+                 ?? throw new InvalidOperationException($"Save not found: {options.LoadSave}");
+      Console.WriteLine($"Loading checkpoint {save.Id:N} · {save.Label} · d{save.DayIndex}");
+      session = await CampaignRunner.LiveSession.FromSaveAsync(save).ConfigureAwait(false);
+    }
+    else
+    {
+      session = new CampaignRunner.LiveSession(
+        options.Seed,
+        options.DaysHours,
+        options.Drama,
+        playerControl: true,
+        autopilot: options.Autopilot,
+        localBoard: options.Board == JobBoardScope.Local,
+        lastTramp: options.LastTramp);
+    }
 
     session.AwaitingDecision += () => PrintStatus(session, banner: true);
     session.DayEnded += () =>
@@ -44,7 +56,7 @@ internal static class CaptainConsole
     }
 
     IEnumerable<string> commandSource = options.Playtest
-      ? PlaytestScript()
+      ? (options.LastTramp ? LastTrampPlaytestScript() : PlaytestScript())
       : !string.IsNullOrWhiteSpace(options.Commands)
         ? options.Commands.Split([';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         : ReadInteractive();
@@ -129,6 +141,21 @@ internal static class CaptainConsole
 
     if (options.Playtest)
     {
+      if (options.LastTramp)
+      {
+        var r = session.ToResult();
+        var okLt = r.LastTrampWon && !r.LastTrampLost;
+        var lineLt = okLt
+          ? $"PLAYTEST LAST-TRAMP PASS — operable={r.Survival?.OperableCount} won={r.LastTrampWon}"
+          : $"PLAYTEST LAST-TRAMP FAIL — operable={r.Survival?.OperableCount} won={r.LastTrampWon} lost={r.LastTrampLost} calypso={r.Survival?.CalypsoOperable}";
+        Console.WriteLine();
+        Console.WriteLine(lineLt);
+        Console.Error.WriteLine(lineLt);
+        Console.Out.Flush();
+        Console.Error.Flush();
+        return okLt ? 0 : 1;
+      }
+
       var legs = session.Biographies.ForFirm(session.Ids.Carrier).Any()
                  || session.Sim.State.World.TransportStats.TransitSampleCount > 0
                  || session.Milestones.Entries.Any(m =>
@@ -179,6 +206,13 @@ internal static class CaptainConsole
     yield return "resume";
   }
 
+  private static IEnumerable<string> LastTrampPlaytestScript()
+  {
+    // Autopilot SurvivalCaptain does the hauls; we only keep time flowing to horizon / win.
+    yield return "status";
+    yield return "resume";
+  }
+
   private static IEnumerable<string> ReadInteractive()
   {
     Console.WriteLine();
@@ -199,6 +233,7 @@ internal static class CaptainConsole
     var cmd = line.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0].ToLowerInvariant();
     return cmd is "status" or "spot" or "jobs" or "charters" or "manifest" or "help" or "?"
       or "board" or "profile" or "step" or "continue" or "resume" or "quit" or "exit"
+      or "save" or "saves" or "load"
       or "travel-to-best" or "accept-at-berth" or "accept-remote" or "wait-berth-spot";
   }
 
@@ -228,6 +263,7 @@ internal static class CaptainConsole
           refuse / wait / premium / overhaul
           board network|berth   Spot intel filter
           step / continue / resume / quit
+          save [label] / saves / load latest|<guid>
           """);
         return HandleResult.Ok;
 
@@ -433,6 +469,35 @@ internal static class CaptainConsole
         session.ResumeToHorizon();
         return HandleResult.Quit;
 
+      case "save":
+      {
+        try
+        {
+          var label = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : null;
+          var record = session.SaveCheckpointAsync(label).AsTask().GetAwaiter().GetResult();
+          Console.WriteLine($"Saved {record.Label} id={record.Id:N} → {CampaignSaveStore.Default.RootPath}");
+        }
+        catch (Exception ex)
+        {
+          Console.WriteLine($"Save failed: {ex.Message}");
+          return HandleResult.Fail;
+        }
+
+        return HandleResult.Ok;
+      }
+
+      case "saves":
+        foreach (var s in CampaignSaveStore.Default.List().Take(12))
+        {
+          Console.WriteLine($"{s.Id:N}  d{s.DayIndex}  {s.SavedUtc:u}  {s.Label}  {s.SurvivalLine}");
+        }
+
+        return HandleResult.Ok;
+
+      case "load":
+        Console.WriteLine("Resume only at launch: --load latest|<guid>");
+        return HandleResult.Ok;
+
       case "quit":
       case "exit":
         return HandleResult.Quit;
@@ -475,6 +540,7 @@ internal static class CaptainConsole
     Console.WriteLine($"d{desk.Day}  {desk.VoyageLine}");
     Console.WriteLine($"  cash {desk.CashLine}  {desk.StandingLine}  {desk.HoldLine}");
     Console.WriteLine($"  decision: {desk.DecisionLine}");
+    if (!string.IsNullOrEmpty(desk.SurvivalLine)) Console.WriteLine($"  {desk.SurvivalLine}");
     if (desk.StandbyOffer) Console.WriteLine("  STANDBY — refuse | accept standby via charters");
     if (!string.IsNullOrEmpty(desk.SoftFailLine)) Console.WriteLine($"  {desk.SoftFailLine}");
     if (banner)

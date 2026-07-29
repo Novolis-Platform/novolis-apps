@@ -45,10 +45,15 @@ CLI mirrors GUI: `travel`, `spot`, `charters`, `accept N`, `manifest`, `depart`,
 
 Agent-playable text desk: `--mode captain` or `--playtest`.
 
-Victory is **survival with standing** (insured, fueled, escrow-clean) over the run horizon.
-Soft fail toast after **7+ days** grounded (`!CanOperate`). Refuse ugly standby →
+Checkpoints use `Novolis.Storage.Json` under `%LocalAppData%/Novolis/SinsOfACapitalismTycoon/saves`.
+Desk **Save** / captain `save`; resume with `--load latest` (replays seed→hours).
+
+Victory is **survival with standing** (insured, fueled, escrow-clean) over the run horizon —
+or, with `--last-tramp`, **sole operable LightCommercial tramp** (`CanOperate`). Rival hulls are
+squeezed off the board on a staggered schedule; household ventures stay locked. Soft fail toast
+after **7+ days** grounded (`!CanOperate`). Refuse ugly standby →
 `standby-pass` (≠ premium spike). Headless without `--player` leaves Calypso AI-driven
-(judge mode).
+(judge mode). Autopilot + last-tramp: `SurvivalCaptain` keeps Calypso insured/working the berth.
 
 ## What you are playing
 

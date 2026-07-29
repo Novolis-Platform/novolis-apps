@@ -5,29 +5,33 @@ Bounded-minimum Confederation **mesh** under [`Universe/Mesh/`](../Universe/Mesh
 
 Doctrine: [The Confederation Does Not Deliver Messages](https://frankhaugen.github.io/galactic-confederation-review/articles/the-confederation-does-not-deliver-messages/).
 
+## Who has mailboxes
+
+Any endpoint can own a mailbox + feed book, named with a kind prefix:
+
+| Kind | Id factory | Example |
+|------|------------|---------|
+| Person | `MeshIdentityIds.Person` | `person:ST-7749-…` (James) |
+| Household | `MeshIdentityIds.Household` | `household:{guid}` at home system |
+| Firm | `MeshIdentityIds.Firm` | `firm:mining` |
+| Ship | `MeshIdentityIds.Ship` | `ship:ST Calypso` |
+| Thing | `MeshIdentityIds.Thing` | `thing:facility:{guid}` |
+
 ## Contract
 
-| Address | Mode | Outcome |
-|---------|------|---------|
-| Place (system hub) | Directed pulse drones along known edges | Packet **visible** at destination hub |
-| Identity (ship / person / firm) | Flood among hubs | Packet in **mailbox** (and hub caches along the way) |
-| Public | Flood | Visible in hub caches |
+| Address | Mode | How you get it |
+|---------|------|----------------|
+| Place (system **node**) | Directed pulse | Visible at destination node cache |
+| Identity | Flood | **Push** into mailbox when co-located with a holding node |
+| Feed (`News.*`) | Flood | **Pull** only subscribed channels |
+| Feed (`Emergency`) | Flood | **Forced** — every mailbox is on it; cannot unsubscribe; force-copied into feed inbox at co-located nodes |
 
-There is no delivery-to-human API. Offline identities still accumulate mailbox entries.
+Listening to `News.General` does not pull `News.Prices`. Everyone still gets `Emergency`.
 
-## Timing
+## Campaign seed
 
-- One `MeshPulse.TickHour` per campaign hour (after Economy advance).
-- Pulse travel ≈ **20× tramp cruise** ly/h (tiny disposable mass).
-- Bulk hops use tramp-class ly/h.
-- Hub `PulseBandwidthPerHour` gates new launches; higher postage priority wins.
-
-## Campaign wiring
-
-- Seeded from `AstroEconomyBridge` hop graph.
-- Smoke publishes at create: directed Sol→Wolf (or first non-Sol) + identity flood for Calypso (`PlayerFlavorId`).
-- Spectre report includes a **Mesh** block (hubs, drones, publish/launch stats).
+Registers person (Calypso master), ships, firms, household cohorts at their systems, and facility things. Smoke publishes include an Emergency alert at Sol.
 
 ## Promotion
 
-Kernel types are extractable to future `Novolis.Mesh.Core`. Do not promote fiction mesh into `Novolis.Transports.*`.
+Extractable to `Novolis.Mesh.Core`. Mesh says **Node**; logistics still says Hub.

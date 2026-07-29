@@ -45,7 +45,6 @@ public static class DroneTickEngine
       state = OnArrive(state, drone);
     }
 
-    // Drop finished/lost drones before requeue so dedupe does not see ghosts.
     state = state with { Drones = nextDrones.ToImmutable() };
     foreach (var retry in retries)
     {
@@ -63,7 +62,6 @@ public static class DroneTickEngine
       return false;
     }
 
-    // Apply risk only on the arrival hour so multi-hour hops still make progress.
     if (drone.RemainingHours != 1)
     {
       return false;
@@ -76,7 +74,6 @@ public static class DroneTickEngine
       return false;
     }
 
-    // Deterministic per packet (not per random drone id) so scenarios are stable.
     var h = HashCode.Combine(drone.PacketId.Value);
     return (h & int.MaxValue) % n == 0;
   }
@@ -87,16 +84,8 @@ public static class DroneTickEngine
     {
       Stats = state.Stats with { DronesArrived = state.Stats.DronesArrived + 1 },
     };
-    state = MeshVisibility.CreditHub(state, drone.PacketId, drone.To);
-
-    if (state.TryGetPacket(drone.PacketId, out var packet))
-    {
-      if (packet.Destination.Kind == MeshAddressKind.Identity
-          && packet.Destination.Identity is { } identity)
-      {
-        state = MeshVisibility.CreditMailbox(state, drone.PacketId, identity);
-      }
-    }
+    // CreditNode also pushes identity mail when a mailbox is co-located.
+    state = MeshVisibility.CreditNode(state, drone.PacketId, drone.To);
 
     if (!drone.RemainingPathAfterArrival.IsDefaultOrEmpty
         && drone.RemainingPathAfterArrival.Length > 0)
@@ -104,7 +93,7 @@ public static class DroneTickEngine
       var next = drone.RemainingPathAfterArrival[0];
       var rest = drone.RemainingPathAfterArrival.Length > 1
         ? drone.RemainingPathAfterArrival.Skip(1).ToImmutableArray()
-        : ImmutableArray<MeshHubId>.Empty;
+        : ImmutableArray<MeshNodeId>.Empty;
       state = MeshVisibility.EnqueueLaunch(state, new PendingLaunch(
         drone.PacketId,
         drone.To,
@@ -115,7 +104,6 @@ public static class DroneTickEngine
     }
     else if (drone.IsFloodHop || IsFloodPacket(state, drone.PacketId))
     {
-      // Allow FloodDispatch to fan out from arrival hub (clear seeded flag for this hub).
       var pk = MeshState.PacketKey(drone.PacketId);
       if (state.FloodSeededAt.TryGetValue(pk, out var seeded) && seeded.Contains(drone.To.Value))
       {
@@ -131,5 +119,5 @@ public static class DroneTickEngine
 
   private static bool IsFloodPacket(MeshState state, PacketId id) =>
     state.TryGetPacket(id, out var p)
-    && p.Destination.Kind is MeshAddressKind.Identity or MeshAddressKind.Public;
+    && p.Destination.Kind is MeshAddressKind.Identity or MeshAddressKind.Feed;
 }

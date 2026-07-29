@@ -488,7 +488,7 @@ internal static class CampaignWorld
       RoleSummary = roleSummary,
     };
 
-    ids.Mesh = SeedMesh(bridge, desk);
+    ids.Mesh = SeedMesh(bridge, desk, householdSeeds, sites);
     var sim = new EconomySimulation(seed, builder.Build());
     SeedInventory(sim, ids);
     ApplyStoreLimits(sim, ids);
@@ -496,29 +496,64 @@ internal static class CampaignWorld
     return (sim, ids);
   }
 
-  private static MeshState SeedMesh(AstroEconomyBridge.BridgeResult bridge, CampaignRegistryDesk desk)
+  private static MeshState SeedMesh(
+    AstroEconomyBridge.BridgeResult bridge,
+    CampaignRegistryDesk desk,
+    List<(AstroEconomyBridge.HubBinding Hub, int Households, FirmId HouseholdId)> householdSeeds,
+    IReadOnlyDictionary<string, Site> sites)
   {
     var mesh = MeshBridge.FromBridge(bridge);
-    var sol = MeshHubId.From("sol");
-    var calypso = MeshIdentityId.From(PlayerFlavorId);
-    mesh = MeshBridge.RegisterIdentity(
-      mesh,
-      calypso,
-      bridge.BySystemId.ContainsKey("sol") ? sol : null);
+    var sol = MeshNodeId.From("sol");
 
+    // Person — James / Calypso master
+    var calypso = MeshIdentityIds.Person(PlayerFlavorId);
+    mesh = MeshBridge.RegisterMailbox(mesh, calypso, sol, MeshIdentityKind.Person);
+
+    // Ships
     foreach (var ship in desk.Ships.Entries)
     {
-      if (ship.RegistryName.Equals(PlayerHullName, StringComparison.Ordinal))
-      {
-        continue; // Calypso registered under flavor id
-      }
-
-      mesh = MeshBridge.RegisterIdentity(mesh, MeshIdentityId.From(ship.RegistryName), sol);
+      var shipId = MeshIdentityIds.Ship(ship.RegistryName);
+      mesh = MeshBridge.RegisterMailbox(mesh, shipId, sol, MeshIdentityKind.Ship);
     }
 
-    mesh = MeshBridge.RegisterIdentity(mesh, MeshIdentityId.From("firm:mining"), sol);
-    mesh = MeshBridge.RegisterIdentity(mesh, MeshIdentityId.From("firm:industry"), sol);
-    mesh = MeshBridge.RegisterIdentity(mesh, MeshIdentityId.From("firm:station"), sol);
+    // Firms
+    mesh = MeshBridge.RegisterMailbox(mesh, MeshIdentityIds.Firm("mining"), sol, MeshIdentityKind.Firm);
+    mesh = MeshBridge.RegisterMailbox(mesh, MeshIdentityIds.Firm("industry"), sol, MeshIdentityKind.Firm);
+    mesh = MeshBridge.RegisterMailbox(mesh, MeshIdentityIds.Firm("station"), sol, MeshIdentityKind.Firm);
+    mesh = MeshBridge.RegisterMailbox(
+      mesh, MeshIdentityIds.Firm("simmons-transport"), sol, MeshIdentityKind.Firm);
+
+    // Households — mailbox at their home system node
+    foreach (var (hub, _, householdId) in householdSeeds)
+    {
+      var node = MeshNodeId.From(hub.SystemId);
+      var hh = MeshIdentityIds.Household(householdId.Value.ToString("N"));
+      mesh = MeshBridge.RegisterMailbox(mesh, hh, node, MeshIdentityKind.Household);
+    }
+
+    // Things — station/facility endpoints at sites that have facilities
+    foreach (var (systemId, site) in sites)
+    {
+      var node = MeshNodeId.From(systemId);
+      if (site.Facility is { } sales)
+      {
+        mesh = MeshBridge.RegisterMailbox(
+          mesh,
+          MeshIdentityIds.Thing($"facility:{sales.Value:N}"),
+          node,
+          MeshIdentityKind.Thing);
+      }
+
+      if (site.MfgFacility is { } mfg)
+      {
+        mesh = MeshBridge.RegisterMailbox(
+          mesh,
+          MeshIdentityIds.Thing($"facility:{mfg.Value:N}"),
+          node,
+          MeshIdentityKind.Thing);
+      }
+    }
+
     mesh = MeshPulse.SeedSmokePublishes(mesh, calypso);
     InvariantChecker.AssertAll(mesh);
     return mesh;

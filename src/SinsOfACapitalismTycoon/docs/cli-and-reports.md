@@ -21,6 +21,9 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 | `--board local\|network` | `network` | Spot intel filter (`berth`/`local` = current hub only; accept still berth-gated) |
 | `--commands "…"` | — | Captain script (`status;spot;travel X;accept 0;depart;…`) |
 | `--playtest` | — | Built-in captain acceptance (agent-friendly) |
+| `--last-tramp` | off | Win = sole operable LightCommercial tramp; rival market squeeze |
+| `--playtest-last-tramp` | — | 120d captain + autopilot + last-tramp acceptance |
+| `--load latest\|<guid>` | — | Resume Json checkpoint (`Novolis.Storage.Json`) |
 | `--quiet` / `-q` | off | Hide progress; still print report (headless) |
 
 ## Spectre narrative sections
@@ -63,14 +66,16 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 
 dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
   -p:NovolisUseProjectReferences=true -- `
+  --playtest-last-tramp --seed 1001
+
+dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
+  -p:NovolisUseProjectReferences=true -- `
   --engine campaign --days 30d --seed 1001 --mode captain `
   --commands "status;spot;travel-to-best;continue;accept-at-berth;depart;resume"
 ```
 
 Captain verbs: `travel`, `spot`, `charters`, `accept N`, `manifest`, `depart`, `refuse`.
-Requires `Novolis.Avalonia.Briefing` (+ StarMap, Studio, Agent) on GitHub Packages `2026.1.*`, or
-ProjectRef for local sibling checkouts. Avalonia agent smoke: [AGENT-SMOKE.md](../AGENT-SMOKE.md).
-Mid-tick map animation stays on the roadmap.
+`--last-tramp` / Avalonia: survival strip `calypso.survival` (agent-readable).
 
 ## Core smoke
 

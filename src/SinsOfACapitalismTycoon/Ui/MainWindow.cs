@@ -31,6 +31,7 @@ internal sealed class MainWindow : Window
   readonly TextBlock _hullStats;
   readonly TextBlock _decision;
   readonly TextBlock _softFail;
+  readonly TextBlock _survival;
   readonly ListBox _spot;
   readonly ListBox _charters;
   readonly ListBox _manifest;
@@ -49,6 +50,7 @@ internal sealed class MainWindow : Window
   readonly Button _btnResume;
   readonly Button _btnPause;
   readonly Button _btnTravel;
+  readonly Button _btnSave;
   readonly Button _btnAcceptSpot;
   readonly Button _btnDepart;
   readonly Button _btnRefuseStandby;
@@ -102,11 +104,13 @@ internal sealed class MainWindow : Window
     _btnResume = TransportBtn("To horizon", "calypso.resume");
     _btnPause = TransportBtn("Pause next day", "calypso.pause");
     _btnTravel = TransportBtn("Travel here", "calypso.travel");
+    _btnSave = TransportBtn("Save", "calypso.save");
     _btnStep.Click += (_, _) => _session?.StepDay();
     _btnContinue.Click += (_, _) => { _session?.Continue(); _feedback.SetStatus("Running until next decision…"); };
     _btnResume.Click += (_, _) => { _session?.ResumeToHorizon(); _feedback.SetStatus("Running to horizon…"); };
     _btnPause.Click += (_, _) => { _session?.Pause(); _feedback.SetStatus("Will pause after current day"); };
     _btnTravel.Click += (_, _) => TravelToSelection();
+    _btnSave.Click += (_, _) => _ = SaveCheckpointAsync();
 
     _travelSystem = new TextBox
     {
@@ -122,7 +126,7 @@ internal sealed class MainWindow : Window
       Orientation = Orientation.Horizontal,
       Spacing = 8,
       Margin = new Thickness(0, 8, 0, 0),
-      Children = { _btnStep, _btnContinue, _btnResume, _btnPause, _travelSystem, _btnTravel },
+      Children = { _btnStep, _btnContinue, _btnResume, _btnPause, _travelSystem, _btnTravel, _btnSave },
     };
 
     var header = new StackPanel
@@ -177,10 +181,19 @@ internal sealed class MainWindow : Window
     _hullStats = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#e8e8e8")), TextWrapping = TextWrapping.Wrap, FontSize = 13 };
     _decision = new TextBlock { Foreground = MutedBrush, TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
     _softFail = new TextBlock { Foreground = new SolidColorBrush(Color.Parse("#e07070")), TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+    _survival = new TextBlock
+    {
+      Foreground = new SolidColorBrush(Color.Parse("#6ecf8e")),
+      TextWrapping = TextWrapping.Wrap,
+      FontSize = 12,
+      FontWeight = FontWeight.SemiBold,
+      Margin = new Thickness(0, 2, 0, 0),
+    };
     AgentProperties.SetId(_voyage, "calypso.voyage");
     AgentProperties.SetId(_hullStats, "calypso.hull");
     AgentProperties.SetId(_decision, "calypso.decision");
     AgentProperties.SetId(_softFail, "calypso.softFail");
+    AgentProperties.SetId(_survival, "calypso.survival");
 
     _profile = new ComboBox
     {
@@ -278,6 +291,7 @@ internal sealed class MainWindow : Window
         _voyage,
         _hullStats,
         _decision,
+        _survival,
         _softFail,
         new StackPanel
         {
@@ -357,34 +371,67 @@ internal sealed class MainWindow : Window
 
   void StartSession()
   {
-    _feedback.SetBusy("Seeding Near-Sol…");
+    _feedback.SetBusy(string.IsNullOrWhiteSpace(_options.LoadSave)
+      ? "Seeding Near-Sol…"
+      : "Loading checkpoint…");
     try
     {
-      _session = new CampaignRunner.LiveSession(
-        _options.Seed,
-        _options.DaysHours,
-        _options.Drama,
-        playerControl: _options.Player,
-        autopilot: _options.Autopilot,
-        localBoard: _options.Board == JobBoardScope.Local);
-      _session.PauseMode = _options.Player ? CaptainPauseMode.UntilDecision : CaptainPauseMode.Never;
-      _session.DayEnded += () => Dispatcher.UIThread.Post(RefreshDesk);
-      _session.AwaitingDecision += () => Dispatcher.UIThread.Post(() =>
-      {
-        RefreshDesk();
-        _feedback.ClearBusy();
-        _feedback.Flash("Decision — dock act or travel");
-        _feedback.SetStatus("Paused · Accept only at load berth · Travel via map");
-      });
-
       _ = Task.Run(async () =>
       {
         try
         {
-          await _session.RunAsync(quiet: true, story: false).ConfigureAwait(false);
+          CampaignRunner.LiveSession session;
+          if (!string.IsNullOrWhiteSpace(_options.LoadSave))
+          {
+            var save = await CampaignSaveResolver.ResolveAsync(_options.LoadSave).ConfigureAwait(false)
+                       ?? throw new InvalidOperationException($"Save not found: {_options.LoadSave}");
+            session = await CampaignRunner.LiveSession.FromSaveAsync(save).ConfigureAwait(false);
+          }
+          else
+          {
+            session = new CampaignRunner.LiveSession(
+              _options.Seed,
+              _options.DaysHours,
+              _options.Drama,
+              playerControl: _options.Player,
+              autopilot: _options.Autopilot,
+              localBoard: _options.Board == JobBoardScope.Local,
+              lastTramp: _options.LastTramp);
+          }
+
+          _session = session;
+          session.PauseMode = _options.Player ? CaptainPauseMode.UntilDecision : CaptainPauseMode.Never;
+          session.DayEnded += () => Dispatcher.UIThread.Post(RefreshDesk);
+          session.AwaitingDecision += () => Dispatcher.UIThread.Post(() =>
+          {
+            RefreshDesk();
+            _feedback.ClearBusy();
+            _feedback.Flash("Decision — dock act or travel");
+            _feedback.SetStatus("Paused · Accept only at load berth · Travel via map");
+          });
+
           Dispatcher.UIThread.Post(() =>
           {
-            var briefing = CampaignBriefingModel.From(_session.ToResult());
+            RefreshDesk();
+            _feedback.ClearBusy();
+            _feedback.SetStatus(_options.Player
+              ? "See intel anywhere · accept only at berth · travel empty · Save checkpoints"
+              : "Spectator run…");
+          });
+
+          await session.RunAsync(quiet: true, story: false).ConfigureAwait(false);
+          try
+          {
+            await session.SaveCheckpointAsync("auto-horizon").ConfigureAwait(false);
+          }
+          catch
+          {
+            // non-fatal
+          }
+
+          Dispatcher.UIThread.Post(() =>
+          {
+            var briefing = CampaignBriefingModel.From(session.ToResult());
             _briefing = briefing;
             _raw.Text = briefing.RawReport;
             _feedback.ClearBusy();
@@ -394,6 +441,7 @@ internal sealed class MainWindow : Window
         }
         catch (Exception ex)
         {
+          CrashGuard.Report(ex, "MainWindow.RunAsync", openEditor: true, writeMiniDump: false);
           Dispatcher.UIThread.Post(() =>
           {
             _feedback.ClearBusy();
@@ -401,15 +449,31 @@ internal sealed class MainWindow : Window
           });
         }
       });
-
-      _feedback.ClearBusy();
-      _feedback.SetStatus(_options.Player
-        ? "See intel anywhere · accept only at berth · travel empty"
-        : "Spectator run…");
     }
     catch (Exception ex)
     {
+      CrashGuard.Report(ex, "MainWindow.StartCampaign", openEditor: true, writeMiniDump: false);
       _feedback.ClearBusy();
+      _feedback.FlashError(ex.Message);
+    }
+  }
+
+  async Task SaveCheckpointAsync()
+  {
+    if (_session is null)
+    {
+      return;
+    }
+
+    try
+    {
+      var record = await _session.SaveCheckpointAsync().ConfigureAwait(true);
+      _feedback.Flash($"Saved {record.Label} ({record.Id:N})");
+      _feedback.SetStatus($"Checkpoint → {CampaignSaveStore.Default.RootPath}");
+    }
+    catch (Exception ex)
+    {
+      CrashGuard.Report(ex, "MainWindow.Save", openEditor: false, writeMiniDump: false);
       _feedback.FlashError(ex.Message);
     }
   }
@@ -423,6 +487,13 @@ internal sealed class MainWindow : Window
     _voyage.Text = desk.VoyageLine;
     _hullStats.Text = $"Cash {desk.CashLine} · {desk.StandingLine}\n{desk.HullLine}\n{desk.HoldLine}";
     _decision.Text = desk.DecisionLine;
+    _survival.Text = desk.SurvivalLine;
+    _survival.IsVisible = !string.IsNullOrEmpty(desk.SurvivalLine);
+    _survival.Foreground = desk.SurvivalLine.Contains("WIN", StringComparison.Ordinal)
+      ? new SolidColorBrush(Color.Parse("#6ecf8e"))
+      : desk.SurvivalLine.Contains("LOSE", StringComparison.Ordinal)
+        ? new SolidColorBrush(Color.Parse("#e07070"))
+        : new SolidColorBrush(Color.Parse("#9a9aaa"));
     _softFail.Text = desk.SoftFailLine;
     _softFail.IsVisible = !string.IsNullOrEmpty(desk.SoftFailLine);
     _map.SetMap(desk.MapPoints, desk.MapEdges);
