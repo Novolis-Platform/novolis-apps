@@ -39,6 +39,7 @@
     <PackageVersion Include="Novolis.Avalonia.Rendering" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Studio" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Cad" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Cad.Primitives" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Agent" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Agent.Protocol" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Game.Session" Version="2026.1.*" />
@@ -83,5 +84,7 @@
     <PackageVersion Include="WeCantSpell.Hunspell" Version="7.0.1" />
     <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageVersion Include="YamlDotNet" Version="16.3.0" />
+    <PackageVersion Include="Optris.Icons.Avalonia" Version="12.0.6" />
+    <PackageVersion Include="Optris.Icons.Avalonia.FontAwesome" Version="12.0.6" />
   </ItemGroup>
 </Project>

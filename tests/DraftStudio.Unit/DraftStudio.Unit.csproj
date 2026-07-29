@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="Novolis.Avalonia.Cad" />
+    <PackageReference Include="Novolis.Cad.Primitives" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\DraftStudio\DraftStudio.csproj" />
