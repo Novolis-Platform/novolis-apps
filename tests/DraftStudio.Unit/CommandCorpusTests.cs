@@ -1,4 +1,5 @@
 using System.Globalization;
+using Novolis.Cad.Primitives;
 
 namespace DraftStudio.Unit;
 
@@ -45,23 +46,20 @@ public sealed class CommandCorpusTests
         var (settings, session, _, dispatcher) = DraftTestHarness.Create();
         DraftTestHarness.DispatchOk(dispatcher, "Level(0)");
         DraftTestHarness.DispatchOk(dispatcher, "Rect(0,0,10,8)");
-        DraftTestHarness.DispatchOk(dispatcher, "Rect(1,1,3,2)"); // room
+        DraftTestHarness.DispatchOk(dispatcher, "Rect(1,1,3,2)");
         DraftTestHarness.DispatchOk(dispatcher, "Level(3)");
         DraftTestHarness.DispatchOk(dispatcher, "Rect(0,0,10,8)");
         DraftTestHarness.DispatchOk(dispatcher, "Circle(5,4,1)");
         session.Save();
 
         var ground = session.Document.Entities.Count(e =>
-            CadVecElevation(e) is >= -0.01f and <= 0.01f && e.Kind is "rect" or "circle");
+            CadVec.ElevationOf(e) is >= -0.01f and <= 0.01f && e.Kind is "rect" or "circle");
         var upper = session.Document.Entities.Count(e =>
-            CadVecElevation(e) is >= 2.9f and <= 3.1f && e.Kind is "rect" or "circle");
+            CadVec.ElevationOf(e) is >= 2.9f and <= 3.1f && e.Kind is "rect" or "circle");
 
         await Assert.That(ground).IsGreaterThanOrEqualTo(2);
         await Assert.That(upper).IsGreaterThanOrEqualTo(2);
         await Assert.That(File.Exists(session.DocumentPath)).IsTrue();
         await Assert.That(settings.Settings.DrawElevation).IsEqualTo(3f);
     }
-
-    private static float CadVecElevation(DraftStudio.Models.CadEntity e) =>
-        DraftStudio.Models.CadVec.ElevationOf(e);
 }

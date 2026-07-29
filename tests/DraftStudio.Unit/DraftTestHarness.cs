@@ -1,25 +1,25 @@
-using DraftStudio.Commands;
-using DraftStudio.Core;
-using DraftStudio.Services;
+using Novolis.Avalonia.Cad.Commands;
+using Novolis.Avalonia.Cad.Core;
+using Novolis.Avalonia.Cad.Services;
 
 namespace DraftStudio.Unit;
 
 internal static class DraftTestHarness
 {
-    public static (DraftSettingsStore Settings, DraftSession Session, DraftCommandBus Bus, DraftCommandDispatcher Dispatcher) Create(
+    public static (CadEditorSettings Settings, CadDocumentSession Session, CadCommandBus Bus, CadCommandDispatcher Dispatcher) Create(
         string? root = null)
     {
         root ??= Path.Combine(Path.GetTempPath(), "draft-unit-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        var settings = new DraftSettingsStore(root);
-        var session = new DraftSession(settings);
-        var bus = new DraftCommandBus(session);
-        var dispatcher = new DraftCommandDispatcher(session, bus, settings);
+        var settings = new CadEditorSettings(root);
+        var session = new CadDocumentSession(settings);
+        var bus = new CadCommandBus(session);
+        var dispatcher = new CadCommandDispatcher(session, bus, settings);
         session.OpenOrCreateDefault();
         return (settings, session, bus, dispatcher);
     }
 
-    public static void DispatchOk(DraftCommandDispatcher dispatcher, string prompt)
+    public static void DispatchOk(CadCommandDispatcher dispatcher, string prompt)
     {
         var err = dispatcher.TryDispatch(prompt);
         if (err is not null)

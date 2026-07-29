@@ -47,7 +47,7 @@ internal sealed class MainWindow : Window
     private CheckBox _isolateCheck = null!;
     private NumericUpDown _elevationBox = null!;
     private StackPanel _toolStrip = null!;
-    private CadViewMode _viewMode = CadViewMode.Draft;
+    private CadWorkspace _workspace = CadWorkspace.Cad;
     private bool _orbiting;
     private Point _lastPointer;
     private bool _suppressList;
@@ -61,7 +61,7 @@ internal sealed class MainWindow : Window
         _bus = cad.Bus;
         _dispatcher = cad.Dispatcher;
         _tools = new CadToolController(_dispatcher, _settings);
-        _modelRenderer = new CadModelRenderer(_session);
+        _modelRenderer = new CadModelRenderer(_session, _settings);
         _artifacts = new DraftArtifactDumper(_session, _settings);
         _cad.ExportRoot = Path.Combine(_settings.DataRoot, "exports");
         _cad.FitHandler = OnFit;
@@ -109,6 +109,7 @@ internal sealed class MainWindow : Window
 
         toolbar.Children.Add(Btn("New", () => _ = OnNewAsync(), "draft.tool.new", "Ctrl+N"));
         toolbar.Children.Add(Btn("Open…", () => _ = OnOpenAsync(), "draft.tool.open", "Ctrl+O"));
+        toolbar.Children.Add(Btn("Import ship…", () => _ = OnImportShipAsync(), "draft.tool.importShip", "Copy generated ship .cadjson into workspace and open"));
         toolbar.Children.Add(Btn("Save", OnSave, "draft.tool.save", "Ctrl+S"));
         toolbar.Children.Add(Btn("Save As…", () => _ = OnSaveAsAsync(), "draft.tool.saveAs", "Ctrl+Shift+S"));
         toolbar.Children.Add(Sep());
@@ -121,8 +122,9 @@ internal sealed class MainWindow : Window
         toolbar.Children.Add(Btn("Zoom −", () => _draftViewport.ZoomBy(0.8), "draft.camera.zoomOut", "Ctrl+-"));
         toolbar.Children.Add(Btn("Pan ↺", () => _draftViewport.ResetView(), "draft.camera.reset", "Home"));
         toolbar.Children.Add(Sep());
-        toolbar.Children.Add(Btn("Draft", () => SetViewMode(CadViewMode.Draft), "draft.view.draft"));
-        toolbar.Children.Add(Btn("Model", () => SetViewMode(CadViewMode.Model), "draft.view.model"));
+        toolbar.Children.Add(Btn("CAD", () => SetWorkspace(CadWorkspace.Cad), "draft.view.cad"));
+        toolbar.Children.Add(Btn("Modeling", () => SetWorkspace(CadWorkspace.Modeling), "draft.view.modeling"));
+        toolbar.Children.Add(Btn("Preview", () => SetWorkspace(CadWorkspace.Preview), "draft.view.preview"));
         toolbar.Children.Add(Sep());
         toolbar.Children.Add(Btn("Export Phys…", () => _ = OnExportPhysAsync(), "draft.export.phys"));
         toolbar.Children.Add(Btn("Dump…", () => _ = OnDumpArtifactsAsync(), "draft.dump", "Save + draft/model/window PNGs"));
@@ -192,6 +194,18 @@ internal sealed class MainWindow : Window
 
         _viewportStack = _editor;
 
+        // Workspace chrome: selection modes + modeling tools above command bar
+        var workspaceChrome = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 4,
+            Margin = new Thickness(8, 0, 8, 4),
+        };
+        workspaceChrome.Children.Add(_editor.SelectionModeBar);
+        workspaceChrome.Children.Add(_editor.ToolStrip);
+        AgentProperties.SetId(_editor.SceneTree, "draft.sceneTree");
+        AgentProperties.SetId(_editor.PropertyPanel, "draft.properties.panel");
+
         // Shape / mode strip immediately above the command bar
         _toolStrip = new StackPanel
         {
@@ -237,8 +251,8 @@ internal sealed class MainWindow : Window
         ToolTip.SetTip(_elevationBox, "Drawing plane elevation (world Y). Plan view is XZ.");
         _elevationBox.ValueChanged += OnElevationChanged;
         _toolStrip.Children.Add(_elevationBox);
-        _toolStrip.Children.Add(Btn("+1", () => NudgeElevation(1f), "draft.elevation.up"));
-        _toolStrip.Children.Add(Btn("−1", () => NudgeElevation(-1f), "draft.elevation.down"));
+        _toolStrip.Children.Add(Btn("+1", () => NudgeElevation(ShipAwareStep()), "draft.elevation.up", "Next deck / +1 m"));
+        _toolStrip.Children.Add(Btn("−1", () => NudgeElevation(-ShipAwareStep()), "draft.elevation.down", "Prev deck / −1 m"));
         _toolStrip.Children.Add(Btn("0", () => SetElevation(0f), "draft.elevation.zero"));
 
         _isolateCheck = new CheckBox
@@ -254,6 +268,9 @@ internal sealed class MainWindow : Window
         {
             _settings.Settings.IsolateLevel = _isolateCheck.IsChecked == true;
             _draftViewport.InvalidateVisual();
+            if (_workspace != CadWorkspace.Cad)
+                _raylibHost.RequestFrame();
+            RefreshUi();
         };
         _toolStrip.Children.Add(_isolateCheck);
 
@@ -291,6 +308,7 @@ internal sealed class MainWindow : Window
         };
 
         var bottomStack = new StackPanel { Spacing = 0 };
+        bottomStack.Children.Add(workspaceChrome);
         bottomStack.Children.Add(_toolStrip);
         bottomStack.Children.Add(_commandBar);
 
@@ -303,39 +321,35 @@ internal sealed class MainWindow : Window
 
         var viewportWithStatus = StudioWorkspace.CreateViewportStack(center, chrome.FlashLine, chrome.StatusLine);
 
-        _entityList = new ListBox();
-        AgentProperties.SetId(_entityList, "draft.entities", AgentRoleNames.ListBox);
-        _entityList.ItemTemplate = new FuncDataTemplate<CadEntity>((item, _) =>
-            new TextBlock { Text = item.Summary, Margin = new Thickness(4) }, true);
+        var left = new DockPanel { Margin = new Thickness(4) };
+        var leftTitle = new TextBlock { Text = "Scene", FontWeight = FontWeight.SemiBold, Margin = new Thickness(4) };
+        DockPanel.SetDock(leftTitle, Dock.Top);
+        left.Children.Add(leftTitle);
+        left.Children.Add(_editor.SceneTree);
+
+        // Keep list for agent compatibility (hidden sync)
+        _entityList = new ListBox { IsVisible = false };
         _entityList.SelectionChanged += (_, _) =>
         {
             if (_suppressList)
                 return;
             if (_entityList.SelectedItem is CadEntity entity)
-            {
-                _session.SelectedId = entity.Id;
-                _session.Notify();
-            }
+                _session.SetSelection(entity.Id);
         };
-
-        var left = new DockPanel { Margin = new Thickness(4) };
-        var leftTitle = new TextBlock { Text = "Entities", FontWeight = FontWeight.SemiBold, Margin = new Thickness(4) };
-        DockPanel.SetDock(leftTitle, Dock.Top);
-        left.Children.Add(leftTitle);
-        left.Children.Add(_entityList);
 
         _inspector = new TextBlock
         {
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(8),
             Opacity = 0.9,
+            IsVisible = false,
         };
         AgentProperties.SetId(_inspector, "draft.inspector");
         var right = new DockPanel { Margin = new Thickness(4) };
-        var rightTitle = new TextBlock { Text = "Inspector", FontWeight = FontWeight.SemiBold, Margin = new Thickness(4) };
+        var rightTitle = new TextBlock { Text = "Properties", FontWeight = FontWeight.SemiBold, Margin = new Thickness(4) };
         DockPanel.SetDock(rightTitle, Dock.Top);
         right.Children.Add(rightTitle);
-        right.Children.Add(_inspector);
+        right.Children.Add(_editor.PropertyPanel);
 
         return new DraftWorkspace(_settings, left, viewportWithStatus, right);
     }
@@ -353,11 +367,14 @@ internal sealed class MainWindow : Window
         SyncElevationUi();
         _suppressUnit = false;
 
-        if (string.Equals(_settings.Settings.ViewMode, "model", StringComparison.OrdinalIgnoreCase))
-            SetViewMode(CadViewMode.Model);
+        if (string.Equals(_settings.Settings.ViewMode, "model", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(_settings.Settings.ViewMode, "preview", StringComparison.OrdinalIgnoreCase))
+            SetWorkspace(CadWorkspace.Preview);
+        else if (string.Equals(_settings.Settings.ViewMode, "modeling", StringComparison.OrdinalIgnoreCase))
+            SetWorkspace(CadWorkspace.Modeling);
         else
-            SetViewMode(CadViewMode.Draft);
-        OnFit();
+            SetWorkspace(CadWorkspace.Cad);
+        AfterShipDocumentLoaded();
         UpdateCommandPrompt();
         HighlightActiveTool();
         UpdateStatus();
@@ -367,20 +384,32 @@ internal sealed class MainWindow : Window
     private void RefreshUi()
     {
         _suppressList = true;
-        _entityList.ItemsSource = _session.Document.Entities.ToList();
+        var entities = _session.Document.Entities.AsEnumerable();
+        if (_settings.Settings.IsolateLevel)
+        {
+            entities = entities.Where(e =>
+                CadVec.MatchesLevel(e, _settings.Settings.DrawElevation, _settings.Settings.LevelTolerance));
+        }
+
+        _entityList.ItemsSource = entities.ToList();
         var selected = _session.SelectedEntity;
         _entityList.SelectedItem = selected;
         _suppressList = false;
 
         var unit = _settings.Settings.DisplayUnit;
+        var ship = CadVec.LooksLikeShipDocument(_session.Document);
         _inspector.Text = selected is null
-            ? "No selection.\n\nShapes live above the command bar.\nLevel = drawing elevation (world Y).\nSelect a line/box/circle/rect for grips.\nContinuous Line chains segments.\nSpline: click near start to close.\n\nLevel(y) · Box(w,h,d) · …"
+            ? ship
+                ? "No selection.\n\nShip mode: Isolate filters by deck.\nCAD = plan · Modeling/Preview = 3D.\nLMB draw · MMB/Alt+LMB orbit."
+                : "No selection.\n\nShapes live above the command bar.\nCAD / Modeling / Preview workspaces.\nSelect a line/box for grips."
             : FormatInspector(selected, unit);
+        _editor.SceneTree.Refresh();
+        _editor.PropertyPanel.Refresh();
 
         var dirty = _session.IsDirty ? " *" : "";
         Title = $"Draft Studio — {Path.GetFileName(_session.DocumentPath)}{dirty}";
         _draftViewport.InvalidateVisual();
-        if (_viewMode == CadViewMode.Model)
+        if (_workspace != CadWorkspace.Cad)
             _raylibHost.RequestFrame();
         UpdateStatus();
     }
@@ -413,8 +442,10 @@ internal sealed class MainWindow : Window
         var unit = _settings.Settings.DisplayUnit;
         var ppm = _draftViewport.PixelsPerMeter;
         var zoom = ppm > 0 ? CadUnits.FormatLength(100.0 / ppm, unit) + " / 100 px" : "—";
-        var mode = _viewMode == CadViewMode.Model ? "Model" : "Draft (XZ)";
+        var mode = CadWorkspaceMapping.ToDisplay(_workspace);
         var level = CadUnits.FormatLength(_settings.Settings.DrawElevation, unit);
+        if (CadVec.LooksLikeShipDocument(_session.Document))
+            level += $" deck {CadVec.DeckFromElevation(_settings.Settings.DrawElevation)}";
         _feedback.SetStatus(
             $"{mode}  ·  {Path.GetFileName(_session.DocumentPath)}  ·  L={level}  ·  {CadUnits.Abbreviation(unit)}  ·  {zoom}");
     }
@@ -422,28 +453,39 @@ internal sealed class MainWindow : Window
     private void UpdateCommandPrompt() =>
         _commandBar.PromptLabel = _tools.PromptHint;
 
-    private void SetViewMode(CadViewMode mode)
+    private void SetWorkspace(CadWorkspace workspace)
     {
         _cad.Execute(new CadCommandDto
         {
-            ActionId = CadSessionActionIds.SetViewMode,
-            ViewMode = mode == CadViewMode.Model ? "model" : "draft",
+            ActionId = CadSessionActionIds.SetWorkspace,
+            Workspace = CadWorkspaceMapping.ToStorage(workspace),
         });
-        _viewMode = _editor.ViewMode;
-        if (mode == CadViewMode.Model)
+        _workspace = _editor.Workspace;
+        if (workspace != CadWorkspace.Cad)
         {
             _raylibHost.FrameWidth = System.Math.Max(64, (int)_viewportStack.Bounds.Width);
             _raylibHost.FrameHeight = System.Math.Max(64, (int)_viewportStack.Bounds.Height);
+            // Ship docs: sealed freighter exterior, not deck greybox.
+            if (CadShipExterior.ShouldUseExterior(_session.Document) && workspace == CadWorkspace.Preview)
+            {
+                _settings.Settings.IsolateLevel = false;
+                _isolateCheck.IsChecked = false;
+                _modelRenderer.ApplyDocumentCamera();
+                if (_session.Document.Camera.Distance < 40f)
+                    _modelRenderer.Fit();
+            }
+
             _raylibHost.RequestFrame();
         }
 
         UpdateStatus();
+        RefreshUi();
     }
 
     private void OnFit()
     {
         _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Fit });
-        if (_viewMode == CadViewMode.Model)
+        if (_workspace != CadWorkspace.Cad)
             _raylibHost.RequestFrame();
     }
 
@@ -482,23 +524,23 @@ internal sealed class MainWindow : Window
         _dumpBusy = true;
         try
         {
-            var previous = _viewMode;
+            var previous = _workspace;
             var result = await _artifacts.DumpAllAsync(
                 this,
                 _draftViewport,
                 _raylibHost,
                 ensureModelViewAsync: async () =>
                 {
-                    SetViewMode(CadViewMode.Model);
+                    SetWorkspace(CadWorkspace.Preview);
                     await Task.Delay(80);
                 },
                 ensureDraftViewAsync: async () =>
                 {
-                    SetViewMode(CadViewMode.Draft);
+                    SetWorkspace(CadWorkspace.Cad);
                     await Task.Delay(40);
                 });
 
-            SetViewMode(previous);
+            SetWorkspace(previous);
             var bits = new List<string> { $"doc={Path.GetFileName(result.DocumentPath)}" };
             if (result.DraftPngPath is not null)
                 bits.Add("draft.png");
@@ -566,13 +608,56 @@ internal sealed class MainWindow : Window
         {
             _session.OpenFromPath(path);
             _settings.Save();
-            OnFit();
-            _feedback.Flash($"Opened {Path.GetFileName(path)}");
+            AfterShipDocumentLoaded();
+            _feedback.Flash($"Opened {Path.GetFileName(path)} ({_session.Document.Entities.Count} entities)");
         }
         catch (Exception ex)
         {
             _feedback.FlashError($"Open failed: {ex.Message}");
         }
+    }
+
+    private async Task OnImportShipAsync()
+    {
+        if (!await ConfirmDiscardIfDirtyAsync())
+            return;
+
+        try
+        {
+            var result = _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.ImportShip });
+            if (!result.Ok)
+            {
+                _feedback.FlashError(result.Message);
+                return;
+            }
+
+            AfterShipDocumentLoaded();
+            _feedback.Flash(result.Message);
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError($"Import ship failed: {ex.Message}");
+        }
+    }
+
+    private void AfterShipDocumentLoaded()
+    {
+        if (!CadVec.LooksLikeShipDocument(_session.Document))
+        {
+            OnFit();
+            RefreshUi();
+            return;
+        }
+
+        // Deck 0 plan, isolate on — otherwise hundreds of walls stack into an unreadable mess.
+        _settings.Settings.DrawElevation = 0f;
+        _settings.Settings.IsolateLevel = true;
+        _isolateCheck.IsChecked = true;
+        SyncElevationUi();
+        SetWorkspace(CadWorkspace.Cad);
+        OnFit();
+        _feedback.Flash("Ship loaded · Isolate deck 0. Model: exterior when Isolate is off.");
+        RefreshUi();
     }
 
     private async Task OnSaveAsAsync()
@@ -712,7 +797,9 @@ internal sealed class MainWindow : Window
             return;
         _settings.Settings.DrawElevation = (float)e.NewValue.Value;
         _draftViewport.InvalidateVisual();
-        UpdateStatus();
+        if (_workspace != CadWorkspace.Cad)
+            _raylibHost.RequestFrame();
+        RefreshUi();
     }
 
     private void SyncElevationUi()
@@ -721,6 +808,8 @@ internal sealed class MainWindow : Window
         _elevationBox.Value = (decimal)_settings.Settings.DrawElevation;
         _suppressUnit = false;
         _draftViewport.InvalidateVisual();
+        if (_workspace != CadWorkspace.Cad)
+            _raylibHost.RequestFrame();
         UpdateStatus();
     }
 
@@ -728,10 +817,14 @@ internal sealed class MainWindow : Window
     {
         _settings.Settings.DrawElevation = meters;
         SyncElevationUi();
+        RefreshUi();
     }
 
     private void NudgeElevation(float deltaMeters) =>
         SetElevation(_settings.Settings.DrawElevation + deltaMeters);
+
+    private float ShipAwareStep() =>
+        CadVec.LooksLikeShipDocument(_session.Document) ? CadVec.DeckHeightMeters : 1f;
 
     private void HighlightActiveTool()
     {
@@ -880,27 +973,71 @@ internal sealed class MainWindow : Window
 
     private void OnModelPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        var props = e.GetCurrentPoint(_raylibHost).Properties;
-        if (props.IsLeftButtonPressed || props.IsMiddleButtonPressed)
+        var point = e.GetCurrentPoint(_raylibHost);
+        var props = point.Properties;
+        var screen = e.GetPosition(_raylibHost);
+        var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+        var wantOrbit = props.IsMiddleButtonPressed
+                        || props.IsRightButtonPressed
+                        || (props.IsLeftButtonPressed && alt);
+
+        if (wantOrbit)
         {
             _orbiting = true;
-            _lastPointer = e.GetPosition(_raylibHost);
+            _lastPointer = screen;
             e.Pointer.Capture(_raylibHost);
             e.Handled = true;
+            return;
         }
+
+        if (!props.IsLeftButtonPressed)
+            return;
+
+        if (!TryModelWorldPoint(screen, out var world))
+        {
+            _feedback.FlashError("Click misses the drawing plane — orbit or change Level.");
+            e.Handled = true;
+            return;
+        }
+
+        world = SnapModelPoint(world);
+
+        if (_dispatcher.ActiveTool == CadToolKind.Select)
+        {
+            var hit = HitTestModel(world);
+            _session.SelectedId = hit?.Id;
+            _session.Notify();
+        }
+        else
+        {
+            _tools.OnClick(world, pixelsPerMeter: 40f);
+            UpdateCommandPrompt();
+        }
+
+        _raylibHost.RequestFrame();
+        e.Handled = true;
     }
 
     private void OnModelPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (!_orbiting)
+        var screen = e.GetPosition(_raylibHost);
+        if (_orbiting)
+        {
+            var dx = (float)(screen.X - _lastPointer.X);
+            var dy = (float)(screen.Y - _lastPointer.Y);
+            _modelRenderer.OrbitDrag(dx, dy);
+            _lastPointer = screen;
+            _raylibHost.RequestFrame();
+            e.Handled = true;
             return;
-        var p = e.GetPosition(_raylibHost);
-        var dx = (float)(p.X - _lastPointer.X);
-        var dy = (float)(p.Y - _lastPointer.Y);
-        _modelRenderer.OrbitDrag(dx, dy);
-        _lastPointer = p;
-        _raylibHost.RequestFrame();
-        e.Handled = true;
+        }
+
+        if (_dispatcher.ActiveTool != CadToolKind.Select && TryModelWorldPoint(screen, out var world))
+        {
+            _tools.OnHover(SnapModelPoint(world));
+            UpdateCommandPrompt();
+            _raylibHost.RequestFrame();
+        }
     }
 
     private void OnModelPointerReleased(object? sender, PointerReleasedEventArgs e)
@@ -917,6 +1054,119 @@ internal sealed class MainWindow : Window
         _modelRenderer.Zoom((float)e.Delta.Y);
         _raylibHost.RequestFrame();
         e.Handled = true;
+    }
+
+    private bool TryModelWorldPoint(Point screen, out System.Numerics.Vector3 world)
+    {
+        var size = _raylibHost.Bounds.Size;
+        if (size.Width < 1 || size.Height < 1)
+        {
+            size = new Size(
+                System.Math.Max(64, _raylibHost.FrameWidth),
+                System.Math.Max(64, _raylibHost.FrameHeight));
+        }
+
+        return CadModelPick.TryHitElevationPlane(
+            _modelRenderer.Orbit.BuildEyePosition(),
+            _modelRenderer.Orbit.Target,
+            _modelRenderer.Orbit.FieldOfViewDegrees,
+            size,
+            screen,
+            _settings.Settings.DrawElevation,
+            out world);
+    }
+
+    private System.Numerics.Vector3 SnapModelPoint(System.Numerics.Vector3 world)
+    {
+        if (!_settings.Settings.SnapToGrid)
+            return world with { Y = _settings.Settings.DrawElevation };
+        var step = System.Math.Max(0.001f, _settings.Settings.GridStep);
+        return new System.Numerics.Vector3(
+            MathF.Round(world.X / step) * step,
+            _settings.Settings.DrawElevation,
+            MathF.Round(world.Z / step) * step);
+    }
+
+    private CadEntity? HitTestModel(System.Numerics.Vector3 world)
+    {
+        var thresh = System.Math.Max(0.25f, _settings.Settings.GridStep * 1.5f);
+        CadEntity? best = null;
+        var bestDist = float.MaxValue;
+        foreach (var entity in _session.Document.Entities)
+        {
+            if (_settings.Settings.IsolateLevel
+                && !CadVec.MatchesLevel(entity, _settings.Settings.DrawElevation, _settings.Settings.LevelTolerance))
+                continue;
+
+            float d;
+            switch (entity.Kind.ToLowerInvariant())
+            {
+                case "line" or "wall" when entity.A is not null && entity.B is not null:
+                {
+                    var a = CadVec.To(entity.A);
+                    var b = CadVec.To(entity.B);
+                    var ab = b - a;
+                    ab.Y = 0;
+                    var ap = world - a;
+                    ap.Y = 0;
+                    var len2 = ab.LengthSquared();
+                    var t = len2 < 1e-8f ? 0f : System.Numerics.Vector3.Dot(ap, ab) / len2;
+                    t = System.Math.Clamp(t, 0f, 1f);
+                    var closest = a + ab * t;
+                    d = System.Numerics.Vector3.Distance(
+                        new System.Numerics.Vector3(world.X, 0, world.Z),
+                        new System.Numerics.Vector3(closest.X, 0, closest.Z));
+                    break;
+                }
+                case "circle" when entity.Center is not null:
+                    d = System.Math.Abs(
+                        System.Numerics.Vector3.Distance(
+                            new System.Numerics.Vector3(world.X, 0, world.Z),
+                            new System.Numerics.Vector3(CadVec.To(entity.Center).X, 0, CadVec.To(entity.Center).Z))
+                        - entity.Radius);
+                    break;
+                case "space" when entity.Points is { Count: >= 2 }:
+                {
+                    d = float.MaxValue;
+                    for (var i = 0; i < entity.Points.Count; i++)
+                    {
+                        var a = CadVec.To(entity.Points[i]);
+                        var b = CadVec.To(entity.Points[(i + 1) % entity.Points.Count]);
+                        var ab = b - a;
+                        ab.Y = 0;
+                        var ap = world - a;
+                        ap.Y = 0;
+                        var len2 = ab.LengthSquared();
+                        var t = len2 < 1e-8f ? 0f : System.Numerics.Vector3.Dot(ap, ab) / len2;
+                        t = System.Math.Clamp(t, 0f, 1f);
+                        var closest = a + ab * t;
+                        d = System.Math.Min(
+                            d,
+                            System.Numerics.Vector3.Distance(
+                                new System.Numerics.Vector3(world.X, 0, world.Z),
+                                new System.Numerics.Vector3(closest.X, 0, closest.Z)));
+                    }
+
+                    break;
+                }
+                default:
+                    d = CadVec.EnumerateWorldPoints(entity)
+                        .Select(p => System.Numerics.Vector3.Distance(
+                            new System.Numerics.Vector3(world.X, 0, world.Z),
+                            new System.Numerics.Vector3(p.X, 0, p.Z)))
+                        .DefaultIfEmpty(float.MaxValue)
+                        .Min();
+                    break;
+            }
+
+            if (d < thresh && d < bestDist)
+            {
+                bestDist = d;
+                best = entity;
+            }
+        }
+
+        return best;
     }
 
     private static Button Btn(string text, Action action, string agentId, string? tip = null)

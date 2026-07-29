@@ -1,4 +1,5 @@
-using DraftStudio.Models;
+using Novolis.Avalonia.Cad.Services;
+using Novolis.Cad.Primitives;
 
 namespace DraftStudio.Unit;
 

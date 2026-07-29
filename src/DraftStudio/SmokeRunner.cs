@@ -93,6 +93,23 @@ internal static class SmokeRunner
             reloaded.OpenOrCreateDefault();
             Check("reload entity count", reloaded.Document.Entities.Count == session.Document.Entities.Count);
             Check("reload keeps spline", reloaded.Document.Entities.Any(e => e.Kind == "spline"));
+
+            var shipSrc = CadShipImport.ResolveSourceCadjson();
+            if (shipSrc is not null)
+            {
+                var imported = CadShipImport.ImportIntoWorkspace(root, shipSrc);
+                var ship = new CadDocumentSession(new CadEditorSettings(root, CadShipImport.WorkspaceFolderName));
+                ship.OpenFromPath(imported);
+                Check("ship import entities", ship.Document.Entities.Count >= 100);
+                Check("ship has walls", ship.Document.Entities.Any(e => e.Kind == "wall"));
+                Check("ship has spaces", ship.Document.Entities.Any(e => e.Kind == "space"));
+                var (center, radius) = EntityBounds.Compute(ship.Document);
+                Check("ship bounds", radius > 10f, $"radius={radius} center={center}");
+            }
+            else
+            {
+                Console.WriteLine("  SKIP ship import (no generated *.cadjson under LocalAppData/Novolis)");
+            }
         }
         finally
         {

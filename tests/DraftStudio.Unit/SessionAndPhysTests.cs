@@ -1,6 +1,6 @@
+using Novolis.Avalonia.Cad.Services;
+using Novolis.Cad.Primitives;
 using System.Text.Json;
-using DraftStudio.Models;
-using DraftStudio.Services;
 
 namespace DraftStudio.Unit;
 
@@ -17,7 +17,7 @@ public sealed class SessionAndPhysTests
         var count = session.Document.Entities.Count;
         var path = session.DocumentPath;
 
-        var session2 = new DraftStudio.Core.DraftSession(settings);
+        var session2 = new Novolis.Avalonia.Cad.Core.CadDocumentSession(settings);
         session2.OpenFromPath(path);
         await Assert.That(session2.Document.Entities.Count).IsEqualTo(count);
         await Assert.That(session2.Document.Format).IsEqualTo("novolis.cad");

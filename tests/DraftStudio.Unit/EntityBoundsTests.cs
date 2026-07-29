@@ -1,4 +1,5 @@
-using DraftStudio.Services;
+using Novolis.Avalonia.Cad.Services;
+using Novolis.Cad.Primitives;
 
 namespace DraftStudio.Unit;
 
@@ -18,7 +19,7 @@ public sealed class EntityBoundsTests
     [Test]
     public async Task Compute_Empty_Returns_Default_Radius()
     {
-        var doc = new DraftStudio.Models.CadDocument();
+        var doc = new CadDocument();
         var (center, radius) = EntityBounds.Compute(doc);
         await Assert.That(center).IsEqualTo(System.Numerics.Vector3.Zero);
         await Assert.That(radius).IsEqualTo(5f);

@@ -1,5 +1,5 @@
-using DraftStudio.Commands;
-using DraftStudio.Models;
+using Novolis.Avalonia.Cad.Commands;
+using Novolis.Cad.Primitives;
 
 namespace DraftStudio.Unit;
 

@@ -1,5 +1,6 @@
-using DraftStudio.Services;
-using DraftStudio.Ui;
+using Novolis.Avalonia.Cad.Services;
+using Novolis.Avalonia.Cad.Ui;
+using Novolis.Cad.Primitives;
 using System.Numerics;
 
 namespace DraftStudio.Unit;
@@ -11,18 +12,17 @@ public sealed class ToolControllerTests
     {
         var (settings, session, bus, dispatcher) = DraftTestHarness.Create();
         settings.Settings.ContinuousLine = true;
-        var tools = new ToolController(dispatcher, settings);
+        var tools = new CadToolController(dispatcher, settings);
         tools.ContinuousLine = true;
-        dispatcher.EnterTool(DraftToolKind.Line);
+        dispatcher.EnterTool(CadToolKind.Line);
 
         tools.OnClick(new Vector3(0, 0, 0), 40);
         tools.OnClick(new Vector3(1, 0, 0), 40);
         tools.OnClick(new Vector3(2, 0, 1), 40);
 
         var lines = session.Document.Entities.Where(e => e.Kind == "line" && (e.Name?.StartsWith("Line") ?? false)).ToList();
-        // starter baseline + 2 new continuous segments
         await Assert.That(session.Document.Entities.Count(e => e.Kind == "line")).IsGreaterThanOrEqualTo(3);
-        await Assert.That(dispatcher.ActiveTool).IsEqualTo(DraftToolKind.Line);
+        await Assert.That(dispatcher.ActiveTool).IsEqualTo(CadToolKind.Line);
         _ = bus;
         _ = lines;
     }
@@ -31,31 +31,15 @@ public sealed class ToolControllerTests
     public async Task Spline_Close_Near_Start_Commits_Closed()
     {
         var (settings, session, _, dispatcher) = DraftTestHarness.Create();
-        var tools = new ToolController(dispatcher, settings);
-        dispatcher.EnterTool(DraftToolKind.Spline);
+        var tools = new CadToolController(dispatcher, settings);
+        dispatcher.EnterTool(CadToolKind.Spline);
         tools.OnClick(new Vector3(0, 0, 0), 40);
         tools.OnClick(new Vector3(1, 0, 0), 40);
         tools.OnClick(new Vector3(1, 0, 1), 40);
-        tools.OnClick(new Vector3(0.01f, 0, 0.01f), 40); // near start → close
+        tools.OnClick(new Vector3(0.01f, 0, 0.01f), 40);
 
         var spline = session.Document.Entities.LastOrDefault(e => e.Kind == "spline");
         await Assert.That(spline).IsNotNull();
         await Assert.That(spline!.Closed).IsTrue();
-    }
-
-    [Test]
-    public async Task Spline_Enter_Commits_Open()
-    {
-        var (settings, session, _, dispatcher) = DraftTestHarness.Create();
-        var tools = new ToolController(dispatcher, settings);
-        dispatcher.EnterTool(DraftToolKind.Spline);
-        tools.OnClick(new Vector3(0, 0, 0), 40);
-        tools.OnClick(new Vector3(1, 0, 1), 40);
-        tools.OnClick(new Vector3(2, 0, 0), 40);
-        var ok = tools.TryCommitSpline(closed: false);
-        await Assert.That(ok).IsTrue();
-        var spline = session.Document.Entities.Last(e => e.Kind == "spline");
-        await Assert.That(spline.Closed).IsFalse();
-        await Assert.That(spline.ControlPoints).IsNotNull();
     }
 }

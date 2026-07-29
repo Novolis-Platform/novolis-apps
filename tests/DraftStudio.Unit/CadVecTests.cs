@@ -1,4 +1,4 @@
-using DraftStudio.Models;
+using Novolis.Cad.Primitives;
 
 namespace DraftStudio.Unit;
 
