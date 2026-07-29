@@ -7,9 +7,7 @@ on:
         type: choice
         options:
           - All
-          - ManuscriptStudio
           - BooksWriterStudio
-          - ConceptStudio
           - DraftStudio
           - SinsOfACapitalismTycoon
           - LiveStudio

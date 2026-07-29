@@ -4,18 +4,6 @@
 function Get-NovolisAppCatalog {
     @(
         [pscustomobject]@{
-            Key           = 'manuscript-studio'
-            Choice        = 'ManuscriptStudio'
-            Project       = 'src/ManuscriptStudio/ManuscriptStudio.csproj'
-            DisplayName   = 'Manuscript Studio'
-            AppId         = 'Novolis.ManuscriptStudio'
-            ExeName       = 'ManuscriptStudio.exe'
-            GroupName     = 'Manuscript Studio'
-            InstallDir    = 'Novolis\Manuscript Studio'
-            SetupBase     = 'ManuscriptStudioSetup'
-            ScriptFile    = 'manuscript-studio.iss'
-        }
-        [pscustomobject]@{
             Key           = 'books-writer-studio'
             Choice        = 'BooksWriterStudio'
             Project       = 'src/BooksWriterStudio/BooksWriterStudio.csproj'
@@ -26,18 +14,6 @@ function Get-NovolisAppCatalog {
             InstallDir    = 'Novolis\Books Writer Studio'
             SetupBase     = 'BooksWriterStudioSetup'
             ScriptFile    = 'books-writer-studio.iss'
-        }
-        [pscustomobject]@{
-            Key           = 'concept-studio'
-            Choice        = 'ConceptStudio'
-            Project       = 'src/ConceptStudio/ConceptStudio.csproj'
-            DisplayName   = 'Concept Studio'
-            AppId         = 'Novolis.ConceptStudio'
-            ExeName       = 'ConceptStudio.exe'
-            GroupName     = 'Concept Studio'
-            InstallDir    = 'Novolis\Concept Studio'
-            SetupBase     = 'ConceptStudioSetup'
-            ScriptFile    = 'concept-studio.iss'
         }
         [pscustomobject]@{
             Key           = 'draft-studio'
@@ -120,6 +96,18 @@ function Publish-NovolisApp {
     Write-Host "Publishing $AppKey $PackageVersion (win-x64)..."
     & dotnet restore $appProject -r win-x64 @cfgArgs @versionArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Restore failed with exit code $LASTEXITCODE." }
+
+    # Live Studio bundles host + launcher after publish; restore them so nested Publish finds assets.
+    if ($AppKey -eq 'live-studio') {
+        foreach ($extra in @(
+            'src/LiveStudio/host/LiveStudio.Host.csproj',
+            'src/LiveStudio/launcher/LiveStudio.Launcher.csproj'
+        )) {
+            $extraProject = Join-Path $RepoRoot $extra
+            & dotnet restore $extraProject -r win-x64 @cfgArgs @versionArgs | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw "Restore failed for $extra with exit code $LASTEXITCODE." }
+        }
+    }
 
     & dotnet publish $appProject `
         -c Release `

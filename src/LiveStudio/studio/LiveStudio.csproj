@@ -33,15 +33,24 @@
     <PropertyGroup>
       <_LiveHostPublishDir>$(PublishDir)host\</_LiveHostPublishDir>
       <_LiveLauncherPublishDir>$(PublishDir)launcher\</_LiveLauncherPublishDir>
+      <_LiveBundleProps>Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishSingleFile=$(PublishSingleFile);IncludeNativeLibrariesForSelfExtract=$(IncludeNativeLibrariesForSelfExtract)</_LiveBundleProps>
     </PropertyGroup>
     <MSBuild
       Projects="$(LiveStudioHostProject)"
+      Targets="Restore"
+      Properties="$(_LiveBundleProps)" />
+    <MSBuild
+      Projects="$(LiveStudioHostProject)"
       Targets="Publish"
-      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(_LiveHostPublishDir);PublishSingleFile=$(PublishSingleFile);IncludeNativeLibrariesForSelfExtract=$(IncludeNativeLibrariesForSelfExtract)" />
+      Properties="$(_LiveBundleProps);PublishDir=$(_LiveHostPublishDir)" />
+    <MSBuild
+      Projects="$(LiveStudioLauncherProject)"
+      Targets="Restore"
+      Properties="$(_LiveBundleProps)" />
     <MSBuild
       Projects="$(LiveStudioLauncherProject)"
       Targets="Publish"
-      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(_LiveLauncherPublishDir);PublishSingleFile=$(PublishSingleFile);IncludeNativeLibrariesForSelfExtract=$(IncludeNativeLibrariesForSelfExtract)" />
+      Properties="$(_LiveBundleProps);PublishDir=$(_LiveLauncherPublishDir)" />
     <Message Importance="high" Text="Live Studio: bundled host into $(_LiveHostPublishDir)" />
     <Message Importance="high" Text="Live Studio: bundled launcher into $(_LiveLauncherPublishDir)" />
   </Target>
