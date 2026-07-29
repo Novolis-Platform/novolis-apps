@@ -8,7 +8,7 @@ Version `YEAR.MAJOR.MINOR.BUILD` comes from `build/version.json` plus the GitHub
 
 ## CI and release assets
 
-Every merge to `main` runs `dotnet build Novolis.Apps.slnx` on Linux, then a Windows release job publishes **all** apps from [`Get-NovolisAppCatalog`](../scripts/Publish-NovolisApp.ps1):
+Every merge to `main` that touches release-impacting paths runs Linux CI first, then a Windows job publishes **all** apps from [`Get-NovolisAppCatalog`](../scripts/Publish-NovolisApp.ps1). Docs-only / markdown pushes are ignored; test-only or non-release paths skip the Windows job.
 
 | Asset | Pattern |
 |-------|---------|
@@ -19,6 +19,8 @@ Every merge to `main` runs `dotnet build Novolis.Apps.slnx` on Linux, then a Win
 | Checksums | `SHA256SUMS.txt` |
 
 Inno Setup scripts are generated via `Novolis.Avalonia.Packaging.Inno` (`NovolisGenerateInnoScript` MSBuild target).
+
+After each successful release, CI keeps the newest **5** GitHub Releases (`scripts/prune-github-releases.ps1`).
 
 ## Dependency order
 

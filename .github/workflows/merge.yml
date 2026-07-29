@@ -5,6 +5,8 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**.md'
+      - 'LICENSE'
+      - '.editorconfig'
   workflow_dispatch:
     inputs:
       skip_release:
@@ -12,8 +14,84 @@ on:
         type: boolean
         default: false
 
+# Supersede rapid re-pushes; Linux CI must pass before any Windows minute is spent.
+concurrency:
+  group: apps-merge-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      run_ci: ${{ steps.gate.outputs.run_ci }}
+      run_release: ${{ steps.gate.outputs.run_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'push'
+        with:
+          filters: |
+            release:
+              - 'src/**'
+              - 'scripts/**'
+              - 'Novolis.Apps.slnx'
+              - 'Directory.Build.props'
+              - 'Directory.Build.targets'
+              - 'Directory.Packages.props'
+              - 'nuget.config'
+              - 'global.json'
+              - 'build/**'
+              - '.github/workflows/**'
+            ci:
+              - 'src/**'
+              - 'tests/**'
+              - 'scripts/**'
+              - 'Novolis.Apps.slnx'
+              - 'Directory.Build.props'
+              - 'Directory.Build.targets'
+              - 'Directory.Packages.props'
+              - 'nuget.config'
+              - 'global.json'
+              - 'build/**'
+              - '.github/workflows/**'
+
+      - id: gate
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SKIP_RELEASE: ${{ inputs.skip_release }}
+          FILTER_RELEASE: ${{ steps.filter.outputs.release }}
+          FILTER_CI: ${{ steps.filter.outputs.ci }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = 'workflow_dispatch' ]; then
+            echo "run_ci=true" >> "$GITHUB_OUTPUT"
+            if [ "$SKIP_RELEASE" = 'true' ]; then
+              echo "run_release=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "run_release=true" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          run_ci=false
+          run_release=false
+          if [ "${FILTER_CI:-}" = 'true' ] || [ "${FILTER_RELEASE:-}" = 'true' ]; then
+            run_ci=true
+          fi
+          if [ "${FILTER_RELEASE:-}" = 'true' ]; then
+            run_release=true
+          fi
+          echo "run_ci=$run_ci" >> "$GITHUB_OUTPUT"
+          echo "run_release=$run_release" >> "$GITHUB_OUTPUT"
+          echo "detect: run_ci=$run_ci run_release=$run_release"
+
   ci:
+    needs: detect
+    if: needs.detect.outputs.run_ci == 'true'
     uses: Novolis-Platform/novolis-workflows/.github/workflows/dotnet-pull-request.yml@main
     secrets: inherit
     with:
@@ -24,8 +102,12 @@ jobs:
       packages: read
 
   release:
-    needs: ci
-    if: github.event_name != 'workflow_dispatch' || inputs.skip_release != true
+    needs: [detect, ci]
+    if: |
+      always()
+      && needs.ci.result == 'success'
+      && needs.detect.outputs.run_release == 'true'
+      && (github.event_name != 'workflow_dispatch' || inputs.skip_release != true)
     runs-on: windows-latest
     permissions:
       contents: write
@@ -116,3 +198,9 @@ jobs:
           }
           gh release upload $tag @($assets.ToArray()) --clobber
           if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE." }
+
+      - name: Prune older GitHub Releases (keep last 5)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          pwsh -NoProfile -File ./scripts/prune-github-releases.ps1 -Keep 5
