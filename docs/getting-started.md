@@ -24,6 +24,8 @@ Download only from official [GitHub Releases](https://github.com/Novolis-Platfor
 | `BooksWriterStudioSetup-*-win-x64.exe` | **Books Writer Studio installer** |
 | `DraftStudioSetup-*-win-x64.exe` | **Draft Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Draft Studio` |
 | `DraftStudio-*-win-x64.zip` | Draft Studio portable |
+| `SketchStudioSetup-*-win-x64.exe` | **Sketch Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Sketch Studio` |
+| `SketchStudio-*-win-x64.zip` | Sketch Studio portable |
 | `SinsOfACapitalismTycoonSetup-*-win-x64.exe` | **Sins of a Capitalism Tycoon installer** |
 | `LiveStudioSetup-*-win-x64.exe` | **Live Studio installer** |
 | `SHA256SUMS.txt` | SHA-256 hashes for all zip and setup exe files on each release |
@@ -72,6 +74,16 @@ Command-driven CAD-light: type `Line(0,0,2,0)`, `Circle(0,0,5)`, `Spline(0,0,1,1
 ```powershell
 dotnet run --project src/BooksWriterStudio
 ```
+
+## Sketch Studio
+
+```powershell
+dotnet run --project src/SketchStudio
+```
+
+Freehand sketch desk (`SketchControl`): pen/line/spline/box/circle/eraser/select, grid snap + meetup + Gridify, Open/Save `.sketchjson`, clipboard PNG/SVG.
+
+- Shortcuts: `Ctrl+N/O/S`, `Ctrl+Shift+S`, `Ctrl+Z/Y`, `P/L/S/R/C/E/V` tools, `Del` delete selection
 
 ## Sins of a Capitalism Tycoon
 

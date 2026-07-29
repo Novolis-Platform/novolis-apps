@@ -25,6 +25,13 @@ WinExe for command-driven 2D/3D CAD-light drafting (LibreCAD/AutoCAD-light): typ
 - Formats: [`cadjson.md`](../../novolis-governance/docs/cadjson.md)
 - Consumes `Novolis.Avalonia.Studio` (`StudioCommandBar`), `Novolis.Commands.Expressions`, `Novolis.Math.Geometry`, `Novolis.Avalonia.Raylib` from GitHub Packages (NuGet-only)
 
+## Sketch Studio
+
+WinExe freehand sketch desk on `SketchControl` (pen, line, spline, box, circle, eraser, select; grid/snap/meetup/Gridify). Persists `.sketchjson` via `SketchJson`; clipboard PNG/SVG export.
+
+- Path: `src/SketchStudio/`
+- Consumes `Novolis.Avalonia.Controls` from GitHub Packages (NuGet-only)
+
 ## Sins of a Capitalism Tycoon
 
 Exe with dual shell for the bounded-minimum economy package:

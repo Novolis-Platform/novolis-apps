@@ -2,7 +2,7 @@
 # Publish novolis-apps projects (win-x64) with optional Inno Setup installers.
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
-    [ValidateSet('BooksWriterStudio', 'DraftStudio', 'SinsOfACapitalismTycoon', 'LiveStudio', 'All')]
+    [ValidateSet('BooksWriterStudio', 'DraftStudio', 'SketchStudio', 'SinsOfACapitalismTycoon', 'LiveStudio', 'All')]
     [string]$App = 'All',
     [int]$BuildNumber = 0,
     [switch]$SkipInstaller

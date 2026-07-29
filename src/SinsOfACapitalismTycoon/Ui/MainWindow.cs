@@ -405,8 +405,12 @@ internal sealed class MainWindow : Window
     AgentProperties.SetId(_boardScope, "calypso.boardScope", AgentRoleNames.ComboBox);
     _boardScope.SelectionChanged += (_, _) =>
     {
-      if (_session is null || _boardScope.SelectedItem is not string name) return;
-      _session.Player.DockBoardOnly = name.Equals("Dock", StringComparison.OrdinalIgnoreCase);
+      if (_session is null) return;
+      var dock = _boardScope.SelectedIndex == 1
+                 || (_boardScope.SelectedItem is string name
+                     && name.Equals("Dock", StringComparison.OrdinalIgnoreCase));
+      _session.Player.DockBoardOnly = dock;
+      FlashOk(dock ? "Board → Dock (live berth)" : "Board → Mesh (FTL digests)");
       RefreshDesk();
     };
 
@@ -787,7 +791,8 @@ internal sealed class MainWindow : Window
   void RefreshDesk()
   {
     if (_session is null) return;
-    var desk = _session.LastDesk ?? _session.CaptureDesk();
+    // Always rebuild — LastDesk is a pulse snapshot and ignores board-filter toggles.
+    var desk = _session.CaptureDesk();
     _desk = desk;
     _subtitle.Text = desk.SubtitleLine;
     _voyage.Text = desk.VoyageLine;
@@ -811,15 +816,26 @@ internal sealed class MainWindow : Window
     _map.SetShipMarker(desk.ShipMapX, desk.ShipMapY, desk.ShipMapVisible);
     ApplyRouteHighlight();
 
-    _spot.ItemsSource = desk.SpotJobs
-      .Select((j, i) => new SpotContractRow(
-        j.Label,
-        j.AtOrigin
-          ? $"Pay {j.ContractPay:0} · Lift {j.LiftCost:0} · Net Δ{j.Margin:0.#} · ×{j.Quantity:0} · [{j.DistanceHint}]"
-          : $"INTEL · Pay {j.ContractPay:0} · Net Δ{j.Margin:0.#} · Travel → {j.OriginName} first",
-        j.AtOrigin,
-        i))
-      .ToList();
+    _spot.ItemsSource = desk.SpotJobs.Count > 0
+      ? desk.SpotJobs
+          .Select((j, i) => new SpotContractRow(
+            j.Label,
+            j.AtOrigin
+              ? $"Pay {j.ContractPay:0} · Lift {j.LiftCost:0} · Net Δ{j.Margin:0.#} · ×{j.Quantity:0} · [{j.DistanceHint}]"
+              : $"INTEL · Pay {j.ContractPay:0} · Net Δ{j.Margin:0.#} · Travel → {j.OriginName} first",
+            j.AtOrigin,
+            i))
+          .ToList()
+      : new List<SpotContractRow>
+        {
+          new(
+            _session.Player.DockBoardOnly
+              ? "(no dock freight — travel or wait)"
+              : "(mesh digests empty — switch to Dock for live berth)",
+            "",
+            false,
+            -1),
+        };
     _charters.ItemsSource = desk.Charters
       .Select((c, i) => new CharterContractRow(
         c.Label,

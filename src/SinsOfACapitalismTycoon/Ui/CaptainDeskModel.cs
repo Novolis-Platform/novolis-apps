@@ -107,18 +107,16 @@ internal sealed class CaptainDeskModel
 
     var spot = CaptainJobBoard.ListSpot(
       sim, ids, profile, currentSystem, dockOnly: session.Player.DockBoardOnly, mesh: ids.Mesh);
-    // Live freight for coach / barren-escape / mesh-empty fallback.
+    // Live freight for coach / barren-dock travel escape (Dock filter only).
     var live = CaptainJobBoard.ListLiveFreight(sim, ids, profile, currentSystem, take: 24);
     var suggestedTravel = live.FirstOrDefault(s => !s.AtOrigin && s.Margin > 8m)?.OriginSystemId
                           ?? live.FirstOrDefault(s => !s.AtOrigin)?.OriginSystemId;
-    if (spot.Count == 0 && live.Count > 0)
+    if (session.Player.DockBoardOnly && spot.Count == 0 && live.Count > 0)
     {
-      // Mesh lag often blank early — prefer takeable AT-DOCK live lots, else INTEL remotes.
-      var atDock = live.Where(s => s.AtOrigin).Take(12).ToList();
-      spot = atDock.Count > 0
-        ? atDock
-        : live.Where(s => !s.AtOrigin).Take(16).ToList();
+      // Berth has no local freight — surface remotes as INTEL so Travel/NEXT stay usable.
+      spot = live.Where(s => !s.AtOrigin).Take(16).ToList();
     }
+    // Mesh filter: never silently fill with live lots (that made Mesh≡Dock).
 
     var charters = CaptainJobBoard.ListCharters(sim, ids, session.Player, currentSystem);
     var market = CaptainJobBoard.ListMarket(sim, ids, currentSystem);

@@ -28,6 +28,18 @@ function Get-NovolisAppCatalog {
             ScriptFile    = 'draft-studio.iss'
         }
         [pscustomobject]@{
+            Key           = 'sketch-studio'
+            Choice        = 'SketchStudio'
+            Project       = 'src/SketchStudio/SketchStudio.csproj'
+            DisplayName   = 'Sketch Studio'
+            AppId         = 'Novolis.SketchStudio'
+            ExeName       = 'SketchStudio.exe'
+            GroupName     = 'Sketch Studio'
+            InstallDir    = 'Novolis\Sketch Studio'
+            SetupBase     = 'SketchStudioSetup'
+            ScriptFile    = 'sketch-studio.iss'
+        }
+        [pscustomobject]@{
             Key           = 'sins-of-a-capitalism-tycoon'
             Choice        = 'SinsOfACapitalismTycoon'
             Project       = 'src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj'

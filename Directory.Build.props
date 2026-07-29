@@ -42,6 +42,8 @@
           Condition="Exists('$(MSBuildThisFileDirectory)build\version.props')" />
   <Import Project="$(MSBuildThisFileDirectory)..\novolis-governance\build\Novolis.Version.targets"
           Condition="Exists('$(MSBuildThisFileDirectory)..\novolis-governance\build\Novolis.Version.targets')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\novolis-governance\build\Novolis.PackageIcon.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\novolis-governance\build\Novolis.PackageIcon.props')" />
 
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub">
