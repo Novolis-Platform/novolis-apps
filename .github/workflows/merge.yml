@@ -45,7 +45,6 @@ jobs:
               - 'nuget.config'
               - 'global.json'
               - 'build/**'
-              - '.github/workflows/**'
             ci:
               - 'src/**'
               - 'tests/**'
