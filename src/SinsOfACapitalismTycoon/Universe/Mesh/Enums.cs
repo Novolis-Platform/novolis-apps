@@ -1,7 +1,7 @@
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Traffic layer — pulse is sprint drones; bulk is freight-class; feed is public channel cargo.</summary>
-public enum MeshTrafficLayer
+internal enum MeshTrafficLayer
 {
   Pulse = 0,
   Bulk = 1,
@@ -9,7 +9,7 @@ public enum MeshTrafficLayer
 }
 
 /// <summary>How a packet is addressed.</summary>
-public enum MeshAddressKind
+internal enum MeshAddressKind
 {
   /// <summary>Known node / system — directed path.</summary>
   Place = 0,
@@ -20,7 +20,7 @@ public enum MeshAddressKind
 }
 
 /// <summary>Who owns a mailbox / feed subscriptions.</summary>
-public enum MeshIdentityKind
+internal enum MeshIdentityKind
 {
   Person = 0,
   Household = 1,

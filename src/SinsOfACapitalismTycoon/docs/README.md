@@ -8,6 +8,7 @@ and the commercial weather of **The Calypso Cycle** (`references/` — CCA, Meri
 ## Start here (players)
 
 1. [Gameplay](gameplay.md) — loops, life moments, how to read a run
+1b. [Terminology](terminology.md) — dock / mesh / system (not berth / network / hub)
 2. [Characters](characters.md) — houses, hulls, Calypso faces, `vox.*` ids
 3. [Flavor and audio](flavor-and-audio.md) — transmissions, VO, stage directions
 

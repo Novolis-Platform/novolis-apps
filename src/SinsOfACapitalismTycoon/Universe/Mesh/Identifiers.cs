@@ -1,21 +1,21 @@
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Stable mesh node key (usually Astro system id).</summary>
-public readonly record struct MeshNodeId(string Value)
+internal readonly record struct MeshNodeId(string Value)
 {
   public override string ToString() => Value;
   public static MeshNodeId From(string value) => new(value);
 }
 
 /// <summary>Mailbox / feed owner key. Prefer <see cref="MeshIdentityIds"/> factories for naming.</summary>
-public readonly record struct MeshIdentityId(string Value)
+internal readonly record struct MeshIdentityId(string Value)
 {
   public override string ToString() => Value;
   public static MeshIdentityId From(string value) => new(value);
 }
 
 /// <summary>Canonical identity id prefixes: <c>person:</c>, <c>household:</c>, <c>firm:</c>, <c>ship:</c>, <c>thing:</c>.</summary>
-public static class MeshIdentityIds
+internal static class MeshIdentityIds
 {
   public const string PersonPrefix = "person:";
   public const string HouseholdPrefix = "household:";
@@ -42,7 +42,7 @@ public static class MeshIdentityIds
 }
 
 /// <summary>Named channel (Atom/RSS-style). <see cref="Emergency"/> is mandatory for every mailbox.</summary>
-public readonly record struct MeshFeedId(string Value)
+internal readonly record struct MeshFeedId(string Value)
 {
   public override string ToString() => Value;
   public static MeshFeedId From(string value) => new(value);
@@ -53,6 +53,8 @@ public readonly record struct MeshFeedId(string Value)
   public static MeshFeedId NewsGeneral { get; } = From("News.General");
   public static MeshFeedId NewsSpaceWhales { get; } = From("News.SpaceWhales");
   public static MeshFeedId NewsPrices { get; } = From("News.Prices");
+  /// <summary>Delayed spot commodity digests — mesh board reads these after mesh lag.</summary>
+  public static MeshFeedId CommerceSpot { get; } = From("Commerce.Spot");
 
   public bool IsMandatory => Value.Equals(Emergency.Value, StringComparison.Ordinal);
 
@@ -60,14 +62,14 @@ public readonly record struct MeshFeedId(string Value)
 }
 
 /// <summary>Published packet id.</summary>
-public readonly record struct PacketId(Guid Value)
+internal readonly record struct PacketId(Guid Value)
 {
   public static PacketId New() => new(Guid.NewGuid());
   public static PacketId From(Guid value) => new(value);
 }
 
 /// <summary>In-flight disposable drone instance.</summary>
-public readonly record struct DroneId(Guid Value)
+internal readonly record struct DroneId(Guid Value)
 {
   public static DroneId New() => new(Guid.NewGuid());
 }

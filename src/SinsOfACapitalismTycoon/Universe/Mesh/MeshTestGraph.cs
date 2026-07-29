@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Build a tiny mesh for unit tests (no Astro dependency).</summary>
-public static class MeshTestGraph
+internal static class MeshTestGraph
 {
   public static readonly MeshNodeId Sol = MeshNodeId.From("sol");
   public static readonly MeshNodeId Wolf = MeshNodeId.From("wolf359");

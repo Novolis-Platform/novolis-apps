@@ -15,21 +15,13 @@ internal static class ClaimsPulse
   public const decimal ClaimPerCargoUnit = 8m;
   public const decimal PriorityWearClaimThreshold = 28m;
 
-  private static readonly HashSet<Guid> SeenCancelled = [];
-  private static readonly HashSet<string> SeenBombEdge = new(StringComparer.Ordinal);
-
-  public static void ResetSeen()
-  {
-    SeenCancelled.Clear();
-    SeenBombEdge.Clear();
-  }
-
   public static void TickDay(
     EconomySimulation sim,
     ShipRegistry registry,
     CampaignWorld.Ids ids,
     MilestoneLog milestones,
-    ShipBiographyLog bios)
+    ShipBiographyLog bios,
+    ClaimsTracker tracker)
   {
     var world = sim.State.World;
     var day = sim.State.Clock.Date.DayIndex;
@@ -42,7 +34,7 @@ internal static class ClaimsPulse
 
     foreach (var ship in world.Shipments.Where(s => !s.IsLegacy).ToList())
     {
-      if (ship.Phase == ShipmentPhase.Cancelled && SeenCancelled.Add(ship.Id.Value))
+      if (ship.Phase == ShipmentPhase.Cancelled && tracker.TryMarkCancelled(ship.Id.Value))
       {
         var lossValue = Money.From(Math.Max(Deductible, ship.Quantity.Value * ClaimPerCargoUnit));
         PayClaim(world, registry, underwriter, ship.FirmId, lossValue, date, milestones, day,
@@ -65,7 +57,7 @@ internal static class ClaimsPulse
         }
 
         var bombKey = $"{ship.FirmId.Value:N}|{entry.OverhaulCount}";
-        if (!SeenBombEdge.Add(bombKey))
+        if (!tracker.TryMarkBombEdge(bombKey))
         {
           continue;
         }

@@ -1,12 +1,12 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>
 /// Mailboxes for people, households, firms, ships, and things.
 /// Identity packets push only when the mailbox is co-located with a node that holds them.
 /// </summary>
-public static class MailboxEngine
+internal static class MailboxEngine
 {
   public static MeshState Register(
     MeshState state,
@@ -32,17 +32,23 @@ public static class MailboxEngine
       return Register(state, owner, newLocation);
     }
 
+    box = box with { LocationNodeId = newLocation };
     state = state with
     {
-      Mailboxes = state.Mailboxes.SetItem(owner.Value, box with { LocationNodeId = newLocation }),
+      Mailboxes = state.Mailboxes.SetItem(owner.Value, box),
     };
+
+    if (!box.LinkedToNode)
+    {
+      return state;
+    }
 
     if (!state.NodeCaches.TryGetValue(newLocation.Value, out var cache))
     {
       return state;
     }
 
-    foreach (var pk in cache)
+    foreach (var pk in cache.Keys)
     {
       if (!state.Packets.TryGetValue(pk, out var packet))
       {
@@ -56,7 +62,7 @@ public static class MailboxEngine
         state = PushPacket(state, packet.Id, owner);
       }
 
-      // Catch up mandatory Emergency already at the new node.
+      // Catch up mandatory Emergency already at the new node (in-system only).
       if (packet.Destination.Kind == MeshAddressKind.Feed
           && packet.Destination.Feed is { } feed
           && feed.IsMandatory)
@@ -82,7 +88,7 @@ public static class MailboxEngine
       return state;
     }
 
-    if (!state.Mailboxes.TryGetValue(target.Value, out var box))
+    if (!state.Mailboxes.TryGetValue(target.Value, out var box) || !box.LinkedToNode)
     {
       return state;
     }
@@ -98,7 +104,7 @@ public static class MailboxEngine
   private static MeshState PushPacket(MeshState state, PacketId packetId, MeshIdentityId owner)
   {
     var key = MeshState.PacketKey(packetId);
-    if (!state.Mailboxes.TryGetValue(owner.Value, out var box))
+    if (!state.Mailboxes.TryGetValue(owner.Value, out var box) || !box.LinkedToNode)
     {
       return state;
     }

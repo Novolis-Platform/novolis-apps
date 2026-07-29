@@ -5,6 +5,7 @@ using Novolis.Economy;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Simulation;
 using SinsOfACapitalismTycoon.Universe;
+using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Ui;
 
@@ -19,22 +20,27 @@ internal sealed class CaptainDeskModel
   public required string StandingLine { get; init; }
   public required string CashLine { get; init; }
   public required string DecisionLine { get; init; }
+  public required string CoachLine { get; init; }
   public required string SoftFailLine { get; init; }
   public required string SurvivalLine { get; init; }
-  public required string CurrentHubSystemId { get; init; }
-  public required string CurrentHubName { get; init; }
+  public required string MeshLine { get; init; }
+  public required string CurrentSystemId { get; init; }
+  public required string CurrentSystemName { get; init; }
   public required bool Underway { get; init; }
   public required TransitProfile Profile { get; init; }
   public required IReadOnlyList<StarMapPoint> MapPoints { get; init; }
   public required IReadOnlyList<StarMapEdge> MapEdges { get; init; }
+  public required IReadOnlyList<StarMapEdge> UnderwayRoute { get; init; }
   public required IReadOnlyDictionary<string, CampaignBriefingModel.HubDetail> HubDetails { get; init; }
   public required IReadOnlyList<FeedLine> Feed { get; init; }
   public required IReadOnlyList<ScorecardRow> Scorecard { get; init; }
   public required string ScorecardTitle { get; init; }
   public required IReadOnlyList<CaptainJobBoard.SpotCandidate> SpotJobs { get; init; }
   public required IReadOnlyList<CaptainJobBoard.CharterCandidate> Charters { get; init; }
+  public required IReadOnlyList<CaptainJobBoard.MarketLot> MarketLots { get; init; }
   public required IReadOnlyList<string> ManifestLines { get; init; }
   public required decimal ManifestUsed { get; init; }
+  public required decimal DockStock { get; init; }
   public required IReadOnlyList<MetricRow> RegistryRows { get; init; }
   public required IReadOnlyList<MetricRow> MoneyRows { get; init; }
   public required IReadOnlyList<MetricRow> AgentRows { get; init; }
@@ -43,6 +49,26 @@ internal sealed class CaptainDeskModel
   public required int Day { get; init; }
   public required bool Complete { get; init; }
   public required bool DockedIdle { get; init; }
+  public PlayerActionResult? LastAction { get; init; }
+  public string? TravelTargetSystemId { get; init; }
+  /// <summary>Best empty-steam destination when the berth has no freight (coach / Travel arm).</summary>
+  public string? SuggestedTravelSystemId { get; init; }
+  public required IReadOnlyList<string> RouteSystemIds { get; init; }
+  /// <summary>True when staged manifest lots match the current dock (can depart).</summary>
+  public bool ManifestAtCurrentDock { get; init; }
+  /// <summary>Origin system of the first staged lot (travel here before depart if elsewhere).</summary>
+  public string? ManifestOriginSystemId { get; init; }
+  public double ShipMapX { get; init; }
+  public double ShipMapY { get; init; }
+  public bool ShipMapVisible { get; init; }
+  public required IReadOnlyList<string> IntentStackLines { get; init; }
+  public required string AttentionLine { get; init; }
+  public double SimSpeedScale { get; init; }
+  /// <summary>Recent game hours advanced per real minute.</summary>
+  public double GameHoursPerRealMinute { get; init; }
+  /// <summary>Session-average game hours per real minute.</summary>
+  public double SessionGameHoursPerRealMinute { get; init; }
+  public required string PaceLine { get; init; }
 
   // Compat for older binders
   public IReadOnlyList<CaptainJobBoard.SpotCandidate> Jobs => SpotJobs;
@@ -57,8 +83,8 @@ internal sealed class CaptainDeskModel
       ? led.Cash.Amount
       : 0m;
     var profile = session.Player.DefaultProfile;
-    var currentHub = session.CurrentHubSystemId;
-    var currentName = ids.Sites.TryGetValue(currentHub, out var site) ? site.Hub.Name : currentHub;
+    var currentSystem = session.CurrentSystemId;
+    var currentName = ids.Sites.TryGetValue(currentSystem, out var site) ? site.Hub.Name : currentSystem;
 
     var ship = sim.State.World.Shipments.FirstOrDefault(s =>
       !s.IsLegacy && s.FirmId.Equals(ids.Carrier) && s.Status == ShipmentStatus.InTransit);
@@ -66,7 +92,7 @@ internal sealed class CaptainDeskModel
     string voyage;
     if (ship is null)
     {
-      voyage = $"BERTH · {currentName} ({currentHub})";
+      voyage = $"DOCK · {currentName} ({currentSystem})";
     }
     else if (ship.Quantity.Value <= 0m)
     {
@@ -80,13 +106,36 @@ internal sealed class CaptainDeskModel
     }
 
     var spot = CaptainJobBoard.ListSpot(
-      sim, ids, profile, currentHub, berthOnly: session.Player.LocalBoardOnly);
-    var charters = CaptainJobBoard.ListCharters(sim, ids, session.Player, currentHub);
+      sim, ids, profile, currentSystem, dockOnly: session.Player.DockBoardOnly, mesh: ids.Mesh);
+    // Live freight for coach / barren-escape / mesh-empty fallback.
+    var live = CaptainJobBoard.ListLiveFreight(sim, ids, profile, currentSystem, take: 24);
+    var suggestedTravel = live.FirstOrDefault(s => !s.AtOrigin && s.Margin > 8m)?.OriginSystemId
+                          ?? live.FirstOrDefault(s => !s.AtOrigin)?.OriginSystemId;
+    if (spot.Count == 0 && live.Count > 0)
+    {
+      // Mesh lag often blank early — prefer takeable AT-DOCK live lots, else INTEL remotes.
+      var atDock = live.Where(s => s.AtOrigin).Take(12).ToList();
+      spot = atDock.Count > 0
+        ? atDock
+        : live.Where(s => !s.AtOrigin).Take(16).ToList();
+    }
+
+    var charters = CaptainJobBoard.ListCharters(sim, ids, session.Player, currentSystem);
+    var market = CaptainJobBoard.ListMarket(sim, ids, currentSystem);
+    var dockStock = CaptainJobBoard.DockStock(sim, ids, currentSystem);
+    var meshSnap = MeshCaptainInbox.ForCaptain(ids.Mesh);
+    var inFtl = MeshMailboxSync.IsInFtl(ship);
     var manifestLines = session.Player.Manifest.Lots
-      .Select(l => $"{l.SkuLabel} → {l.DestSystemId} ×{l.Quantity:0} [{l.Profile}]")
+      .Select(l =>
+        $"{l.SkuLabel} → {l.DestSystemId} ×{l.Quantity:0} · pay {l.DestBid * l.Quantity:0} · lift {l.LiftLimit * l.Quantity:0} [{l.Profile}]")
       .ToList();
+    var room = Math.Max(0m, CampaignWorld.HullCargoCapacity - session.Player.Manifest.Used - dockStock);
     var hold =
-      $"hold {session.Player.Manifest.Used:0}/{CampaignWorld.HullCargoCapacity:0} · room {session.Player.Manifest.Room:0}";
+      $"hold manifest {session.Player.Manifest.Used:0}/{CampaignWorld.HullCargoCapacity:0} · dock stock {dockStock:0} · room {room:0}";
+
+    var underwayRoute = ship is null
+      ? Array.Empty<StarMapEdge>()
+      : RouteHighlight.FromShipment(ids, sim.State.World, ship);
 
     var catalog = SinsCatalog.Load();
     var hubDetails = new Dictionary<string, CampaignBriefingModel.HubDetail>(StringComparer.OrdinalIgnoreCase);
@@ -137,10 +186,47 @@ internal sealed class CaptainDeskModel
     }
 
     var feed = new List<FeedLine>();
-    foreach (var m in session.Milestones.Entries.OrderBy(e => e.Day).ThenBy(e => e.Kind).TakeLast(40))
+    if (inFtl)
     {
-      var vox = VoxBank.ForMilestone(m.Kind, m.Detail);
-      feed.Add(new FeedLine(vox.Voice, vox.Text, $"d{m.Day}"));
+      // Mesh panel freezes in FTL — no node link until in-system again.
+      feed.Add(new FeedLine(
+        "vox.mesh",
+        "Mesh offline · FTL — no node link until in-system",
+        "mesh"));
+      if (session.LastDesk is { Feed: { Count: > 0 } prevFeed })
+      {
+        foreach (var line in prevFeed)
+        {
+          if (line.Voice.Equals("vox.mesh", StringComparison.OrdinalIgnoreCase)
+              && line.Text.Contains("Mesh offline", StringComparison.OrdinalIgnoreCase))
+          {
+            continue;
+          }
+
+          feed.Add(line);
+        }
+      }
+    }
+    else
+    {
+      foreach (var subject in meshSnap.RecentSubjects.Take(6))
+      {
+        feed.Add(new FeedLine("vox.mesh", subject, "mesh"));
+      }
+
+      if (!session.Player.DockBoardOnly)
+      {
+        feed.Add(new FeedLine(
+          "vox.mesh",
+          $"Mesh intel is delayed · inbox {meshSnap.FeedInboxCount} · digests {meshSnap.SpotDigestCount}",
+          "mesh"));
+      }
+
+      foreach (var m in session.Milestones.Entries.OrderBy(e => e.Day).ThenBy(e => e.Kind).TakeLast(40))
+      {
+        var vox = VoxBank.ForMilestone(m.Kind, m.Detail);
+        feed.Add(new FeedLine(vox.Voice, vox.Text, $"d{m.Day}"));
+      }
     }
 
     var lifeHits = LifeMoments.Count(session.Milestones);
@@ -149,16 +235,23 @@ internal sealed class CaptainDeskModel
       .ToList();
 
     var decision = session.Agents.CarrierPulse.LastDecision;
-    var premium = entry is null ? 0m : ids.Registry.QuoteDailyPremium(entry);
+    var listPremium = entry is null ? 0m : ids.Registry.QuotePremiumDue(entry);
+    var operating = InsurancePulse.IsOperating(sim.State.World, ids.Carrier);
+    var premium = operating
+      ? listPremium
+      : listPremium * CampaignWorld.IdleStandingPremiumFactor;
+    var premiumHint = operating ? $"{premium:0.#}/d" : $"{premium:0.#}/d idle";
+    var payable = entry?.PremiumPayable ?? 0m;
+    // LifeFraction is wear used; desk shows remaining drive life (100% = fresh).
+    var lifeRemain = entry is null ? 0m : Math.Clamp((1m - entry.LifeFraction) * 100m, 0m, 100m);
     var hull = entry is null
       ? "—"
-      : $"life {entry.LifeFraction * 100m:0}% · premium {premium:0.#}/d · lien {entry.LienPrincipal:0} · OH {entry.OverhaulCount}";
+      : payable > 0.05m
+        ? $"life {lifeRemain:0}% · premium {premiumHint} · payable {payable:0.#} · lien {entry.LienPrincipal:0} · OH {entry.OverhaulCount}"
+        : $"life {lifeRemain:0}% · premium {premiumHint} · lien {entry.LienPrincipal:0} · OH {entry.OverhaulCount}";
     var standing = entry?.StandingLabel ?? "—";
-    var soft = session.Player.SoftFailRaised
-      ? $"SOFT FAIL — grounded {session.Player.SoftFailGroundedDays}d"
-      : session.Player.SoftFailGroundedDays > 0
-        ? $"grounded streak {session.Player.SoftFailGroundedDays}d"
-        : "";
+    var advice = CaptainCoach.For(session);
+    var soft = advice.SoftFailEnrichment;
 
     var registry = ids.Registry.Entries
       .OrderBy(e => e.RegistryName)
@@ -174,6 +267,9 @@ internal sealed class CaptainDeskModel
       new("Ops liquid", $"{session.Credits.LiquidStock:0}"),
       new("Claims / load", $"{ids.Registry.ClaimsPaid:0} / {ids.Registry.ActuarialLoad:0.##}"),
       new("Escrow open", $"{ids.Escrow.OpenCount}"),
+      new("Mesh inbox", inFtl
+        ? "offline · FTL"
+        : $"{meshSnap.FeedInboxCount} · em {meshSnap.EmergencyCount} · digests {meshSnap.SpotDigestCount}"),
     };
 
     var agentRows = new List<MetricRow>
@@ -190,37 +286,86 @@ internal sealed class CaptainDeskModel
                      && !sim.State.World.PendingPlanShipments.Any(p => p.FirmId.Equals(ids.Carrier))
                      && !sim.State.World.PendingPlanRepositions.Any(p => p.FirmId.Equals(ids.Carrier));
 
+    var travelTarget = session.Player.TravelTargetSystemId;
+    // Selecting the current system on the map used to arm Travel → "already at dock" soft-lock.
+    if (string.IsNullOrEmpty(travelTarget)
+        || travelTarget.Equals(currentSystem, StringComparison.OrdinalIgnoreCase))
+    {
+      travelTarget = suggestedTravel;
+      if (!string.IsNullOrEmpty(suggestedTravel))
+      {
+        session.Player.TravelTargetSystemId = suggestedTravel;
+      }
+    }
+
+    var manifestOrigin = session.Player.Manifest.Lots.Count > 0
+      ? session.Player.Manifest.Lots[0].OriginSystemId
+      : null;
+    var manifestAtDock = string.IsNullOrEmpty(manifestOrigin)
+      || manifestOrigin.Equals(currentSystem, StringComparison.OrdinalIgnoreCase);
+    var routeIds = new List<string>();
+    if (underwayRoute.Count > 0)
+    {
+      foreach (var e in underwayRoute)
+      {
+        if (routeIds.Count == 0) routeIds.Add(e.FromId);
+        routeIds.Add(e.ToId);
+      }
+    }
+    else if (!string.IsNullOrEmpty(travelTarget))
+    {
+      var planned = RouteHighlight.BetweenSystems(ids, currentSystem, travelTarget);
+      foreach (var e in planned)
+      {
+        if (routeIds.Count == 0) routeIds.Add(e.FromId);
+        routeIds.Add(e.ToId);
+      }
+    }
+
+    var (shipX, shipY, shipVis) = ShipMapPose.Compute(ids, sim.State.World, currentSystem, ship, points);
+
     return new CaptainDeskModel
     {
       SubtitleLine =
-        $"{CampaignWorld.PlayerMasterLabel} · day {day} · {DurationArg.Format(session.HoursDone)}/{DurationArg.Format(session.RequestedHours)} · intel {(session.Player.LocalBoardOnly ? "berth" : "network")}",
-      HashLine = $"hash {sim.State.Hash:X16} · hubs {ids.Bridge.Hubs.Count} · {CampaignWorld.PlayerFlavorId}",
+        $"{CampaignWorld.PlayerMasterLabel} · day {day} · {DurationArg.Format(session.HoursDone)}/{DurationArg.Format(session.RequestedHours)} · {session.PaceLine} · intel {(session.Player.DockBoardOnly ? "dock" : "mesh")}",
+      HashLine = session.PreferMaxSpeedThroughput
+        ? $"hash — · systems {ids.Bridge.Hubs.Count} · {CampaignWorld.PlayerFlavorId}"
+        : $"hash {sim.State.Hash:X16} · systems {ids.Bridge.Hubs.Count} · {CampaignWorld.PlayerFlavorId}",
       VoyageLine = voyage,
       HoldLine = hold,
       HullLine = hull,
       StandingLine = standing,
       CashLine = $"{cash:0.####}",
       DecisionLine = decision,
+      CoachLine = advice.CoachLine,
       SoftFailLine = soft,
       SurvivalLine = TrampSurvival.FormatLine(
         session.Player.LastSurvival ?? TrampSurvival.Capture(ids),
         session.Player.LastTrampMode,
         session.Player.LastTrampWon,
-        session.Player.LastTrampLost),
-      CurrentHubSystemId = currentHub,
-      CurrentHubName = currentName,
+        session.Player.LastTrampLost,
+        day,
+        ids),
+      MeshLine = inFtl
+        ? "mesh offline · FTL — no node link"
+        : $"mesh inbox {meshSnap.FeedInboxCount} · emergency {meshSnap.EmergencyCount} · mesh digests {meshSnap.SpotDigestCount} · push {meshSnap.MailboxPushCount}",
+      CurrentSystemId = currentSystem,
+      CurrentSystemName = currentName,
       Underway = underway,
       Profile = profile,
       MapPoints = points,
       MapEdges = edges,
+      UnderwayRoute = underwayRoute,
       HubDetails = hubDetails,
       Feed = feed,
       Scorecard = scoreRows,
       ScorecardTitle = $"Life moments {lifeHits}/{LifeMoments.Kinds.Length}",
       SpotJobs = spot,
       Charters = charters,
+      MarketLots = market,
       ManifestLines = manifestLines,
       ManifestUsed = session.Player.Manifest.Used,
+      DockStock = dockStock,
       RegistryRows = registry,
       MoneyRows = money,
       AgentRows = agentRows,
@@ -229,6 +374,23 @@ internal sealed class CaptainDeskModel
       Day = day,
       Complete = session.IsComplete,
       DockedIdle = dockedIdle,
+      LastAction = session.Player.LastAction,
+      TravelTargetSystemId = !manifestAtDock && !string.IsNullOrEmpty(manifestOrigin)
+        ? manifestOrigin
+        : travelTarget,
+      SuggestedTravelSystemId = suggestedTravel,
+      RouteSystemIds = routeIds,
+      ManifestAtCurrentDock = manifestAtDock,
+      ManifestOriginSystemId = manifestOrigin,
+      ShipMapX = shipX,
+      ShipMapY = shipY,
+      ShipMapVisible = shipVis,
+      IntentStackLines = session.Player.IntentStack.FormatLines(),
+      AttentionLine = DeskClock.FormatAttention(session.Player.Attention),
+      SimSpeedScale = session.Player.SimSpeedScale,
+      GameHoursPerRealMinute = session.GameHoursPerRealMinute,
+      SessionGameHoursPerRealMinute = session.SessionGameHoursPerRealMinute,
+      PaceLine = session.PaceLine,
     };
   }
 

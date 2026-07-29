@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Novolis.Economy.Logistics;
+using Novolis.Game.Session;
 using Spectre.Console;
 using SinsOfACapitalismTycoon.Universe;
 
@@ -8,7 +9,7 @@ namespace SinsOfACapitalismTycoon.Cli;
 /// <summary>
 /// Text captain desk — scriptable. Verbs mirror Avalonia:
 /// status, spot, charters, manifest, accept N, depart, travel &lt;system&gt;,
-/// refuse, wait, premium, overhaul, board network|berth, step, continue, resume, help, quit.
+/// refuse, wait, premium, overhaul, board mesh|dock, step, continue, resume, help, quit.
 /// </summary>
 internal static class CaptainConsole
 {
@@ -30,7 +31,7 @@ internal static class CaptainConsole
         options.Drama,
         playerControl: true,
         autopilot: options.Autopilot,
-        localBoard: options.Board == JobBoardScope.Local,
+        localBoard: options.Board == JobBoardScope.Dock,
         lastTramp: options.LastTramp);
     }
 
@@ -46,6 +47,15 @@ internal static class CaptainConsole
         Console.Error.WriteLine($"… d{session.Sim.State.Clock.Date.DayIndex} {CampaignWorld.PlayerHullName}: {d}");
       }
     };
+
+    var desk = new CaptainDeskService(session);
+    await using var surface = SessionSurface.AttachAll(
+      desk,
+      preferredPipeName: SessionEndpoints.SinsPipeName);
+    if (surface?.HttpBaseUrl is { } httpUrl)
+      Console.Error.WriteLine($"session HTTP {httpUrl}");
+    if (surface?.TcpPort is { } tcpPort)
+      Console.Error.WriteLine($"session TCP jsonl 127.0.0.1:{tcpPort}");
 
     var runTask = Task.Run(async () =>
       await session.RunAsync(quiet: true, story: false).ConfigureAwait(false));
@@ -77,7 +87,7 @@ internal static class CaptainConsole
         await WaitPause(session).ConfigureAwait(false);
       }
 
-      var result = Handle(line, session, ref hauled, ref traveled, ref remoteReject);
+      var result = Handle(line, session, desk, ref hauled, ref traveled, ref remoteReject);
       if (result == HandleResult.Quit)
       {
         session.ResumeToHorizon();
@@ -96,22 +106,28 @@ internal static class CaptainConsole
         var guard = 0;
         while (!session.IsComplete && guard++ < 48)
         {
-          session.Player.LocalBoardOnly = false;
-          if (session.ListJobs().Any(j => j.AtOrigin))
+          session.Player.DockBoardOnly = false;
+          if (session.ListJobs().Any(j => j.AtOrigin)
+              || CaptainJobBoard.ListLiveFreight(
+                   session.Sim, session.Ids, session.Player.DefaultProfile, session.CurrentSystemId)
+                 .Any(j => j.AtOrigin))
           {
-            Console.WriteLine($"AT-BERTH spot ready @ {session.CurrentHubSystemId}");
+            Console.WriteLine($"AT-DOCK spot ready @ {session.CurrentSystemId}");
             break;
           }
 
           Console.WriteLine(
-            $"… waiting berth ({session.CurrentHubSystemId}) · {session.Agents.CarrierPulse.LastDecision}");
+            $"… waiting dock ({session.CurrentSystemId}) · {session.Agents.CarrierPulse.LastDecision}");
           session.Continue();
           await WaitPause(session).ConfigureAwait(false);
         }
 
-        if (!session.ListJobs().Any(j => j.AtOrigin))
+        if (!session.ListJobs().Any(j => j.AtOrigin)
+            && !CaptainJobBoard.ListLiveFreight(
+                  session.Sim, session.Ids, session.Player.DefaultProfile, session.CurrentSystemId)
+                .Any(j => j.AtOrigin))
         {
-          Console.WriteLine("Timed out waiting for AT-BERTH spot");
+          Console.WriteLine("Timed out waiting for AT-DOCK spot");
           exitCode = 1;
           session.ResumeToHorizon();
           break;
@@ -161,6 +177,10 @@ internal static class CaptainConsole
                  || session.Milestones.Entries.Any(m =>
                    m.Detail.Contains("Calypso", StringComparison.OrdinalIgnoreCase)
                    && m.Kind is "escrow" or "known-responsive");
+      var liveFreight = CaptainJobBoard.ListLiveFreight(
+        session.Sim, session.Ids, session.Player.DefaultProfile, session.CurrentSystemId, take: 32);
+      var market = session.ListMarket();
+      var charters = session.ListCharters();
       var ok = traveled && hauled && remoteReject && legs;
       var line = ok
         ? $"PLAYTEST PASS — travel={traveled} haul={hauled} remote-reject={remoteReject}"
@@ -193,12 +213,12 @@ internal static class CaptainConsole
     // Spot intel → reject remote accept → travel to load hub → accept → depart → refuse standby if any → finish.
     yield return "status";
     yield return "spot";
-    yield return "accept-remote"; // must refuse — not at load berth
+    yield return "accept-remote"; // must refuse — not at load dock
     yield return "travel-to-best";
     yield return "continue";
-    // Arrival may take several days; keep flowing until AT-BERTH appears or horizon.
-    yield return "wait-berth-spot";
-    yield return "accept-at-berth";
+    // Arrival may take several days; keep flowing until AT-DOCK appears or horizon.
+    yield return "wait-dock-spot";
+    yield return "accept-at-dock";
     yield return "depart";
     yield return "continue";
     yield return "status";
@@ -217,7 +237,7 @@ internal static class CaptainConsole
   {
     Console.WriteLine();
     Console.WriteLine($"{CampaignWorld.PlayerMasterLabel} — text captain desk");
-    Console.WriteLine("See spot anywhere; accept only at load berth; travel empty. Type help.");
+    Console.WriteLine("See spot anywhere; accept only at load dock; travel empty. Type help.");
     while (true)
     {
       Console.Write("calypso> ");
@@ -231,10 +251,11 @@ internal static class CaptainConsole
   private static bool IsFreeCommand(string line)
   {
     var cmd = line.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0].ToLowerInvariant();
-    return cmd is "status" or "spot" or "jobs" or "charters" or "manifest" or "help" or "?"
+    return cmd is "status" or "spot" or "jobs" or "charters" or "market" or "manifest" or "help" or "?"
       or "board" or "profile" or "step" or "continue" or "resume" or "quit" or "exit"
       or "save" or "saves" or "load"
-      or "travel-to-best" or "accept-at-berth" or "accept-remote" or "wait-berth-spot";
+      or "travel-to-best" or "accept-at-dock" or "accept-remote" or "wait-dock-spot"
+      or "accept-charter" or "buy" or "sell";
   }
 
   private enum HandleResult { Ok, Advanced, Quit, Fail, WaitBerth }
@@ -242,6 +263,7 @@ internal static class CaptainConsole
   private static HandleResult Handle(
     string line,
     CampaignRunner.LiveSession session,
+    CaptainDeskService desk,
     ref bool hauled,
     ref bool traveled,
     ref bool remoteReject)
@@ -254,14 +276,16 @@ internal static class CaptainConsole
       case "?":
         Console.WriteLine(
           """
-          status / spot / charters / manifest
-          accept N              Commit spot N if AT load berth (else refuse)
-          accept-at-berth       First AT-BERTH spot into manifest
+          status / spot / charters / market / manifest
+          accept N              Commit freight spot N if AT load dock (else refuse)
+          accept-at-dock       First AT-DOCK freight into manifest
+          accept-charter N      Commit goods charter N (or standby)
+          buy N / sell N        Dock market ASK/BID into Calypso stock
           depart [sku]          Depart manifest lot
           travel <systemId>     Empty reposition
-          travel-to-best        Travel to best remote spot origin
+          travel-to-best        Travel to best remote freight origin
           refuse / wait / premium / overhaul
-          board network|berth   Spot intel filter
+          board mesh|dock       Spot intel filter (aliases: network|berth|local)
           step / continue / resume / quit
           save [label] / saves / load latest|<guid>
           """);
@@ -280,6 +304,10 @@ internal static class CaptainConsole
         PrintCharters(session);
         return HandleResult.Ok;
 
+      case "market":
+        PrintMarket(session);
+        return HandleResult.Ok;
+
       case "manifest":
         PrintManifest(session);
         return HandleResult.Ok;
@@ -287,11 +315,19 @@ internal static class CaptainConsole
       case "board":
         if (parts.Length >= 2)
         {
-          session.Player.LocalBoardOnly = parts[1].Equals("berth", StringComparison.OrdinalIgnoreCase)
+          session.Player.DockBoardOnly = parts[1].Equals("dock", StringComparison.OrdinalIgnoreCase)
+                                          || parts[1].Equals("berth", StringComparison.OrdinalIgnoreCase)
                                           || parts[1].Equals("local", StringComparison.OrdinalIgnoreCase);
+          if (parts[1].Equals("mesh", StringComparison.OrdinalIgnoreCase)
+              || parts[1].Equals("network", StringComparison.OrdinalIgnoreCase)
+              || parts[1].Equals("all", StringComparison.OrdinalIgnoreCase)
+              || parts[1].Equals("global", StringComparison.OrdinalIgnoreCase))
+          {
+            session.Player.DockBoardOnly = false;
+          }
         }
 
-        Console.WriteLine($"board → {(session.Player.LocalBoardOnly ? "berth" : "network")}");
+        Console.WriteLine($"board → {(session.Player.DockBoardOnly ? "dock" : "mesh")}");
         PrintSpot(session);
         return HandleResult.Ok;
 
@@ -336,16 +372,16 @@ internal static class CaptainConsole
         if (!job.AtOrigin)
         {
           remoteReject = true;
-          Console.WriteLine($"REJECTED — not at load berth ({job.OriginName}). Travel first; posting may vanish.");
+          Console.WriteLine($"REJECTED — not at load dock ({job.OriginName}). Travel first; posting may vanish.");
           return HandleResult.Ok;
         }
 
-        return CommitAndContinue(session, job, ref hauled);
+        return CommitAndContinue(session, desk, job, ref hauled);
       }
 
       case "accept-remote":
       {
-        session.Player.LocalBoardOnly = false;
+        session.Player.DockBoardOnly = false;
         var job = session.ListJobs().FirstOrDefault(j => !j.AtOrigin);
         if (job is null)
         {
@@ -355,36 +391,29 @@ internal static class CaptainConsole
         }
 
         remoteReject = true;
-        Console.WriteLine($"REJECTED — not at load berth ({job.OriginName}). Travel first.");
+        Console.WriteLine($"REJECTED — not at load dock ({job.OriginName}). Travel first.");
         return HandleResult.Ok;
       }
 
+      case "accept-at-dock":
       case "accept-at-berth":
       {
-        var job = session.ListJobs().FirstOrDefault(j => j.AtOrigin);
+        var job = CaptainJobBoard.ListLiveFreight(
+            session.Sim, session.Ids, session.Player.DefaultProfile, session.CurrentSystemId, take: 16)
+          .FirstOrDefault(j => j.AtOrigin);
         if (job is null)
         {
-          // Force berth filter then network scan for AtOrigin after travel.
-          session.Player.LocalBoardOnly = false;
-          job = session.ListJobs().FirstOrDefault(j => j.AtOrigin);
-        }
-
-        if (job is null)
-        {
-          Console.WriteLine("No AT-BERTH spot — try travel-to-best");
+          Console.WriteLine("No AT-DOCK freight — try travel-to-best");
           return HandleResult.Ok;
         }
 
-        return CommitAndContinue(session, job, ref hauled);
+        return CommitAndContinue(session, desk, job, ref hauled);
       }
 
       case "depart":
       {
         var sku = parts.Length >= 2 ? parts[1] : null;
-        session.Player.Orders.Enqueue(new PlayerOrder(PlayerOrderKind.DepartManifest, SkuLabel: sku));
-        Console.WriteLine("Depart queued");
-        session.Continue();
-        return HandleResult.Advanced;
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Depart, Sku = sku });
       }
 
       case "travel":
@@ -395,95 +424,108 @@ internal static class CaptainConsole
           return HandleResult.Ok;
         }
 
-        session.Player.Orders.Enqueue(new PlayerOrder(
-          PlayerOrderKind.TravelTo, DestSystemId: parts[1], Profile: session.Player.DefaultProfile));
         traveled = true;
-        Console.WriteLine($"Travel → {parts[1]}");
-        session.Continue();
-        return HandleResult.Advanced;
+        return DeskAdvance(desk, new SessionCommandDto
+        {
+          ActionId = SessionActionIds.Travel,
+          DestSystemId = parts[1],
+        });
       }
 
       case "travel-to-best":
       {
-        session.Player.LocalBoardOnly = false;
-        var remote = session.ListJobs().FirstOrDefault(j => !j.AtOrigin && j.Margin > 0m)
-                     ?? session.ListJobs().FirstOrDefault(j => !j.AtOrigin);
+        // Dock acts use live freight board — mesh digests can be empty early.
+        var live = CaptainJobBoard.ListLiveFreight(
+            session.Sim, session.Ids, session.Player.DefaultProfile, session.CurrentSystemId, take: 32)
+          .OrderByDescending(j => j.Margin)
+          .ToList();
+        var remote = live.FirstOrDefault(j => !j.AtOrigin && j.Margin > 0m)
+                     ?? live.FirstOrDefault(j => !j.AtOrigin);
         if (remote is null)
         {
-          Console.WriteLine("No remote spot origin to travel to");
+          Console.WriteLine("No remote freight origin to travel to");
           return HandleResult.Ok;
         }
 
-        session.Player.Orders.Enqueue(new PlayerOrder(
-          PlayerOrderKind.TravelTo,
-          DestSystemId: remote.OriginSystemId,
-          Profile: session.Player.DefaultProfile));
         traveled = true;
-        Console.WriteLine($"Travel → {remote.OriginSystemId} ({remote.OriginName}) for {remote.Label}");
-        session.Continue();
-        return HandleResult.Advanced;
+        Console.WriteLine($"(best) {remote.OriginName} for {remote.Label}");
+        return DeskAdvance(desk, new SessionCommandDto
+        {
+          ActionId = SessionActionIds.Travel,
+          DestSystemId = remote.OriginSystemId,
+        });
       }
 
-      case "wait-berth-spot":
+      case "wait-dock-spot":
         return HandleResult.WaitBerth;
 
+      case "accept-charter":
+      {
+        var list = session.ListCharters();
+        if (parts.Length < 2 || !int.TryParse(parts[1], out var ci) || ci < 0 || ci >= list.Count)
+        {
+          Console.WriteLine("accept-charter N");
+          PrintCharters(session);
+          return HandleResult.Ok;
+        }
+
+        hauled = true;
+        return DeskAdvance(desk, new SessionCommandDto
+        {
+          ActionId = SessionActionIds.AcceptCharter,
+          Index = ci,
+        });
+      }
+
+      case "buy":
+      case "sell":
+      {
+        var market = session.ListMarket();
+        if (parts.Length < 2 || !int.TryParse(parts[1], out var mi) || mi < 0 || mi >= market.Count)
+        {
+          Console.WriteLine($"{cmd} N");
+          PrintMarket(session);
+          return HandleResult.Ok;
+        }
+
+        return DeskAdvance(desk, new SessionCommandDto
+        {
+          ActionId = cmd == "buy" ? SessionActionIds.MarketBuy : SessionActionIds.MarketSell,
+          Index = mi,
+        });
+      }
+
       case "wait":
-        session.Player.Orders.Enqueue(new PlayerOrder(PlayerOrderKind.Wait));
-        session.Continue();
-        return HandleResult.Advanced;
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Wait });
 
       case "refuse":
-        if (session.Player.Opportunities?.ActiveStandbyTramp?.Equals(session.Ids.Carrier) == true)
-        {
-          session.Player.Orders.Enqueue(new PlayerOrder(PlayerOrderKind.RefuseStandby));
-          Console.WriteLine("Refuse standby queued");
-        }
-        else
-        {
-          Console.WriteLine("No active standby");
-        }
-
-        session.Continue();
-        return HandleResult.Advanced;
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.RefuseStandby });
 
       case "premium":
-        session.Player.Orders.Enqueue(new PlayerOrder(PlayerOrderKind.PayPremium));
-        session.Continue();
-        return HandleResult.Advanced;
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Premium });
 
       case "overhaul":
-        session.Player.Orders.Enqueue(new PlayerOrder(PlayerOrderKind.RequestOverhaul));
-        session.Continue();
-        return HandleResult.Advanced;
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Overhaul });
 
       case "step":
-        session.StepDay();
-        return HandleResult.Advanced;
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Step });
 
       case "continue":
       case "go":
-        session.Continue();
-        return HandleResult.Advanced;
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Continue });
 
       case "resume":
-        session.ResumeToHorizon();
+        desk.Execute(new SessionCommandDto { ActionId = SessionActionIds.Resume });
         return HandleResult.Quit;
 
       case "save":
       {
-        try
-        {
-          var label = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : null;
-          var record = session.SaveCheckpointAsync(label).AsTask().GetAwaiter().GetResult();
-          Console.WriteLine($"Saved {record.Label} id={record.Id:N} → {CampaignSaveStore.Default.RootPath}");
-        }
-        catch (Exception ex)
-        {
-          Console.WriteLine($"Save failed: {ex.Message}");
-          return HandleResult.Fail;
-        }
-
-        return HandleResult.Ok;
+        var label = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : null;
+        var saveResult = desk.Execute(new SessionCommandDto { ActionId = SessionActionIds.Save, Label = label });
+        Console.WriteLine(saveResult.Ok
+          ? $"{saveResult.Message} → {CampaignSaveStore.Default.RootPath}"
+          : $"Save failed: {saveResult.Message}");
+        return saveResult.Ok ? HandleResult.Ok : HandleResult.Fail;
       }
 
       case "saves":
@@ -508,29 +550,35 @@ internal static class CaptainConsole
     }
   }
 
+  private static HandleResult DeskAdvance(CaptainDeskService desk, SessionCommandDto command)
+  {
+    var result = desk.Execute(command);
+    Console.WriteLine(result.Ok
+      ? result.Message
+      : $"FAIL [{result.ErrorCode ?? "error"}] {result.Message}");
+    return result.Ok ? HandleResult.Advanced : HandleResult.Ok;
+  }
+
   private static HandleResult CommitAndContinue(
     CampaignRunner.LiveSession session,
+    CaptainDeskService desk,
     CaptainJobBoard.SpotCandidate job,
     ref bool hauled)
   {
-    session.Player.Orders.Enqueue(new PlayerOrder(
-      PlayerOrderKind.CommitSpot,
-      OriginSystemId: job.OriginSystemId,
-      DestSystemId: job.DestSystemId,
-      SkuLabel: job.SkuLabel,
-      Quantity: job.Quantity,
-      LiftLimit: job.LiftLimit,
-      DestBid: job.DestBid,
-      Profile: job.Profile));
+    var spots = session.ListJobs();
+    var idx = spots.ToList().FindIndex(j =>
+      j.OriginSystemId == job.OriginSystemId
+      && j.DestSystemId == job.DestSystemId
+      && j.SkuLabel == job.SkuLabel
+      && j.Quantity == job.Quantity);
+    if (idx < 0) idx = 0;
     hauled = true;
-    Console.WriteLine($"Manifest + {job.Label} Δ{job.Margin:0.#}");
-    session.Continue();
-    return HandleResult.Advanced;
+    return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.AcceptSpot, Index = idx });
   }
 
   private static void PrintStatus(CampaignRunner.LiveSession session, bool banner)
   {
-    var desk = Ui.CaptainDeskModel.From(session);
+    var desk = session.LastDesk ?? session.CaptureDesk();
     if (banner)
     {
       Console.WriteLine();
@@ -540,6 +588,14 @@ internal static class CaptainConsole
     Console.WriteLine($"d{desk.Day}  {desk.VoyageLine}");
     Console.WriteLine($"  cash {desk.CashLine}  {desk.StandingLine}  {desk.HoldLine}");
     Console.WriteLine($"  decision: {desk.DecisionLine}");
+    if (desk.LastAction is { } last)
+    {
+      var tag = last.Ok ? "ok" : (last.ErrorCode ?? "fail");
+      Console.WriteLine($"  last-action: [{tag}] {last.ActionId} — {last.Message}");
+    }
+
+    Console.WriteLine($"  {desk.MeshLine}");
+    if (!string.IsNullOrEmpty(desk.CoachLine)) Console.WriteLine($"  {desk.CoachLine}");
     if (!string.IsNullOrEmpty(desk.SurvivalLine)) Console.WriteLine($"  {desk.SurvivalLine}");
     if (desk.StandbyOffer) Console.WriteLine("  STANDBY — refuse | accept standby via charters");
     if (!string.IsNullOrEmpty(desk.SoftFailLine)) Console.WriteLine($"  {desk.SoftFailLine}");
@@ -554,22 +610,42 @@ internal static class CaptainConsole
   private static void PrintSpot(CampaignRunner.LiveSession session)
   {
     var spots = session.ListJobs();
-    Console.WriteLine($"  [SPOT {(session.Player.LocalBoardOnly ? "berth" : "network")}] {spots.Count}");
+    Console.WriteLine($"  [SPOT {(session.Player.DockBoardOnly ? "dock" : "mesh")}] {spots.Count}  (take = AT DOCK only)");
     for (var i = 0; i < spots.Count; i++)
     {
       var j = spots[i];
+      var tag = j.AtOrigin ? "TAKE" : "INTEL";
       Console.WriteLine(
-        $"    [{i}] {j.DistanceHint,-12} {j.Label}  Δ{j.Margin:0.#}  ×{j.Quantity:0}");
+        $"    [{i}] {tag,-5} {j.Label}  pay {j.ContractPay:0}  lift {j.LiftCost:0}  Δ{j.Margin:0.#}  ×{j.Quantity:0}");
     }
   }
 
   private static void PrintCharters(CampaignRunner.LiveSession session)
   {
     var list = session.ListCharters();
-    Console.WriteLine($"  [CHARTERS] {list.Count}");
-    foreach (var c in list)
+    Console.WriteLine($"  [GOODS CHARTERS] {list.Count}  (firm escrow A→B · local dock only)");
+    for (var i = 0; i < list.Count; i++)
     {
-      Console.WriteLine($"    [{c.Kind}] {c.Label} — {c.Detail}");
+      var c = list[i];
+      if (c.ContractPay > 0m)
+      {
+        Console.WriteLine(
+          $"    [{i}] {(c.CanAcceptHere ? "TAKE" : "HOLD")} {c.Label}  pay {c.ContractPay:0}  lift {c.LiftCost:0}  Δ{c.Margin:0.#}");
+      }
+      else
+      {
+        Console.WriteLine($"    [{i}] [{c.Kind}] {c.Label} — {c.Detail}");
+      }
+    }
+  }
+
+  private static void PrintMarket(CampaignRunner.LiveSession session)
+  {
+    var list = session.ListMarket();
+    Console.WriteLine($"  [MARKET @ {session.CurrentSystemId}] {list.Count}");
+    for (var i = 0; i < list.Count; i++)
+    {
+      Console.WriteLine($"    [{i}] {list[i].Summary}");
     }
   }
 

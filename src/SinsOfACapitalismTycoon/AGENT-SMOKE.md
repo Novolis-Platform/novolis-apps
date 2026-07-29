@@ -32,7 +32,7 @@ dotnet run --project d:\novolis\novolis-apps\src\SinsOfACapitalismTycoon `
 | `calypso.boards` | Spot \| Charters \| Manifest tabs |
 | `calypso.spot` / `calypso.charters` / `calypso.manifest` | Lists |
 | `calypso.boardScope` / `calypso.profile` | Combos |
-| `calypso.acceptSpot` / `calypso.depart` | Berth acts |
+| `calypso.acceptSpot` / `calypso.depart` | Dock acts |
 | `calypso.acceptStandby` / `calypso.refuseStandby` | Charters |
 | `calypso.wait` / `calypso.premium` / `calypso.overhaul` | Hull acts |
 
@@ -46,8 +46,8 @@ Enable `avalonia-agent` in Cursor (`.cursor/mcp.json`), then:
 4. `ui_items` `calypso.spot` — spot lines with indexes (no select needed)
 5. `ui_select` `calypso.boards` `itemText=Spot` — Spot tab
 6. `ui_type` `calypso.travelSystem` `ez-aquarii` `clear=true` then `ui_click` `calypso.travel`
-7. `ui_click` `calypso.continue` then `ui_poll` `calypso.voyage` `textContains=BERTH` (prefer poll over wait while sim runs)
-8. `ui_select` `calypso.spot` `itemText=AT BERTH` then `ui_click` `calypso.acceptSpot`
+7. `ui_click` `calypso.continue` then `ui_poll` `calypso.voyage` `textContains=DOCK` (prefer poll over wait while sim runs)
+8. `ui_select` `calypso.spot` `itemText=AT DOCK` then `ui_click` `calypso.acceptSpot`
 9. `ui_screenshot` — PNG under `%TEMP%/novolis-avalonia-agent/`
 
 ## Last-tramp win (autopilot)

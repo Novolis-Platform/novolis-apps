@@ -1,4 +1,5 @@
-using SinsOfACapitalismTycoon.Universe.Mesh;
+using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Unit;
 

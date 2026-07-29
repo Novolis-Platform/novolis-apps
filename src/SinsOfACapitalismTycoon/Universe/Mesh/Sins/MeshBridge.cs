@@ -1,9 +1,10 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 /// <summary>Maps Astro campaign systems into <see cref="MeshState"/> (product glue).</summary>
-public static class MeshBridge
+internal static class MeshBridge
 {
   internal static MeshState FromBridge(
     AstroEconomyBridge.BridgeResult bridge,

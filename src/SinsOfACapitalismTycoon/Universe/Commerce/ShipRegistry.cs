@@ -24,7 +24,9 @@ internal sealed class ShipRegistryEntry : RegistryRecord
   public decimal PremiumPaid { get; set; }
   public decimal MaintenancePaid { get; set; }
   public decimal ClaimsReceived { get; set; }
-  /// <summary>Consecutive days premium unpaid while still marked insured.</summary>
+  /// <summary>Accrued premium liability not yet settled in cash (wage-style payable).</summary>
+  public decimal PremiumPayable { get; set; }
+  /// <summary>Consecutive days with unpaid premium payable and no cash settlement.</summary>
   public int PremiumArrearsDays { get; set; }
   public int PriorityLegs { get; set; }
   public int SlowLegs { get; set; }
@@ -171,6 +173,20 @@ internal sealed class ShipRegistry
       ActuarialLoad,
       idleOrSuspended: e.BurnedOut || e.Suspended);
   }
+
+  /// <summary>
+  /// Daily premium for the hull's <b>category</b> (owner-master / mega / life / load).
+  /// Accrues over calendar time — not per job. Idle/burned bands are inside
+  /// <see cref="HullRiskQuotes.DailyPremium"/> via suspended/burned flags.
+  /// </summary>
+  public decimal QuotePremiumDue(ShipRegistryEntry e, bool operatingInTransit = false)
+  {
+    _ = operatingInTransit; // retained for call-site compat; billing is category-over-time
+    return QuoteDailyPremium(e);
+  }
+
+  /// <summary>Obsolete alias — prefer <see cref="QuotePremiumDue"/>.</summary>
+  public const decimal IdlePremiumFactor = 1m;
 
   public decimal QuoteElectiveOverhaul(ShipRegistryEntry e)
   {

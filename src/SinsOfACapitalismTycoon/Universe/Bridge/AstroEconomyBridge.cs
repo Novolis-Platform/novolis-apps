@@ -26,6 +26,10 @@ internal static class AstroEconomyBridge
   /// <summary>Campaign seed for <see cref="SystemProfileGenerator"/> (matches <see cref="CampaignWorld.Create"/> default).</summary>
   public const ulong CampaignSeed = 1001;
 
+  /// <summary>
+  /// Economy <see cref="TransportHub"/> mapping for a catalog star system.
+  /// Prefer <see cref="SystemId"/> / station name in Sins display; keep <see cref="HubId"/> for Economy APIs.
+  /// </summary>
   public sealed record HubBinding(
     string SystemId,
     string Name,

@@ -1,8 +1,7 @@
 using System.Text.Json;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Media.Imaging;
-using DraftStudio.Core;
+using Novolis.Avalonia.Cad.Core;
+using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Raylib;
 
 namespace DraftStudio.Services;
@@ -12,15 +11,15 @@ internal sealed class DraftArtifactDumper
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
-    public DraftArtifactDumper(DraftSession session, DraftSettingsStore settings)
+    public DraftArtifactDumper(CadDocumentSession session, CadEditorSettings settings)
     {
         Session = session;
         Settings = settings;
     }
 
-    public DraftSession Session { get; }
+    public CadDocumentSession Session { get; }
 
-    public DraftSettingsStore Settings { get; }
+    public CadEditorSettings Settings { get; }
 
     public string DumpsDirectory => Path.Combine(Settings.DataRoot, "dumps");
 
@@ -42,14 +41,15 @@ internal sealed class DraftArtifactDumper
 
         await ensureDraftViewAsync().ConfigureAwait(true);
         var draftPng = AllocatePngPath("draft");
-        var draftOk = TryRenderControlPng(draftViewport, draftPng);
+        var draftOk = CadViewportExporter.TryExportPlanPng(draftViewport, draftPng);
 
         await ensureModelViewAsync().ConfigureAwait(true);
         var modelPng = AllocatePngPath("model");
-        var modelOk = await TryCaptureModelPngAsync(raylibHost, modelPng, cancellationToken).ConfigureAwait(true);
+        var modelOk = await CadViewportExporter.ExportModelPngAsync(raylibHost, modelPng, cancellationToken)
+            .ConfigureAwait(true) is not null;
 
         var windowPng = AllocatePngPath("window");
-        var windowOk = TryRenderControlPng(window, windowPng);
+        var windowOk = CadViewportExporter.TryExportPlanPng(window, windowPng);
 
         var result = new DraftArtifactResult
         {
@@ -72,51 +72,6 @@ internal sealed class DraftArtifactDumper
             .ConfigureAwait(false);
 
         return result;
-    }
-
-    public static bool TryRenderControlPng(Control control, string path)
-    {
-        try
-        {
-            control.UpdateLayout();
-            var w = Math.Max(1, (int)Math.Ceiling(control.Bounds.Width));
-            var h = Math.Max(1, (int)Math.Ceiling(control.Bounds.Height));
-            if (w < 2 || h < 2)
-                return false;
-
-            using var bitmap = new RenderTargetBitmap(new PixelSize(w, h), new Vector(96, 96));
-            bitmap.Render(control);
-            var dir = Path.GetDirectoryName(path);
-            if (!string.IsNullOrWhiteSpace(dir))
-                Directory.CreateDirectory(dir);
-            using var stream = File.Create(path);
-            bitmap.Save(stream);
-            return stream.Length > 32;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    public static async Task<bool> TryCaptureModelPngAsync(
-        RaylibHostControl host,
-        string path,
-        CancellationToken cancellationToken = default)
-    {
-        host.SetHostActive(true);
-        host.EnsureHostStarted();
-
-        for (var i = 0; i < 40; i++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            host.RequestFrame();
-            await Task.Delay(40, cancellationToken).ConfigureAwait(true);
-            if (host.HasPresentedFrame && host.TrySaveLastPresentedFramePng(path))
-                return true;
-        }
-
-        return false;
     }
 }
 

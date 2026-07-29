@@ -1,7 +1,7 @@
 using System.Text.Json;
-using DraftStudio.Commands;
-using DraftStudio.Core;
-using DraftStudio.Services;
+using Novolis.Avalonia.Cad.Commands;
+using Novolis.Avalonia.Cad.Core;
+using Novolis.Avalonia.Cad.Services;
 using Novolis.Commands.Expressions;
 using Novolis.Math.Geometry;
 
@@ -45,10 +45,10 @@ internal static class SmokeRunner
         Directory.CreateDirectory(root);
         try
         {
-            var settings = new DraftSettingsStore(root);
-            var session = new DraftSession(settings);
-            var bus = new DraftCommandBus(session);
-            var dispatcher = new DraftCommandDispatcher(session, bus, settings);
+            var settings = new CadEditorSettings(root);
+            var session = new CadDocumentSession(settings);
+            var bus = new CadCommandBus(session);
+            var dispatcher = new CadCommandDispatcher(session, bus, settings);
 
             session.OpenOrCreateDefault();
             Check("starter entities", session.Document.Entities.Count >= 2);
@@ -89,7 +89,7 @@ internal static class SmokeRunner
             Check("phys has collider", phys.Colliders.Count >= 1);
             Check("phys mesh indices % 3", phys.Meshes.All(m => m.Indices.Count % 3 == 0));
 
-            var reloaded = new DraftSession(settings);
+            var reloaded = new CadDocumentSession(settings);
             reloaded.OpenOrCreateDefault();
             Check("reload entity count", reloaded.Document.Entities.Count == session.Document.Entities.Count);
             Check("reload keeps spline", reloaded.Document.Entities.Any(e => e.Kind == "spline"));

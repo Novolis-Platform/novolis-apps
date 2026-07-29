@@ -23,7 +23,7 @@ burn that life. You overhaul in the elective window, or you wait and **guarantee
 | Firm registry | `FirmRegistryEntry` — solvent / encumbered / blacklisted |
 | License registry | `LicenseRegistryEntry` — Priority endorsements (term / revoked) |
 | Owner-master vs fleet | Tramps + ventures register as owner-master; mega as fleet |
-| Insurance premium | `InsurancePulse` daily; scales with **life fraction**, capped (not a terminal tax) |
+| Insurance premium | `InsurancePulse` daily **accrual** (category × time → payable); cash settlement like wages — not per job. Docked idle accrues at **15%** of operating quote (`IdleStandingPremiumFactor`); underway = full rate |
 | Claims (loss ≠ erase) | `ClaimsPulse` on stall-abandon / Priority wear; deductible |
 | Mileage / mass / speed | Library `TransitProfiles.WearForUnderwayHour(profile, load, difficulty)` |
 | Rated life → burnout | `LifeUsed` vs `RatedLife`; `DriveMaintenancePulse` |
@@ -33,12 +33,12 @@ burn that life. You overhaul in the elective window, or you wait and **guarantee
 | Reputation → work | `ReputationLedger` + `EffectiveMinMargin` / standby pick |
 | Ugly standby pool | `OpportunitiesPool` — refusal ≠ premium (`standby-pass`) |
 | Jump-band refuse | `JumpBandGate` + `CarrierFirmAgentPolicy.RefuseHaul` |
-| Port tiers | `PortTier` on roles → dwell/toll/berth fee |
-| Debt follows hull | `LienPrincipal` + `LienPulse` |
+| Port tiers | `PortTier` on roles → dwell/toll/dock fee |
+| Debt follows hull | `LienPrincipal` + `LienPulse` — **no cash service through day 21**, then 4% of principal (floor 40) |
 | Big carriers vs edges | `MV Bulk River` Slow bulk + tramp Priority Final |
 | Slow / Standard / Priority | `TransitProfile` scales hours, fuel, wear |
 | Fuel geography | Thin Transit/Waypoint bunkers; drama fuel famine days |
-| Berth congestion | Tighter Capital berths; `AvoidHub` when WaitingBerth ≥ capacity |
+| Dock congestion | Tighter Capital docks; `AvoidHub` when WaitingBerth ≥ capacity |
 | Drama shocks | `CampaignDramaHost` (`--drama on\|off`) |
 | Narrative | `MilestoneLog` / Spectre `MILESTONE:` + tramp biographies |
 

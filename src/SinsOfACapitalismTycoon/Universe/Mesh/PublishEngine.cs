@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Publish into the mesh — visibility / push / feed contract, never human delivery.</summary>
-public static class PublishEngine
+internal static class PublishEngine
 {
   public static MeshState Publish(
     MeshState state,
@@ -69,8 +69,14 @@ public static class PublishEngine
     MeshAddress destination,
     int priority = 1,
     bool sealedPacket = true,
-    int? ttlHours = null,
-    PacketId? id = null)
+    int? globalTtlHours = null,
+    int? localTtlHours = null,
+    int? localRetentionPriority = null,
+    PacketId? id = null,
+    string subject = "",
+    string body = "",
+    string topic = "",
+    string logicalKey = "")
   {
     var packetId = id ?? PacketId.New();
     var layer = destination.Kind == MeshAddressKind.Feed
@@ -82,11 +88,46 @@ public static class PublishEngine
       sealedPacket,
       ImmutableArray<byte>.Empty,
       priority,
-      ttlHours,
+      globalTtlHours,
+      localTtlHours,
+      localRetentionPriority ?? priority,
       fromNode,
       destination,
-      state.HourIndex);
+      state.HourIndex,
+      subject,
+      body,
+      topic,
+      logicalKey);
     return (Publish(state, packet, fromNode), packetId);
+  }
+
+  /// <summary>
+  /// Flood a logical-key retraction (spot job taken / price obsolete). High priority; sticky local TTL.
+  /// </summary>
+  public static (MeshState State, PacketId Id) PublishRetraction(
+    MeshState state,
+    MeshNodeId fromNode,
+    string logicalKey,
+    MeshFeedId? feed = null,
+    int? globalTtlHours = 168,
+    int? localTtlHours = 72,
+    PacketId? id = null,
+    string subject = "")
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(logicalKey);
+    return PublishPulse(
+      state,
+      fromNode,
+      MeshAddress.ToFeed(feed ?? MeshFeedId.CommerceSpot),
+      priority: 8,
+      globalTtlHours: globalTtlHours,
+      localTtlHours: localTtlHours,
+      localRetentionPriority: 9,
+      id: id,
+      subject: string.IsNullOrEmpty(subject) ? $"Retract · {logicalKey}" : subject,
+      body: logicalKey,
+      topic: MeshTopics.SpotRetract,
+      logicalKey: logicalKey);
   }
 
   private static MeshState PublishDirected(MeshState state, MeshPacket packet, MeshNodeId fromNode)

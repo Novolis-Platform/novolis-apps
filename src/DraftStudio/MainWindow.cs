@@ -5,30 +5,35 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
-using DraftStudio.Commands;
-using DraftStudio.Core;
-using DraftStudio.Models;
 using DraftStudio.Services;
 using DraftStudio.Ui;
 using Novolis.Avalonia.Agent;
 using Novolis.Avalonia.Agent.Protocol;
+using Novolis.Avalonia.Cad.Commands;
+using Novolis.Avalonia.Cad.Core;
+using Novolis.Avalonia.Cad.Services;
+using Novolis.Avalonia.Cad.Session;
+using Novolis.Avalonia.Cad.Ui;
 using Novolis.Avalonia.Raylib;
 using Novolis.Avalonia.Studio;
+using Novolis.Cad.Primitives;
 
 namespace DraftStudio;
 
 internal sealed class MainWindow : Window
 {
-    private readonly DraftSession _session;
-    private readonly DraftSettingsStore _settings;
-    private readonly DraftCommandBus _bus;
-    private readonly DraftCommandDispatcher _dispatcher;
-    private readonly ToolController _tools;
-    private readonly DraftModelRenderer _modelRenderer;
+    private readonly CadSessionService _cad;
+    private readonly CadDocumentSession _session;
+    private readonly CadEditorSettings _settings;
+    private readonly CadCommandBus _bus;
+    private readonly CadCommandDispatcher _dispatcher;
+    private readonly CadToolController _tools;
+    private readonly CadModelRenderer _modelRenderer;
     private readonly DraftArtifactDumper _artifacts;
+    private CadEditorSurface _editor = null!;
     private bool _dumpBusy;
 
-    private DraftViewport _draftViewport = null!;
+    private CadDraftViewport _draftViewport = null!;
     private RaylibHostControl _raylibHost = null!;
     private Panel _viewportStack = null!;
     private StudioCommandBar _commandBar = null!;
@@ -42,27 +47,31 @@ internal sealed class MainWindow : Window
     private CheckBox _isolateCheck = null!;
     private NumericUpDown _elevationBox = null!;
     private StackPanel _toolStrip = null!;
-    private DraftViewMode _viewMode = DraftViewMode.Draft;
+    private CadViewMode _viewMode = CadViewMode.Draft;
     private bool _orbiting;
     private Point _lastPointer;
     private bool _suppressList;
     private bool _suppressUnit;
 
-    public MainWindow(DraftSession session, DraftSettingsStore settings, DraftCommandBus bus)
+    public MainWindow(CadSessionService cad)
     {
-        _session = session;
-        _settings = settings;
-        _bus = bus;
-        _dispatcher = new DraftCommandDispatcher(session, bus, settings);
-        _tools = new ToolController(_dispatcher, settings);
-        _modelRenderer = new DraftModelRenderer(session);
-        _artifacts = new DraftArtifactDumper(session, settings);
+        _cad = cad;
+        _session = cad.Document;
+        _settings = cad.Settings;
+        _bus = cad.Bus;
+        _dispatcher = cad.Dispatcher;
+        _tools = new CadToolController(_dispatcher, _settings);
+        _modelRenderer = new CadModelRenderer(_session);
+        _artifacts = new DraftArtifactDumper(_session, _settings);
+        _cad.ExportRoot = Path.Combine(_settings.DataRoot, "exports");
+        _cad.FitHandler = OnFit;
 
         Title = "Draft Studio";
         Width = 1400;
         Height = 900;
 
         Content = BuildLayout();
+        _cad.Editor = _editor;
 
         _dispatcher.FitRequested += OnFit;
         _dispatcher.SaveRequested += OnSave;
@@ -103,17 +112,17 @@ internal sealed class MainWindow : Window
         toolbar.Children.Add(Btn("Save", OnSave, "draft.tool.save", "Ctrl+S"));
         toolbar.Children.Add(Btn("Save As…", () => _ = OnSaveAsAsync(), "draft.tool.saveAs", "Ctrl+Shift+S"));
         toolbar.Children.Add(Sep());
-        toolbar.Children.Add(Btn("Undo", () => _bus.Undo(), "draft.undo", "Ctrl+Z"));
-        toolbar.Children.Add(Btn("Redo", () => _bus.Redo(), "draft.redo", "Ctrl+Y"));
-        toolbar.Children.Add(Btn("Delete", () => Run("Delete"), "draft.tool.delete", "Del"));
+        toolbar.Children.Add(Btn("Undo", () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Undo }), "draft.undo", "Ctrl+Z"));
+        toolbar.Children.Add(Btn("Redo", () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Redo }), "draft.redo", "Ctrl+Y"));
+        toolbar.Children.Add(Btn("Delete", () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.DeleteSelection }), "draft.tool.delete", "Del"));
         toolbar.Children.Add(Sep());
         toolbar.Children.Add(Btn("Fit", OnFit, "draft.fit", "F"));
         toolbar.Children.Add(Btn("Zoom +", () => _draftViewport.ZoomBy(1.25), "draft.camera.zoomIn", "Ctrl+="));
         toolbar.Children.Add(Btn("Zoom −", () => _draftViewport.ZoomBy(0.8), "draft.camera.zoomOut", "Ctrl+-"));
         toolbar.Children.Add(Btn("Pan ↺", () => _draftViewport.ResetView(), "draft.camera.reset", "Home"));
         toolbar.Children.Add(Sep());
-        toolbar.Children.Add(Btn("Draft", () => SetViewMode(DraftViewMode.Draft), "draft.view.draft"));
-        toolbar.Children.Add(Btn("Model", () => SetViewMode(DraftViewMode.Model), "draft.view.model"));
+        toolbar.Children.Add(Btn("Draft", () => SetViewMode(CadViewMode.Draft), "draft.view.draft"));
+        toolbar.Children.Add(Btn("Model", () => SetViewMode(CadViewMode.Model), "draft.view.model"));
         toolbar.Children.Add(Sep());
         toolbar.Children.Add(Btn("Export Phys…", () => _ = OnExportPhysAsync(), "draft.export.phys"));
         toolbar.Children.Add(Btn("Dump…", () => _ = OnDumpArtifactsAsync(), "draft.dump", "Save + draft/model/window PNGs"));
@@ -126,10 +135,10 @@ internal sealed class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             ItemsSource = new[]
             {
-                new UnitChoice(DraftUnits.Meter, "Meters (m)"),
-                new UnitChoice(DraftUnits.Centimeter, "Centimeters (cm)"),
-                new UnitChoice(DraftUnits.Millimeter, "Millimeters (mm)"),
-                new UnitChoice(DraftUnits.Inch, "Inches (in)"),
+                new UnitChoice(CadUnits.Meter, "Meters (m)"),
+                new UnitChoice(CadUnits.Centimeter, "Centimeters (cm)"),
+                new UnitChoice(CadUnits.Millimeter, "Millimeters (mm)"),
+                new UnitChoice(CadUnits.Inch, "Inches (in)"),
             },
         };
         AgentProperties.SetId(_unitCombo, "draft.units", AgentRoleNames.ComboBox);
@@ -169,24 +178,19 @@ internal sealed class MainWindow : Window
         _gridCombo.SelectionChanged += OnGridChanged;
         toolbar.Children.Add(_gridCombo);
 
-        _draftViewport = new DraftViewport(_session, _settings, _dispatcher, _bus, _tools);
+        _editor = new CadEditorSurface(_session, _settings, _bus, _dispatcher, _tools, _modelRenderer);
+        _draftViewport = _editor.DraftViewport;
         AgentProperties.SetId(_draftViewport, "draft.viewport");
-        _raylibHost = new RaylibHostControl
-        {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            IsVisible = false,
-        };
+        _raylibHost = _editor.ModelHost;
+        _raylibHost.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _raylibHost.VerticalAlignment = VerticalAlignment.Stretch;
         AgentProperties.SetId(_raylibHost, "draft.viewport.model");
-        _modelRenderer.Bind(_raylibHost);
         _raylibHost.PointerPressed += OnModelPointerPressed;
         _raylibHost.PointerMoved += OnModelPointerMoved;
         _raylibHost.PointerReleased += OnModelPointerReleased;
         _raylibHost.PointerWheelChanged += OnModelWheel;
 
-        _viewportStack = new Panel();
-        _viewportStack.Children.Add(_draftViewport);
-        _viewportStack.Children.Add(_raylibHost);
+        _viewportStack = _editor;
 
         // Shape / mode strip immediately above the command bar
         _toolStrip = new StackPanel
@@ -196,12 +200,12 @@ internal sealed class MainWindow : Window
             Margin = new Thickness(8, 4, 8, 2),
         };
         AgentProperties.SetId(_toolStrip, "draft.shapes");
-        _toolStrip.Children.Add(ToolBtn("Select", () => _dispatcher.EnterTool(DraftToolKind.Select), "draft.tool.select"));
-        _toolStrip.Children.Add(ToolBtn("Line", () => _dispatcher.EnterTool(DraftToolKind.Line), "draft.tool.line", "L"));
-        _toolStrip.Children.Add(ToolBtn("Circle", () => _dispatcher.EnterTool(DraftToolKind.Circle), "draft.tool.circle", "C"));
-        _toolStrip.Children.Add(ToolBtn("Rect", () => _dispatcher.EnterTool(DraftToolKind.Rect), "draft.tool.rect", "R"));
-        _toolStrip.Children.Add(ToolBtn("Spline", () => _dispatcher.EnterTool(DraftToolKind.Spline), "draft.tool.spline", "P"));
-        _toolStrip.Children.Add(ToolBtn("Box", () => Run("Box(1,1,1)"), "draft.tool.box"));
+        _toolStrip.Children.Add(ToolBtn("Select", () => ExecTool("select"), "draft.tool.select"));
+        _toolStrip.Children.Add(ToolBtn("Line", () => ExecTool("line"), "draft.tool.line", "L"));
+        _toolStrip.Children.Add(ToolBtn("Circle", () => ExecTool("circle"), "draft.tool.circle", "C"));
+        _toolStrip.Children.Add(ToolBtn("Rect", () => ExecTool("rect"), "draft.tool.rect", "R"));
+        _toolStrip.Children.Add(ToolBtn("Spline", () => ExecTool("spline"), "draft.tool.spline", "P"));
+        _toolStrip.Children.Add(ToolBtn("Box", () => ExecCommand("Box(1,1,1)"), "draft.tool.box"));
         _toolStrip.Children.Add(Sep());
 
         _continuousCheck = new CheckBox
@@ -265,9 +269,13 @@ internal sealed class MainWindow : Window
         }
         _commandBar.Submitted += (_, e) =>
         {
-            var err = _dispatcher.TryDispatch(e.Text);
-            if (err is not null)
-                _feedback.FlashError(err);
+            var result = _cad.Execute(new CadCommandDto
+            {
+                ActionId = CadSessionActionIds.RunCommand,
+                Prompt = e.Text,
+            });
+            if (!result.Ok)
+                _feedback.FlashError(result.Message);
             else
             {
                 _feedback.SetStatus($"OK — {e.Text}");
@@ -334,6 +342,7 @@ internal sealed class MainWindow : Window
 
     private void OnOpened(object? sender, EventArgs e)
     {
+        _cad.Editor = _editor;
         _session.OpenOrCreateDefault();
         _suppressUnit = true;
         SelectUnit(_settings.Settings.DisplayUnit);
@@ -345,9 +354,9 @@ internal sealed class MainWindow : Window
         _suppressUnit = false;
 
         if (string.Equals(_settings.Settings.ViewMode, "model", StringComparison.OrdinalIgnoreCase))
-            SetViewMode(DraftViewMode.Model);
+            SetViewMode(CadViewMode.Model);
         else
-            SetViewMode(DraftViewMode.Draft);
+            SetViewMode(CadViewMode.Draft);
         OnFit();
         UpdateCommandPrompt();
         HighlightActiveTool();
@@ -371,7 +380,7 @@ internal sealed class MainWindow : Window
         var dirty = _session.IsDirty ? " *" : "";
         Title = $"Draft Studio — {Path.GetFileName(_session.DocumentPath)}{dirty}";
         _draftViewport.InvalidateVisual();
-        if (_viewMode == DraftViewMode.Model)
+        if (_viewMode == CadViewMode.Model)
             _raylibHost.RequestFrame();
         UpdateStatus();
     }
@@ -383,19 +392,19 @@ internal sealed class MainWindow : Window
             selected.Summary,
             $"Kind: {selected.Kind}",
             $"Id: {selected.Id:N}",
-            $"Display: {DraftUnits.Abbreviation(unit)} (doc = m)",
+            $"Display: {CadUnits.Abbreviation(unit)} (doc = m)",
         };
         if (selected.HalfExtents is { Length: >= 3 })
         {
             lines.Add(
-                $"Size: {DraftUnits.FormatLength(selected.HalfExtents[0] * 2, unit)} × " +
-                $"{DraftUnits.FormatLength(selected.HalfExtents[1] * 2, unit)} × " +
-                $"{DraftUnits.FormatLength(selected.HalfExtents[2] * 2, unit)}");
+                $"Size: {CadUnits.FormatLength(selected.HalfExtents[0] * 2, unit)} × " +
+                $"{CadUnits.FormatLength(selected.HalfExtents[1] * 2, unit)} × " +
+                $"{CadUnits.FormatLength(selected.HalfExtents[2] * 2, unit)}");
         }
 
         if (selected.Radius > 0)
-            lines.Add($"Radius: {DraftUnits.FormatLength(selected.Radius, unit)}");
-        lines.Add($"Elevation: {DraftUnits.FormatLength(CadVec.ElevationOf(selected), unit)}");
+            lines.Add($"Radius: {CadUnits.FormatLength(selected.Radius, unit)}");
+        lines.Add($"Elevation: {CadUnits.FormatLength(CadVec.ElevationOf(selected), unit)}");
         return string.Join('\n', lines);
     }
 
@@ -403,27 +412,28 @@ internal sealed class MainWindow : Window
     {
         var unit = _settings.Settings.DisplayUnit;
         var ppm = _draftViewport.PixelsPerMeter;
-        var zoom = ppm > 0 ? DraftUnits.FormatLength(100.0 / ppm, unit) + " / 100 px" : "—";
-        var mode = _viewMode == DraftViewMode.Model ? "Model" : "Draft (XZ)";
-        var level = DraftUnits.FormatLength(_settings.Settings.DrawElevation, unit);
+        var zoom = ppm > 0 ? CadUnits.FormatLength(100.0 / ppm, unit) + " / 100 px" : "—";
+        var mode = _viewMode == CadViewMode.Model ? "Model" : "Draft (XZ)";
+        var level = CadUnits.FormatLength(_settings.Settings.DrawElevation, unit);
         _feedback.SetStatus(
-            $"{mode}  ·  {Path.GetFileName(_session.DocumentPath)}  ·  L={level}  ·  {DraftUnits.Abbreviation(unit)}  ·  {zoom}");
+            $"{mode}  ·  {Path.GetFileName(_session.DocumentPath)}  ·  L={level}  ·  {CadUnits.Abbreviation(unit)}  ·  {zoom}");
     }
 
     private void UpdateCommandPrompt() =>
         _commandBar.PromptLabel = _tools.PromptHint;
 
-    private void SetViewMode(DraftViewMode mode)
+    private void SetViewMode(CadViewMode mode)
     {
-        _viewMode = mode;
-        _settings.Settings.ViewMode = mode == DraftViewMode.Model ? "model" : "draft";
-        _draftViewport.IsVisible = mode == DraftViewMode.Draft;
-        _raylibHost.IsVisible = mode == DraftViewMode.Model;
-        if (mode == DraftViewMode.Model)
+        _cad.Execute(new CadCommandDto
         {
-            _raylibHost.FrameWidth = Math.Max(64, (int)_viewportStack.Bounds.Width);
-            _raylibHost.FrameHeight = Math.Max(64, (int)_viewportStack.Bounds.Height);
-            _raylibHost.SetHostActive(true);
+            ActionId = CadSessionActionIds.SetViewMode,
+            ViewMode = mode == CadViewMode.Model ? "model" : "draft",
+        });
+        _viewMode = _editor.ViewMode;
+        if (mode == CadViewMode.Model)
+        {
+            _raylibHost.FrameWidth = System.Math.Max(64, (int)_viewportStack.Bounds.Width);
+            _raylibHost.FrameHeight = System.Math.Max(64, (int)_viewportStack.Bounds.Height);
             _raylibHost.RequestFrame();
         }
 
@@ -432,14 +442,38 @@ internal sealed class MainWindow : Window
 
     private void OnFit()
     {
-        if (_viewMode == DraftViewMode.Draft)
-            _draftViewport.Fit();
-        else
-        {
-            _modelRenderer.Fit();
+        _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Fit });
+        if (_viewMode == CadViewMode.Model)
             _raylibHost.RequestFrame();
-        }
     }
+
+    private void ExecTool(string tool)
+    {
+        var result = _cad.Execute(new CadCommandDto
+        {
+            ActionId = CadSessionActionIds.SetTool,
+            Tool = tool,
+        });
+        if (!result.Ok)
+            _feedback.FlashError(result.Message);
+        UpdateCommandPrompt();
+        HighlightActiveTool();
+    }
+
+    private void ExecCommand(string prompt)
+    {
+        var result = _cad.Execute(new CadCommandDto
+        {
+            ActionId = CadSessionActionIds.RunCommand,
+            Prompt = prompt,
+        });
+        if (!result.Ok)
+            _feedback.FlashError(result.Message);
+        else
+            UpdateCommandPrompt();
+    }
+
+    private void Run(string prompt) => ExecCommand(prompt);
 
     private async Task OnDumpArtifactsAsync()
     {
@@ -455,12 +489,12 @@ internal sealed class MainWindow : Window
                 _raylibHost,
                 ensureModelViewAsync: async () =>
                 {
-                    SetViewMode(DraftViewMode.Model);
+                    SetViewMode(CadViewMode.Model);
                     await Task.Delay(80);
                 },
                 ensureDraftViewAsync: async () =>
                 {
-                    SetViewMode(DraftViewMode.Draft);
+                    SetViewMode(CadViewMode.Draft);
                     await Task.Delay(40);
                 });
 
@@ -487,9 +521,11 @@ internal sealed class MainWindow : Window
 
     private void OnSave()
     {
-        _session.Save();
-        _settings.Save();
-        _feedback.Flash($"Saved {Path.GetFileName(_session.DocumentPath)}");
+        var result = _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Save });
+        if (result.Ok)
+            _feedback.Flash(result.Message);
+        else
+            _feedback.FlashError(result.Message);
     }
 
     private async Task OnNewAsync()
@@ -603,10 +639,15 @@ internal sealed class MainWindow : Window
 
         try
         {
-            var exporter = new CadPhysExporter();
-            var phys = exporter.Build(_session.Document, Path.GetFileName(_session.DocumentPath));
-            exporter.Write(phys, path!);
-            _feedback.Flash($"Exported {Path.GetFileName(path)} ({phys.Meshes.Count} meshes)");
+            var exportResult = _cad.Execute(new CadCommandDto
+            {
+                ActionId = CadSessionActionIds.ExportPhys,
+                Path = path,
+            });
+            if (exportResult.Ok)
+                _feedback.Flash(exportResult.Message);
+            else
+                _feedback.FlashError(exportResult.Message);
         }
         catch (Exception ex)
         {
@@ -697,7 +738,7 @@ internal sealed class MainWindow : Window
         var active = _dispatcher.ActiveTool;
         foreach (var child in _toolStrip.Children)
         {
-            if (child is not Button btn || btn.Tag is not DraftToolKind kind)
+            if (child is not Button btn || btn.Tag is not CadToolKind kind)
                 continue;
             btn.FontWeight = kind == active ? FontWeight.Bold : FontWeight.Normal;
             btn.Opacity = kind == active ? 1.0 : 0.85;
@@ -731,16 +772,9 @@ internal sealed class MainWindow : Window
     {
         if (_gridCombo.ItemsSource is not IEnumerable<GridChoice> items)
             return;
-        _gridCombo.SelectedItem = items.FirstOrDefault(i => Math.Abs(i.Meters - meters) < 1e-6)
-                                  ?? items.FirstOrDefault(i => Math.Abs(i.Meters - 0.5f) < 1e-6)
+        _gridCombo.SelectedItem = items.FirstOrDefault(i => System.Math.Abs(i.Meters - meters) < 1e-6)
+                                  ?? items.FirstOrDefault(i => System.Math.Abs(i.Meters - 0.5f) < 1e-6)
                                   ?? items.First();
-    }
-
-    private void Run(string prompt)
-    {
-        var err = _dispatcher.TryDispatch(prompt);
-        if (err is not null)
-            _feedback.FlashError(err);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -899,12 +933,12 @@ internal sealed class MainWindow : Window
     {
         var kind = agentId switch
         {
-            "draft.tool.select" => DraftToolKind.Select,
-            "draft.tool.line" => DraftToolKind.Line,
-            "draft.tool.circle" => DraftToolKind.Circle,
-            "draft.tool.rect" => DraftToolKind.Rect,
-            "draft.tool.spline" => DraftToolKind.Spline,
-            _ => (DraftToolKind?)null,
+            "draft.tool.select" => CadToolKind.Select,
+            "draft.tool.line" => CadToolKind.Line,
+            "draft.tool.circle" => CadToolKind.Circle,
+            "draft.tool.rect" => CadToolKind.Rect,
+            "draft.tool.spline" => CadToolKind.Spline,
+            _ => (CadToolKind?)null,
         };
         var b = Btn(text, action, agentId, tip);
         if (kind is { } k)

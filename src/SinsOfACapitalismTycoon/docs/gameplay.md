@@ -4,7 +4,7 @@ Sins is a **Near-Sol trade memoir** with two shells:
 
 - **Headless** — seed a universe, let NPCs run, read Spectre like a CCA briefing.
 - **Avalonia captain desk** — you are **James Simmons** aboard **ST Calypso**; pause/step
-  days, travel empty, commit spot lots at berth, refuse standby, while the Johnston
+  days, travel empty, commit spot lots at dock, refuse standby, while the Johnston
   100-system campaign keeps moving.
 
 Tone models:
@@ -23,37 +23,60 @@ kill the margin; you either **captain** Calypso or **judge** the report.
 ## Captain desk (Avalonia / `--player on` / `--mode captain`)
 
 You play owner-master of **ST Calypso** (`ST-7749-63325116` flavor): lean cash, restoration
-lien, Priority endorsement. Time runs until Calypso needs a decision (idle on berth / standby /
+lien, Priority endorsement. Time runs until Calypso needs a decision (idle on dock / standby /
 grounded); then it pauses so you can get bearings.
 
 **CCA glass rule:** plenty of opportunity on the intel boards; **acceptance is a dock act.**
-See spot/charter postings network-wide; they can vanish or shrink while you steam. Accept
-spot lots only when docked at the load hub. Travel empty (`PlanReposition`) to any routable
-hub — not a fake haul.
+See spot/charter postings — **mesh sight is delayed** (FTL data-drone hops); dock board
+stays live for the system you share. Accept spot/charter lots only when docked at the load
+station. Contracts show **pay** (firm delivery money), **lift** (cash to load), and **net Δ**.
+Goods charters stage a CCA escrow: the firm funds principal (= dest bid × qty) when you sail;
+you receive principal − skim on delivery. Travel empty to any routable system — not a fake haul.
+
+Terminology: [terminology.md](terminology.md).
 
 | Zone | Job |
 |------|-----|
-| Voyage strip | Berth or Underway: hub, cash, life%, hold used/36, decision; if underway: origin→dest, SKU×qty, profile, phase |
-| Map | Select hub = travel target; **Travel here** when idle |
-| Intel — Spot | Network sell→buy spreads (read-only). Accept enabled only at origin berth |
-| Intel — Charters | Standby + short escrow-framed offers; never mixed into Spot |
-| Berth — Manifest | Commit lots up to hull capacity (36); same SKU merges; **Depart** issues `PlanShipment` |
+| Voyage strip | Dock or Underway: system, cash, life%, hold (manifest + dock stock), decision; **NEXT:** coach; soft-fail; last-tramp; mesh hint |
+| Map | Select system = travel target; **Travel here** when idle |
+| Spot freight | **Raw / Capital** haul intel. Shows **pay / lift / net**. Mesh = digests; dock = live. **Accept only AT DOCK** (remotes = INTEL → Travel) |
+| Goods charters | Firm **escrows** Final cargo and **pays a sum** A→B (CCA escrow principal = dest bid × qty on sail). Take only at this dock |
+| Market | Dock HubOrder tape — Buy ASK / Sell into BID |
+| Manifest | Commit lots up to hull capacity; lines show pay/lift; **Depart** issues `PlanShipment` + escrow open |
 | Transport | Step 1d / Continue / To horizon (pause until decision) |
 
-`--board network` (default) shows network intel; `--board berth` filters spot list to current hub.
-CLI mirrors GUI: `travel`, `spot`, `charters`, `accept N`, `manifest`, `depart`, `refuse`.
+`--board mesh` (default) shows **mesh-delayed** freight intel; `--board dock` = live local freight
+(aliases: `network` / `berth` / `local`).
+CLI mirrors GUI: `travel`, `spot`, `charters`, `accept N`, `accept-at-dock`, `manifest`, `depart`, `refuse`.
 
 Agent-playable text desk: `--mode captain` or `--playtest`.
 
+### Decision-point session protocol (`session.*`)
+
+Every decision act (travel, accept, market, continue, …) goes through `CaptainDeskService`
+(`IGameSession`) — shared by Avalonia, captain CLI, and LocalIpc. Enable the session agent host:
+
+```powershell
+$env:NOVOLIS_GAME_SESSION = "1"   # LocalIpc + HTTP :18765 (HTTP=0 to disable; TCP=1 for :18766)
+```
+
+Methods: `session.hello` / `snapshot` / `actions` / `command` / `continue` / `subscribe`;
+push events `session.decision` / `changed` / `actionResult`. Prefer **HTTP**
+(`http://127.0.0.1:18765/session/...`) for agents; LocalIpc remains for MessagePack clients.
+Travel returns structured `LastAction` / `ErrorCode`. See [SESSION-SMOKE.md](../SESSION-SMOKE.md)
+and [session-protocol.md](https://github.com/Novolis-Platform/novolis-gaming/blob/main/docs/session-protocol.md). Glass automation remains `ui.*` (separate pipe).
+
 Checkpoints use `Novolis.Storage.Json` under `%LocalAppData%/Novolis/SinsOfACapitalismTycoon/saves`.
-Desk **Save** / captain `save`; resume with `--load latest` (replays seed→hours).
+Desk **Save** / captain `save`; resume with `--load latest`. A checkpoint stores
+**seed + hours + integrity** (`SimHash`, day, ops cash) — not a world dump. Load
+**replays** seed→hours, then verifies hash/day/cash; mismatch fails the load.
 
 Victory is **survival with standing** (insured, fueled, escrow-clean) over the run horizon —
 or, with `--last-tramp`, **sole operable LightCommercial tramp** (`CanOperate`). Rival hulls are
 squeezed off the board on a staggered schedule; household ventures stay locked. Soft fail toast
 after **7+ days** grounded (`!CanOperate`). Refuse ugly standby →
 `standby-pass` (≠ premium spike). Headless without `--player` leaves Calypso AI-driven
-(judge mode). Autopilot + last-tramp: `SurvivalCaptain` keeps Calypso insured/working the berth.
+(judge mode). Autopilot + last-tramp: `SurvivalCaptain` keeps Calypso insured/working the dock.
 
 ## What you are playing
 
@@ -107,7 +130,7 @@ life fraction (capped); maintenance cash is separate from insurance.
 ### 5. Drama weather (`--drama on`)
 
 Fuel famine, ore shock, fiscal bleed — plus Calypso-shaped beats when staged:
-empty autonomous berths, standby ugly money, degraded handoffs, “model expected late.”
+empty autonomous docks, standby ugly money, degraded handoffs, “model expected late.”
 
 ### 6. Completeness vs heroics (Meridian weather)
 
@@ -143,7 +166,7 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 | Grounding cascade | ≥2 hulls uninsured/suspended; Final shelves thin |
 | Fuel famine | Plan fails spike; hulls stuck Loading |
 | Insured loss | Claim paid; underwriter cash down; shortage lasts days |
-| Empty berth | Formal plan failed; autonomous dock; no late-fee chatter |
+| Empty dock | Formal plan failed; autonomous dock; no late-fee chatter |
 | Ugly standby | Completion premium; reputation bump; recurring Opportunities pool |
 | Escrow | Open / release / clawback; issuer 5% + contractor skim |
 | Jump refuse | Dense Priority band refused (unless rep/escrow) |
@@ -178,7 +201,7 @@ Port tiers: [places-and-stations.md](places-and-stations.md).
 | `--mode` | `headless` | `avalonia` (GUI) / `captain` (text REPL) |
 | `--player` | `off` (judge) | `on` (James / Calypso) |
 | `--autopilot` | `on` | `off` (await orders) |
-| `--board` | `berth` | `network` (default — see all hubs; accept still berth-gated) |
+| `--board` | `dock` | `mesh` (default — see all systems; accept still dock-gated) |
 | `--seed` | `1001` known theater | other seeds |
 | Quiet | off | on (autopsy only) |
 

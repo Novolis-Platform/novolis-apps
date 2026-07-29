@@ -3,13 +3,13 @@ using Novolis.Storage.Abstractions;
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
-/// Checkpoint metadata for a campaign. World is rebuilt by replaying the seed to
-/// <see cref="HoursDone"/> (deterministic); this document is the durable handle via
-/// <c>Novolis.Storage.Json</c>.
+/// Deterministic replay checkpoint — not a world dump. Load rebuilds the campaign by
+/// replaying <see cref="Seed"/> for <see cref="HoursDone"/> hours, then verifies
+/// <see cref="SimHash"/> / day / ops cash against this record.
 /// </summary>
 internal sealed class CampaignSaveRecord : IHasId
 {
-  public const int CurrentSchema = 1;
+  public const int CurrentSchema = 2;
 
   public Guid Id { get; set; }
 
@@ -33,7 +33,14 @@ internal sealed class CampaignSaveRecord : IHasId
 
   public bool Player { get; set; } = true;
 
-  public bool LocalBoardOnly { get; set; }
+  public bool DockBoardOnly { get; set; }
+
+  /// <summary>Legacy save field — maps to <see cref="DockBoardOnly"/>.</summary>
+  public bool LocalBoardOnly
+  {
+    get => DockBoardOnly;
+    set => DockBoardOnly = value;
+  }
 
   public bool LastTrampWon { get; set; }
 
@@ -41,11 +48,32 @@ internal sealed class CampaignSaveRecord : IHasId
 
   public int DayIndex { get; set; }
 
-  public string HubSystemId { get; set; } = "sol";
+  public string SystemId { get; set; } = "sol";
+
+  /// <summary>Legacy save field — maps to <see cref="SystemId"/>.</summary>
+  public string HubSystemId
+  {
+    get => SystemId;
+    set => SystemId = value;
+  }
 
   public string SurvivalLine { get; set; } = "";
 
   public string StandingLine { get; set; } = "";
 
-  public decimal Cash { get; set; }
+  /// <summary>Display alias for <see cref="OpsCash"/>.</summary>
+  public decimal Cash
+  {
+    get => OpsCash;
+    set => OpsCash = value;
+  }
+
+  /// <summary>Tramp firm ops cash at save — integrity check after warm replay.</summary>
+  public decimal OpsCash { get; set; }
+
+  /// <summary><see cref="Novolis.Economy.Simulation.SimulationState.Hash"/> at save.</summary>
+  public ulong SimHash { get; set; }
+
+  /// <summary>True when this record carries integrity fields (schema ≥ 2 or hash set).</summary>
+  public bool HasIntegrity => SchemaVersion >= 2 || SimHash != 0;
 }

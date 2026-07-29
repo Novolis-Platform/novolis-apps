@@ -32,7 +32,7 @@ internal static class VoxBank
       "burnout" or "overhaul" or "overhaul-forced" or "overhaul-due" => new("vox.james",
         $"Drive life — {Truncate(detail)}. Twelve hurts; bomb-edging is not a plan."),
       "empty-berth" => new("vox.torrik",
-        "If the berth is empty, the formal plan already failed. Hallway expected feet; got none."),
+        "If the dock is empty, the formal plan already failed. Hallway expected feet; got none."),
       "ugly-standby" => new("vox.ixa",
         $"Ugly money — {Truncate(detail)}. Means the job is ugly or the person is expensive."),
       "known-responsive" => new("vox.meridian",
@@ -49,8 +49,14 @@ internal static class VoxBank
         Truncate(detail)),
       "soft-fail" => new("vox.james",
         $"Soft fail — {Truncate(detail)}. Standing closed long enough to matter."),
-      "berth-fee" => new("vox.dock",
-        $"Port standing — {Truncate(detail)}. Fee-heavy hubs eat small balances."),
+      "last-tramp-squeeze" => new("vox.meridian",
+        $"Market squeeze — {Truncate(detail)}. One less tramp on the board."),
+      "last-tramp" => new("vox.james",
+        $"Last tramp — {Truncate(detail)}. Sole operable light commercial."),
+      "last-tramp-lose" => new("vox.james",
+        $"Last tramp lost — {Truncate(detail)}. Rivals still sail; we do not."),
+      "dock-fee" or "berth-fee" => new("vox.dock",
+        $"Port standing — {Truncate(detail)}. Fee-heavy stations eat small balances."),
       "upgrade" => new("vox.ledger",
         $"Capacity up — {Truncate(detail)}. Ops cash paid; Core still its own story."),
       "default" => new("vox.cca",
@@ -71,7 +77,7 @@ internal static class VoxBank
     if (drama)
     {
       yield return new("vox.torrik",
-        "Soft pickup ready. If a berth goes empty, that is not elegance — that is failure.");
+        "Soft pickup ready. If a dock goes empty, that is not elegance — that is failure.");
     }
   }
 

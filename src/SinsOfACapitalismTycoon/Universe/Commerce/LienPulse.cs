@@ -35,8 +35,15 @@ internal static class LienPulse
         continue;
       }
 
-      // Service 8% of lien or 80 CR floor when cash allows.
-      var due = Money.From(Math.Max(80m, entry.LienPrincipal * 0.08m));
+      // Soft-start: freeze principal through grace; then 4% or floor when cash allows.
+      if (day <= CampaignWorld.LienServiceGraceDays)
+      {
+        continue;
+      }
+
+      var due = Money.From(Math.Max(
+        CampaignWorld.LienServiceFloor,
+        entry.LienPrincipal * CampaignWorld.LienServiceRate));
       if (firm.Cash.Amount + 0.0001m >= due.Amount)
       {
         firm.Post(AccountRole.TransportTollExpense, AccountRole.Cash, due, date, "Hull lien service");

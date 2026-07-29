@@ -1,5 +1,4 @@
 using Novolis.Economy;
-using Novolis.Economy.Accounting;
 using Novolis.Economy.Agents;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Markets;
@@ -9,7 +8,7 @@ using Novolis.Economy.Simulation;
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
-/// Keeps Calypso insured/overhauled and working the berth desk when autopilot is on —
+/// Keeps Calypso insured/overhauled and working the dock desk when autopilot is on —
 /// enough to chase last-tramp survival without a human at the glass.
 /// </summary>
 internal static class SurvivalCaptain
@@ -17,7 +16,7 @@ internal static class SurvivalCaptain
   /// <summary>True when an order was queued this tick (caller should skip AI haul).</summary>
   public static bool Tick(PlayerTrampAgent agent, AgentContext context, CampaignWorld.Ids ids, PlayerControlState state)
   {
-    Stabilize(agent, context, ids);
+    Stabilize(agent, context, ids, state);
 
     var world = context.World;
     var firm = agent.FirmId;
@@ -31,7 +30,8 @@ internal static class SurvivalCaptain
 
     if (!ids.Registry.CanOperate(firm))
     {
-      return false;
+      // Last ditch: sell dock stock, then remit — keep ticking until insured or broke.
+      return EnqueuePremiumRescue(agent, context, ids, state);
     }
 
     if (state.Manifest.Used >= 1m)
@@ -41,9 +41,11 @@ internal static class SurvivalCaptain
     }
 
     var hub = ResolveSystemId(ids, agent.CurrentHub);
-    var spots = CaptainJobBoard.ListSpot(context.Simulation, ids, state.DefaultProfile, hub, berthOnly: false, take: 24);
-    var atBerth = spots.FirstOrDefault(s => s.AtOrigin && s.Margin > 0m)
-                  ?? spots.FirstOrDefault(s => s.AtOrigin);
+    var live = CaptainJobBoard.ListLiveFreight(
+      context.Simulation, ids, state.DefaultProfile, hub, take: 24);
+
+    var atBerth = live.FirstOrDefault(s => s.AtOrigin && s.Margin > 0m)
+                  ?? live.FirstOrDefault(s => s.AtOrigin);
     if (atBerth is not null)
     {
       state.Orders.Enqueue(new PlayerOrder(
@@ -58,8 +60,8 @@ internal static class SurvivalCaptain
       return true;
     }
 
-    var remote = spots.FirstOrDefault(s => !s.AtOrigin && s.Margin > 8m)
-                 ?? spots.FirstOrDefault(s => !s.AtOrigin);
+    var remote = live.FirstOrDefault(s => !s.AtOrigin && s.Margin > 8m)
+                 ?? live.FirstOrDefault(s => !s.AtOrigin);
     if (remote is not null)
     {
       state.Orders.Enqueue(new PlayerOrder(
@@ -72,7 +74,11 @@ internal static class SurvivalCaptain
     return false;
   }
 
-  private static void Stabilize(PlayerTrampAgent agent, AgentContext context, CampaignWorld.Ids ids)
+  private static void Stabilize(
+    PlayerTrampAgent agent,
+    AgentContext context,
+    CampaignWorld.Ids ids,
+    PlayerControlState state)
   {
     var entry = ids.Registry.TryGet(agent.FirmId);
     if (entry is null
@@ -83,18 +89,9 @@ internal static class SurvivalCaptain
     }
 
     var day = context.Simulation.State.Clock.Date;
-    if (!entry.Insured || entry.PremiumArrearsDays > 0)
+    if (!entry.Insured || entry.PremiumArrearsDays > 0 || entry.PremiumPayable > 0.0001m)
     {
-      var quote = Money.From(Math.Max(14m, ids.Registry.QuoteDailyPremium(entry)));
-      if (firm.Cash.Amount + 0.0001m >= quote.Amount)
-      {
-        firm.Post(AccountRole.TransportTollExpense, AccountRole.Cash, quote, day, "Hull insurance premium");
-        uw.Post(AccountRole.Cash, AccountRole.Revenue, quote, day, "Hull insurance premium");
-        entry.PremiumPaid += quote.Amount;
-        entry.Insured = true;
-        entry.PremiumArrearsDays = 0;
-        entry.Suspended = false;
-      }
+      HullFinance.TrySettlePremium(firm, uw, entry, day);
     }
 
     if (entry.BurnedOut || entry.OverhaulDue)
@@ -102,14 +99,54 @@ internal static class SurvivalCaptain
       var bill = Money.From(entry.BurnedOut
         ? ids.Registry.QuoteBurnoutOverhaul(entry)
         : ids.Registry.QuoteElectiveOverhaul(entry));
-      if (firm.Cash.Amount >= bill.Amount + 40m)
-      {
-        firm.Post(AccountRole.TransportTollExpense, AccountRole.Cash, bill, day, "FTL drive overhaul");
-        uw.Post(AccountRole.Cash, AccountRole.Revenue, bill, day, "FTL drive overhaul");
-        entry.MaintenancePaid += bill.Amount;
-        ids.Registry.ApplyOverhaul(entry);
-      }
+      HullFinance.TryPayOverhaul(firm, uw, ids.Registry, entry, bill, day);
     }
+  }
+
+  /// <summary>Queue BID sells + PayPremium so Calypso can get back on the registry.</summary>
+  private static bool EnqueuePremiumRescue(
+    PlayerTrampAgent agent,
+    AgentContext context,
+    CampaignWorld.Ids ids,
+    PlayerControlState state)
+  {
+    if (state.Orders.Count > 0)
+    {
+      return true;
+    }
+
+    var hub = ResolveSystemId(ids, agent.CurrentHub);
+    if (!ids.Sites.TryGetValue(hub, out var site))
+    {
+      state.Orders.Enqueue(new PlayerOrder(PlayerOrderKind.PayPremium));
+      return true;
+    }
+
+    var bids = CaptainJobBoard.ListMarket(context.Simulation, ids, hub)
+      .Where(l => !l.IsAsk)
+      .OrderByDescending(l => l.UnitPrice)
+      .Take(3)
+      .ToList();
+    foreach (var bid in bids)
+    {
+      var stock = context.World.Inventory.GetQuantity(
+        new InventoryKey(agent.FirmId, site.Hub.LocationId, bid.ProductId)).Value;
+      if (stock < 1m)
+      {
+        continue;
+      }
+
+      state.Orders.Enqueue(new PlayerOrder(
+        PlayerOrderKind.MarketSell,
+        OriginSystemId: hub,
+        SkuLabel: bid.SkuLabel,
+        Quantity: Math.Min(stock, bid.Quantity),
+        LiftLimit: bid.UnitPrice,
+        CounterpartyFirmId: bid.Counterparty.Value));
+    }
+
+    state.Orders.Enqueue(new PlayerOrder(PlayerOrderKind.PayPremium));
+    return true;
   }
 
   private static string ResolveSystemId(CampaignWorld.Ids ids, TransportHubId hub)

@@ -5,7 +5,9 @@ using Novolis.Economy.Agents;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Production;
 using Novolis.Economy.Simulation;
-using SinsOfACapitalismTycoon.Universe.Mesh;
+using SinsOfACapitalismTycoon.Ui;
+using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 using Spectre.Console;
 
 namespace SinsOfACapitalismTycoon.Universe;
@@ -36,10 +38,16 @@ internal static class CampaignRunner
     private readonly CampaignDramaHost _dramaHost;
     private readonly OpportunitiesPool _opportunities;
     private readonly PlayerTutorialHost? _tutorial;
+    private readonly CampaignPulse _pulse;
     private readonly ManualResetEventSlim _dayGate = new(false);
+    private int _continuePending;
+    private readonly object _deskGate = new();
     private long _remaining;
     private bool _completed;
     private bool _waiting;
+    private bool _warming;
+    private readonly Stopwatch _paceSampleClock = Stopwatch.StartNew();
+    private double _gameHoursPerRealMinute;
 
     public LiveSession(
       ulong seed,
@@ -50,9 +58,9 @@ internal static class CampaignRunner
       bool localBoard = true,
       bool lastTramp = false)
     {
-      ClaimsPulse.ResetSeen();
       Milestones = new MilestoneLog();
       Biographies = new ShipBiographyLog();
+      Claims = new ClaimsTracker();
       var (sim, ids) = CampaignWorld.Create(seed);
       Sim = sim;
       Ids = ids;
@@ -62,7 +70,7 @@ internal static class CampaignRunner
       {
         Enabled = playerControl,
         Autopilot = autopilot,
-        LocalBoardOnly = localBoard,
+        DockBoardOnly = localBoard,
         LastTrampMode = lastTramp,
       };
       Agents = SinsAgents.Create(sim, ids, Milestones, Biographies, playerControl ? Player : null);
@@ -82,6 +90,7 @@ internal static class CampaignRunner
 
       _dramaHost = new CampaignDramaHost(ids, Milestones, _opportunities, ids.Reputation, drama);
       _tutorial = playerControl ? new PlayerTutorialHost(ids, Milestones, Player) : null;
+      _pulse = new CampaignPulse(this, _dramaHost, _tutorial);
       Credits = new CreditCirculation(sim);
       Credits.SetFirmNames(ids.Firms);
       Credits.SetSkuIds(ids.Ore, ids.Parts, ids.Goods, ids.Fuel);
@@ -89,12 +98,20 @@ internal static class CampaignRunner
       RequestedHours = hours;
       _remaining = hours;
       DramaEnabled = drama;
-      // Realtime until Calypso needs James — not a forced click every day.
+      // Sticky attention defaults to RunAlways (no hard pause); HardPause restores UntilDecision waits.
       PauseMode = playerControl ? CaptainPauseMode.UntilDecision : CaptainPauseMode.Never;
+      if (playerControl)
+      {
+        Player.Attention = DecisionAttention.RunAlways;
+        Player.SimSpeedScale = 1.0;
+      }
+
+      CaptureDesk();
     }
 
     public EconomySimulation Sim { get; }
     public CampaignWorld.Ids Ids { get; }
+    public ClaimsTracker Claims { get; }
     public CreditCirculation Credits { get; }
     public SinsAgents.Bundle Agents { get; }
     public MilestoneLog Milestones { get; }
@@ -108,6 +125,49 @@ internal static class CampaignRunner
     public bool IsWaitingForCaptain => _waiting;
     public bool IsComplete => _completed || _remaining <= 0;
 
+    /// <summary>Recent EMA: simulated game hours advanced per wall-clock minute.</summary>
+    public double GameHoursPerRealMinute => _gameHoursPerRealMinute;
+
+    /// <summary>Session average since live start (includes pauses).</summary>
+    public double SessionGameHoursPerRealMinute
+    {
+      get
+      {
+        var mins = _sw.Elapsed.TotalMinutes;
+        return mins < 0.01 ? 0 : HoursDone / mins;
+      }
+    }
+
+    public string PaceLine => DeskClock.FormatPace(_gameHoursPerRealMinute);
+
+    /// <summary>
+    /// True when UI speed is max and we are not rebuilding from a save checkpoint.
+    /// Allows coarser NPC / mesh work while keeping Calypso ticks hourly.
+    /// </summary>
+    internal bool PreferMaxSpeedThroughput =>
+      !_warming && Player.SimSpeedScale >= 0.99;
+
+    /// <summary>Record a sim pulse for the pace estimate (call after hours advance).</summary>
+    internal void RecordPaceSample(int gameHoursAdvanced)
+    {
+      if (gameHoursAdvanced <= 0)
+      {
+        return;
+      }
+
+      var elapsedMin = _paceSampleClock.Elapsed.TotalMinutes;
+      _paceSampleClock.Restart();
+      if (elapsedMin < 1e-6)
+      {
+        elapsedMin = 1e-6;
+      }
+
+      var instant = gameHoursAdvanced / elapsedMin;
+      _gameHoursPerRealMinute = _gameHoursPerRealMinute <= 0
+        ? instant
+        : (_gameHoursPerRealMinute * 0.6) + (instant * 0.4);
+    }
+
     /// <summary>Legacy: true maps to <see cref="CaptainPauseMode.EveryDay"/>.</summary>
     public bool PauseBetweenDays
     {
@@ -118,7 +178,36 @@ internal static class CampaignRunner
     public event Action? DayEnded;
     public event Action? AwaitingDecision;
 
-    public string CurrentHubSystemId
+    /// <summary>Last desk projection captured on the sim path (thread-safe read).</summary>
+    public CaptainDeskModel? LastDesk
+    {
+      get
+      {
+        lock (_deskGate)
+        {
+          return _lastDesk;
+        }
+      }
+    }
+
+    private CaptainDeskModel? _lastDesk;
+
+    /// <summary>Build desk model on the calling (sim) thread; UI must bind <see cref="LastDesk"/>.</summary>
+    public CaptainDeskModel CaptureDesk()
+    {
+      var desk = CaptainDeskModel.From(this);
+      lock (_deskGate)
+      {
+        _lastDesk = desk;
+      }
+
+      return desk;
+    }
+
+    /// <summary>Ends the run early (last-tramp win).</summary>
+    internal void TruncateRemaining() => _remaining = 0;
+
+    public string CurrentSystemId
     {
       get
       {
@@ -135,17 +224,25 @@ internal static class CampaignRunner
       }
     }
 
+    /// <summary>Obsolete alias for <see cref="CurrentSystemId"/>.</summary>
+    public string CurrentHubSystemId => CurrentSystemId;
+
     public IReadOnlyList<CaptainJobBoard.SpotCandidate> ListJobs(int take = 16) =>
       CaptainJobBoard.ListSpot(
-        Sim, Ids, Player.DefaultProfile, CurrentHubSystemId,
-        berthOnly: Player.LocalBoardOnly,
-        take: take);
+        Sim, Ids, Player.DefaultProfile, CurrentSystemId,
+        dockOnly: Player.DockBoardOnly,
+        take: take,
+        mesh: Ids.Mesh);
 
     public IReadOnlyList<CaptainJobBoard.CharterCandidate> ListCharters() =>
-      CaptainJobBoard.ListCharters(Sim, Ids, Player, CurrentHubSystemId);
+      CaptainJobBoard.ListCharters(Sim, Ids, Player, CurrentSystemId);
+
+    public IReadOnlyList<CaptainJobBoard.MarketLot> ListMarket() =>
+      CaptainJobBoard.ListMarket(Sim, Ids, CurrentHubSystemId);
 
     /// <summary>
-    /// True when Calypso is idle on berth (or grounded) and James must act.
+    /// True when Calypso is idle on dock (or grounded) and James must act,
+    /// or the intent stack is blocked waiting on fuel/cargo/input.
     /// Underway / pending departure / queued orders keep time flowing.
     /// </summary>
     public bool NeedsPlayerDecision()
@@ -155,6 +252,16 @@ internal static class CampaignRunner
         return false;
       }
 
+      if (Player.SoftFailRaised)
+      {
+        return true;
+      }
+
+      if (Player.IntentStack.IsBlocked)
+      {
+        return true;
+      }
+
       var world = Sim.State.World;
       var firm = Ids.Carrier;
       var underway = world.Shipments.Any(s =>
@@ -162,7 +269,8 @@ internal static class CampaignRunner
       if (underway
           || world.PendingPlanShipments.Any(p => p.FirmId.Equals(firm))
           || world.PendingPlanRepositions.Any(p => p.FirmId.Equals(firm))
-          || Player.Orders.Count > 0)
+          || Player.Orders.Count > 0
+          || Player.IntentStack.Count > 0)
       {
         return false;
       }
@@ -171,24 +279,81 @@ internal static class CampaignRunner
       return true;
     }
 
+    /// <summary>Sticky decision attention + sim speed (0..1).</summary>
+    public void SetClock(DecisionAttention? attention = null, double? simSpeedScale = null)
+    {
+      if (attention is { } a)
+      {
+        Player.Attention = a;
+      }
+
+      if (simSpeedScale is { } s)
+      {
+        Player.SimSpeedScale = Math.Clamp(s, 0.0, 1.0);
+      }
+
+      // Wake a HardPause gate when switching away from hard pause.
+      if (attention is DecisionAttention.RunAlways or DecisionAttention.SoftSlow)
+      {
+        Interlocked.Exchange(ref _continuePending, 1);
+        _dayGate.Set();
+      }
+    }
+
     /// <summary>Advance one day, then pause (bearings / Step 1d).</summary>
     public void StepDay()
     {
       PauseMode = CaptainPauseMode.EveryDay;
+      Interlocked.Exchange(ref _continuePending, 1);
       _dayGate.Set();
     }
 
-    /// <summary>Keep time flowing until the next decision point (or horizon).</summary>
+    /// <summary>Wake the day gate; under HardPause keep UntilDecision waits.</summary>
     public void Continue()
     {
-      PauseMode = CaptainPauseMode.UntilDecision;
+      if (Player.Attention == DecisionAttention.HardPause)
+      {
+        PauseMode = CaptainPauseMode.UntilDecision;
+      }
+
+      Interlocked.Exchange(ref _continuePending, 1);
       _dayGate.Set();
+    }
+
+    /// <summary>
+    /// After enqueue + <see cref="Continue"/>, block until at least one queued order is drained
+    /// (or timeout). Desk/HTTP must not report success before the agent tick runs.
+    /// </summary>
+    public bool WaitForOrderDrain(int ordersBeforeEnqueue, TimeSpan timeout)
+    {
+      var sw = System.Diagnostics.Stopwatch.StartNew();
+      while (sw.Elapsed < timeout)
+      {
+        if (_completed)
+        {
+          CaptureDesk();
+          return true;
+        }
+
+        // One order processed when count drops below post-enqueue size.
+        if (Player.Orders.Count < ordersBeforeEnqueue + 1)
+        {
+          CaptureDesk();
+          return true;
+        }
+
+        Thread.Sleep(5);
+      }
+
+      CaptureDesk();
+      return Player.Orders.Count < ordersBeforeEnqueue + 1;
     }
 
     /// <summary>Run straight to horizon without captain pauses.</summary>
     public void ResumeToHorizon()
     {
       PauseMode = CaptainPauseMode.Never;
+      Interlocked.Exchange(ref _continuePending, 1);
       _dayGate.Set();
     }
 
@@ -208,6 +373,7 @@ internal static class CampaignRunner
       var priorPause = PauseMode;
       var priorAuto = Player.Autopilot;
       PauseMode = CaptainPauseMode.Never;
+      _warming = true;
       // Keep Calypso solvent while replaying empty captain seats.
       if (Player.Enabled)
       {
@@ -227,14 +393,17 @@ internal static class CampaignRunner
             break;
           }
 
-          await PulseDaysAsync(step).ConfigureAwait(false);
+          await _pulse.PulseDaysAsync(step).ConfigureAwait(false);
           _remaining -= step;
+          RecordPaceSample(step);
         }
       }
       finally
       {
+        _warming = false;
         Player.Autopilot = priorAuto;
         PauseMode = priorPause;
+        CaptureDesk();
         if (!quiet)
         {
           EmitLiveTickers(Milestones, story: false);
@@ -262,8 +431,23 @@ internal static class CampaignRunner
       {
         ct.ThrowIfCancellationRequested();
         var step = (int)Math.Min(hoursPerPulse, _remaining);
-        await PulseDaysAsync(step).ConfigureAwait(false);
+        await _pulse.PulseDaysAsync(step).ConfigureAwait(false);
         _remaining -= step;
+        RecordPaceSample(step);
+        // At max speed, desk rebuild is expensive — but always refresh while Calypso is
+        // underway so Mesh FTL offline / map pose stay live.
+        var maxSpeed = PreferMaxSpeedThroughput;
+        var playerUnderway = Sim.State.World.Shipments.Any(s =>
+          !s.IsLegacy && s.FirmId.Equals(Ids.Carrier) && s.Status == ShipmentStatus.InTransit);
+        if (!maxSpeed
+            || NeedsPlayerDecision()
+            || playerUnderway
+            || HoursDone % (24 * 3) == 0
+            || _remaining <= 0)
+        {
+          CaptureDesk();
+        }
+
         var done = HoursDone;
         progress?.Invoke(done, RequestedHours);
         DayEnded?.Invoke();
@@ -284,27 +468,57 @@ internal static class CampaignRunner
           break;
         }
 
-        var shouldWait = PauseMode switch
+        // Wall-clock pacing (crawl ↔ max). SoftSlow throttles while a decision is needed.
+        var softSlow = Player is { Enabled: true, Attention: DecisionAttention.SoftSlow }
+                       && NeedsPlayerDecision();
+        var paceMs = DeskClock.DelayMs(Player.SimSpeedScale, step, softSlow);
+        if (paceMs > 0 && PauseMode != CaptainPauseMode.Never)
+        {
+          try
+          {
+            await Task.Delay(paceMs, ct).ConfigureAwait(false);
+          }
+          catch (OperationCanceledException)
+          {
+            throw;
+          }
+        }
+
+        // Soft-fail always hard-gates — even after ResumeToHorizon / PauseMode.Never.
+        if (Player.SoftFailRaised && PauseMode == CaptainPauseMode.Never)
+        {
+          PauseMode = CaptainPauseMode.UntilDecision;
+        }
+
+        var shouldWait = Player.SoftFailRaised || PauseMode switch
         {
           CaptainPauseMode.Never => false,
           CaptainPauseMode.EveryDay => true,
-          CaptainPauseMode.UntilDecision => NeedsPlayerDecision(),
+          // HardPause only for ordinary decisions; RunAlways / SoftSlow never hard-gate those.
+          CaptainPauseMode.UntilDecision =>
+            Player.Attention == DecisionAttention.HardPause && NeedsPlayerDecision(),
           _ => false
         };
 
         if (shouldWait)
         {
           _waiting = true;
+          CaptureDesk();
           AwaitingDecision?.Invoke();
           // Captain may ResumeToHorizon during AwaitingDecision — don't Reset over that Set.
           if (PauseMode != CaptainPauseMode.Never)
           {
+            // Avoid lost wakeups: Continue/Step may Set before we Reset.
             _dayGate.Reset();
-            await Task.Run(() => _dayGate.Wait(ct), ct).ConfigureAwait(false);
+            if (Interlocked.Exchange(ref _continuePending, 0) == 0)
+            {
+              await Task.Run(() => _dayGate.Wait(ct), ct).ConfigureAwait(false);
+              Interlocked.Exchange(ref _continuePending, 0);
+            }
           }
 
           _waiting = false;
-          // After StepDay, restore realtime-until-decision unless user set Never.
+          // After StepDay, restore sticky attention policy (not forced HardPause).
           if (PauseMode == CaptainPauseMode.EveryDay)
           {
             PauseMode = CaptainPauseMode.UntilDecision;
@@ -335,46 +549,11 @@ internal static class CampaignRunner
       }
 
       _completed = true;
+      CaptureDesk();
       DayEnded?.Invoke();
     }
 
-    private async Task PulseDaysAsync(int hours)
-    {
-      InsurancePulse.TickMorningReinstate(Sim, Ids.Registry, Milestones);
-      for (var h = 0; h < hours; h++)
-      {
-        var before = Sim.State.Events.Count;
-        _dramaHost.TickHour(Sim);
-        var ctx = new AgentContext(
-          Sim,
-          new DeterministicRandom(Sim.State.Seed ^ (ulong)Sim.State.Clock.HourIndex));
-        AgentScheduler.TickAll(Agents.PulseOrder.ToArray(), ctx);
-        Agents.RebuildPulse();
-        await Sim.AdvanceAsync(SimulationDuration.FromHours(1)).ConfigureAwait(false);
-        Credits.ObserveAfterPulse(before);
-        ObserveDeliveries(Sim, Ids, Biographies, Milestones);
-        Ids.Mesh = MeshPulse.TickHour(Ids.Mesh);
-      }
-
-      ClaimsPulse.TickDay(Sim, Ids.Registry, Ids, Milestones, Biographies);
-      DriveMaintenancePulse.TickDay(Sim, Ids.Registry, Milestones);
-      Ids.Escrow.TickDay(Sim, Ids, Milestones);
-      JumpBandGate.TickBerthFees(Sim, Ids, Milestones);
-      LienPulse.TickDay(Sim, Ids, Milestones);
-      InsurancePulse.TickDay(Sim, Ids.Registry, Milestones, Credits);
-      if (Player.LastTrampMode)
-      {
-        LastTrampPressure.TickDay(Sim, Ids, Milestones);
-      }
-
-      Ids.Reputation.TickDay(Sim.State.Clock.Date.DayIndex);
-      _dramaHost.TickDayEnd(Sim);
-      _tutorial?.TickDayEnd(Sim);
-      ObserveFinalStockout(Sim, Ids, Milestones);
-      EvaluateLastTramp();
-    }
-
-    private void EvaluateLastTramp()
+    internal void EvaluateLastTramp()
     {
       var snap = TrampSurvival.Capture(Ids);
       Player.LastSurvival = snap;
@@ -384,23 +563,23 @@ internal static class CampaignRunner
       }
 
       var day = Sim.State.Clock.Date.DayIndex;
-        if (snap.CalypsoIsSoleSurvivor)
+      if (snap.CalypsoIsSoleSurvivor)
+      {
+        Player.LastTrampWon = true;
+        Milestones.AddOnce(day, "last-tramp",
+          $"{CampaignWorld.PlayerHullName} sole operable tramp — board cleared");
+        TruncateRemaining();
+        try
         {
-          Player.LastTrampWon = true;
-          Milestones.AddOnce(day, "last-tramp",
-            $"{CampaignWorld.PlayerHullName} sole operable tramp — board cleared");
-          _remaining = 0;
-          try
-          {
-            _ = CampaignSaveStore.Default.SaveAsync(this, "auto-win").AsTask();
-          }
-          catch
-          {
-            // non-fatal
-          }
-
-          return;
+          _ = CampaignSaveStore.Default.SaveAsync(this, "auto-win").AsTask();
         }
+        catch
+        {
+          // non-fatal
+        }
+
+        return;
+      }
 
       if (!snap.CalypsoOperable && Player.SoftFailRaised)
       {
@@ -430,7 +609,7 @@ internal static class CampaignRunner
         save.Drama,
         playerControl: save.Player,
         autopilot: save.Autopilot,
-        localBoard: save.LocalBoardOnly,
+        localBoard: save.DockBoardOnly,
         lastTramp: save.LastTramp);
 
       if (save.HoursDone > 0)
@@ -438,10 +617,29 @@ internal static class CampaignRunner
         await session.AdvanceHoursAsync(save.HoursDone, quiet: true, ct).ConfigureAwait(false);
       }
 
+      if (save.HasIntegrity)
+      {
+        var cash = session.Sim.State.World.Ledgers.TryGetValue(session.Ids.Carrier, out var ledger)
+          ? ledger.Cash.Amount
+          : 0m;
+        var day = session.Sim.State.Clock.Date.DayIndex;
+        var hash = session.Sim.State.Hash;
+        if (hash != save.SimHash
+            || day != save.DayIndex
+            || Math.Abs(cash - save.OpsCash) > 0.01m)
+        {
+          throw new InvalidOperationException(
+            $"Save integrity failed after replay: expected hash={save.SimHash:X16} day={save.DayIndex} cash={save.OpsCash:0.##}; "
+            + $"got hash={hash:X16} day={day} cash={cash:0.##}. "
+            + "Checkpoint is seed→hours replay — simulation drift or policy change invalidated this save.");
+        }
+      }
+
       // Re-apply terminal flags in case warm stopped early / late relative to evaluate.
       session.Player.LastTrampWon = save.LastTrampWon;
       session.Player.LastTrampLost = save.LastTrampLost;
       session.Player.LastSurvival = TrampSurvival.Capture(session.Ids);
+      session.CaptureDesk();
       return session;
     }
   }
@@ -479,22 +677,23 @@ internal static class CampaignRunner
     }
   }
 
-  private static void ObserveDeliveries(
+  internal static void ObserveDeliveries(
     EconomySimulation sim,
     CampaignWorld.Ids ids,
     ShipBiographyLog bios,
     MilestoneLog milestones)
   {
     var day = sim.State.Clock.Date.DayIndex;
-    foreach (var ev in sim.State.Events.TakeLast(40))
+    var world = sim.State.World;
+    var recent = sim.State.Events.TakeLast(80).ToArray();
+    foreach (var ev in recent)
     {
       if (ev is not ShipmentDelivered delivered)
       {
         continue;
       }
 
-      var origin = "?";
-      var dest = "?";
+      ResolveDeliveryHubs(world, recent, delivered.ShipmentId, out var origin, out var dest);
       bios.Record(
         day,
         delivered.FirmId,
@@ -518,7 +717,37 @@ internal static class CampaignRunner
     }
   }
 
-  private static void ObserveFinalStockout(
+  private static void ResolveDeliveryHubs(
+    EconomyWorld world,
+    IReadOnlyList<object> recent,
+    Guid shipmentId,
+    out string origin,
+    out string dest)
+  {
+    origin = "?";
+    dest = "?";
+    var hubs = new List<string>();
+    foreach (var ev in recent)
+    {
+      if (ev is ShipmentHubArrived arrived && arrived.ShipmentId == shipmentId)
+      {
+        var name = world.Hubs.TryGetValue(new TransportHubId(arrived.HubId), out var h)
+          ? h.Name
+          : "?";
+        hubs.Add(name);
+      }
+    }
+
+    if (hubs.Count == 0)
+    {
+      return;
+    }
+
+    dest = hubs[^1];
+    origin = hubs.Count > 1 ? hubs[0] : hubs[^1];
+  }
+
+  internal static void ObserveFinalStockout(
     EconomySimulation sim,
     CampaignWorld.Ids ids,
     MilestoneLog milestones)

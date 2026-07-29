@@ -76,7 +76,7 @@ Keep under ~160 characters when possible.
 
 ```text
 [vox.drama] Port ops autonomous. Human staffing withdrawn. Hallway expected feet; got none.
-[vox.torrik] If the berth is empty, the formal plan already failed.
+[vox.torrik] If the dock is empty, the formal plan already failed.
 [vox.ixa] The model expected late and refused to call it late.
 [vox.meridian] They built reality into the plan. Then pretended it was elegance.
 [vox.varr] You were not managed. That is different. And that was the expensive part.
@@ -129,7 +129,7 @@ Ask: *can a `vox.*` speak this row without a footnote?*
 > CCA: Eight owner-masters and Bulk River on the board. Boards unlocked.  
 > Ixa: Watch Priority — that is where premiums go to hunt.  
 > Meridian: If standby ugly money appears, completion crews — not heroes.  
-> Drama: Empty berth means the formal plan already failed.  
+> Drama: Empty dock means the formal plan already failed.  
 > Broker: Claims will pay. They will not restock the hold.  
 > Ledger: Ops liquid down; Core still its own story. Never summed.  
 > Varr: Which bill became less dangerous?

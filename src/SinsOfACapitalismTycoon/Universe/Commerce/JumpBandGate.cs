@@ -85,8 +85,8 @@ internal static class JumpBandGate
     return maxDifficulty > 0m;
   }
 
-  /// <summary>Daily berth standing fees at hub/refinery for parked operable hulls.</summary>
-  public static void TickBerthFees(
+  /// <summary>Daily dock standing fees at capital/refinery for parked operable hulls.</summary>
+  public static void TickDockFees(
     EconomySimulation sim,
     CampaignWorld.Ids ids,
     MilestoneLog milestones)
@@ -116,7 +116,7 @@ internal static class JumpBandGate
         continue;
       }
 
-      var feeAmt = PortTier.BerthStandingFee(PortTier.ForRole(site.Hub.Role));
+      var feeAmt = PortTier.DockStandingFee(PortTier.ForRole(site.Hub.Role));
       if (feeAmt <= 0m)
       {
         continue;
@@ -129,9 +129,9 @@ internal static class JumpBandGate
       }
 
       var fee = Money.From(feeAmt);
-      firm.Post(AccountRole.TransportTollExpense, AccountRole.Cash, fee, date, "Port berth standing");
-      station.Post(AccountRole.Cash, AccountRole.Revenue, fee, date, "Port berth standing");
-      milestones.AddOnce(day, "berth-fee",
+      firm.Post(AccountRole.TransportTollExpense, AccountRole.Cash, fee, date, "Port dock standing");
+      station.Post(AccountRole.Cash, AccountRole.Revenue, fee, date, "Port dock standing");
+      milestones.AddOnce(day, "dock-fee",
         $"{entry.RegistryName} @{site.Hub.Name} · {PortTier.Tag(site.Hub.Role)} {feeAmt:0}");
     }
   }

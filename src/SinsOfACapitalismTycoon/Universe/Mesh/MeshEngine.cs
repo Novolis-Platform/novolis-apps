@@ -1,14 +1,14 @@
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>One ordered transformation of <see cref="MeshState"/>.</summary>
-public interface IMeshStep
+internal interface IMeshStep
 {
   string Name { get; }
   MeshState Execute(MeshState current);
 }
 
 /// <summary>Advances mesh by folding an ordered step list.</summary>
-public sealed class MeshEngine(IReadOnlyList<IMeshStep> steps)
+internal sealed class MeshEngine(IReadOnlyList<IMeshStep> steps)
 {
   public IReadOnlyList<IMeshStep> Steps { get; } = steps ?? throw new ArgumentNullException(nameof(steps));
 

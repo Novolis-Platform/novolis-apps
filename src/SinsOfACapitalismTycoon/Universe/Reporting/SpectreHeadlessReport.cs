@@ -257,7 +257,7 @@ internal static class SpectreHeadlessReport
     var lifeKinds = new HashSet<string>(LifeMoments.Kinds, StringComparer.OrdinalIgnoreCase)
     {
       "overhaul", "overhaul-forced", "overhaul-due", "burnout", "reinstated", "arrears",
-      "escrow", "jump-refuse", "standby-pass", "lien", "berth-fee",
+      "escrow", "jump-refuse", "standby-pass", "lien", "dock-fee", "berth-fee",
     };
     var forGrep = result.Milestones.Entries
       .Where(m => lifeKinds.Contains(m.Kind))

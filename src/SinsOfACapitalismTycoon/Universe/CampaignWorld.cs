@@ -5,7 +5,8 @@ using Novolis.Economy.Logistics;
 using Novolis.Economy.Population;
 using Novolis.Economy.Production;
 using Novolis.Economy.Simulation;
-using SinsOfACapitalismTycoon.Universe.Mesh;
+using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Universe;
 
@@ -51,10 +52,18 @@ internal static class CampaignWorld
   public const string PlayerFirmName = "Simmons Transport";
   public const string PlayerMasterLabel = "James Simmons · ST Calypso";
   public const string PlayerFlavorId = "ST-7749-63325116";
-  /// <summary>Lean opening cash ≈ post-cert scrap (~0.35× fleet working capital).</summary>
-  public const decimal PlayerOpeningCashFactor = 0.35m;
+  /// <summary>Lean opening cash ≈ post-cert scrap (~0.50× fleet working capital → 9_000).</summary>
+  public const decimal PlayerOpeningCashFactor = 0.50m;
   /// <summary>Optional restoration loan recorded as registry lien.</summary>
   public const decimal PlayerRestorationLien = 4_500m;
+  /// <summary>No lien cash service through this day index (principal still visible).</summary>
+  public const int LienServiceGraceDays = 21;
+  /// <summary>Post-grace daily lien service rate (of remaining principal).</summary>
+  public const decimal LienServiceRate = 0.04m;
+  /// <summary>Post-grace minimum lien service when cash allows.</summary>
+  public const decimal LienServiceFloor = 40m;
+  /// <summary>Docked insured premium accrual as a fraction of operating quote.</summary>
+  public const decimal IdleStandingPremiumFactor = 0.15m;
 
   /// <summary>Tramp firms (one hull each — CarrierFirmAgent is single-ship). Slot 0 = Calypso.</summary>
   public const int TrampFleetSize = 8;
@@ -121,6 +130,8 @@ internal static class CampaignWorld
 
     public ReputationLedger Reputation { get; set; } = new();
     public EscrowBook Escrow { get; set; } = new();
+    /// <summary>Advertised spot logical keys — retracted when live board no longer contains them.</summary>
+    public SpotMeshLedger SpotMesh { get; set; } = new();
     /// <summary>Confederation mesh BM state — replaced each hour by <see cref="MeshPulse.TickHour"/>.</summary>
     public MeshState Mesh { get; set; } = MeshState.Empty();
     public required AstroEconomyBridge.BridgeResult Bridge { get; init; }
@@ -555,6 +566,12 @@ internal static class CampaignWorld
     }
 
     mesh = MeshPulse.SeedSmokePublishes(mesh, calypso);
+    // Mesh spot board reads Commerce.Spot digests after FTL lag.
+    mesh = FeedEngine.Subscribe(mesh, calypso, MeshFeedId.CommerceSpot);
+    var calypsoShip = MeshIdentityIds.Ship(PlayerHullName);
+    mesh = FeedEngine.Subscribe(mesh, calypsoShip, MeshFeedId.CommerceSpot);
+    mesh = FeedEngine.Pull(mesh, calypso);
+    mesh = FeedEngine.Pull(mesh, calypsoShip);
     InvariantChecker.AssertAll(mesh);
     return mesh;
   }

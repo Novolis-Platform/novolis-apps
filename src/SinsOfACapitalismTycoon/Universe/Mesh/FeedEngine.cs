@@ -1,13 +1,13 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>
 /// Atom/RSS-style feeds: voluntary channels are pulled by subscription.
 /// <see cref="MeshFeedId.Emergency"/> is mandatory — always subscribed, cannot leave,
 /// and force-delivered into the feed inbox of every mailbox co-located with a holding node.
 /// </summary>
-public static class FeedEngine
+internal static class FeedEngine
 {
   public static MeshState EnsureMandatorySubscriptions(MeshState state, MeshIdentityId owner)
   {
@@ -80,7 +80,7 @@ public static class FeedEngine
   /// </summary>
   public static MeshState Pull(MeshState state, MeshIdentityId owner)
   {
-    if (!state.Mailboxes.TryGetValue(owner.Value, out var box))
+    if (!state.Mailboxes.TryGetValue(owner.Value, out var box) || !box.LinkedToNode)
     {
       return state;
     }
@@ -96,7 +96,7 @@ public static class FeedEngine
       : ImmutableHashSet<string>.Empty;
     var pulled = 0L;
 
-    foreach (var pk in cache)
+    foreach (var pk in cache.Keys)
     {
       if (!state.Packets.TryGetValue(pk, out var packet))
       {
@@ -165,7 +165,7 @@ public static class FeedEngine
 
     foreach (var box in state.Mailboxes.Values)
     {
-      if (!box.LocationNodeId.Equals(node))
+      if (!box.LinkedToNode || !box.LocationNodeId.Equals(node))
       {
         continue;
       }
@@ -182,6 +182,11 @@ public static class FeedEngine
     PacketId packetId,
     bool countAsEmergency)
   {
+    if (state.Mailboxes.TryGetValue(owner.Value, out var box) && !box.LinkedToNode)
+    {
+      return state;
+    }
+
     var key = MeshState.PacketKey(packetId);
     var inbox = state.FeedInboxes.TryGetValue(owner.Value, out var existing)
       ? existing

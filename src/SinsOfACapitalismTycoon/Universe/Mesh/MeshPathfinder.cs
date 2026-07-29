@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Shortest path on pulse travel hours (Dijkstra).</summary>
-public static class MeshPathfinder
+internal static class MeshPathfinder
 {
   public static ImmutableArray<MeshNodeId>? FindPath(
     MeshState state,

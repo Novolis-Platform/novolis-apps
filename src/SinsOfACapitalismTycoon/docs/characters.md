@@ -146,7 +146,7 @@ registry or fails trying — Willie as cautionary ghost.
 
 1. **No romance that kills ships.** Romantics buy hulls and skip inspections.
 2. **Freedom ≠ comfort.** Allow both sentences in the same paragraph.
-3. **Name the constraint.** Fuel, berth, premium, wear, due-now, escrow — not “bad luck.”
+3. **Name the constraint.** Fuel, dock, premium, wear, due-now, escrow — not “bad luck.”
 4. **Keep Ops/Core sacred.** Narrator never invents a single “total cash.”
 5. **Prefer dock English over policy English** — unless you are Meridian, then prefer
    recorded euphemism (*protected passenger*, *selection support*, *degraded handoff*).

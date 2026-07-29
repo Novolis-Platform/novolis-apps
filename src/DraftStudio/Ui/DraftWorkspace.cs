@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
-using DraftStudio.Core;
+using Novolis.Avalonia.Cad.Core;
 
 namespace DraftStudio.Ui;
 
@@ -10,9 +10,9 @@ internal sealed class DraftWorkspace : Grid
 {
     private readonly ColumnDefinition _leftCol = new(260, GridUnitType.Pixel);
     private readonly ColumnDefinition _rightCol = new(280, GridUnitType.Pixel);
-    private readonly DraftSettingsStore _settings;
+    private readonly CadEditorSettings _settings;
 
-    public DraftWorkspace(DraftSettingsStore settings, Control leftRail, Control centerBody, Control rightRail)
+    public DraftWorkspace(CadEditorSettings settings, Control leftRail, Control centerBody, Control rightRail)
     {
         _settings = settings;
         _leftCol.Width = new GridLength(_settings.Settings.LeftColumnPixels, GridUnitType.Pixel);

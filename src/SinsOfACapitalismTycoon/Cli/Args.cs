@@ -16,8 +16,10 @@ internal enum EngineKind
 
 internal enum JobBoardScope
 {
-    Local,
-    Network
+    /// <summary>Live local dock tape for the current system.</summary>
+    Dock,
+    /// <summary>Mesh digests / retractions (FTL-delayed).</summary>
+    Mesh
 }
 
 internal sealed record RunOptions(
@@ -33,6 +35,7 @@ internal sealed record RunOptions(
     bool Story,
     bool Player,
     bool Autopilot,
+    bool PlayerBot,
     JobBoardScope Board,
     string? Commands,
     bool Playtest,
@@ -52,7 +55,8 @@ internal sealed record RunOptions(
         Story: false,
         Player: false,
         Autopilot: false,
-        Board: JobBoardScope.Network,
+        PlayerBot: false,
+        Board: JobBoardScope.Mesh,
         Commands: null,
         Playtest: false,
         LastTramp: false,
@@ -72,7 +76,8 @@ internal sealed record RunOptions(
         var story = false;
         bool? player = null;
         var autopilot = false;
-        var board = JobBoardScope.Network;
+        var playerBot = false;
+        var board = JobBoardScope.Mesh;
         string? commands = null;
         var playtest = false;
         var lastTramp = false;
@@ -231,6 +236,18 @@ internal sealed record RunOptions(
                 continue;
             }
 
+            if (a.Equals("--player-bot", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                playerBot = ParseOnOff(args[++i], "--player-bot");
+                continue;
+            }
+
+            if (a.StartsWith("--player-bot=", StringComparison.OrdinalIgnoreCase))
+            {
+                playerBot = ParseOnOff(a["--player-bot=".Length..], "--player-bot");
+                continue;
+            }
+
             if (a.Equals("--board", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
             {
                 board = ParseBoard(args[++i]);
@@ -317,7 +334,7 @@ internal sealed record RunOptions(
 
         return new RunOptions(
             mode, engine, scenario, periods, daysHours, seed, logEvery, quiet, drama, story,
-            playerOn, autopilot, board, commands, playtest, lastTramp, loadSave);
+            playerOn, autopilot, playerBot, board, commands, playtest, lastTramp, loadSave);
     }
 
     private static bool ParseDrama(string value) =>
@@ -334,9 +351,9 @@ internal sealed record RunOptions(
     private static JobBoardScope ParseBoard(string value) =>
         value.Trim().ToLowerInvariant() switch
         {
-            "local" or "berth" or "hub" => JobBoardScope.Local,
-            "network" or "all" or "global" => JobBoardScope.Network,
-            _ => throw new ArgumentException("--board must be local or network.")
+            "dock" or "local" or "berth" => JobBoardScope.Dock,
+            "mesh" or "network" or "all" or "global" => JobBoardScope.Mesh,
+            _ => throw new ArgumentException("--board must be mesh or dock (aliases: network, berth, local).")
         };
 
     private static AppMode ParseMode(string value) =>
@@ -392,9 +409,9 @@ internal sealed record RunOptions(
                                        captain  = text REPL / scripted play (agent-friendly)
               --player on|off          James / ST Calypso agency (default: on in avalonia/captain)
               --autopilot on|off       AI hauls when player queue empty (default: off)
-              --board local|network    Spot intel filter (default: network; accept still requires berth)
+              --board mesh|dock        Spot intel filter (default: mesh; accept still requires dock)
               --commands "a;b;c"       Captain script (status|jobs|accept N|wait|refuse|…)
-              --playtest               60d captain acceptance (travel/haul/berth gate)
+              --playtest               60d captain acceptance (travel/haul/dock gate)
               --last-tramp             Last-tramp victory mode (rival pressure; Calypso sole operable)
               --playtest-last-tramp    120d captain autopilot last-tramp acceptance
               --load latest|<guid>     Resume campaign checkpoint (Novolis.Storage.Json)

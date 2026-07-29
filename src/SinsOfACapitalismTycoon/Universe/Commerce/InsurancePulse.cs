@@ -1,14 +1,12 @@
 using Novolis.Economy;
-using Novolis.Economy.Accounting;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Simulation;
 
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
-/// Registry insurance: premiums track drive-life risk and <b>operating days</b>.
-/// Idle hulls pay a cheap standing fee (or nothing when uninsured) so a short cash dip
-/// does not permanently ground the fleet. Maintenance/overhaul stays separate.
+/// Registry insurance as a <b>category over time</b>: daily accrual like wages
+/// (expense → payable), then cash settlement when affordable — not per-job cash hits.
 /// </summary>
 internal static class InsurancePulse
 {
@@ -17,21 +15,27 @@ internal static class InsurancePulse
     ShipRegistry registry,
     MilestoneLog milestones,
     CreditCirculation? credits = null) =>
-    TickDayCore(sim, registry, milestones, credits, chargePremiums: true);
+    TickDayCore(sim, registry, milestones, credits, settlePass: true);
 
-  /// <summary>Morning pass: reinstate / standing only so agents can sail before evening billing.</summary>
+  /// <summary>Morning: try settle payable so agents can sail; accrual happens on the day pass.</summary>
   public static void TickMorningReinstate(
     EconomySimulation sim,
     ShipRegistry registry,
     MilestoneLog milestones) =>
-    TickDayCore(sim, registry, milestones, null, chargePremiums: false);
+    TickDayCore(sim, registry, milestones, null, settlePass: false);
+
+  public static bool IsOperating(EconomyWorld world, FirmId firm) =>
+    world.Shipments.Any(s =>
+      s.FirmId.Equals(firm)
+      && !s.IsLegacy
+      && s.Status == ShipmentStatus.InTransit);
 
   private static void TickDayCore(
     EconomySimulation sim,
     ShipRegistry registry,
     MilestoneLog milestones,
     CreditCirculation? credits,
-    bool chargePremiums)
+    bool settlePass)
   {
     _ = credits;
     var world = sim.State.World;
@@ -47,10 +51,7 @@ internal static class InsurancePulse
         continue;
       }
 
-      var operating = world.Shipments.Any(s =>
-        s.FirmId.Equals(entry.FirmId)
-        && !s.IsLegacy
-        && s.Status == ShipmentStatus.InTransit);
+      var daily = Money.From(registry.QuotePremiumDue(entry));
 
       if (entry.BurnedOut || entry.Suspended)
       {
@@ -59,38 +60,53 @@ internal static class InsurancePulse
           entry.BurnedOut
             ? $"burned-out {entry.RegistryName}"
             : $"suspended {entry.RegistryName}");
-        if (chargePremiums)
+        if (settlePass && daily.Amount > 0m)
         {
-          TryStandingFee(firmLedger, underwriterLedger, entry, registry, day);
+          HullFinance.AccruePremium(firmLedger, entry, daily, day, HullFinance.IdleStandingMemo);
+          HullFinance.TrySettlePremium(firmLedger, underwriterLedger, entry, day);
         }
 
         continue;
       }
 
+      if (settlePass && entry.Insured && daily.Amount > 0m)
+      {
+        // Operating (underway): full category rate. Docked idle: standing fee.
+        var operating = IsOperating(world, entry.FirmId);
+        var accrue = operating
+          ? daily
+          : Money.From(daily.Amount * CampaignWorld.IdleStandingPremiumFactor);
+        HullFinance.AccruePremium(
+          firmLedger,
+          entry,
+          accrue,
+          day,
+          operating ? HullFinance.PremiumAccrualMemo : HullFinance.IdleStandingMemo);
+      }
+
+      var settled = HullFinance.TrySettlePremium(firmLedger, underwriterLedger, entry, day);
+
+      if (entry.PremiumPayable > 0.0001m && !settled)
+      {
+        entry.PremiumArrearsDays++;
+      }
+      else if (settled && entry.PremiumPayable <= 0.0001m)
+      {
+        entry.PremiumArrearsDays = 0;
+      }
+
+      var payableCap = daily.Amount > 0m
+        ? daily.Amount * FtlDriveLifePolicy.PremiumGraceDays
+        : 0m;
+
       if (!entry.Insured)
       {
-        var reinstateQuote = Money.From(registry.QuoteDailyPremium(entry) * (operating ? 1m : 0.15m));
-        if (firmLedger.Cash.Amount + 0.0001m >= reinstateQuote.Amount && reinstateQuote.Amount > 0m)
+        if (entry.PremiumPayable <= 0.0001m)
         {
-          if (chargePremiums)
-          {
-            firmLedger.Post(
-              AccountRole.TransportTollExpense, AccountRole.Cash, reinstateQuote, day, "Hull insurance premium");
-            underwriterLedger.Post(
-              AccountRole.Cash, AccountRole.Revenue, reinstateQuote, day, "Hull insurance premium");
-            entry.PremiumPaid += reinstateQuote.Amount;
-          }
-
           entry.Insured = true;
           entry.PremiumArrearsDays = 0;
-          milestones.AddOnce(dayIndex, "reinstated", $"{entry.RegistryName} cash");
-          continue;
-        }
-
-        if (underwriterLedger.Cash.Amount > 25_000m
-            && TryStationAdvance(firmLedger, underwriterLedger, reinstateQuote.Amount > 0m ? reinstateQuote : Money.From(14m), day, entry, milestones, dayIndex))
-        {
-          entry.PremiumArrearsDays = 0;
+          entry.Suspended = false;
+          milestones.AddOnce(dayIndex, "reinstated", $"{entry.RegistryName} settled");
           continue;
         }
 
@@ -99,99 +115,34 @@ internal static class InsurancePulse
         continue;
       }
 
-      if (!chargePremiums)
+      // Still marked insured: drop cover if payable snowballs past grace window.
+      if (payableCap > 0m && entry.PremiumPayable > payableCap + 0.0001m)
       {
+        entry.Insured = false;
+        grounded++;
+        milestones.AddOnce(dayIndex, "grounding", $"uninsured {entry.RegistryName}");
         continue;
       }
 
-      var premium = Money.From(registry.QuoteDailyPremium(entry));
-      if (!operating)
+      if (entry.PremiumArrearsDays > FtlDriveLifePolicy.PremiumGraceDays
+          && entry.PremiumPayable > 0.0001m)
       {
-        premium = Money.From(Math.Round(premium.Amount * 0.15m, 2, MidpointRounding.AwayFromZero));
-      }
-
-      if (premium.Amount <= 0m)
-      {
+        entry.Insured = false;
+        grounded++;
+        milestones.AddOnce(dayIndex, "grounding", $"uninsured {entry.RegistryName}");
         continue;
       }
 
-      if (firmLedger.Cash.Amount + 0.0001m < premium.Amount)
+      if (entry.PremiumArrearsDays > 0 && entry.PremiumPayable > 0.0001m)
       {
-        entry.PremiumArrearsDays++;
-        if (entry.PremiumArrearsDays > FtlDriveLifePolicy.PremiumGraceDays)
-        {
-          entry.Insured = false;
-          grounded++;
-          milestones.AddOnce(dayIndex, "grounding", $"uninsured {entry.RegistryName}");
-        }
-        else
-        {
-          milestones.AddOnce(dayIndex, "arrears",
-            $"{entry.RegistryName} d{entry.PremiumArrearsDays}");
-        }
-
-        continue;
+        milestones.AddOnce(dayIndex, "arrears",
+          $"{entry.RegistryName} d{entry.PremiumArrearsDays} payable {entry.PremiumPayable:0.#}");
       }
-
-      firmLedger.Post(
-        AccountRole.TransportTollExpense, AccountRole.Cash, premium, day,
-        operating ? "Hull insurance premium" : "Hull idle standing");
-      underwriterLedger.Post(
-        AccountRole.Cash, AccountRole.Revenue, premium, day,
-        operating ? "Hull insurance premium" : "Hull idle standing");
-      entry.PremiumPaid += premium.Amount;
-      entry.PremiumArrearsDays = 0;
-      entry.Insured = true;
     }
 
     if (grounded >= 2)
     {
       milestones.AddOnce(dayIndex, "grounding", $"cascade grounded≥{grounded}");
     }
-  }
-
-  private static void TryStandingFee(
-    FirmLedger firm,
-    FirmLedger underwriter,
-    ShipRegistryEntry entry,
-    ShipRegistry registry,
-    SimulationDate day)
-  {
-    var stand = Money.From(registry.QuoteDailyPremium(entry));
-    if (stand.Amount <= 0m || firm.Cash.Amount + 0.0001m < stand.Amount)
-    {
-      return;
-    }
-
-    firm.Post(AccountRole.TransportTollExpense, AccountRole.Cash, stand, day, "Hull standing fee");
-    underwriter.Post(AccountRole.Cash, AccountRole.Revenue, stand, day, "Hull standing fee");
-    entry.PremiumPaid += stand.Amount;
-  }
-
-  private static bool TryStationAdvance(
-    FirmLedger firm,
-    FirmLedger station,
-    Money premium,
-    SimulationDate day,
-    ShipRegistryEntry entry,
-    MilestoneLog milestones,
-    int dayIndex)
-  {
-    if (station.Cash.Amount + 0.0001m < premium.Amount * 2m)
-    {
-      return false;
-    }
-
-    // Station advances premium (expense) → firm cash; firm immediately remits to UW (same firm if Station=UW).
-    // When Station is underwriter, net is accounting noise; still restores Insured standing.
-    station.Post(AccountRole.WageExpense, AccountRole.Cash, premium, day, "Premium advance");
-    firm.Post(AccountRole.Cash, AccountRole.Revenue, premium, day, "Premium advance");
-    firm.Post(AccountRole.TransportTollExpense, AccountRole.Cash, premium, day, "Hull insurance premium");
-    station.Post(AccountRole.Cash, AccountRole.Revenue, premium, day, "Hull insurance premium");
-    entry.PremiumPaid += premium.Amount;
-    entry.Insured = true;
-    entry.PremiumArrearsDays = 0;
-    milestones.AddOnce(dayIndex, "reinstated", $"{entry.RegistryName} premium advance");
-    return true;
   }
 }

@@ -35,6 +35,9 @@ internal sealed class MilestoneLog
   public int CountKind(string kind) =>
     _entries.Count(e => e.Kind.Equals(kind, StringComparison.OrdinalIgnoreCase));
 
+  /// <summary>One-shot claim so mesh Emergency publishes do not repeat the same beat.</summary>
+  public bool TryClaimMeshPublish(string key) => _once.Add(key);
+
   /// <summary>New entries since last call — for live radio tickers during a run.</summary>
   public IReadOnlyList<Entry> DrainNew()
   {

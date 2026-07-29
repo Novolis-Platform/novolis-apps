@@ -19,10 +19,11 @@ Doctrine (Galactic Confederation Review — *The Confederation Does Not Deliver 
 Nodes (star-system relays)
 Edges (node→node, pulse vs bulk travel hours)
 Mailboxes (person | household | firm | ship | thing + location node)
-Feed subscriptions (News.* voluntary; Emergency mandatory)
-Packets (pulse | bulk | feed; sealed; opaque signature; priority; TTL)
+Feed subscriptions (News.*, Commerce.Spot voluntary; Emergency mandatory)
+Packets (pulse | bulk | feed; Subject/Body/Topic; sealed; opaque signature; priority;
+        GlobalTtlHours / LocalTtlHours + LocalRetentionPriority)
 In-flight drones
-Node caches (visibility)
+Node caches (visibility: PacketId → ReceivedHour + LocalPriority)
 Mailbox pushed packets (private identity mail)
 Feed inboxes (pulled + forced Emergency)
 Pending launches (bandwidth-gated)
@@ -43,6 +44,25 @@ TCP/HTTP, Limbo ceremony, captain UI compose.
 | Feed(`Emergency`) | Flood among nodes | **Mandatory**: every mailbox is subscribed; cannot unsubscribe; force-delivered into feed inboxes of all mailboxes co-located with a node that holds it |
 
 There is **no** `IsDeliveredToHuman` API.
+
+### Dedup / store
+
+- Canonical body lives once in `Packets[id]`.
+- Node caches store membership + `ReceivedHour` + snapped `LocalPriority` — `CreditNode` is idempotent.
+- Flood does not launch toward a neighbor that already holds the packet.
+
+### TTL (dual)
+
+| Kind | Clock | Effect |
+|------|-------|--------|
+| **Global** (`GlobalTtlHours`) | From `PublishedHour` | Earliest universal removal of the packet (all caches, mailboxes, inboxes, drones) |
+| **Local** (`LocalTtlHours`) | From node `ReceivedHour` | Drop from that node’s cache only; may reopen flood from neighbors so holes can refill |
+
+**Retraction:** `Topic=spot-retract` + `LogicalKey` floods like a feed; on credit, the node records the key in `NodeRetractions`. Mesh job boards skip retracted keys even if an old digest remains in the feed inbox. Price/qty change ⇒ new logical key; origin must retract the old key (FTL ahead of tramp so you can arrive to find the job gone).
+
+**Local retention priority** (`LocalRetentionPriority`, default = publish priority): when `MaxPacketsPerNodeCache` is set, over-cap nodes drop lowest priority then oldest first. Local time expiry ignores priority (clock wins); priority is for capacity pressure.
+
+Null Global and/or Local = no expiry on that axis. Global floor still applies: the packet object is not deleted before Global even if every local cache has expired.
 
 ### Mailbox owners
 
@@ -73,13 +93,15 @@ Voluntary feed packets populate node caches and are pulled only if subscribed. `
 2. `FloodDispatch` (identity + feed)
 3. `LaunchPending`
 4. `FeedPullAll` (subscribed channels at each mailbox location)
-5. `TtlExpire`
-6. `HourAdvance`
+5. `HourAdvance`
+6. `TtlExpire` (local then global — after the clock ticks so elapsed hours match TTL)
 
 ---
 
-## 5. Promotion
+## 5. Promotion / in-app boundary
 
-Kernel under Sins (`Universe/Mesh/`) until `Novolis.Mesh.Core`. Glue in `Universe/Mesh/Sins/`.
-Do not put fiction mesh into `Novolis.Transports.*`. Prefer **Node**, not Hub, in mesh terminology
-(Economy `TransportHub` remains a separate logistics concept).
+- **Kernel:** `Universe/Mesh/*.cs` → namespace `…Mesh.Kernel` (internal types).
+- **Glue:** `Universe/Mesh/Sins/` → namespace `…Mesh.Sins`.
+- Extraction to `Novolis.Mesh.Core` remains future; this boundary is the staging shape.
+- Do not put fiction mesh into `Novolis.Transports.*`. Prefer **Node**, not Hub, in mesh terminology
+  (Economy `TransportHub` remains a separate logistics concept).

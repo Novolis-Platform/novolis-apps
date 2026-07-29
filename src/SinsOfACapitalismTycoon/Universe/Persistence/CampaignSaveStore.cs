@@ -75,15 +75,17 @@ internal sealed class CampaignSaveStore
       LastTramp = session.Player.LastTrampMode,
       Autopilot = session.Player.Autopilot,
       Player = session.Player.Enabled,
-      LocalBoardOnly = session.Player.LocalBoardOnly,
+      DockBoardOnly = session.Player.DockBoardOnly,
       LastTrampWon = session.Player.LastTrampWon,
       LastTrampLost = session.Player.LastTrampLost,
       DayIndex = session.Sim.State.Clock.Date.DayIndex,
       HubSystemId = session.CurrentHubSystemId,
       SurvivalLine = TrampSurvival.FormatLine(
-        snap, session.Player.LastTrampMode, session.Player.LastTrampWon, session.Player.LastTrampLost),
+        snap, session.Player.LastTrampMode, session.Player.LastTrampWon, session.Player.LastTrampLost,
+        session.Sim.State.Clock.Date.DayIndex, session.Ids),
       StandingLine = entry?.StandingLabel ?? "—",
-      Cash = cash,
+      OpsCash = cash,
+      SimHash = session.Sim.State.Hash,
     };
 
     await _repo.UpsertAsync(record, ct).ConfigureAwait(false);

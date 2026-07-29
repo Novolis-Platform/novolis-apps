@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Consume node bandwidth to turn pending launches into in-flight drones.</summary>
-public static class LaunchEngine
+internal static class LaunchEngine
 {
   public static MeshState LaunchPending(MeshState state)
   {

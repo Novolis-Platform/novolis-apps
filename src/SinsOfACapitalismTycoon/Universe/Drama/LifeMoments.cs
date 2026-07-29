@@ -26,6 +26,9 @@ internal static class LifeMoments
     "default",
     "tutorial",
     "soft-fail",
+    "last-tramp-squeeze",
+    "last-tramp",
+    "last-tramp-lose",
   ];
 
   public static int Count(MilestoneLog log) =>
@@ -68,6 +71,9 @@ internal static class LifeMoments
       "default" => "Due-now arrived",
       "tutorial" => "Marsh / CCA onboarding beat",
       "soft-fail" => "Grounded long enough to fail soft",
+      "last-tramp-squeeze" => "Rival tramp squeezed off the board",
+      "last-tramp" => "Sole operable tramp — last tramp win",
+      "last-tramp-lose" => "Calypso down while rivals still sail",
       _ => kind,
     };
 }

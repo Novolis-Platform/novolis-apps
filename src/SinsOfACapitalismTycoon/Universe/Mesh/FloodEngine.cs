@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Fan-out identity/feed packets from nodes that hold them but have not yet seeded neighbors.</summary>
-public static class FloodEngine
+internal static class FloodEngine
 {
   public static MeshState Dispatch(MeshState state)
   {
@@ -20,7 +20,7 @@ public static class FloodEngine
         : ImmutableHashSet<string>.Empty;
 
       var nodesHolding = state.NodeCaches
-        .Where(kv => kv.Value.Contains(pk))
+        .Where(kv => kv.Value.ContainsKey(pk))
         .Select(kv => kv.Key)
         .ToList();
 

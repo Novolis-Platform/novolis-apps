@@ -10,9 +10,6 @@ namespace SinsOfACapitalismTycoon;
 
 internal static class Program
 {
-    internal static string ReportText { get; private set; } = "";
-    internal static RunOptions? UiOptions { get; private set; }
-
     [STAThread]
     public static int Main(string[] args)
     {
@@ -42,7 +39,8 @@ internal static class Program
             if (options.Mode == AppMode.Avalonia)
             {
                 // UI-first: window runs the campaign and binds the briefing.
-                UiOptions = options;
+                // Campaign is the product surface; core engine (below) is intentional BM regression only.
+                App.Configure(options, coreReportText: null);
                 BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
                 return 0;
             }
@@ -60,6 +58,7 @@ internal static class Program
             return 0;
         }
 
+        // Core engine: BM regression / drama packs — orthogonal to campaign product path.
         Action<int, int>? progress = null;
         if (!options.Quiet && options.Mode == AppMode.Headless && options.Periods >= 50)
         {
@@ -76,15 +75,15 @@ internal static class Program
 
         var report = GameRunner.Run(
             options.Scenario, options.Seed, options.Periods, options.LogEvery, progress);
-        ReportText = ReportFormatter.Format(report);
+        var reportText = ReportFormatter.Format(report);
 
         if (options.Mode == AppMode.Headless)
         {
-            Console.Write(ReportText);
+            Console.Write(reportText);
             return 0;
         }
 
-        UiOptions = options;
+        App.Configure(options, coreReportText: reportText);
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
     }

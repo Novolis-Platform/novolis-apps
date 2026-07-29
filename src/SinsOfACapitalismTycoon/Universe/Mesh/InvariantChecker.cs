@@ -1,9 +1,9 @@
 using System.Text;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>BM invariants — throw on violation.</summary>
-public static class InvariantChecker
+internal static class InvariantChecker
 {
   public static void AssertAll(MeshState state)
   {
@@ -50,7 +50,7 @@ public static class InvariantChecker
         errors.Add($"Cache for unknown node {kv.Key}.");
       }
 
-      foreach (var pk in kv.Value)
+      foreach (var pk in kv.Value.Keys)
       {
         if (!state.Packets.ContainsKey(pk))
         {

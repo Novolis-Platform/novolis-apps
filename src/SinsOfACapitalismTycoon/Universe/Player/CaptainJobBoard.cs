@@ -1,7 +1,10 @@
 using Novolis.Economy;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Markets;
+using Novolis.Economy.Production;
 using Novolis.Economy.Simulation;
+using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Universe;
 
@@ -22,7 +25,17 @@ internal static class CaptainJobBoard
     TransitProfile Profile,
     string Summary,
     bool AtOrigin,
-    string DistanceHint);
+    string DistanceHint,
+    string LogicalKey = "")
+  {
+    /// <summary>Gross firm pay / dest sell (DestBid × qty).</summary>
+    public decimal ContractPay =>
+      Math.Round(DestBid * Quantity, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>Cash to lift cargo at origin (LiftLimit × qty).</summary>
+    public decimal LiftCost =>
+      Math.Round(LiftLimit * Quantity, 2, MidpointRounding.AwayFromZero);
+  }
 
   public sealed record CharterCandidate(
     string Id,
@@ -31,27 +44,102 @@ internal static class CaptainJobBoard
     string Detail,
     string? OriginSystemId,
     bool CanAcceptHere,
-    bool CanRefuse);
+    bool CanRefuse,
+    string? DestSystemId = null,
+    string? SkuLabel = null,
+    decimal Quantity = 0m,
+    decimal LiftLimit = 0m,
+    decimal DestBid = 0m,
+    TransitProfile Profile = TransitProfile.StandardCommercial,
+    decimal Margin = 0m)
+  {
+    /// <summary>Firm escrow / delivery pay (DestBid × qty). Zero for standby.</summary>
+    public decimal ContractPay =>
+      Math.Round(DestBid * Quantity, 2, MidpointRounding.AwayFromZero);
 
-  /// <summary>Network (or berth-filtered) spot spreads. Accept requires <see cref="SpotCandidate.AtOrigin"/>.</summary>
+    public decimal LiftCost =>
+      Math.Round(LiftLimit * Quantity, 2, MidpointRounding.AwayFromZero);
+  }
+
+  /// <summary>Local dock HubOrder tape — buy asks / sell bids for Calypso inventory.</summary>
+  public sealed record MarketLot(
+    Guid OrderId,
+    string SideLabel,
+    bool IsAsk,
+    string SkuLabel,
+    ProductId ProductId,
+    FirmId Counterparty,
+    decimal Quantity,
+    decimal UnitPrice,
+    string Summary);
+
+  public static bool IsFreightSku(string skuLabel) =>
+    skuLabel.Equals("Raw", StringComparison.OrdinalIgnoreCase)
+    || skuLabel.Equals("Capital", StringComparison.OrdinalIgnoreCase)
+    || skuLabel.Equals("Ore", StringComparison.OrdinalIgnoreCase)
+    || skuLabel.Equals("Parts", StringComparison.OrdinalIgnoreCase);
+
+  public static bool IsGoodsSku(string skuLabel) =>
+    skuLabel.Equals("Final", StringComparison.OrdinalIgnoreCase)
+    || skuLabel.Equals("Goods", StringComparison.OrdinalIgnoreCase);
+
+  /// <summary>
+  /// Mesh (or dock-filtered) <b>freight</b> spot spreads (Raw / Capital).
+  /// Dock = live <see cref="BuildSpot"/>; mesh = mesh <c>Commerce.Spot</c> digests only (FTL lag).
+  /// Accept still requires <see cref="SpotCandidate.AtOrigin"/>.
+  /// </summary>
   public static IReadOnlyList<SpotCandidate> ListSpot(
     EconomySimulation sim,
     CampaignWorld.Ids ids,
     TransitProfile profile,
     string currentSystemId,
-    bool berthOnly = false,
-    int take = 16)
+    bool dockOnly = false,
+    int take = 16,
+    MeshState? mesh = null)
   {
-    HashSet<string>? allowOrigins = null;
-    if (berthOnly && !string.IsNullOrEmpty(currentSystemId))
+    IReadOnlyList<SpotCandidate> raw;
+    if (dockOnly)
     {
-      allowOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { currentSystemId };
+      HashSet<string>? allowOrigins = null;
+      if (!string.IsNullOrEmpty(currentSystemId))
+      {
+        allowOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { currentSystemId };
+      }
+
+      raw = BuildSpot(sim, ids, profile, currentSystemId, allowOrigins, take: take * 2, lane: SpotLane.Freight);
+    }
+    else
+    {
+      var state = mesh ?? ids.Mesh;
+      raw = ListSpotFromMeshDigests(state, currentSystemId, take: take * 2);
     }
 
-    return BuildSpot(sim, ids, profile, currentSystemId, allowOrigins, take);
+    return raw
+      .Where(s => IsFreightSku(s.SkuLabel))
+      .OrderByDescending(j => j.AtOrigin)
+      .ThenByDescending(j => j.Margin)
+      .Take(take)
+      .ToList();
   }
 
-  /// <summary>Charters: ugly standby + short escrow-framed suggestions near current berth.</summary>
+  /// <summary>Live freight spreads (ignores mesh lag) — dock acts / autopilot navigation.</summary>
+  public static IReadOnlyList<SpotCandidate> ListLiveFreight(
+    EconomySimulation sim,
+    CampaignWorld.Ids ids,
+    TransitProfile profile,
+    string currentSystemId,
+    int take = 24) =>
+    BuildSpot(sim, ids, profile, currentSystemId, allowOrigins: null, take, SpotLane.Freight);
+
+  /// <summary>Live market snapshot used to author mesh digests (not the delayed mesh board).</summary>
+  public static IReadOnlyList<SpotCandidate> BuildSpotSnapshot(
+    EconomySimulation sim,
+    CampaignWorld.Ids ids,
+    TransitProfile profile,
+    int take = 64) =>
+    BuildSpot(sim, ids, profile, currentSystemId: "sol", allowOrigins: null, take, SpotLane.All);
+
+  /// <summary>Charters: ugly standby + Goods/Final contract hauls at current dock.</summary>
   public static IReadOnlyList<CharterCandidate> ListCharters(
     EconomySimulation sim,
     CampaignWorld.Ids ids,
@@ -71,22 +159,150 @@ internal static class CaptainJobBoard
         CanRefuse: true));
     }
 
-    // Tutorial-shaped short charter hint: Industrial/Mining within ~8 ly of current berth.
-    foreach (var spot in ListSpot(sim, ids, player.DefaultProfile, currentSystemId, berthOnly: true, take: 4)
-               .Where(s => s.AtOrigin && s.Margin > 0m)
-               .Take(2))
+    var goods = BuildSpot(
+      sim, ids, player.DefaultProfile, currentSystemId,
+      allowOrigins: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { currentSystemId },
+      take: 8,
+      lane: SpotLane.Goods);
+
+    foreach (var spot in goods.Where(s => s.AtOrigin && s.Margin > 0m).Take(4))
     {
+      var pay = spot.ContractPay;
+      var lift = spot.LiftCost;
       list.Add(new CharterCandidate(
-        $"short:{spot.OriginSystemId}:{spot.DestSystemId}:{spot.SkuLabel}",
-        "short-charter",
-        $"Short charter · {spot.SkuLabel} → {spot.DestName}",
-        $"Escrow-framed dock lift · Δ{spot.Margin:0.#} · {spot.Quantity:0}u",
+        $"goods:{spot.OriginSystemId}:{spot.DestSystemId}:{spot.SkuLabel}",
+        "goods-charter",
+        $"{spot.OriginName} → {spot.DestName} · {spot.SkuLabel} ×{spot.Quantity:0}",
+        $"Firm escrow · pays {pay:0} on delivery · lift {lift:0} · net Δ{spot.Margin:0.#} · [{spot.Profile}]",
         spot.OriginSystemId,
         CanAcceptHere: spot.AtOrigin,
-        CanRefuse: false));
+        CanRefuse: false,
+        DestSystemId: spot.DestSystemId,
+        SkuLabel: spot.SkuLabel,
+        Quantity: spot.Quantity,
+        LiftLimit: spot.LiftLimit,
+        DestBid: spot.DestBid,
+        Profile: spot.Profile,
+        Margin: spot.Margin));
     }
 
     return list;
+  }
+
+  /// <summary>Dock HubOrder tape (asks to buy into, bids to sell into) at the current system.</summary>
+  public static IReadOnlyList<MarketLot> ListMarket(
+    EconomySimulation sim,
+    CampaignWorld.Ids ids,
+    string currentSystemId,
+    int take = 24)
+  {
+    if (!ids.Sites.TryGetValue(currentSystemId, out var site))
+    {
+      return [];
+    }
+
+    var loc = site.Hub.LocationId;
+    var list = new List<MarketLot>();
+    foreach (var o in sim.State.World.HubOrders.ToArray())
+    {
+      if (o.IsFilled || o.FirmId.Equals(ids.Carrier) || !o.LocationId.Equals(loc))
+      {
+        continue;
+      }
+
+      if (!(o.ProductId.Equals(ids.Ore) || o.ProductId.Equals(ids.Parts) || o.ProductId.Equals(ids.Goods)))
+      {
+        continue;
+      }
+
+      var sku = CampaignWorld.SkuLabel(o.ProductId, ids);
+      var isAsk = o.Side == HubOrderSide.Sell;
+      list.Add(new MarketLot(
+        o.Id,
+        isAsk ? "ASK" : "BID",
+        isAsk,
+        sku,
+        o.ProductId,
+        o.FirmId,
+        o.Remaining.Value,
+        o.LimitPrice.Amount,
+        $"{(isAsk ? "ASK" : "BID")} {sku} ×{o.Remaining.Value:0} @ {o.LimitPrice.Amount:0.##}"));
+    }
+
+    return list
+      .OrderBy(l => l.IsAsk ? 0 : 1)
+      .ThenBy(l => l.SkuLabel, StringComparer.OrdinalIgnoreCase)
+      .ThenBy(l => l.IsAsk ? l.UnitPrice : -l.UnitPrice)
+      .Take(take)
+      .ToList();
+  }
+
+  /// <summary>Calypso inventory quantity at a hub (freight SKUs, not fuel).</summary>
+  public static decimal DockStock(
+    EconomySimulation sim,
+    CampaignWorld.Ids ids,
+    string systemId)
+  {
+    if (!ids.Sites.TryGetValue(systemId, out var site))
+    {
+      return 0m;
+    }
+
+    var inv = sim.State.World.Inventory;
+    var loc = site.Hub.LocationId;
+    var sum = 0m;
+    foreach (var p in new[] { ids.Ore, ids.Parts, ids.Goods })
+    {
+      sum += inv.GetQuantity(new InventoryKey(ids.Carrier, loc, p)).Value;
+    }
+
+    return sum;
+  }
+
+  private enum SpotLane
+  {
+    Freight,
+    Goods,
+    All,
+  }
+
+  public static IReadOnlyList<SpotCandidate> ListSpotFromMeshDigests(
+    MeshState mesh,
+    string currentSystemId,
+    int take = 16,
+    MeshNodeId? evaluationNode = null)
+  {
+    var node = evaluationNode
+               ?? (mesh.TryGetMailbox(MeshIdentityIds.Person(CampaignWorld.PlayerFlavorId), out var box)
+                 ? box.LocationNodeId
+                 : MeshNodeId.From(currentSystemId));
+
+    var jobs = new List<SpotCandidate>();
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var packet in MeshCaptainInbox.SpotDigestsInInbox(mesh))
+    {
+      foreach (var spot in SpotDigestCodec.ParseBody(packet.Body, currentSystemId))
+      {
+        var key = SpotJobKeys.ForOffer(spot);
+        if (mesh.IsRetractedAt(key, node))
+        {
+          continue;
+        }
+
+        if (!seen.Add(key))
+        {
+          continue;
+        }
+
+        jobs.Add(spot with { LogicalKey = key });
+      }
+    }
+
+    return jobs
+      .OrderByDescending(j => j.AtOrigin)
+      .ThenByDescending(j => j.Margin)
+      .Take(take)
+      .ToList();
   }
 
   private static IReadOnlyList<SpotCandidate> BuildSpot(
@@ -95,13 +311,19 @@ internal static class CaptainJobBoard
     TransitProfile profile,
     string currentSystemId,
     HashSet<string>? allowOrigins,
-    int take)
+    int take,
+    SpotLane lane = SpotLane.All)
   {
     var world = sim.State.World;
     var wage = world.Policy.WageRatePerHour;
     var fuelCost = world.TransportFuelUnitCost;
     var siteByLoc = ids.Sites.Values.ToDictionary(s => s.Hub.LocationId);
-    var freight = new[] { ids.Ore, ids.Parts, ids.Goods };
+    var freight = lane switch
+    {
+      SpotLane.Freight => new[] { ids.Ore, ids.Parts },
+      SpotLane.Goods => new[] { ids.Goods },
+      _ => new[] { ids.Ore, ids.Parts, ids.Goods },
+    };
     var sells = new Dictionary<ProductId, List<HubOrder>>();
     var buys = new Dictionary<ProductId, List<HubOrder>>();
 
@@ -140,6 +362,13 @@ internal static class CaptainJobBoard
     {
       currentHubId = here.Hub.HubId;
     }
+
+    var cash = world.Ledgers.TryGetValue(ids.Carrier, out var carrierLed)
+      ? carrierLed.Cash.Amount
+      : 0m;
+    var calypso = ids.Registry.TryGet(ids.Carrier);
+    var premium = calypso is null ? 0m : ids.Registry.QuotePremiumDue(calypso);
+    var cashGate = premium > 0m && cash < premium * 2m + (calypso?.PremiumPayable ?? 0m);
 
     var jobs = new List<SpotCandidate>();
     foreach (var (product, rawSells) in sells)
@@ -209,8 +438,24 @@ internal static class CaptainJobBoard
           var sku = CampaignWorld.SkuLabel(product, ids);
           var atOrigin = currentHubId is { } ch && origin.Hub.HubId.Equals(ch);
           var distHint = atOrigin
-            ? "AT BERTH"
-            : EstimateLyHint(ids, currentSystemId, origin.Hub.SystemId);
+            ? "AT DOCK"
+            : $"{EstimateLyHint(ids, currentSystemId, origin.Hub.SystemId)} · steam risk";
+          if (cashGate)
+          {
+            distHint += " · cash gate";
+          }
+
+          var summary =
+            $"pay {qty * buy.LimitPrice.Amount:0} · lift {qty * lift:0} · Δ{margin:0.#} haul {est.TotalVariableCost.Amount:0} [{haulProfile}]";
+          if (cashGate)
+          {
+            summary += " · cash gate";
+          }
+
+          if (!atOrigin)
+          {
+            summary += " · steam risk";
+          }
 
           jobs.Add(new SpotCandidate(
             $"{sku} {origin.Hub.Name}→{dest.Hub.Name}",
@@ -224,9 +469,11 @@ internal static class CaptainJobBoard
             buy.LimitPrice.Amount,
             margin,
             haulProfile,
-            $"Δ{margin:0.#} haul {est.TotalVariableCost.Amount:0} [{haulProfile}]",
+            summary,
             atOrigin,
-            distHint));
+            distHint,
+            SpotJobKeys.ForOffer(
+              origin.Hub.SystemId, dest.Hub.SystemId, sku, qty, lift, buy.LimitPrice.Amount)));
         }
       }
     }
@@ -269,5 +516,5 @@ internal static class CaptainJobBoard
     string? localSystemId = null,
     bool localOnly = false,
     int take = 12) =>
-    ListSpot(sim, ids, profile, localSystemId ?? "sol", berthOnly: localOnly, take: take);
+    ListSpot(sim, ids, profile, localSystemId ?? "sol", dockOnly: localOnly, take: take);
 }

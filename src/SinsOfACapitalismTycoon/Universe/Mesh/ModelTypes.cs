@@ -1,16 +1,16 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Durable mesh relay node (one per star system in the campaign seed).</summary>
-public sealed record MeshNode(
+internal sealed record MeshNode(
   MeshNodeId Id,
   string SystemId,
   string Name,
   int PulseBandwidthPerHour);
 
 /// <summary>Directed hop with separate pulse vs bulk travel times.</summary>
-public sealed record MeshEdge(
+internal sealed record MeshEdge(
   MeshNodeId From,
   MeshNodeId To,
   int PulseTravelHours,
@@ -18,7 +18,7 @@ public sealed record MeshEdge(
   double DistanceLy);
 
 /// <summary>Destination of a publish.</summary>
-public sealed record MeshAddress(
+internal sealed record MeshAddress(
   MeshAddressKind Kind,
   MeshNodeId? Place = null,
   MeshIdentityId? Identity = null,
@@ -33,37 +33,55 @@ public sealed record MeshAddress(
 }
 
 /// <summary>Published signed object (signature opaque in BM).</summary>
-public sealed record MeshPacket(
+internal sealed record MeshPacket(
   PacketId Id,
   MeshTrafficLayer Layer,
   bool Sealed,
   ImmutableArray<byte> SignatureBlob,
   int Priority,
-  int? TtlHours,
+  /// <summary>Earliest universal hours-after-publish when the packet may be removed from the mesh entirely. Null = no global expiry.</summary>
+  int? GlobalTtlHours,
+  /// <summary>Hours after a node receives the packet before that node may drop it from its local cache. Null = no local expiry.</summary>
+  int? LocalTtlHours,
+  /// <summary>Retention priority for local cache eviction (higher kept longer under pressure).</summary>
+  int LocalRetentionPriority,
   MeshNodeId OriginNode,
   MeshAddress Destination,
-  long PublishedHour);
+  long PublishedHour,
+  string Subject = "",
+  string Body = "",
+  string Topic = "",
+  /// <summary>Stable logical id for offers / retractions (e.g. spot job key). Empty when unused.</summary>
+  string LogicalKey = "");
+
+/// <summary>Per-node cache membership: when received + local retention priority snapshot.</summary>
+internal sealed record NodeCacheEntry(
+  long ReceivedHour,
+  int LocalPriority,
+  int? LocalTtlHours = null);
 
 /// <summary>
 /// Mailbox for a person, household, firm, ship, or thing — parked at a star-system node.
 /// Identity-addressed packets <b>push</b> here only while co-located with a node that holds them.
+/// <see cref="LinkedToNode"/> is false while the hull is in FTL (corridor Underway) — no pull/push.
 /// </summary>
-public sealed record MeshMailbox(
+internal sealed record MeshMailbox(
   MeshIdentityId Owner,
   MeshIdentityKind Kind,
   MeshNodeId LocationNodeId,
-  ImmutableHashSet<string> PushedPacketKeys);
+  ImmutableHashSet<string> PushedPacketKeys,
+  bool LinkedToNode = true);
 
 /// <summary>
 /// Feed subscriptions (Atom/RSS-style). <see cref="MeshFeedId.Emergency"/> is always effective
 /// even if missing from <see cref="FeedIds"/>.
 /// </summary>
-public sealed record MeshSubscriptionBook(
+internal sealed record MeshSubscriptionBook(
   MeshIdentityId Owner,
   ImmutableHashSet<string> FeedIds);
 
 /// <summary>Disposable pulse/bulk carrier in transit.</summary>
-public sealed record InFlightDrone(
+internal sealed record InFlightDrone(
   DroneId Id,
   PacketId PacketId,
   MeshNodeId From,
@@ -74,7 +92,7 @@ public sealed record InFlightDrone(
   int Priority);
 
 /// <summary>Bandwidth-gated launch waiting at a node.</summary>
-public sealed record PendingLaunch(
+internal sealed record PendingLaunch(
   PacketId PacketId,
   MeshNodeId From,
   MeshNodeId To,
@@ -83,7 +101,7 @@ public sealed record PendingLaunch(
   int Priority);
 
 /// <summary>Counters for reports and tests.</summary>
-public sealed record MeshStats(
+internal sealed record MeshStats(
   long DirectedPublishes = 0,
   long IdentityPublishes = 0,
   long FeedPublishes = 0,
@@ -94,4 +112,7 @@ public sealed record MeshStats(
   long MailboxPushes = 0,
   long FeedPulls = 0,
   long EmergencyForced = 0,
-  long BandwidthDeferred = 0);
+  long BandwidthDeferred = 0,
+  long LocalCacheDrops = 0,
+  long GlobalPacketDrops = 0,
+  long RetractionsApplied = 0);

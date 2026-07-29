@@ -5,7 +5,7 @@ namespace SinsOfACapitalismTycoon.Universe;
 
 internal enum PlayerOrderKind
 {
-  /// <summary>Commit a spot lot into the berth manifest (must be docked at origin).</summary>
+  /// <summary>Commit a spot lot into the dock manifest (must be docked at origin).</summary>
   CommitSpot,
   /// <summary>Depart with staged manifest SKU (PlanShipment).</summary>
   DepartManifest,
@@ -17,6 +17,10 @@ internal enum PlayerOrderKind
   AcceptStandby,
   RefuseStandby,
   Wait,
+  /// <summary>Buy from a dock ASK into Calypso inventory (TransferGoodsForCash).</summary>
+  MarketBuy,
+  /// <summary>Sell Calypso dock inventory into a BID (TransferGoodsForCash).</summary>
+  MarketSell,
   /// <summary>Legacy alias — prefer CommitSpot.</summary>
   AcceptHaul = CommitSpot,
 }
@@ -30,7 +34,8 @@ internal sealed record PlayerOrder(
   decimal Quantity = 0m,
   decimal LiftLimit = 0m,
   decimal DestBid = 0m,
-  TransitProfile Profile = TransitProfile.StandardCommercial);
+  TransitProfile Profile = TransitProfile.StandardCommercial,
+  Guid? CounterpartyFirmId = null);
 
 /// <summary>Thread-safe queue of player intents drained by <see cref="PlayerTrampAgent"/>.</summary>
 internal sealed class PlayerOrderQueue
@@ -81,8 +86,8 @@ internal sealed class PlayerOrderQueue
   }
 }
 
-/// <summary>Committed spot lots at the current load berth (capacity ≤ HullCargoCapacity).</summary>
-internal sealed class BerthManifest
+/// <summary>Committed spot lots at the current load dock (capacity ≤ HullCargoCapacity).</summary>
+internal sealed class DockManifest
 {
   private readonly List<Lot> _lots = [];
 

@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Immutable aggregate mesh state (stocks).</summary>
-public sealed record MeshState(
+internal sealed record MeshState(
   long HourIndex,
   MeshPolicy Policy,
   ImmutableDictionary<string, MeshNode> Nodes,
@@ -11,8 +11,8 @@ public sealed record MeshState(
   ImmutableDictionary<string, MeshPacket> Packets,
   ImmutableArray<InFlightDrone> Drones,
   ImmutableArray<PendingLaunch> Pending,
-  /// <summary>NodeId.Value → packet keys visible at the node cache.</summary>
-  ImmutableDictionary<string, ImmutableHashSet<string>> NodeCaches,
+  /// <summary>NodeId.Value → packet key → cache entry (received hour + local priority).</summary>
+  ImmutableDictionary<string, ImmutableDictionary<string, NodeCacheEntry>> NodeCaches,
   /// <summary>IdentityId.Value → mailbox (location + pushed private packets).</summary>
   ImmutableDictionary<string, MeshMailbox> Mailboxes,
   /// <summary>IdentityId.Value → subscribed feed ids.</summary>
@@ -25,6 +25,8 @@ public sealed record MeshState(
   ImmutableDictionary<string, ImmutableHashSet<string>> FloodSeededAt,
   /// <summary>PacketKey → loss count (for MaxLossesPerPacket).</summary>
   ImmutableDictionary<string, int> PacketLossCounts,
+  /// <summary>NodeId.Value → logical key → when the retraction became visible at the node.</summary>
+  ImmutableDictionary<string, ImmutableDictionary<string, NodeCacheEntry>> NodeRetractions,
   MeshStats Stats)
 {
   public static MeshState Empty(MeshPolicy? policy = null) => new(
@@ -35,17 +37,36 @@ public sealed record MeshState(
     Packets: ImmutableDictionary<string, MeshPacket>.Empty,
     Drones: ImmutableArray<InFlightDrone>.Empty,
     Pending: ImmutableArray<PendingLaunch>.Empty,
-    NodeCaches: ImmutableDictionary<string, ImmutableHashSet<string>>.Empty,
+    NodeCaches: ImmutableDictionary<string, ImmutableDictionary<string, NodeCacheEntry>>.Empty,
     Mailboxes: ImmutableDictionary<string, MeshMailbox>.Empty,
     Subscriptions: ImmutableDictionary<string, MeshSubscriptionBook>.Empty,
     FeedInboxes: ImmutableDictionary<string, ImmutableHashSet<string>>.Empty,
     BandwidthUsedThisHour: ImmutableDictionary<string, int>.Empty,
     FloodSeededAt: ImmutableDictionary<string, ImmutableHashSet<string>>.Empty,
     PacketLossCounts: ImmutableDictionary<string, int>.Empty,
+    NodeRetractions: ImmutableDictionary<string, ImmutableDictionary<string, NodeCacheEntry>>.Empty,
     Stats: new MeshStats());
 
   public bool IsVisibleAt(PacketId packet, MeshNodeId node) =>
-    NodeCaches.TryGetValue(node.Value, out var set) && set.Contains(PacketKey(packet));
+    NodeCaches.TryGetValue(node.Value, out var set) && set.ContainsKey(PacketKey(packet));
+
+  /// <summary>True when a retraction for <paramref name="logicalKey"/> is visible at the node.</summary>
+  public bool IsRetractedAt(string logicalKey, MeshNodeId node) =>
+    !string.IsNullOrEmpty(logicalKey)
+    && NodeRetractions.TryGetValue(node.Value, out var map)
+    && map.ContainsKey(logicalKey);
+
+  public bool TryGetCacheEntry(PacketId packet, MeshNodeId node, out NodeCacheEntry entry)
+  {
+    if (NodeCaches.TryGetValue(node.Value, out var set)
+        && set.TryGetValue(PacketKey(packet), out entry!))
+    {
+      return true;
+    }
+
+    entry = null!;
+    return false;
+  }
 
   public bool IsInMailbox(PacketId packet, MeshIdentityId identity) =>
     Mailboxes.TryGetValue(identity.Value, out var box)

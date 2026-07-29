@@ -1,16 +1,20 @@
 using Avalonia;
-using DraftStudio.Commands;
-using DraftStudio.Core;
 using DraftStudio.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Novolis.Avalonia.Agent;
+using Novolis.Avalonia.Cad.Commands;
+using Novolis.Avalonia.Cad.Core;
+using Novolis.Avalonia.Cad.Services;
+using Novolis.Avalonia.Cad.Session;
 
 namespace DraftStudio;
 
 internal static class Program
 {
     internal static IHost ApplicationHost { get; private set; } = null!;
+
+    internal static CadSessionSurface? CadSession { get; private set; }
 
     [STAThread]
     public static void Main(string[] args)
@@ -28,14 +32,33 @@ internal static class Program
             ApplicationHost = Host.CreateDefaultBuilder(args)
                 .ConfigureServices(services =>
                 {
-                    services.AddSingleton<DraftSettingsStore>();
-                    services.AddSingleton<DraftSession>();
-                    services.AddSingleton<DraftCommandBus>();
+                    services.AddSingleton(_ => new CadEditorSettings(
+                        Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "Novolis",
+                            "Draft Studio")));
+                    services.AddSingleton<CadDocumentSession>();
+                    services.AddSingleton<CadCommandBus>();
+                    services.AddSingleton(sp =>
+                    {
+                        var session = sp.GetRequiredService<CadDocumentSession>();
+                        var settings = sp.GetRequiredService<CadEditorSettings>();
+                        var bus = sp.GetRequiredService<CadCommandBus>();
+                        var dispatcher = new CadCommandDispatcher(session, bus, settings);
+                        return new CadSessionService(session, settings, bus, dispatcher)
+                        {
+                            AppId = "draft-studio",
+                            AppTitle = "Draft Studio",
+                        };
+                    });
                     services.AddTransient<MainWindow>();
                 })
                 .Build();
 
             ApplicationHost.Start();
+
+            var cad = ApplicationHost.Services.GetRequiredService<CadSessionService>();
+            CadSession = CadSessionSurface.AttachAll(cad);
 
             try
             {
@@ -43,6 +66,8 @@ internal static class Program
             }
             finally
             {
+                if (CadSession is not null)
+                    CadSession.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 ApplicationHost.StopAsync().GetAwaiter().GetResult();
             }
         }

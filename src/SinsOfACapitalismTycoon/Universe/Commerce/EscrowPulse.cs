@@ -22,6 +22,18 @@ internal sealed class EscrowBook
 
   private readonly Dictionary<Guid, OpenEscrow> _open = new();
   private readonly HashSet<Guid> _seenShipments = [];
+  /// <summary>Staged unit delivery pay (DestBid) for OwnerMaster hauls — firm escrow principal.</summary>
+  private readonly Dictionary<string, decimal> _stagedUnitPay = new(StringComparer.OrdinalIgnoreCase);
+
+  public sealed record EscrowNotice(
+    string Kind,
+    string CarrierRegistryName,
+    FirmId CarrierFirmId,
+    decimal Amount,
+    string Detail,
+    int Day);
+
+  private readonly List<EscrowNotice> _pendingNotices = [];
 
   public int OpenCount => _open.Count;
   public decimal ReleasedTotal { get; private set; }
@@ -30,6 +42,35 @@ internal sealed class EscrowBook
   public decimal ContractorSkimTotal { get; private set; }
 
   public bool FirmHasOpen(FirmId firm) => _open.Values.Any(e => e.Carrier.Equals(firm));
+
+  /// <summary>
+  /// Stage the contracted unit pay (dest bid) when the captain accepts a haul.
+  /// Escrow opens at sail using this rate × shipped qty (firm pays for A→B delivery).
+  /// </summary>
+  public void StageHaulContract(FirmId carrier, ProductId product, decimal unitPay)
+  {
+    if (unitPay <= 0m)
+    {
+      return;
+    }
+
+    _stagedUnitPay[StageKey(carrier, product)] = unitPay;
+  }
+
+  public IReadOnlyList<EscrowNotice> DrainNotices()
+  {
+    if (_pendingNotices.Count == 0)
+    {
+      return Array.Empty<EscrowNotice>();
+    }
+
+    var copy = _pendingNotices.ToList();
+    _pendingNotices.Clear();
+    return copy;
+  }
+
+  /// <summary>Test/helper: queue a notice without ledger posts.</summary>
+  public void QueueNotice(EscrowNotice notice) => _pendingNotices.Add(notice);
 
   public void TickDay(
     EconomySimulation sim,
@@ -108,6 +149,12 @@ internal sealed class EscrowBook
     }
 
     var unit = UnitValue(ship.ProductId, ids);
+    var key = StageKey(ship.FirmId, ship.ProductId);
+    if (_stagedUnitPay.Remove(key, out var staged) && staged > 0m)
+    {
+      unit = staged;
+    }
+
     var principal = Money.From(Math.Max(40m, ship.Quantity.Value * unit));
     var issuerFee = Money.From(Math.Round(principal.Amount * 0.05m, 2, MidpointRounding.AwayFromZero));
     var buyer = PreferBuyer(ship.ProductId, ids);
@@ -128,8 +175,10 @@ internal sealed class EscrowBook
     IssuerFeesTotal += issuerFee.Amount;
     _open[ship.Id.Value] = new OpenEscrow(
       ship.Id.Value, ship.FirmId, buyer, principal, issuerFee, ship.ProductId, day);
-    milestones.AddOnce(day, "escrow",
-      $"open {entry.RegistryName} {principal.Amount:0} (+fee {issuerFee.Amount:0})");
+    var openDetail = $"open {entry.RegistryName} {principal.Amount:0} (+fee {issuerFee.Amount:0})";
+    milestones.AddOnce(day, "escrow", openDetail);
+    _pendingNotices.Add(new EscrowNotice(
+      "open", entry.RegistryName, ship.FirmId, principal.Amount, openDetail, day));
   }
 
   private void Clawback(
@@ -178,13 +227,16 @@ internal sealed class EscrowBook
       }
 
       ClawedTotal += esc.Principal.Amount;
+      var clawName = ids.Registry.TryGet(esc.Carrier)?.RegistryName ?? "tramp";
       if (ids.Registry.TryGet(esc.Carrier) is { } entry)
       {
         entry.LienPrincipal += Math.Round(esc.Principal.Amount * 0.15m, 2);
       }
 
-      milestones.AddOnce(day, "escrow",
-        $"clawback {esc.Principal.Amount:0} {ids.Registry.TryGet(esc.Carrier)?.RegistryName}");
+      var clawDetail = $"clawback {esc.Principal.Amount:0} {clawName}";
+      milestones.AddOnce(day, "escrow", clawDetail);
+      _pendingNotices.Add(new EscrowNotice(
+        "clawback", clawName, esc.Carrier, esc.Principal.Amount, clawDetail, day));
       return;
     }
 
@@ -204,8 +256,11 @@ internal sealed class EscrowBook
 
     ContractorSkimTotal += skim.Amount;
     ReleasedTotal += toCarrier.Amount;
-    milestones.AddOnce(day, "escrow",
-      $"release {toCarrier.Amount:0} skim {skim.Amount:0} {ids.Registry.TryGet(esc.Carrier)?.RegistryName}");
+    var releaseName = ids.Registry.TryGet(esc.Carrier)?.RegistryName ?? "tramp";
+    var releaseDetail = $"release {toCarrier.Amount:0} skim {skim.Amount:0} {releaseName}";
+    milestones.AddOnce(day, "escrow", releaseDetail);
+    _pendingNotices.Add(new EscrowNotice(
+      "release", releaseName, esc.Carrier, toCarrier.Amount, releaseDetail, day));
   }
 
   private static FirmId PreferBuyer(ProductId product, CampaignWorld.Ids ids)
@@ -217,6 +272,9 @@ internal sealed class EscrowBook
 
     return ids.Industry;
   }
+
+  private static string StageKey(FirmId carrier, ProductId product) =>
+    $"{carrier.Value}|{product.Value}";
 
   private static decimal UnitValue(ProductId product, CampaignWorld.Ids ids)
   {

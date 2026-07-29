@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 
-namespace SinsOfACapitalismTycoon.Universe.Mesh;
+namespace SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 
 /// <summary>Hourly drone progress, loss, and arrival credits.</summary>
-public static class DroneTickEngine
+internal static class DroneTickEngine
 {
   public static MeshState Tick(MeshState state)
   {
