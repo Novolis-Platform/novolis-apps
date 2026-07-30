@@ -165,13 +165,12 @@ internal static class SurvivalCaptain
       var runway = premiumDue + 350m;
       if (cash < billAmt + runway
           && entry.OwnerMaster
-          && context.World.Ledgers.TryGetValue(ids.Station, out var yard)
-          && yard.Cash.Amount > 8_000m)
+          && context.World.Ledgers.TryGetValue(ids.Station, out var yard))
       {
         var need = billAmt + runway - cash;
-        var adv = Money.From(Math.Min(need, yard.Cash.Amount - 4_000m));
-        if (adv.Amount >= 50m)
+        if (need >= 50m && yard.Cash.Amount >= need + 200m)
         {
+          var adv = Money.From(need);
           yard.Post(AccountRole.WageExpense, AccountRole.Cash, adv, day, "Station yard float");
           firm.Post(AccountRole.Cash, AccountRole.Revenue, adv, day, "Station yard float");
         }

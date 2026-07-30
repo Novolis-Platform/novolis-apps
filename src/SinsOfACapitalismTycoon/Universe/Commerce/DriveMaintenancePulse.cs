@@ -82,11 +82,11 @@ internal static class DriveMaintenancePulse
       if (!canPay
           && entry.OwnerMaster
           && entry.BurnedOut
-          && yardLedger.Cash.Amount > 8_000m)
+          && yardLedger.Cash.Amount > bill.Amount + floor + 200m)
       {
         // Forced burnout: Station floats Calypso so SoftFail does not stick forever.
         var need = bill.Amount + floor - firmLedger.Cash.Amount;
-        var advance = Money.From(Math.Min(need, yardLedger.Cash.Amount - 4_000m));
+        var advance = Money.From(need);
         if (advance.Amount >= 50m)
         {
           yardLedger.Post(

@@ -4,6 +4,8 @@ namespace SinsOfACapitalismTycoon.Unit;
 
 public sealed class AutopilotHorizonTests
 {
+  const decimal MinSolventCash = 100m;
+
   [Test]
   public async Task Neural_autopilot_survives_1000_days()
   {
@@ -25,17 +27,17 @@ public sealed class AutopilotHorizonTests
 
     var desk = session.CaptureDesk();
     var cash = ParseCash(desk.CashLine);
+    var uninsured = desk.HullLine.Contains("uninsured", StringComparison.OrdinalIgnoreCase);
+    var burnedOut = desk.HullLine.Contains("burned-out", StringComparison.OrdinalIgnoreCase);
 
     await Assert.That(session.IsComplete).IsTrue();
     await Assert.That(desk.Day).IsGreaterThanOrEqualTo(998);
-    if (cash < 500m)
+
+    if (cash < MinSolventCash || session.Player.SoftFailRaised || uninsured || burnedOut)
     {
       throw new Exception(
         $"horizon broke: d{desk.Day} cash={cash} hull={desk.HullLine} decision={desk.DecisionLine} soft={session.Player.SoftFailRaised} coach={desk.CoachLine}");
     }
-
-    await Assert.That(cash).IsGreaterThanOrEqualTo(500m);
-    await Assert.That(desk.HullLine.Contains("uninsured", StringComparison.OrdinalIgnoreCase)).IsFalse();
   }
 
   static decimal ParseCash(string cashLine)

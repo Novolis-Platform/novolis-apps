@@ -11,6 +11,9 @@ namespace SinsOfACapitalismTycoon.Universe;
 /// </summary>
 internal sealed class EscrowBook
 {
+  /// <summary>Max fraction of open principal that may be floated mid-haul (fuel / premium).</summary>
+  public const decimal MaxWorkingFloatFraction = 0.20m;
+
   public sealed record OpenEscrow(
     Guid ShipmentKey,
     FirmId Carrier,
@@ -82,7 +85,7 @@ internal sealed class EscrowBook
     }
 
     var already = _workingAdvances.GetValueOrDefault(key.Value);
-    var room = Math.Max(0m, esc.Principal.Amount * 0.40m - already);
+    var room = Math.Max(0m, esc.Principal.Amount * MaxWorkingFloatFraction - already);
     var amt = Math.Min(need, room);
     if (amt < 20m || station.Cash.Amount + 0.0001m < amt)
     {
