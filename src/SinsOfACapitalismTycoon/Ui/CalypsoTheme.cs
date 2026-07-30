@@ -176,7 +176,8 @@ internal static class CalypsoTheme
     };
 
   public static IDataTemplate SpotContractTemplate() =>
-    new FuncDataTemplate<SpotContractRow>((row, _) => BuildContractRow(row.Title, row.Detail, row.AtDock, row.AtDock ? "AT DOCK" : "INTEL"), true);
+    new FuncDataTemplate<SpotContractRow>((row, _) =>
+      BuildContractRow(row.Title, row.Detail, row.AtDock || row.IsRumor, row.Badge), true);
 
   public static IDataTemplate CharterContractTemplate() =>
     new FuncDataTemplate<CharterContractRow>((row, _) => BuildContractRow(row.Title, row.Detail, row.CanAccept, row.CanAccept ? "TAKE" : "HOLD"), true);
@@ -299,12 +300,15 @@ internal static class CalypsoTheme
   }
 }
 
-/// <summary>ListBox row model for spot freight contracts.</summary>
+/// <summary>ListBox row model for spot freight / berth offers.</summary>
 internal sealed record SpotContractRow(
   string Title,
   string Detail,
   bool AtDock,
-  int Index);
+  int Index,
+  string Badge = "AT DOCK",
+  bool IsRumor = false,
+  bool IsWait = false);
 
 /// <summary>ListBox row model for goods charters / standby.</summary>
 internal sealed record CharterContractRow(

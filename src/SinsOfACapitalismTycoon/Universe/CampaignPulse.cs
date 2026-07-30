@@ -1,21 +1,24 @@
 using Novolis.Economy;
 using Novolis.Economy.Agents;
+using Novolis.Economy.Finance;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Production;
 using Novolis.Economy.Simulation;
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
 /// Hour + day commerce pulse collaborator for <see cref="CampaignRunner.LiveSession"/>.
-/// Session keeps pause/gates/save; this owns the simulation clock step.
+/// Hour loop stays here; day-end is an ordered <see cref="CampaignDayPipeline"/> of components.
 /// </summary>
 internal sealed class CampaignPulse
 {
   /// <summary>At UI speed 1, full NPC agent ticks every N hours (player tramp still every hour).</summary>
   private const int MaxSpeedAgentStrideHours = 12;
+  /// <summary>Autopilot horizons need denser NPC ticks so freight markets stay alive.</summary>
+  private const int AutopilotMaxSpeedAgentStrideHours = 2;
 
   private readonly CampaignRunner.LiveSession _session;
   private readonly CampaignDramaHost _dramaHost;
@@ -41,6 +44,7 @@ internal sealed class CampaignPulse
     var credits = _session.Credits;
     var player = _session.Player;
     var maxSpeed = _session.PreferMaxSpeedThroughput;
+    var agentStride = player.Autopilot ? AutopilotMaxSpeedAgentStrideHours : MaxSpeedAgentStrideHours;
 
     InsurancePulse.TickMorningReinstate(sim, ids.Registry, milestones);
     agents.RebuildPulse();
@@ -61,7 +65,7 @@ internal sealed class CampaignPulse
           sim,
           new DeterministicRandom(sim.State.Seed ^ (ulong)sim.State.Clock.HourIndex));
 
-        if (maxSpeed && h % MaxSpeedAgentStrideHours != 0)
+        if (maxSpeed && h % agentStride != 0)
         {
           agents.CarrierPulse.Tick(ctx);
         }
@@ -71,7 +75,7 @@ internal sealed class CampaignPulse
         }
 
         // Sparse full economy hours; other hours only apply decisions + move ships.
-        sim.ThroughputMode = maxSpeed && h % MaxSpeedAgentStrideHours != 0;
+        sim.ThroughputMode = maxSpeed && h % agentStride != 0;
 
         await sim.AdvanceAsync(
           SimulationDuration.FromHours(1),
@@ -79,7 +83,7 @@ internal sealed class CampaignPulse
         credits.ObserveAfterPulse(before);
         if (!maxSpeed || h == hours - 1)
         {
-          CampaignRunner.ObserveDeliveries(sim, ids, bios, milestones);
+          CampaignRunner.ObserveDeliveries(sim, ids, bios, milestones, _session.Events);
         }
 
         if (!maxSpeed)
@@ -99,31 +103,25 @@ internal sealed class CampaignPulse
         }
       }
 
-      ClaimsPulse.TickDay(sim, ids.Registry, ids, milestones, bios, _session.Claims);
-      DriveMaintenancePulse.TickDay(sim, ids.Registry, milestones);
-      ids.Escrow.TickDay(sim, ids, milestones);
-      if (!maxSpeed)
+      var dayCtx = new CampaignPulseContext
       {
-        ids.Mesh = MeshGameplayPulse.TickDay(ids.Mesh, sim, ids, milestones);
-      }
-
-      JumpBandGate.TickDockFees(sim, ids, milestones);
-      LienPulse.TickDay(sim, ids, milestones);
-      InsurancePulse.TickDay(sim, ids.Registry, milestones, credits);
-      if (player.LastTrampMode)
-      {
-        LastTrampPressure.TickDay(sim, ids, milestones);
-      }
-
-      ids.Reputation.TickDay(sim.State.Clock.Date.DayIndex);
-      if (!maxSpeed)
-      {
-        _dramaHost.TickDayEnd(sim);
-      }
-
-      _tutorial?.TickDayEnd(sim);
-      CampaignRunner.ObserveFinalStockout(sim, ids, milestones);
-      _session.EvaluateLastTramp();
+        Sim = sim,
+        Ids = ids,
+        Agents = agents,
+        Milestones = milestones,
+        Biographies = bios,
+        Credits = credits,
+        Player = player,
+        Claims = _session.Claims,
+        Events = _session.Events,
+        Notices = _session.Notices,
+        Drama = _dramaHost,
+        Tutorial = _tutorial,
+        CurrentSystemId = () => _session.CurrentSystemId,
+        EvaluateLastTramp = _session.EvaluateLastTramp,
+        MaxSpeedThroughput = maxSpeed,
+      };
+      CampaignDayPipeline.RunDayEnd(dayCtx);
     }
     finally
     {

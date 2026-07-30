@@ -7,6 +7,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TUnit" />
+    <PackageReference Include="Novolis.Economy.Logistics" />
+    <PackageReference Include="Novolis.MachineLearning.Neural" />
+    <PackageReference Include="Novolis.MachineLearning.Neural.Abstractions" />
+    <PackageReference Include="Novolis.Simulation.Mesh" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\SinsOfACapitalismTycoon\SinsOfACapitalismTycoon.csproj" />

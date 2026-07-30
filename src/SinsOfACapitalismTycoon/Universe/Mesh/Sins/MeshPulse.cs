@@ -1,4 +1,4 @@
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 namespace SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 /// <summary>Campaign hour tick + smoke publish helpers.</summary>

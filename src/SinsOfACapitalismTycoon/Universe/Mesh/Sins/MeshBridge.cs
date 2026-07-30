@@ -1,6 +1,8 @@
 using System.Collections.Immutable;
 
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Economy.Logistics;
+using Novolis.Simulation.Mesh;
+
 namespace SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 /// <summary>Maps Astro campaign systems into <see cref="MeshState"/> (product glue).</summary>

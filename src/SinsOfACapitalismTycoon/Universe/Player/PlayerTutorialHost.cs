@@ -30,6 +30,8 @@ internal sealed class PlayerTutorialHost
     var day = sim.State.Clock.Date.DayIndex;
     var firm = _ids.Carrier;
 
+    MeshBoardUnlock.Sync(_player, _milestones);
+
     // After the first 24h pulse, clock is typically day 1 — fire opening beat once.
     if (day <= 1 && _beats.Add(0))
     {
@@ -40,7 +42,18 @@ internal sealed class PlayerTutorialHost
     if (day is >= 2 and <= 3 && _beats.Add(2))
     {
       _milestones.Add(day, "tutorial",
-        "First escrowed short charter suggested — Industrial/Mining under 8 ly");
+        "Berth bets: take a Fat/Fair local, or steam on a rumor — Industrial/Mining under 8 ly");
+    }
+
+    if (_player.Manifest.Used >= 1m && _beats.Add(10))
+    {
+      _milestones.Add(day, "tutorial", "Hold staged — Depart when ready to sail");
+    }
+
+    if (_player.MeshBoardUnlocked && _beats.Add(20))
+    {
+      _milestones.Add(day, "tutorial",
+        "Payday — Mesh digests unlocked (Filter: Mesh / Dock)");
     }
 
     if (!_ids.Registry.CanOperate(firm))
@@ -50,6 +63,11 @@ internal sealed class PlayerTutorialHost
     else
     {
       _player.SoftFailGroundedDays = 0;
+      // Autopilot recovered — clear sticky soft-fail so coach/desk stop screaming.
+      if (_player.Autopilot && _player.SoftFailRaised)
+      {
+        _player.SoftFailRaised = false;
+      }
     }
 
     if (_player.SoftFailGroundedDays >= 7 && !_player.SoftFailRaised)
@@ -58,5 +76,16 @@ internal sealed class PlayerTutorialHost
       _milestones.Add(day, "soft-fail",
         $"{CampaignWorld.PlayerHullName} grounded {_player.SoftFailGroundedDays}d — registry hold / cash death risk");
     }
+  }
+
+  /// <summary>Call when captain accepts a local spot (optional beat).</summary>
+  public void NoteLocalAccept(int day)
+  {
+    if (!_player.Enabled || !_beats.Add(11))
+    {
+      return;
+    }
+
+    _milestones.Add(day, "tutorial", "First local accept — stage the hold, then Depart");
   }
 }

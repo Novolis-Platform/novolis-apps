@@ -32,7 +32,7 @@ internal static class SketchExport
         var h = Math.Max(1, b.Height + Padding * 2);
         var sb = new StringBuilder();
         sb.Append(CultureInfo.InvariantCulture,
-            $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:0.###}\" height=\"{h:0.###}\" viewBox=\"0 0 {w:0.###} {h:0.###}\" fill=\"none\">\n");
+            $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:0.###}\" height=\"{h:0.###}\" viewBox=\"0 0 {w:0.###} {h:0.###}\">\n");
 
         foreach (var stroke in document.Elements)
         {
@@ -44,13 +44,25 @@ internal static class SketchExport
             {
                 var p = stroke.Points[0];
                 sb.Append(CultureInfo.InvariantCulture,
-                    $"  <circle cx=\"{p.X - ox:0.###}\" cy=\"{p.Y - oy:0.###}\" r=\"{Math.Max(0.5, width * 0.5):0.###}\" fill=\"{EscapeXml(color)}\"/>\n");
+                    $"  <circle cx=\"{p.X - ox:0.###}\" cy=\"{p.Y - oy:0.###}\" r=\"{Math.Max(0.25, width * 0.5):0.###}\" fill=\"{EscapeXml(color)}\"/>\n");
                 continue;
             }
 
+            var closed = stroke.Closed
+                         || (stroke.Points.Count >= 3
+                             && NearlyEqual(stroke.Points[0], stroke.Points[^1]));
+            var fill = !string.IsNullOrWhiteSpace(stroke.FillColor) && closed
+                ? EscapeXml(stroke.FillColor!)
+                : "none";
+            var dash = SketchStrokeStyles.SvgDashArray(stroke.StrokeStyle, width);
+            var dashAttr = dash is null ? "" : $" stroke-dasharray=\"{dash}\"";
+            var tag = closed ? "polygon" : "polyline";
             sb.Append(CultureInfo.InvariantCulture,
-                $"  <polyline fill=\"none\" stroke=\"{EscapeXml(color)}\" stroke-width=\"{width:0.###}\" stroke-linecap=\"round\" stroke-linejoin=\"round\" points=\"");
-            for (var i = 0; i < stroke.Points.Count; i++)
+                $"  <{tag} fill=\"{fill}\" stroke=\"{EscapeXml(color)}\" stroke-width=\"{width:0.###}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"{dashAttr} points=\"");
+            var count = stroke.Points.Count;
+            if (closed && count >= 2 && NearlyEqual(stroke.Points[0], stroke.Points[^1]))
+                count--;
+            for (var i = 0; i < count; i++)
             {
                 var p = stroke.Points[i];
                 if (i > 0)
@@ -58,7 +70,7 @@ internal static class SketchExport
                 sb.Append(CultureInfo.InvariantCulture, $"{p.X - ox:0.###},{p.Y - oy:0.###}");
             }
 
-            sb.Append("\"/>\n");
+            sb.Append(CultureInfo.InvariantCulture, $"/>\n");
         }
 
         sb.Append("</svg>\n");
@@ -128,13 +140,6 @@ internal static class SketchExport
         return new SketchRect(left, top, right - left, bottom - top);
     }
 
-    static string EscapeXml(string value) =>
-        value.Replace("&", "&amp;", StringComparison.Ordinal)
-            .Replace("\"", "&quot;", StringComparison.Ordinal)
-            .Replace("<", "&lt;", StringComparison.Ordinal)
-            .Replace(">", "&gt;", StringComparison.Ordinal);
-
-    /// <summary>1×1 PNG (white or transparent).</summary>
     static byte[] EncodeEmptyPng(bool opaque)
     {
         var surface = new StrokeExportSurface(new SketchDocument(), 0, 0, 1, opaque ? Colors.White : null)
@@ -150,6 +155,15 @@ internal static class SketchExport
         bitmap.Save(ms);
         return ms.ToArray();
     }
+
+    static bool NearlyEqual(SketchPoint a, SketchPoint b) =>
+        Math.Abs(a.X - b.X) < 1e-6 && Math.Abs(a.Y - b.Y) < 1e-6;
+
+    static string EscapeXml(string s) =>
+        s.Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("\"", "&quot;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal)
+            .Replace(">", "&gt;", StringComparison.Ordinal);
 
     sealed class StrokeExportSurface : Control
     {
@@ -192,22 +206,43 @@ internal static class SketchExport
                     color = Color.Parse("#1e1e1e");
                 }
 
+                var thickness = Math.Max(0.15, stroke.StrokeWidth * _scale);
                 var pen = new ImmutablePen(
                     new ImmutableSolidColorBrush(color),
-                    Math.Max(0.5, stroke.StrokeWidth * _scale),
+                    thickness,
+                    dashStyle: SketchStrokeStyles.CreateDash(stroke.StrokeStyle, thickness),
                     lineCap: PenLineCap.Round,
                     lineJoin: PenLineJoin.Round);
 
                 if (stroke.Points.Count == 1)
                 {
                     var p = Map(stroke.Points[0]);
-                    var r = Math.Max(1, stroke.StrokeWidth * _scale * 0.5);
+                    var r = Math.Max(0.5, thickness * 0.5);
                     context.DrawEllipse(pen.Brush, null, p, r, r);
                     continue;
                 }
 
-                for (var i = 0; i < stroke.Points.Count - 1; i++)
-                    context.DrawLine(pen, Map(stroke.Points[i]), Map(stroke.Points[i + 1]));
+                var closed = stroke.Closed
+                             || (stroke.Points.Count >= 3 && NearlyEqual(stroke.Points[0], stroke.Points[^1]));
+                IBrush? fill = null;
+                if (!string.IsNullOrWhiteSpace(stroke.FillColor) && closed)
+                {
+                    try { fill = new ImmutableSolidColorBrush(Color.Parse(stroke.FillColor)); }
+                    catch { fill = new ImmutableSolidColorBrush(color); }
+                }
+
+                var screen = new List<Point>(stroke.Points.Count + 1);
+                foreach (var pt in stroke.Points)
+                    screen.Add(Map(pt));
+                if (closed && screen.Count >= 3)
+                {
+                    var a = screen[0];
+                    var b = screen[^1];
+                    if (Math.Abs(a.X - b.X) > 0.5 || Math.Abs(a.Y - b.Y) > 0.5)
+                        screen.Add(a);
+                }
+
+                context.DrawGeometry(fill, pen, new PolylineGeometry(screen, isFilled: fill is not null));
             }
         }
 

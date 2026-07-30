@@ -1,5 +1,5 @@
 using SinsOfACapitalismTycoon.Universe;
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Unit;

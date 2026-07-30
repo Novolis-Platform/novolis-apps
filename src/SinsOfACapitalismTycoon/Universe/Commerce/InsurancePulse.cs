@@ -1,4 +1,5 @@
 using Novolis.Economy;
+using Novolis.Economy.Finance;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Simulation;
 

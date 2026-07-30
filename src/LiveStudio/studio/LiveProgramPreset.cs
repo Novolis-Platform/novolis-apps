@@ -1,5 +1,5 @@
-using LiveStudio.Components.Live;
 using Novolis.Audio.Live;
+using Novolis.Avalonia.Live;
 
 namespace LiveStudio;
 

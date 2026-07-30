@@ -56,27 +56,32 @@ internal static class CaptainCoach
 
     if (player.Manifest.Used >= 1m)
     {
-      return new Advice($"{Prefix} Manifest loaded — Depart", soft);
+      return new Advice($"{Prefix} Depart staged hold", soft);
     }
 
     var hub = session.CurrentSystemId;
-    var spots = CaptainJobBoard.ListLiveFreight(sim, ids, player.DefaultProfile, hub, take: 24);
-    var atDock = spots.FirstOrDefault(s => s.AtOrigin && s.Margin > 0m)
-                  ?? spots.FirstOrDefault(s => s.AtOrigin);
-    if (atDock is not null)
+    var board = CaptainJobBoard.ListSpot(
+      sim, ids, player.DefaultProfile, hub, dockOnly: player.DockBoardOnly, mesh: ids.Mesh);
+    var live = CaptainJobBoard.ListLiveFreight(sim, ids, player.DefaultProfile, hub, take: 24);
+    var (offers, _) = BerthOfferBoard.Build(board, live, dockBoardOnly: player.DockBoardOnly);
+    var top = offers.FirstOrDefault();
+    if (top is { Kind: BerthOfferKind.Local, Spot: { } local })
     {
       return new Advice(
-        $"{Prefix} Spot at dock — Accept {atDock.SkuLabel} → {atDock.DestName} (Δ{atDock.Margin:0.#})",
+        $"{Prefix} {top.Band} local {local.SkuLabel} → {local.DestName} — Accept at dock",
         soft);
     }
 
-    var remote = spots.FirstOrDefault(s => !s.AtOrigin && s.Margin > 8m)
-                 ?? spots.FirstOrDefault(s => !s.AtOrigin);
-    if (remote is not null)
+    if (top is { Kind: BerthOfferKind.Rumor, Spot: { } rumor })
     {
       return new Advice(
-        $"{Prefix} Travel empty → {remote.OriginName} ({remote.DistanceHint}) for {remote.SkuLabel} · steam risk",
+        $"{Prefix} Steam empty → {rumor.OriginName} ({top.Band} rumor · {rumor.SkuLabel})",
         soft);
+    }
+
+    if (top is { Kind: BerthOfferKind.Wait })
+    {
+      return new Advice($"{Prefix} Hold berth — Wait (~{top.WaitDaysHint ?? 2}d) or scan charters", soft);
     }
 
     if (entry is { OverhaulDue: true } or { BurnedOut: true }
@@ -86,7 +91,7 @@ internal static class CaptainCoach
       return new Advice($"{Prefix} Drive pressure — {recovery}", soft);
     }
 
-    return new Advice($"{Prefix} Scan Spot / Charters · Wait if weather is thin", soft);
+    return new Advice($"{Prefix} Scan berth offers · Wait if weather is thin", soft);
   }
 
   public static string GroundingCause(ShipRegistryEntry? entry)

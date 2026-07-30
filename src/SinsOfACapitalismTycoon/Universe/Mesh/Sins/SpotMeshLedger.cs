@@ -1,4 +1,4 @@
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 namespace SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 /// <summary>Tracks which spot logical keys were last advertised on the mesh (for retraction).</summary>

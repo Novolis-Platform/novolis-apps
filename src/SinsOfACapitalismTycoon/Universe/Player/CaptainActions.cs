@@ -1,5 +1,5 @@
 using Novolis.Economy.Logistics;
-using Novolis.Game.Session;
+using Novolis.Agent.Session;
 using SinsOfACapitalismTycoon.Ui;
 
 namespace SinsOfACapitalismTycoon.Universe;

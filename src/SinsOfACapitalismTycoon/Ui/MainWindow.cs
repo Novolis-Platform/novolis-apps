@@ -9,7 +9,7 @@ using Novolis.Avalonia.Briefing;
 using Novolis.Avalonia.StarMap;
 using Novolis.Avalonia.Studio;
 using Novolis.Economy.Logistics;
-using Novolis.Game.Session;
+using Novolis.Agent.Session;
 using SinsOfACapitalismTycoon.Cli;
 using SinsOfACapitalismTycoon.Universe;
 
@@ -38,6 +38,7 @@ internal sealed class MainWindow : Window
   readonly ListBox _manifest;
   readonly ComboBox _profile;
   readonly ComboBox _boardScope;
+  StackPanel? _boardFilterRow;
   readonly FeedPanel _feed;
   readonly ScorecardView _scorecard;
   readonly DualMetricStrip _ledgers;
@@ -84,6 +85,7 @@ internal sealed class MainWindow : Window
   string? _routeDest;
   string? _pendingTravelDest;
   string? _pendingTravelOrigin;
+  bool _syncingBoardScope;
   bool _routePathWarned;
   bool _syncingClock;
 
@@ -158,7 +160,7 @@ internal sealed class MainWindow : Window
     _btnCancelStack.Click += (_, _) =>
       DeskExec(new SessionCommandDto { ActionId = SessionActionIds.CancelStack });
     _btnPrepareDepart.Click += (_, _) =>
-      DeskExec(new SessionCommandDto { ActionId = SessionActionIds.PrepareDepart, Prepare = true });
+      DeskExec(new SessionCommandDto { ActionId = SessionActionIds.PrepareDepart }.With(SessionCommandKeys.Prepare, true));
 
     _attention = new ComboBox
     {
@@ -405,7 +407,13 @@ internal sealed class MainWindow : Window
     AgentProperties.SetId(_boardScope, "calypso.boardScope", AgentRoleNames.ComboBox);
     _boardScope.SelectionChanged += (_, _) =>
     {
-      if (_session is null) return;
+      if (_session is null || _syncingBoardScope) return;
+      if (!_session.Player.MeshBoardUnlocked)
+      {
+        _session.Player.DockBoardOnly = true;
+        return;
+      }
+
       var dock = _boardScope.SelectedIndex == 1
                  || (_boardScope.SelectedItem is string name
                      && name.Equals("Dock", StringComparison.OrdinalIgnoreCase));
@@ -487,21 +495,22 @@ internal sealed class MainWindow : Window
       {
         new TextBlock
         {
-          Text = "Raw / Capital — accept only AT DOCK. Remotes are INTEL (Travel first).",
+          Text = "Pick a berth bet — Local accept, Steam on a rumor, or Wait.",
           Foreground = CalypsoPalette.MutedBrush,
           FontSize = 11,
           TextWrapping = TextWrapping.Wrap,
         },
-        new StackPanel
+        (_boardFilterRow = new StackPanel
         {
           Orientation = Orientation.Horizontal,
           Spacing = 8,
+          IsVisible = false,
           Children =
           {
             new TextBlock { Text = "Filter", VerticalAlignment = VerticalAlignment.Center, Foreground = CalypsoPalette.MutedBrush, FontSize = 11 },
             _boardScope,
           },
-        },
+        }),
         _spot,
         _btnAcceptSpot,
       },
@@ -688,10 +697,11 @@ internal sealed class MainWindow : Window
           }
 
           _session = session;
+          NeuralAutopilotBootstrap.ApplyIfRequested(session, _options.NeuralAutopilot);
           _deskService = new CaptainDeskService(session);
           _sessionSurface = SessionSurface.AttachAll(
             _deskService,
-            preferredPipeName: SessionEndpoints.SinsPipeName);
+            preferredPipeName: SinsSessionEndpoints.PipeName);
           if (_sessionSurface?.HttpBaseUrl is { } httpUrl)
             _feedback.SetStatus($"Session HTTP {httpUrl}");
           session.PauseMode = CaptainPauseMode.UntilDecision;
@@ -700,8 +710,9 @@ internal sealed class MainWindow : Window
             // Interactive desk: hard-pause on berth decisions so idle days don't auto-burn cash.
             session.Player.Attention = DecisionAttention.HardPause;
             session.Player.SimSpeedScale = 1.0;
-            // Live dock board — mesh digests are often empty for early play.
+            // Live dock board until first payday unlocks Mesh.
             session.Player.DockBoardOnly = true;
+            MeshBoardUnlock.Sync(session.Player, session.Milestones);
           }
           else
           {
@@ -717,7 +728,7 @@ internal sealed class MainWindow : Window
             FlashOk(string.IsNullOrEmpty(coach)
               ? "Decision — dock act or travel"
               : coach);
-            _feedback.SetStatus("Attention · Accept only at load dock · Travel via map");
+            _feedback.SetStatus("Attention · pick a berth bet · Depart when staged");
           });
 
           Dispatcher.UIThread.Post(() =>
@@ -816,26 +827,62 @@ internal sealed class MainWindow : Window
     _map.SetShipMarker(desk.ShipMapX, desk.ShipMapY, desk.ShipMapVisible);
     ApplyRouteHighlight();
 
-    _spot.ItemsSource = desk.SpotJobs.Count > 0
-      ? desk.SpotJobs
-          .Select((j, i) => new SpotContractRow(
-            j.Label,
-            j.AtOrigin
-              ? $"Pay {j.ContractPay:0} · Lift {j.LiftCost:0} · Net Δ{j.Margin:0.#} · ×{j.Quantity:0} · [{j.DistanceHint}]"
-              : $"INTEL · Pay {j.ContractPay:0} · Net Δ{j.Margin:0.#} · Travel → {j.OriginName} first",
-            j.AtOrigin,
-            i))
-          .ToList()
-      : new List<SpotContractRow>
+    _spot.ItemsSource = desk.BerthOffers
+      .Select((o, i) =>
+      {
+        var badge = o.Kind switch
         {
-          new(
-            _session.Player.DockBoardOnly
-              ? "(no dock freight — travel or wait)"
-              : "(mesh digests empty — switch to Dock for live berth)",
-            "",
-            false,
-            -1),
+          BerthOfferKind.Local => "LOCAL",
+          BerthOfferKind.Rumor => "RUMOR",
+          _ => "WAIT",
         };
+        return new SpotContractRow(
+          o.Title,
+          string.IsNullOrEmpty(o.Hook) ? o.Detail : $"{o.Hook}\n{o.Detail}",
+          AtDock: o.Kind == BerthOfferKind.Local,
+          Index: i,
+          Badge: badge,
+          IsRumor: o.Kind == BerthOfferKind.Rumor,
+          IsWait: o.Kind == BerthOfferKind.Wait);
+      })
+      .ToList();
+
+    if (_boardFilterRow is not null)
+    {
+      _boardFilterRow.IsVisible = desk.MeshBoardUnlocked;
+    }
+
+    if (desk.MeshBoardUnlocked)
+    {
+      var wantDock = _session.Player.DockBoardOnly;
+      var idx = wantDock ? 1 : 0;
+      if (_boardScope.SelectedIndex != idx)
+      {
+        _syncingBoardScope = true;
+        try
+        {
+          _boardScope.SelectedIndex = idx;
+        }
+        finally
+        {
+          _syncingBoardScope = false;
+        }
+      }
+    }
+
+    // Early desk: voyage over ops — keep papers collapsed until payday.
+    if (!desk.MeshBoardUnlocked)
+    {
+      _opsExpander.IsExpanded = false;
+      _papersExpander.IsExpanded = false;
+      _opsExpander.IsVisible = false;
+      _papersExpander.IsVisible = false;
+    }
+    else
+    {
+      _opsExpander.IsVisible = true;
+      _papersExpander.IsVisible = true;
+    }
     _charters.ItemsSource = desk.Charters
       .Select((c, i) => new CharterContractRow(
         c.Label,
@@ -895,14 +942,28 @@ internal sealed class MainWindow : Window
 
   void AcceptSelectedSpot()
   {
-    if (_desk is null || _spot.SelectedIndex < 0 || _spot.SelectedIndex >= _desk.SpotJobs.Count)
+    if (_desk is null || _spot.SelectedIndex < 0 || _spot.SelectedIndex >= _desk.BerthOffers.Count)
     {
-      FlashOk("Select a freight posting");
+      FlashOk("Select a berth bet");
       return;
     }
 
-    var job = _desk.SpotJobs[_spot.SelectedIndex];
-    if (!job.AtOrigin)
+    var offer = _desk.BerthOffers[_spot.SelectedIndex];
+    if (offer.Kind == BerthOfferKind.Wait)
+    {
+      Enqueue(new PlayerOrder(PlayerOrderKind.Wait));
+      FlashOk("Wait — holding berth");
+      return;
+    }
+
+    if (offer.Spot is null || offer.SpotIndex < 0 || offer.SpotIndex >= _desk.SpotJobs.Count)
+    {
+      FlashOk("Offer has no freight");
+      return;
+    }
+
+    var job = _desk.SpotJobs[offer.SpotIndex];
+    if (!job.AtOrigin || offer.Kind == BerthOfferKind.Rumor)
     {
       _travelSystem.Text = job.OriginSystemId;
       if (_session is not null)
@@ -910,27 +971,53 @@ internal sealed class MainWindow : Window
         _session.Player.TravelTargetSystemId = job.OriginSystemId;
       }
 
-      FlashOk($"Not at load dock — Travel → {job.OriginName}");
+      FlashOk($"Steam for haul — → {job.OriginName}");
       TravelToSelection();
       return;
     }
 
-    DeskExec(new SessionCommandDto
-    {
-      ActionId = SessionActionIds.AcceptSpot,
-      Index = _spot.SelectedIndex,
-    });
+    DeskExec(new SessionCommandDto { ActionId = SessionActionIds.AcceptSpot }
+      .With(SessionCommandKeys.Index, offer.SpotIndex));
   }
 
   void UpdateAcceptButtons()
   {
     var docked = _desk is { DockedIdle: true };
-    var spotOk = false;
-    if (docked && _desk is not null
+    BerthOffer? offer = null;
+    if (_desk is not null
         && _spot.SelectedIndex >= 0
-        && _spot.SelectedIndex < _desk.SpotJobs.Count)
+        && _spot.SelectedIndex < _desk.BerthOffers.Count)
     {
-      spotOk = _desk.SpotJobs[_spot.SelectedIndex].AtOrigin;
+      offer = _desk.BerthOffers[_spot.SelectedIndex];
+    }
+
+    if (offer is { Kind: BerthOfferKind.Local })
+    {
+      _btnAcceptSpot.Content = "Accept at dock";
+      _btnAcceptSpot.IsEnabled = docked;
+      _btnTravel.Opacity = 1;
+      _btnTravel.IsVisible = true;
+    }
+    else if (offer is { Kind: BerthOfferKind.Rumor })
+    {
+      _btnAcceptSpot.Content = "Steam for this haul";
+      _btnAcceptSpot.IsEnabled = docked;
+      // Demote free-floating Travel — primary verb is the offer CTA.
+      _btnTravel.Opacity = 0.45;
+    }
+    else if (offer is { Kind: BerthOfferKind.Wait })
+    {
+      _btnAcceptSpot.Content = "Wait";
+      _btnAcceptSpot.IsEnabled = docked;
+      _btnTravel.Opacity = 1;
+      _btnTravel.IsVisible = true;
+    }
+    else
+    {
+      _btnAcceptSpot.Content = "Accept freight at dock";
+      _btnAcceptSpot.IsEnabled = false;
+      _btnTravel.Opacity = 1;
+      _btnTravel.IsVisible = true;
     }
 
     var charterOk = false;
@@ -941,7 +1028,6 @@ internal sealed class MainWindow : Window
       charterOk = _desk.Charters[_charters.SelectedIndex].CanAcceptHere;
     }
 
-    _btnAcceptSpot.IsEnabled = spotOk;
     _btnAcceptCharter.IsEnabled = charterOk;
   }
 
@@ -1004,11 +1090,8 @@ internal sealed class MainWindow : Window
     _routePathWarned = false;
     ApplyRouteHighlight();
 
-    var result = _deskService.Execute(new SessionCommandDto
-    {
-      ActionId = SessionActionIds.Travel,
-      DestSystemId = dest,
-    });
+    var result = _deskService.Execute(new SessionCommandDto { ActionId = SessionActionIds.Travel }
+      .With(SessionCommandKeys.DestSystemId, dest));
 
     // Busy only when hull can't act (underway / grounded), not when pulse is slow.
     if (!result.Ok)
@@ -1100,11 +1183,8 @@ internal sealed class MainWindow : Window
       return;
     }
 
-    DeskExec(new SessionCommandDto
-    {
-      ActionId = SessionActionIds.AcceptCharter,
-      Index = _charters.SelectedIndex,
-    });
+    DeskExec(new SessionCommandDto { ActionId = SessionActionIds.AcceptCharter }
+      .With(SessionCommandKeys.Index, _charters.SelectedIndex));
   }
 
   void TradeSelectedMarket(bool buy)
@@ -1117,24 +1197,30 @@ internal sealed class MainWindow : Window
     }
 
     DeskExec(new SessionCommandDto
-    {
-      ActionId = buy ? SessionActionIds.MarketBuy : SessionActionIds.MarketSell,
-      Index = _market.SelectedIndex,
-    });
+      {
+        ActionId = buy ? SessionActionIds.MarketBuy : SessionActionIds.MarketSell,
+      }
+      .With(SessionCommandKeys.Index, _market.SelectedIndex));
   }
 
   void HighlightSelectedSpotRoute()
   {
-    if (_desk is null || _spot.SelectedIndex < 0 || _spot.SelectedIndex >= _desk.SpotJobs.Count)
+    if (_desk is null || _spot.SelectedIndex < 0 || _spot.SelectedIndex >= _desk.BerthOffers.Count)
     {
       return;
     }
 
-    var job = _desk.SpotJobs[_spot.SelectedIndex];
+    var offer = _desk.BerthOffers[_spot.SelectedIndex];
+    if (offer.Spot is null)
+    {
+      return;
+    }
+
+    var job = offer.Spot;
     _routeOrigin = job.OriginSystemId;
     _routeDest = job.DestSystemId;
     _map.SelectedId = job.OriginSystemId;
-    if (!job.AtOrigin)
+    if (!job.AtOrigin || offer.Kind == BerthOfferKind.Rumor)
     {
       _mapSelection = job.OriginSystemId;
       _travelSystem.Text = job.OriginSystemId;
@@ -1238,7 +1324,7 @@ internal sealed class MainWindow : Window
       PlayerOrderKind.DepartManifest => SessionActionIds.Depart,
       _ => order.Kind.ToString(),
     };
-    DeskExec(new SessionCommandDto { ActionId = actionId, Sku = order.SkuLabel });
+    DeskExec(new SessionCommandDto { ActionId = actionId }.With(SessionCommandKeys.Sku, order.SkuLabel));
   }
 
   void DeskExec(SessionCommandDto command)
@@ -1261,12 +1347,9 @@ internal sealed class MainWindow : Window
       2 => "hardPause",
       _ => "runAlways",
     };
-    DeskExec(new SessionCommandDto
-    {
-      ActionId = SessionActionIds.SetClock,
-      Attention = attention,
-      Speed = _speed.Value,
-    });
+    DeskExec(new SessionCommandDto { ActionId = SessionActionIds.SetClock }
+      .With(SessionCommandKeys.Attention, attention)
+      .With(SessionCommandKeys.Speed, _speed.Value));
   }
 
   void SyncClockUi(CaptainDeskModel desk)

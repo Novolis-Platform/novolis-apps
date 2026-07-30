@@ -27,6 +27,5 @@
     <PackageReference Include="Novolis.Markup.Manuscript" />
     <PackageReference Include="QuestPDF" />
     <PackageReference Include="WeCantSpell.Hunspell" />
-    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 </Project>

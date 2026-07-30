@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using Novolis.Economy.Logistics;
-using Novolis.Game.Session;
+using Novolis.Agent.Session;
 using Spectre.Console;
 using SinsOfACapitalismTycoon.Universe;
 
@@ -35,6 +35,14 @@ internal static class CaptainConsole
         lastTramp: options.LastTramp);
     }
 
+    NeuralAutopilotBootstrap.ApplyIfRequested(session, options.NeuralAutopilot);
+    if (session.Player.Autopilot)
+    {
+      // Headless AI runs: never park on SoftFail / HardPause for James.
+      session.PauseMode = CaptainPauseMode.Never;
+      session.Player.Attention = DecisionAttention.RunAlways;
+    }
+
     session.AwaitingDecision += () => PrintStatus(session, banner: true);
     session.DayEnded += () =>
     {
@@ -51,7 +59,7 @@ internal static class CaptainConsole
     var desk = new CaptainDeskService(session);
     await using var surface = SessionSurface.AttachAll(
       desk,
-      preferredPipeName: SessionEndpoints.SinsPipeName);
+      preferredPipeName: SinsSessionEndpoints.PipeName);
     if (surface?.HttpBaseUrl is { } httpUrl)
       Console.Error.WriteLine($"session HTTP {httpUrl}");
     if (surface?.TcpPort is { } tcpPort)
@@ -60,9 +68,52 @@ internal static class CaptainConsole
     var runTask = Task.Run(async () =>
       await session.RunAsync(quiet: true, story: false).ConfigureAwait(false));
 
+    var headlessAi = session.Player.Autopilot
+                     && string.IsNullOrWhiteSpace(options.Commands)
+                     && !options.Playtest;
+
     while (!session.IsComplete && !session.IsWaitingForCaptain)
     {
       await Task.Delay(50).ConfigureAwait(false);
+    }
+
+    // Autopilot horizon: do not drop into interactive calypso> — wait out the run and report.
+    if (headlessAi)
+    {
+      while (!session.IsComplete)
+      {
+        if (session.IsWaitingForCaptain)
+        {
+          session.Continue();
+        }
+
+        await Task.Delay(50).ConfigureAwait(false);
+      }
+
+      try
+      {
+        await runTask.ConfigureAwait(false);
+      }
+      catch (Exception ex)
+      {
+        Console.Error.WriteLine($"RUN FAILED: {ex}");
+        return 1;
+      }
+
+      PrintStatus(session, banner: true);
+      var cash = session.Sim.State.World.Ledgers.TryGetValue(session.Ids.Carrier, out var led)
+        ? led.Cash.Amount
+        : 0m;
+      var operable = session.Ids.Registry.CanOperate(session.Ids.Carrier);
+      var day = session.Sim.State.Clock.Date.DayIndex;
+      var ok = operable && cash >= 500m && day >= Math.Max(1, (int)(options.DaysHours / 24) - 2);
+      var line = ok
+        ? $"AI HORIZON PASS — d{day} cash {cash:0} operable"
+        : $"AI HORIZON FAIL — d{day} cash {cash:0} operable={operable}";
+      Console.WriteLine();
+      Console.WriteLine(line);
+      Console.Error.WriteLine(line);
+      return ok ? 0 : 1;
     }
 
     IEnumerable<string> commandSource = options.Playtest
@@ -413,7 +464,8 @@ internal static class CaptainConsole
       case "depart":
       {
         var sku = parts.Length >= 2 ? parts[1] : null;
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Depart, Sku = sku });
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Depart }
+          .With(SessionCommandKeys.Sku, sku));
       }
 
       case "travel":
@@ -425,11 +477,8 @@ internal static class CaptainConsole
         }
 
         traveled = true;
-        return DeskAdvance(desk, new SessionCommandDto
-        {
-          ActionId = SessionActionIds.Travel,
-          DestSystemId = parts[1],
-        });
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Travel }
+          .With(SessionCommandKeys.DestSystemId, parts[1]));
       }
 
       case "travel-to-best":
@@ -449,11 +498,8 @@ internal static class CaptainConsole
 
         traveled = true;
         Console.WriteLine($"(best) {remote.OriginName} for {remote.Label}");
-        return DeskAdvance(desk, new SessionCommandDto
-        {
-          ActionId = SessionActionIds.Travel,
-          DestSystemId = remote.OriginSystemId,
-        });
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Travel }
+          .With(SessionCommandKeys.DestSystemId, remote.OriginSystemId));
       }
 
       case "wait-dock-spot":
@@ -470,11 +516,8 @@ internal static class CaptainConsole
         }
 
         hauled = true;
-        return DeskAdvance(desk, new SessionCommandDto
-        {
-          ActionId = SessionActionIds.AcceptCharter,
-          Index = ci,
-        });
+        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.AcceptCharter }
+          .With(SessionCommandKeys.Index, ci));
       }
 
       case "buy":
@@ -491,8 +534,7 @@ internal static class CaptainConsole
         return DeskAdvance(desk, new SessionCommandDto
         {
           ActionId = cmd == "buy" ? SessionActionIds.MarketBuy : SessionActionIds.MarketSell,
-          Index = mi,
-        });
+        }.With(SessionCommandKeys.Index, mi));
       }
 
       case "wait":
@@ -521,7 +563,8 @@ internal static class CaptainConsole
       case "save":
       {
         var label = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : null;
-        var saveResult = desk.Execute(new SessionCommandDto { ActionId = SessionActionIds.Save, Label = label });
+        var saveResult = desk.Execute(new SessionCommandDto { ActionId = SessionActionIds.Save }
+          .With(SessionCommandKeys.Label, label));
         Console.WriteLine(saveResult.Ok
           ? $"{saveResult.Message} → {CampaignSaveStore.Default.RootPath}"
           : $"Save failed: {saveResult.Message}");
@@ -573,7 +616,8 @@ internal static class CaptainConsole
       && j.Quantity == job.Quantity);
     if (idx < 0) idx = 0;
     hauled = true;
-    return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.AcceptSpot, Index = idx });
+    return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.AcceptSpot }
+      .With(SessionCommandKeys.Index, idx));
   }
 
   private static void PrintStatus(CampaignRunner.LiveSession session, bool banner)

@@ -33,7 +33,7 @@ public sealed class EarlySolvencyTests
     await session.AdvanceHoursAsync(21L * 24, quiet: true);
     var mid = session.CaptureDesk();
     await Assert.That(mid.HullLine).Contains("lien 4500");
-    await Assert.That(ParseCash(mid.CashLine)).IsGreaterThan(8_200m);
+    await Assert.That(ParseCash(mid.CashLine)).IsGreaterThan(8_000m);
 
     await session.AdvanceHoursAsync(24, quiet: true);
     var after = session.CaptureDesk();

@@ -22,6 +22,12 @@ internal sealed class PlayerControlState
 
   public bool Autopilot { get; set; }
 
+  /// <summary>
+  /// When set with <see cref="Autopilot"/>, berth decisions use a dense network
+  /// (<see cref="NeuralSurvivalCaptain"/>) instead of the rule SurvivalCaptain.
+  /// </summary>
+  public NeuralCaptainBrain? NeuralBrain { get; set; }
+
   public TransitProfile DefaultProfile { get; set; } = TransitProfile.StandardCommercial;
 
   /// <summary>
@@ -29,6 +35,12 @@ internal sealed class PlayerControlState
   /// Default false — see mesh digests; accept still requires dock at origin.
   /// </summary>
   public bool DockBoardOnly { get; set; }
+
+  /// <summary>
+  /// Mesh/Dock board filter unlocked after first Calypso escrow payday (release).
+  /// Until then Avalonia forces dock-only berth offers.
+  /// </summary>
+  public bool MeshBoardUnlocked { get; set; }
 
   public PlayerOrderQueue Orders { get; } = new();
 

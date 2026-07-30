@@ -35,6 +35,7 @@ internal sealed record RunOptions(
     bool Story,
     bool Player,
     bool Autopilot,
+    bool NeuralAutopilot,
     bool PlayerBot,
     JobBoardScope Board,
     string? Commands,
@@ -55,6 +56,7 @@ internal sealed record RunOptions(
         Story: false,
         Player: false,
         Autopilot: false,
+        NeuralAutopilot: false,
         PlayerBot: false,
         Board: JobBoardScope.Mesh,
         Commands: null,
@@ -76,6 +78,7 @@ internal sealed record RunOptions(
         var story = false;
         bool? player = null;
         var autopilot = false;
+        var neuralAutopilot = false;
         var playerBot = false;
         var board = JobBoardScope.Mesh;
         string? commands = null;
@@ -236,6 +239,25 @@ internal sealed record RunOptions(
                 continue;
             }
 
+            if (a.Equals("--neural-autopilot", StringComparison.OrdinalIgnoreCase)
+                || a.Equals("--neural-autopilot=on", StringComparison.OrdinalIgnoreCase))
+            {
+                neuralAutopilot = true;
+                autopilot = true;
+                continue;
+            }
+
+            if (a.StartsWith("--neural-autopilot=", StringComparison.OrdinalIgnoreCase))
+            {
+                neuralAutopilot = ParseOnOff(a["--neural-autopilot=".Length..], "--neural-autopilot");
+                if (neuralAutopilot)
+                {
+                    autopilot = true;
+                }
+
+                continue;
+            }
+
             if (a.Equals("--player-bot", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
             {
                 playerBot = ParseOnOff(args[++i], "--player-bot");
@@ -334,7 +356,7 @@ internal sealed record RunOptions(
 
         return new RunOptions(
             mode, engine, scenario, periods, daysHours, seed, logEvery, quiet, drama, story,
-            playerOn, autopilot, playerBot, board, commands, playtest, lastTramp, loadSave);
+            playerOn, autopilot, neuralAutopilot, playerBot, board, commands, playtest, lastTramp, loadSave);
     }
 
     private static bool ParseDrama(string value) =>
@@ -409,6 +431,7 @@ internal sealed record RunOptions(
                                        captain  = text REPL / scripted play (agent-friendly)
               --player on|off          James / ST Calypso agency (default: on in avalonia/captain)
               --autopilot on|off       AI hauls when player queue empty (default: off)
+              --neural-autopilot on|off  Dense-net captain (implies autopilot; Novolis.MachineLearning.Neural)
               --board mesh|dock        Spot intel filter (default: mesh; accept still requires dock)
               --commands "a;b;c"       Captain script (status|jobs|accept N|wait|refuse|…)
               --playtest               60d captain acceptance (travel/haul/dock gate)

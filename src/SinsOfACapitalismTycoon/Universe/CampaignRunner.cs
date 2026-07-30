@@ -2,11 +2,12 @@ using System.Diagnostics;
 using System.Text;
 using Novolis.Economy;
 using Novolis.Economy.Agents;
+using Novolis.Economy.Finance;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Production;
 using Novolis.Economy.Simulation;
 using SinsOfACapitalismTycoon.Ui;
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 using Spectre.Console;
 
@@ -61,6 +62,8 @@ internal static class CampaignRunner
       Milestones = new MilestoneLog();
       Biographies = new ShipBiographyLog();
       Claims = new ClaimsTracker();
+      Events = new SimEventCursor();
+      Notices = new CampaignNoticeBus();
       var (sim, ids) = CampaignWorld.Create(seed);
       Sim = sim;
       Ids = ids;
@@ -91,7 +94,7 @@ internal static class CampaignRunner
       _dramaHost = new CampaignDramaHost(ids, Milestones, _opportunities, ids.Reputation, drama);
       _tutorial = playerControl ? new PlayerTutorialHost(ids, Milestones, Player) : null;
       _pulse = new CampaignPulse(this, _dramaHost, _tutorial);
-      Credits = new CreditCirculation(sim);
+      Credits = new CreditCirculation(new EconomySimulationCreditSource(sim));
       Credits.SetFirmNames(ids.Firms);
       Credits.SetSkuIds(ids.Ore, ids.Parts, ids.Goods, ids.Fuel);
       OpeningLiquid = Credits.LiquidStock;
@@ -112,6 +115,8 @@ internal static class CampaignRunner
     public EconomySimulation Sim { get; }
     public CampaignWorld.Ids Ids { get; }
     public ClaimsTracker Claims { get; }
+    public SimEventCursor Events { get; }
+    public CampaignNoticeBus Notices { get; }
     public CreditCirculation Credits { get; }
     public SinsAgents.Bundle Agents { get; }
     public MilestoneLog Milestones { get; }
@@ -484,13 +489,13 @@ internal static class CampaignRunner
           }
         }
 
-        // Soft-fail always hard-gates — even after ResumeToHorizon / PauseMode.Never.
-        if (Player.SoftFailRaised && PauseMode == CaptainPauseMode.Never)
+        // Soft-fail hard-gates humans — autopilot (rule or neural) keeps trying rescue.
+        if (Player.SoftFailRaised && !Player.Autopilot && PauseMode == CaptainPauseMode.Never)
         {
           PauseMode = CaptainPauseMode.UntilDecision;
         }
 
-        var shouldWait = Player.SoftFailRaised || PauseMode switch
+        var shouldWait = (Player.SoftFailRaised && !Player.Autopilot) || PauseMode switch
         {
           CaptainPauseMode.Never => false,
           CaptainPauseMode.EveryDay => true,
@@ -573,9 +578,9 @@ internal static class CampaignRunner
         {
           _ = CampaignSaveStore.Default.SaveAsync(this, "auto-win").AsTask();
         }
-        catch
+        catch (Exception ex)
         {
-          // non-fatal
+          Milestones.AddOnce(day, "save-warn", $"auto-win checkpoint skipped: {ex.GetType().Name}");
         }
 
         return;
@@ -612,10 +617,20 @@ internal static class CampaignRunner
         localBoard: save.DockBoardOnly,
         lastTramp: save.LastTramp);
 
+      session.Player.MeshBoardUnlocked = save.MeshBoardUnlocked;
+
       if (save.HoursDone > 0)
       {
         await session.AdvanceHoursAsync(save.HoursDone, quiet: true, ct).ConfigureAwait(false);
       }
+
+      // Prefer explicit save flag; also unlock from payday milestones after warm replay.
+      if (save.MeshBoardUnlocked)
+      {
+        session.Player.MeshBoardUnlocked = true;
+      }
+
+      MeshBoardUnlock.Sync(session.Player, session.Milestones);
 
       if (save.HasIntegrity)
       {
@@ -681,11 +696,14 @@ internal static class CampaignRunner
     EconomySimulation sim,
     CampaignWorld.Ids ids,
     ShipBiographyLog bios,
-    MilestoneLog milestones)
+    MilestoneLog milestones,
+    SimEventCursor? events = null)
   {
     var day = sim.State.Clock.Date.DayIndex;
     var world = sim.State.World;
-    var recent = sim.State.Events.TakeLast(80).ToArray();
+    var recent = events is null
+      ? sim.State.Events.TakeLast(80).ToArray()
+      : events.Since(sim).ToArray();
     foreach (var ev in recent)
     {
       if (ev is not ShipmentDelivered delivered)
@@ -715,6 +733,8 @@ internal static class CampaignRunner
           $"Bulk River delivered {delivered.Quantity.Value:0.#} {CampaignWorld.SkuLabel(delivered.ProductId, ids)}");
       }
     }
+
+    events?.AdvanceToEnd(sim);
   }
 
   private static void ResolveDeliveryHubs(

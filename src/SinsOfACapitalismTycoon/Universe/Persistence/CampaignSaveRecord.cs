@@ -35,6 +35,9 @@ internal sealed class CampaignSaveRecord : IHasId
 
   public bool DockBoardOnly { get; set; }
 
+  /// <summary>True after first Calypso escrow release — Mesh board filter available.</summary>
+  public bool MeshBoardUnlocked { get; set; }
+
   /// <summary>Legacy save field — maps to <see cref="DockBoardOnly"/>.</summary>
   public bool LocalBoardOnly
   {

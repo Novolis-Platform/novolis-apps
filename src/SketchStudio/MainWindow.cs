@@ -31,9 +31,11 @@ internal sealed class MainWindow : Window
     readonly Slider _widthSlider;
     readonly List<ToggleButton> _toolButtons = [];
     readonly Dictionary<SketchTool, ToggleButton> _toolByKind = new();
+    readonly List<ToggleButton> _styleButtons = [];
     readonly CheckBox _snapBox;
     readonly CheckBox _meetupBox;
     readonly CheckBox _gridBox;
+    readonly CheckBox _fillBox;
     readonly Border _colorPreview;
 
     string? _documentPath;
@@ -83,6 +85,11 @@ internal sealed class MainWindow : Window
         _snapBox = Toggle("Snap to grid", true, v => _sketch.SnapEnabled = v);
         _meetupBox = Toggle("Meetup", true, v => _sketch.MeetupEnabled = v);
         _gridBox = Toggle("Grid", true, v => _sketch.GridVisible = v);
+        _fillBox = Toggle("Fill", false, v =>
+        {
+            _sketch.FillEnabled = v;
+            RefreshStatus();
+        });
 
         _gridSlider = new Slider
         {
@@ -100,16 +107,19 @@ internal sealed class MainWindow : Window
 
         _widthSlider = new Slider
         {
-            Minimum = 1,
-            Maximum = 12,
+            Minimum = 0.25,
+            Maximum = 16,
             Value = 2,
-            Width = 90,
+            Width = 110,
             VerticalAlignment = VerticalAlignment.Center
         };
         _widthSlider.PropertyChanged += (_, e) =>
         {
             if (e.Property == RangeBase.ValueProperty)
+            {
                 _sketch.StrokeWidth = _widthSlider.Value;
+                RefreshStatus();
+            }
         };
 
         var file = new StackPanel
@@ -138,6 +148,17 @@ internal sealed class MainWindow : Window
                 ToolBtn("fa-regular fa-circle", "Circle (C)", SketchTool.Ellipse),
                 ToolBtn("fa-solid fa-eraser", "Eraser (E)", SketchTool.Eraser),
                 ToolBtn("fa-solid fa-mouse-pointer", "Select (V)", SketchTool.Select),
+                Sep(),
+                IconButton("fa-solid fa-check", "Complete line/spline (Enter)", () =>
+                {
+                    _sketch.CompleteDrawing(closeShape: false);
+                    SetStatus(_sketch.HasInProgressDrawing ? "Still drawing…" : "Completed.");
+                }),
+                IconButton("fa-solid fa-draw-polygon", "Close shape (Ctrl+Enter / click start)", () =>
+                {
+                    _sketch.CompleteDrawing(closeShape: true);
+                    SetStatus(_sketch.HasInProgressDrawing ? "Need ≥3 points to close." : "Closed.");
+                }),
             }
         };
 
@@ -160,6 +181,13 @@ internal sealed class MainWindow : Window
             btn.Click += (_, _) => SetStrokeColor(swatch);
             colors.Children.Add(btn);
         }
+
+        var styles = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        styles.Children.Add(StyleBtn("────", "Solid", SketchStrokeStyle.Solid, selected: true));
+        styles.Children.Add(StyleBtn("- - -", "Dashed", SketchStrokeStyle.Dashed));
+        styles.Children.Add(StyleBtn("····", "Dotted", SketchStrokeStyle.Dotted));
+        styles.Children.Add(StyleBtn("-·-", "Dash-dot", SketchStrokeStyle.DashDot));
+        styles.Children.Add(StyleBtn("·····", "Stipple", SketchStrokeStyle.Stipple));
 
         var actions = new StackPanel
         {
@@ -198,6 +226,7 @@ internal sealed class MainWindow : Window
                 _snapBox,
                 _meetupBox,
                 _gridBox,
+                _fillBox,
                 Label("Grid"),
                 _gridSlider,
                 Label("Width"),
@@ -215,6 +244,9 @@ internal sealed class MainWindow : Window
                 Label("Color"),
                 colors,
                 Sep(),
+                Label("Stroke"),
+                styles,
+                Sep(),
                 actions,
                 _status
             }
@@ -222,7 +254,7 @@ internal sealed class MainWindow : Window
 
         var hint = new TextBlock
         {
-            Text = "Ctrl+N/O/S · Meetup snaps to vertices · Spline/Line: click points, Enter to finish · Shift+circle for perfect · Shift+drag marquee · Del deletes selection",
+            Text = "Ctrl+N/O/S · Line/Spline: click points · Done (Enter) or Close (Ctrl+Enter / click first point) · Fill applies to closed shapes · Stroke swatches: solid/dash/dot/stipple · Shift+circle for perfect · Del deletes selection",
             Opacity = 0.6,
             FontSize = 11,
             Margin = new Thickness(12, 0, 12, 6),
@@ -263,6 +295,8 @@ internal sealed class MainWindow : Window
     void SetStrokeColor(string hex)
     {
         _sketch.StrokeColor = hex;
+        if (_sketch.FillEnabled)
+            _sketch.FillColor = hex;
         _colorPreview.Background = BrushFromHex(hex);
         RefreshStatus();
     }
@@ -300,6 +334,40 @@ internal sealed class MainWindow : Window
         };
         _toolButtons.Add(btn);
         _toolByKind[tool] = btn;
+        return btn;
+    }
+
+    ToggleButton StyleBtn(string glyph, string tip, SketchStrokeStyle style, bool selected = false)
+    {
+        var btn = new ToggleButton
+        {
+            MinWidth = 36,
+            Height = 28,
+            Padding = new Thickness(6, 0),
+            IsChecked = selected,
+            Content = new TextBlock
+            {
+                Text = glyph,
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            }
+        };
+        ToolTip.SetTip(btn, tip);
+        btn.IsCheckedChanged += (_, _) =>
+        {
+            if (btn.IsChecked != true)
+                return;
+            foreach (var other in _styleButtons)
+            {
+                if (!ReferenceEquals(other, btn))
+                    other.IsChecked = false;
+            }
+
+            _sketch.StrokeStyle = style;
+            RefreshStatus();
+        };
+        _styleButtons.Add(btn);
         return btn;
     }
 
@@ -693,7 +761,8 @@ internal sealed class MainWindow : Window
         }
 
         _status.Text =
-            $"{_sketch.Tool} · {doc.Elements.Count} · sel {doc.Selection.Count} · {_sketch.StrokeColor} · w{_sketch.StrokeWidth:0.#}";
+            $"{_sketch.Tool} · {_sketch.StrokeStyle} · {doc.Elements.Count} · sel {doc.Selection.Count} · {_sketch.StrokeColor} · w{_sketch.StrokeWidth:0.##}"
+            + (_sketch.FillEnabled ? " · fill" : "");
     }
 
     void SetStatus(string text) => _status.Text = text;

@@ -1,11 +1,11 @@
 using LiveStudio.Shared.Hosting;
 using LiveStudio.Shared.Launcher;
-using LiveStudio.Components.Live;
 using Novolis.Audio.Live;
 using Novolis.Audio.Live.Protocol;
 using Novolis.Audio.Live.Protocol.Dto;
 using Novolis.Audio.Live.Repl;
 using Novolis.Audio.Live.Visuals;
+using Novolis.Avalonia.Live;
 
 namespace LiveStudio;
 

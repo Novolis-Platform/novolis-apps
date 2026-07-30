@@ -1,4 +1,4 @@
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 namespace SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 /// <summary>Captain desk / CLI projection of mesh mailbox + feed inbox.</summary>

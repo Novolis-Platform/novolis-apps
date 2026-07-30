@@ -1,7 +1,8 @@
+using Novolis.Economy;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Simulation;
+using Novolis.Simulation.Mesh;
 
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
 namespace SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 /// <summary>
@@ -23,7 +24,8 @@ internal static class MeshGameplayPulse
     MeshState mesh,
     EconomySimulation sim,
     CampaignWorld.Ids ids,
-    MilestoneLog milestones)
+    MilestoneLog milestones,
+    CampaignNoticeBus? notices = null)
   {
     ArgumentNullException.ThrowIfNull(mesh);
     ArgumentNullException.ThrowIfNull(sim);
@@ -31,7 +33,9 @@ internal static class MeshGameplayPulse
     ArgumentNullException.ThrowIfNull(milestones);
 
     mesh = SyncSpotBoard(mesh, sim, ids);
-    mesh = DrainEscrowNotices(mesh, sim, ids);
+    mesh = notices is null
+      ? DrainEscrowNotices(mesh, sim, ids)
+      : DrainEscrowFromBus(mesh, sim, ids, notices);
     mesh = PublishEmergencyFromMilestones(mesh, milestones, sim.State.Clock.Date.DayIndex);
     mesh = LaunchEngine.LaunchPending(mesh);
     return mesh;
@@ -123,35 +127,71 @@ internal static class MeshGameplayPulse
   {
     foreach (var notice in ids.Escrow.DrainNotices())
     {
-      var shipId = MeshIdentityIds.Ship(notice.CarrierRegistryName);
-      var from = ResolvePublishNode(mesh, sim, ids, notice.CarrierFirmId);
-      var subject = notice.Kind switch
-      {
-        "open" => $"Escrow open · {notice.CarrierRegistryName}",
-        "release" => $"Escrow release · {notice.CarrierRegistryName}",
-        "clawback" => $"Escrow clawback · {notice.CarrierRegistryName}",
-        _ => $"Escrow · {notice.CarrierRegistryName}",
-      };
+      mesh = PublishEscrowNotice(mesh, sim, ids, notice.Kind, notice.CarrierRegistryName,
+        notice.CarrierFirmId, notice.Detail);
+    }
+
+    return mesh;
+  }
+
+  public static MeshState DrainEscrowFromBus(
+    MeshState mesh,
+    EconomySimulation sim,
+    CampaignWorld.Ids ids,
+    CampaignNoticeBus notices)
+  {
+    foreach (var notice in notices.DrainChannel("escrow"))
+    {
+      mesh = PublishEscrowNotice(
+        mesh,
+        sim,
+        ids,
+        notice.Kind,
+        notice.RegistryName ?? "tramp",
+        notice.SubjectFirm ?? ids.Carrier,
+        notice.Detail);
+    }
+
+    return mesh;
+  }
+
+  static MeshState PublishEscrowNotice(
+    MeshState mesh,
+    EconomySimulation sim,
+    CampaignWorld.Ids ids,
+    string kind,
+    string carrierRegistryName,
+    FirmId carrierFirmId,
+    string detail)
+  {
+    var shipId = MeshIdentityIds.Ship(carrierRegistryName);
+    var from = ResolvePublishNode(mesh, sim, ids, carrierFirmId);
+    var subject = kind switch
+    {
+      "open" => $"Escrow open · {carrierRegistryName}",
+      "release" => $"Escrow release · {carrierRegistryName}",
+      "clawback" => $"Escrow clawback · {carrierRegistryName}",
+      _ => $"Escrow · {carrierRegistryName}",
+    };
+    (mesh, _) = PublishEngine.PublishPulse(
+      mesh,
+      from,
+      MeshAddress.ToIdentity(shipId),
+      priority: 3,
+      subject: subject,
+      body: detail,
+      topic: MeshTopics.Escrow);
+
+    if (carrierFirmId.Equals(ids.Carrier))
+    {
       (mesh, _) = PublishEngine.PublishPulse(
         mesh,
         from,
-        MeshAddress.ToIdentity(shipId),
+        MeshAddress.ToIdentity(MeshIdentityIds.Person(CampaignWorld.PlayerFlavorId)),
         priority: 3,
         subject: subject,
-        body: notice.Detail,
+        body: detail,
         topic: MeshTopics.Escrow);
-
-      if (notice.CarrierFirmId.Equals(ids.Carrier))
-      {
-        (mesh, _) = PublishEngine.PublishPulse(
-          mesh,
-          from,
-          MeshAddress.ToIdentity(MeshIdentityIds.Person(CampaignWorld.PlayerFlavorId)),
-          priority: 3,
-          subject: subject,
-          body: notice.Detail,
-          topic: MeshTopics.Escrow);
-      }
     }
 
     return mesh;

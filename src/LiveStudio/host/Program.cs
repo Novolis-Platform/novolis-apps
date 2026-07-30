@@ -1,7 +1,7 @@
 using Novolis.Audio.Live;
-using Novolis.Audio.Live.Host.Render;
 using Novolis.Audio.Live.Protocol;
 using Novolis.Audio.Live.Protocol.Dto;
+using Novolis.Audio.Live.Render;
 using Novolis.Transports.LocalIpc;
 
 using var shutdown = new CancellationTokenSource();

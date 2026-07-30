@@ -76,6 +76,7 @@ internal sealed class CampaignSaveStore
       Autopilot = session.Player.Autopilot,
       Player = session.Player.Enabled,
       DockBoardOnly = session.Player.DockBoardOnly,
+      MeshBoardUnlocked = session.Player.MeshBoardUnlocked,
       LastTrampWon = session.Player.LastTrampWon,
       LastTrampLost = session.Player.LastTrampLost,
       DayIndex = session.Sim.State.Clock.Date.DayIndex,

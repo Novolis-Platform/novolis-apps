@@ -6,7 +6,7 @@ One Sins EXE (Avalonia **or** `--mode captain`) exposes the surface via `Session
 ## Build
 
 ```powershell
-dotnet build d:\novolis\novolis-gaming\src\Novolis.Game.Session -p:NovolisUseProjectReferences=true
+dotnet build d:\novolis\novolis-commands\src\Novolis.Agent.Session -p:NovolisUseProjectReferences=true
 dotnet build d:\novolis\novolis-apps\src\SinsOfACapitalismTycoon -p:NovolisUseProjectReferences=true
 ```
 

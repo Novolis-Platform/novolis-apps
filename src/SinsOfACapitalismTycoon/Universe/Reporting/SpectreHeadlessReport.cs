@@ -1,6 +1,7 @@
 using Novolis.Economy;
-using Novolis.Economy.Core.Extensions;
 using Novolis.Economy.Logistics;
+using Novolis.Economy.Core.Extensions;
+using Novolis.Economy.Finance;
 using Novolis.Economy.Markets;
 using Novolis.Economy.Simulation;
 using Novolis.Economy.Simulation.Extensions;

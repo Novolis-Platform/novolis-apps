@@ -4,8 +4,8 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using LiveStudio.Components.Live;
 using Novolis.Audio.Live;
+using Novolis.Avalonia.Live;
 
 namespace LiveStudio.Components;
 

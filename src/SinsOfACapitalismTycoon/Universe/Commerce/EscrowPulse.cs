@@ -21,7 +21,9 @@ internal sealed class EscrowBook
     int OpenedDay);
 
   private readonly Dictionary<Guid, OpenEscrow> _open = new();
+  private readonly Dictionary<Guid, decimal> _workingAdvances = new();
   private readonly HashSet<Guid> _seenShipments = [];
+  private int _eventScan;
   /// <summary>Staged unit delivery pay (DestBid) for OwnerMaster hauls — firm escrow principal.</summary>
   private readonly Dictionary<string, decimal> _stagedUnitPay = new(StringComparer.OrdinalIgnoreCase);
 
@@ -42,6 +44,59 @@ internal sealed class EscrowBook
   public decimal ContractorSkimTotal { get; private set; }
 
   public bool FirmHasOpen(FirmId firm) => _open.Values.Any(e => e.Carrier.Equals(firm));
+
+  /// <summary>
+  /// Advance working capital against an open CCA escrow (fuel / premium runway mid-haul).
+  /// Deducted from the eventual carrier release.
+  /// </summary>
+  public bool TryFloatWorkingCapital(
+    EconomyWorld world,
+    CampaignWorld.Ids ids,
+    FirmId carrier,
+    decimal need,
+    SimulationDate date,
+    MilestoneLog? milestones = null)
+  {
+    if (need < 20m)
+    {
+      return false;
+    }
+
+    Guid? key = null;
+    OpenEscrow? esc = null;
+    foreach (var (k, e) in _open)
+    {
+      if (e.Carrier.Equals(carrier))
+      {
+        key = k;
+        esc = e;
+        break;
+      }
+    }
+
+    if (key is null || esc is null
+        || !world.Ledgers.TryGetValue(ids.Station, out var station)
+        || !world.Ledgers.TryGetValue(carrier, out var firm))
+    {
+      return false;
+    }
+
+    var already = _workingAdvances.GetValueOrDefault(key.Value);
+    var room = Math.Max(0m, esc.Principal.Amount * 0.40m - already);
+    var amt = Math.Min(need, room);
+    if (amt < 20m || station.Cash.Amount + 0.0001m < amt)
+    {
+      return false;
+    }
+
+    var pay = Money.From(amt);
+    station.Post(AccountRole.WageExpense, AccountRole.Cash, pay, date, "CCA escrow float");
+    firm.Post(AccountRole.Cash, AccountRole.Revenue, pay, date, "CCA escrow float");
+    _workingAdvances[key.Value] = already + amt;
+    milestones?.AddOnce(date.DayIndex, "escrow-float",
+      $"{ids.Registry.TryGet(carrier)?.RegistryName ?? "tramp"} {amt:0.#}");
+    return true;
+  }
 
   /// <summary>
   /// Stage the contracted unit pay (dest bid) when the captain accepts a haul.
@@ -94,7 +149,7 @@ internal sealed class EscrowBook
       }
     }
 
-    foreach (var ev in sim.State.Events.TakeLast(80))
+    foreach (var ev in sim.State.Events.Skip(_eventScan))
     {
       if (ev is not ShipmentDelivered delivered)
       {
@@ -109,6 +164,8 @@ internal sealed class EscrowBook
 
       Release(world, ids, key.Value, _open[key.Value], day, date, milestones, clawback: false);
     }
+
+    _eventScan = sim.State.Events.Count;
   }
 
   private Guid? FindOpenKey(FirmId carrier, ProductId product)
@@ -219,6 +276,7 @@ internal sealed class EscrowBook
 
     if (clawback)
     {
+      _workingAdvances.Remove(key);
       if (world.Ledgers.TryGetValue(esc.Buyer, out var buyer)
           && station.Cash.Amount + 0.0001m >= esc.Principal.Amount)
       {
@@ -240,14 +298,27 @@ internal sealed class EscrowBook
       return;
     }
 
+    _workingAdvances.Remove(key, out var floated);
     var skim = Money.From(Math.Max(esc.Principal.Amount * 0.10m, 20m));
-    var toCarrier = Money.From(Math.Max(0m, esc.Principal.Amount - skim.Amount));
-    if (station.Cash.Amount + 0.0001m < toCarrier.Amount)
+    var toCarrier = Money.From(Math.Max(0m, esc.Principal.Amount - skim.Amount - floated));
+    if (toCarrier.Amount <= 0.0001m)
     {
+      ContractorSkimTotal += skim.Amount;
+      ReleasedTotal += 0m;
+      var zeroName = ids.Registry.TryGet(esc.Carrier)?.RegistryName ?? "tramp";
+      milestones.AddOnce(day, "escrow", $"release 0 (floated {floated:0}) {zeroName}");
       return;
     }
 
-    // Pay carrier (principal − skim); skim remains Station/underwriter revenue from custody.
+    if (station.Cash.Amount + 0.0001m < toCarrier.Amount)
+    {
+      // Keep advance book so a later day can finish payout.
+      _workingAdvances[key] = floated;
+      _open[key] = esc;
+      return;
+    }
+
+    // Pay carrier (principal − skim − floats); skim remains Station revenue from custody.
     station.Post(AccountRole.WageExpense, AccountRole.Cash, toCarrier, date, "CCA escrow release");
     if (world.Ledgers.TryGetValue(esc.Carrier, out var carrier))
     {

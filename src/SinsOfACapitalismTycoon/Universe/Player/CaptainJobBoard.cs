@@ -3,7 +3,7 @@ using Novolis.Economy.Logistics;
 using Novolis.Economy.Markets;
 using Novolis.Economy.Production;
 using Novolis.Economy.Simulation;
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Universe;

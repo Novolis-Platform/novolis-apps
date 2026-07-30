@@ -65,18 +65,47 @@ internal static class DriveMaintenancePulse
         continue;
       }
 
+      // Calypso elective yard work is SurvivalCaptain's call — auto-OH here drained
+      // remittance runway. Forced burnout still clears through the normal pay path below.
+      if (entry.OwnerMaster && !entry.BurnedOut && entry.OverhaulDue && !entry.Suspended)
+      {
+        continue;
+      }
+
       var bill = Money.From(entry.BurnedOut
         ? registry.QuoteBurnoutOverhaul(entry)
         : registry.QuoteElectiveOverhaul(entry));
 
-      // Keep a small cash floor so premiums can reinstate after yard work.
-      var floor = entry.OwnerMaster ? 40m : 120m;
+      // Keep remittance runway after yard work — OwnerMaster needs a real premium buffer.
+      var floor = entry.OwnerMaster ? 400m : 120m;
       var canPay = firmLedger.Cash.Amount >= bill.Amount + floor;
       if (!canPay
+          && entry.OwnerMaster
+          && entry.BurnedOut
+          && yardLedger.Cash.Amount > 8_000m)
+      {
+        // Forced burnout: Station floats Calypso so SoftFail does not stick forever.
+        var need = bill.Amount + floor - firmLedger.Cash.Amount;
+        var advance = Money.From(Math.Min(need, yardLedger.Cash.Amount - 4_000m));
+        if (advance.Amount >= 50m)
+        {
+          yardLedger.Post(
+            AccountRole.WageExpense, AccountRole.Cash, advance, day, "Overhaul advance");
+          firmLedger.Post(
+            AccountRole.Cash, AccountRole.Revenue, advance, day, "Overhaul advance");
+          canPay = firmLedger.Cash.Amount >= bill.Amount + floor;
+          if (canPay)
+          {
+            milestones.AddOnce(dayIndex, "overhaul-advance", entry.RegistryName);
+          }
+        }
+      }
+      else if (!canPay
+          && !entry.OwnerMaster
           && yardLedger.Cash.Amount > 30_000m
           && (entry.BurnedOut || entry.OverhaulDue))
       {
-        // Station floats overdue / burnout overhaul — paid as yard revenue from Station cash.
+        // Station floats overdue / burnout overhaul for fleet tramps only.
         var advance = bill;
         yardLedger.Post(
           AccountRole.WageExpense, AccountRole.Cash, advance, day, "Overhaul advance");

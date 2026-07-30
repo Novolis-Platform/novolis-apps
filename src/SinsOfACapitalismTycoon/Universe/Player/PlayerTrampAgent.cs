@@ -43,10 +43,36 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
     {
       if (_state is { Enabled: true, Autopilot: true })
       {
-        var queued = SurvivalCaptain.Tick(this, context, _ids, _state);
+        var policy = _state.NeuralBrain is not null
+          ? (IBerthAutopilotPolicy)NeuralBerthPolicy.Instance
+          : SurvivalBerthPolicy.Instance;
+        var queued = policy.Tick(this, context, _ids, _state);
         if (queued && _state.Orders.TryDequeue(out var survivalOrder))
         {
           Execute(survivalOrder, context);
+          if (_state.NeuralBrain is { } brain)
+          {
+            LastDecision = brain.LastDecision;
+          }
+
+          return;
+        }
+
+        // Autopilot: SurvivalCaptain owns berth picks. CarrierFirmAgent only bunkers mid-route —
+        // free rein on lift/haul drained remittance runway within an hour.
+        var underway = context.World.Shipments.Any(s =>
+          !s.IsLegacy && s.FirmId.Equals(FirmId) && s.Status == ShipmentStatus.InTransit);
+        if (!underway)
+        {
+          if (_state.NeuralBrain is { } brain)
+          {
+            LastDecision = brain.LastDecision;
+          }
+          else if (string.IsNullOrEmpty(LastDecision) || LastDecision.StartsWith("autopilot", StringComparison.Ordinal))
+          {
+            LastDecision = "autopilot · desk hold";
+          }
+
           return;
         }
       }

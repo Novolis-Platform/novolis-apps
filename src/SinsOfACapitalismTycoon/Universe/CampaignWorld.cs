@@ -5,7 +5,7 @@ using Novolis.Economy.Logistics;
 using Novolis.Economy.Population;
 using Novolis.Economy.Production;
 using Novolis.Economy.Simulation;
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Universe;
@@ -64,6 +64,10 @@ internal static class CampaignWorld
   public const decimal LienServiceFloor = 40m;
   /// <summary>Docked insured premium accrual as a fraction of operating quote.</summary>
   public const decimal IdleStandingPremiumFactor = 0.15m;
+  /// <summary>Berth offer margin band: Thin below this (exclusive of zero).</summary>
+  public const decimal BerthMarginFair = 8m;
+  /// <summary>Berth offer margin band: Fat above this.</summary>
+  public const decimal BerthMarginFat = 20m;
 
   /// <summary>Tramp firms (one hull each — CarrierFirmAgent is single-ship). Slot 0 = Calypso.</summary>
   public const int TrampFleetSize = 8;

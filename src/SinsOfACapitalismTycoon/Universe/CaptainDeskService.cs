@@ -1,5 +1,5 @@
 using Novolis.Economy.Logistics;
-using Novolis.Game.Session;
+using Novolis.Agent.Session;
 using SinsOfACapitalismTycoon.Ui;
 
 namespace SinsOfACapitalismTycoon.Universe;
@@ -130,7 +130,7 @@ internal sealed class CaptainDeskService : IGameSession
 
   private SessionCommandResultDto ExecTravel(SessionCommandDto command)
   {
-    var dest = command.DestSystemId?.Trim();
+    var dest = command.Get(SessionCommandKeys.DestSystemId)?.Trim();
     if (string.IsNullOrEmpty(dest))
     {
       return Fail(SessionActionIds.Travel, PlayerActionErrorCodes.Incomplete, "destSystemId required");
@@ -154,7 +154,7 @@ internal sealed class CaptainDeskService : IGameSession
   private SessionCommandResultDto ExecAcceptSpot(SessionCommandDto command)
   {
     var spots = (_session.LastDesk ?? _session.CaptureDesk()).SpotJobs;
-    var idx = command.Index ?? 0;
+    var idx = command.TryGetInt(SessionCommandKeys.Index, out var parsed) ? parsed : 0;
     if (idx < 0 || idx >= spots.Count)
     {
       return Fail(SessionActionIds.AcceptSpot, "index", "Select a spot row");
@@ -178,7 +178,7 @@ internal sealed class CaptainDeskService : IGameSession
   private SessionCommandResultDto ExecAcceptCharter(SessionCommandDto command)
   {
     var list = _session.ListCharters();
-    var idx = command.Index ?? 0;
+    var idx = command.TryGetInt(SessionCommandKeys.Index, out var parsed) ? parsed : 0;
     if (idx < 0 || idx >= list.Count)
     {
       return Fail(SessionActionIds.AcceptCharter, "index", "Select a charter row");
@@ -195,7 +195,7 @@ internal sealed class CaptainDeskService : IGameSession
   {
     var action = buy ? SessionActionIds.MarketBuy : SessionActionIds.MarketSell;
     var lots = _session.ListMarket();
-    var idx = command.Index ?? 0;
+    var idx = command.TryGetInt(SessionCommandKeys.Index, out var parsed) ? parsed : 0;
     if (idx < 0 || idx >= lots.Count)
     {
       return Fail(action, "index", "Select a market lot");
@@ -208,7 +208,7 @@ internal sealed class CaptainDeskService : IGameSession
   private SessionCommandResultDto ExecDepart(SessionCommandDto command)
   {
     var r = CaptainActions.Simple(
-      _session, PlayerOrderKind.DepartManifest, sku: command.Sku, message: "Depart queued");
+      _session, PlayerOrderKind.DepartManifest, sku: command.Get(SessionCommandKeys.Sku), message: "Depart queued");
     return r.Ok ? Ok(SessionActionIds.Depart, r.Message) : Fail(SessionActionIds.Depart, r.ErrorCode ?? "error", r.Message);
   }
 
@@ -227,13 +227,15 @@ internal sealed class CaptainDeskService : IGameSession
   private SessionCommandResultDto ExecSetClock(SessionCommandDto command)
   {
     DecisionAttention? attention = null;
-    if (!string.IsNullOrWhiteSpace(command.Attention)
-        && DeskClock.TryParseAttention(command.Attention, out var parsed))
+    var attentionRaw = command.Get(SessionCommandKeys.Attention);
+    if (!string.IsNullOrWhiteSpace(attentionRaw)
+        && DeskClock.TryParseAttention(attentionRaw, out var parsed))
     {
       attention = parsed;
     }
 
-    _session.SetClock(attention, command.Speed);
+    double? speed = command.TryGetDouble(SessionCommandKeys.Speed, out var speedVal) ? speedVal : null;
+    _session.SetClock(attention, speed);
     var msg =
       $"clock attention={DeskClock.FormatAttention(_session.Player.Attention)} speed={_session.Player.SimSpeedScale:0.##} · {_session.PaceLine}";
     return Ok(SessionActionIds.SetClock, msg);
@@ -247,9 +249,10 @@ internal sealed class CaptainDeskService : IGameSession
 
   private SessionCommandResultDto ExecPrepareDepart(SessionCommandDto command)
   {
-    var premium = command.Prepare != false; // default include premium when compound
+    // Default include premium when compound (missing prepare => true).
+    var premium = !command.TryGetBool(SessionCommandKeys.Prepare, out var prepare) || prepare;
     var r = CaptainActions.PrepareAndDepart(
-      _session, premium: premium, overhaul: false, sku: command.Sku);
+      _session, premium: premium, overhaul: false, sku: command.Get(SessionCommandKeys.Sku));
     return r.Ok
       ? Ok(SessionActionIds.PrepareDepart, r.Message)
       : Fail(SessionActionIds.PrepareDepart, r.ErrorCode ?? "error", r.Message);
@@ -257,7 +260,7 @@ internal sealed class CaptainDeskService : IGameSession
 
   private SessionCommandResultDto ExecSave(SessionCommandDto command)
   {
-    var label = command.Label;
+    var label = command.Get(SessionCommandKeys.Label);
     var record = _session.SaveCheckpointAsync(label).AsTask().GetAwaiter().GetResult();
     return Ok(SessionActionIds.Save, $"Saved {record.Label} ({record.Id:N})");
   }
@@ -297,7 +300,7 @@ internal sealed class CaptainDeskService : IGameSession
     {
       Day = snap.Day,
       HubId = snap.HubId,
-      DecisionLine = snap.DecisionLine,
+      DecisionLine = snap.Line(SessionLineKeys.Decision),
       Snapshot = snap,
     });
   }
@@ -359,16 +362,20 @@ internal sealed class CaptainDeskService : IGameSession
       HubId = desk.CurrentSystemId,
       HubName = desk.CurrentSystemName,
       PauseReason = pause,
-      VoyageLine = desk.VoyageLine,
-      HullLine = desk.HullLine,
-      CashLine = desk.CashLine,
-      StandingLine = desk.StandingLine,
-      DecisionLine = desk.DecisionLine,
-      CoachLine = desk.CoachLine,
-      SoftFailLine = desk.SoftFailLine,
-      SurvivalLine = desk.SurvivalLine,
-      MeshLine = desk.MeshLine,
-      HoldLine = desk.HoldLine,
+      StatusLines = new Dictionary<string, string>(StringComparer.Ordinal)
+      {
+        [SessionLineKeys.Voyage] = desk.VoyageLine,
+        [SessionLineKeys.Hull] = desk.HullLine,
+        [SessionLineKeys.Cash] = desk.CashLine,
+        [SessionLineKeys.Standing] = desk.StandingLine,
+        [SessionLineKeys.Decision] = desk.DecisionLine,
+        [SessionLineKeys.Coach] = desk.CoachLine,
+        [SessionLineKeys.SoftFail] = desk.SoftFailLine,
+        [SessionLineKeys.Survival] = desk.SurvivalLine,
+        [SessionLineKeys.Mesh] = desk.MeshLine,
+        [SessionLineKeys.Hold] = desk.HoldLine,
+        [SessionLineKeys.Pace] = desk.PaceLine,
+      },
       Underway = desk.Underway,
       DockedIdle = desk.DockedIdle,
       Complete = desk.Complete,
@@ -376,35 +383,50 @@ internal sealed class CaptainDeskService : IGameSession
       StandbyOffer = desk.StandbyOffer,
       TravelTargetSystemId = desk.TravelTargetSystemId,
       RouteSystemIds = desk.RouteSystemIds.ToArray(),
-      SpotFreight = desk.SpotJobs.Select((j, i) => new SessionBoardItemDto
-      {
-        Index = i,
-        Id = $"{j.OriginSystemId}->{j.DestSystemId}:{j.SkuLabel}",
-        Label = j.Label,
-        Detail = j.AtOrigin
-          ? $"pay {j.ContractPay:0} lift {j.LiftCost:0} Δ{j.Margin:0.#} ×{j.Quantity:0}"
-          : $"intel — travel {j.OriginName} · pay {j.ContractPay:0}",
-        CanAct = j.AtOrigin && desk.DockedIdle,
-      }).ToArray(),
-      GoodsCharters = desk.Charters.Select((c, i) => new SessionBoardItemDto
-      {
-        Index = i,
-        Id = c.Kind + ":" + c.Label,
-        Label = c.Label,
-        Detail = c.ContractPay > 0m
-          ? $"pay {c.ContractPay:0} lift {c.LiftCost:0} Δ{c.Margin:0.#} · {c.Detail}"
-          : c.Detail,
-        CanAct = desk.DockedIdle && (c.CanAcceptHere
-          || c.Kind.Equals("standby", StringComparison.OrdinalIgnoreCase)),
-      }).ToArray(),
-      MarketLots = desk.MarketLots.Select((m, i) => new SessionBoardItemDto
-      {
-        Index = i,
-        Id = m.Summary,
-        Label = m.Summary,
-        Detail = m.IsAsk ? "ASK" : "BID",
-        CanAct = desk.DockedIdle,
-      }).ToArray(),
+      Boards =
+      [
+        new SessionBoardDto
+        {
+          Id = SessionBoardIds.SpotFreight,
+          Items = desk.SpotJobs.Select((j, i) => new SessionBoardItemDto
+          {
+            Index = i,
+            Id = $"{j.OriginSystemId}->{j.DestSystemId}:{j.SkuLabel}",
+            Label = j.Label,
+            Detail = j.AtOrigin
+              ? $"pay {j.ContractPay:0} lift {j.LiftCost:0} Δ{j.Margin:0.#} ×{j.Quantity:0}"
+              : $"intel — travel {j.OriginName} · pay {j.ContractPay:0}",
+            CanAct = j.AtOrigin && desk.DockedIdle,
+          }).ToArray(),
+        },
+        new SessionBoardDto
+        {
+          Id = SessionBoardIds.GoodsCharters,
+          Items = desk.Charters.Select((c, i) => new SessionBoardItemDto
+          {
+            Index = i,
+            Id = c.Kind + ":" + c.Label,
+            Label = c.Label,
+            Detail = c.ContractPay > 0m
+              ? $"pay {c.ContractPay:0} lift {c.LiftCost:0} Δ{c.Margin:0.#} · {c.Detail}"
+              : c.Detail,
+            CanAct = desk.DockedIdle && (c.CanAcceptHere
+              || c.Kind.Equals("standby", StringComparison.OrdinalIgnoreCase)),
+          }).ToArray(),
+        },
+        new SessionBoardDto
+        {
+          Id = SessionBoardIds.MarketLots,
+          Items = desk.MarketLots.Select((m, i) => new SessionBoardItemDto
+          {
+            Index = i,
+            Id = m.Summary,
+            Label = m.Summary,
+            Detail = m.IsAsk ? "ASK" : "BID",
+            CanAct = desk.DockedIdle,
+          }).ToArray(),
+        },
+      ],
       Manifest = desk.ManifestLines.ToArray(),
       Actions = BuildActions(desk),
       LastAction = desk.LastAction is null
@@ -419,12 +441,11 @@ internal sealed class CaptainDeskService : IGameSession
       Attention = DeskClock.FormatAttention(_session.Player.Attention),
       SimSpeedScale = _session.Player.SimSpeedScale,
       IntentStack = desk.IntentStackLines.ToArray(),
-      ShipMapX = desk.ShipMapX,
-      ShipMapY = desk.ShipMapY,
-      ShipMapVisible = desk.ShipMapVisible,
+      MapX = desk.ShipMapX,
+      MapY = desk.ShipMapY,
+      MapVisible = desk.ShipMapVisible,
       GameHoursPerRealMinute = desk.GameHoursPerRealMinute,
       SessionGameHoursPerRealMinute = desk.SessionGameHoursPerRealMinute,
-      PaceLine = desk.PaceLine,
     };
   }
 

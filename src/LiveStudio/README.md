@@ -22,6 +22,6 @@ dotnet run --project novolis-apps/src/LiveStudio/studio/LiveStudio.csproj -- --h
 4. Child windows: **Graph**, **Piano roll**, **Interpretation** (code → structure)
 5. Beat / Bar / Phrase ticks (audio-driven clock)
 
-## Component extract path
+## Library dependency
 
-Reusable pieces live under `studio/Components/Live/` (see README there) for a later move into `Novolis.Avalonia.Live`.
+Editor, compiler, completion, and visualizers come from `Novolis.Avalonia.Live`. This app keeps workspace wiring, session, and showcase preset adapters.

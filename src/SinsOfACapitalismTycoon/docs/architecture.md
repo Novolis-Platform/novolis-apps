@@ -12,19 +12,22 @@
 Shell UI (`--mode headless|avalonia`) is orthogonal: headless prints Spectre (campaign) or
 plain text (core); Avalonia is the **captain desk** (live Calypso orders when `--player on`).
 
-## Layering
+## Campaign pulse (components + events)
 
-```text
-Johnston 100-star catalog (embedded JSON)
-  → RouteGraph (≤12 ly) + SystemProfiles + Roles
-  → AstroEconomyBridge → hubs / corridors on EconomyWorldBuilder
-  → CampaignWorld seed (firms, SKUs, facilities, cohorts, tramp fleet)
-  → EconomySimulation + AgentScheduler (agents then Advance 1h)
-  → SpectreHeadlessReport (Ops vs Core never mixed)
-```
+Day-end commerce is an ordered list of `ICampaignDayStep` units
+(`Universe/Pulse/CampaignDayPipeline.cs`), not a hand-edited checklist in the clock.
 
-Astro is **seed and geography**. Runtime authority for ops commerce is Simulation;
-Core advances at period boundaries and remains the BM stock authority when bridged.
+| Piece | Role |
+|-------|------|
+| `CampaignPulse` | Hour loop (agents, Advance 1h, mesh sync) |
+| `CampaignDayPipeline` | Ordered day-end steps (claims → escrow → insurance → …) |
+| `SimEventCursor` | Consumes new `EconomyState.Events` without `TakeLast` windows |
+| `CampaignNoticeBus` | Typed notice drain (escrow → mesh; soft-fail channel) |
+| `IBerthAutopilotPolicy` | Autopilot berth decisions; tramp agent only executes |
+
+Shells (Avalonia / CLI / desk IPC) go through `CaptainDeskService` → `CaptainActions` → `PlayerOrder` queue.
+
+
 
 ## Library vs app (fundamentals)
 

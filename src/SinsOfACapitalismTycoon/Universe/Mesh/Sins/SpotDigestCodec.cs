@@ -1,7 +1,7 @@
 using System.Globalization;
 using Novolis.Economy.Logistics;
 
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 namespace SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 /// <summary>Compact line codec for <see cref="MeshTopics.SpotDigest"/> bodies.</summary>

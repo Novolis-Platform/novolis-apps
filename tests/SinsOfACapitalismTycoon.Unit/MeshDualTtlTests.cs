@@ -1,4 +1,4 @@
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Unit;
@@ -30,7 +30,7 @@ public sealed class MeshDualTtlTests
     }
 
     await Assert.That(state.IsVisibleAt(id, MeshTestGraph.Sol)).IsFalse();
-    await Assert.That(state.Packets.ContainsKey(MeshState.PacketKey(id))).IsTrue();
+    await Assert.That(state.TryGetPacket(id, out _)).IsTrue();
     await Assert.That(state.Stats.LocalCacheDrops).IsGreaterThan(0);
   }
 
@@ -53,7 +53,7 @@ public sealed class MeshDualTtlTests
       state = DefaultMeshPipeline.Advance(state);
     }
 
-    await Assert.That(state.Packets.ContainsKey(MeshState.PacketKey(id))).IsFalse();
+    await Assert.That(state.TryGetPacket(id, out _)).IsFalse();
     await Assert.That(state.IsVisibleAt(id, MeshTestGraph.Sol)).IsFalse();
     await Assert.That(state.Stats.GlobalPacketDrops).IsGreaterThan(0);
   }

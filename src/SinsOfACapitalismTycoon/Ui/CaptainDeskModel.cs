@@ -1,7 +1,7 @@
-using Novolis.Astro.Abstractions;
 using Novolis.Avalonia.Briefing;
 using Novolis.Avalonia.StarMap;
 using Novolis.Economy;
+using Novolis.Economy.Finance;
 using Novolis.Economy.Logistics;
 using Novolis.Economy.Simulation;
 using SinsOfACapitalismTycoon.Universe;
@@ -36,6 +36,9 @@ internal sealed class CaptainDeskModel
   public required IReadOnlyList<ScorecardRow> Scorecard { get; init; }
   public required string ScorecardTitle { get; init; }
   public required IReadOnlyList<CaptainJobBoard.SpotCandidate> SpotJobs { get; init; }
+  /// <summary>Never-empty berth wagers (Local / Rumor / Wait).</summary>
+  public required IReadOnlyList<BerthOffer> BerthOffers { get; init; }
+  public required bool MeshBoardUnlocked { get; init; }
   public required IReadOnlyList<CaptainJobBoard.CharterCandidate> Charters { get; init; }
   public required IReadOnlyList<CaptainJobBoard.MarketLot> MarketLots { get; init; }
   public required IReadOnlyList<string> ManifestLines { get; init; }
@@ -77,6 +80,11 @@ internal sealed class CaptainDeskModel
   {
     var sim = session.Sim;
     var ids = session.Ids;
+    if (session.Player.Enabled)
+    {
+      MeshBoardUnlock.Sync(session.Player, session.Milestones);
+    }
+
     var day = sim.State.Clock.Date.DayIndex;
     var entry = ids.Registry.TryGet(ids.Carrier);
     var cash = sim.State.World.Ledgers.TryGetValue(ids.Carrier, out var led)
@@ -105,17 +113,22 @@ internal sealed class CaptainDeskModel
         $"UNDERWAY · {CampaignWorld.SkuLabel(ship.ProductId, ids)} ×{ship.Quantity.Value:0} · {ship.Phase} @ {HubLabel(ids, ship.CurrentHubId)} · [{ship.TransitProfile}]";
     }
 
-    var spot = CaptainJobBoard.ListSpot(
+    if (ship is null
+        && day <= CampaignWorld.LienServiceGraceDays
+        && entry is { LienPrincipal: > 0.05m })
+    {
+      var left = Math.Max(0, CampaignWorld.LienServiceGraceDays - day);
+      voyage += $" · Grace {left}d · then lien bites";
+    }
+
+    var spotBoard = CaptainJobBoard.ListSpot(
       sim, ids, profile, currentSystem, dockOnly: session.Player.DockBoardOnly, mesh: ids.Mesh);
-    // Live freight for coach / barren-dock travel escape (Dock filter only).
+    // Live freight for coach / barren-dock rumors (Dock filter only via BerthOfferBoard).
     var live = CaptainJobBoard.ListLiveFreight(sim, ids, profile, currentSystem, take: 24);
     var suggestedTravel = live.FirstOrDefault(s => !s.AtOrigin && s.Margin > 8m)?.OriginSystemId
                           ?? live.FirstOrDefault(s => !s.AtOrigin)?.OriginSystemId;
-    if (session.Player.DockBoardOnly && spot.Count == 0 && live.Count > 0)
-    {
-      // Berth has no local freight — surface remotes as INTEL so Travel/NEXT stay usable.
-      spot = live.Where(s => !s.AtOrigin).Take(16).ToList();
-    }
+    var (berthOffers, spot) = BerthOfferBoard.Build(
+      spotBoard, live, dockBoardOnly: session.Player.DockBoardOnly);
     // Mesh filter: never silently fill with live lots (that made Mesh≡Dock).
 
     var charters = CaptainJobBoard.ListCharters(sim, ids, session.Player, currentSystem);
@@ -135,53 +148,7 @@ internal sealed class CaptainDeskModel
       ? Array.Empty<StarMapEdge>()
       : RouteHighlight.FromShipment(ids, sim.State.World, ship);
 
-    var catalog = SinsCatalog.Load();
-    var hubDetails = new Dictionary<string, CampaignBriefingModel.HubDetail>(StringComparer.OrdinalIgnoreCase);
-    var points = new List<StarMapPoint>(ids.Bridge.Hubs.Count);
-    foreach (var hub in ids.Bridge.Hubs)
-    {
-      hubDetails[hub.SystemId] = new CampaignBriefingModel.HubDetail(
-        hub.SystemId,
-        hub.Name,
-        hub.Role.ToString(),
-        $"Ag {hub.Profile.Potential.Agriculture:0.##} · Ind {hub.Profile.Potential.Industry:0.##} · Mine {hub.Profile.Potential.Mining:0.##}");
-
-      if (!catalog.TryGet(new SystemId(hub.SystemId), out var star) || star is null)
-      {
-        continue;
-      }
-
-      points.Add(new StarMapPoint
-      {
-        Id = hub.SystemId,
-        Label = $"{hub.Name} ({hub.Role})",
-        X = star.Coords.X,
-        Y = star.Coords.Y,
-      });
-    }
-
-    var edges = new List<StarMapEdge>();
-    var seen = new HashSet<string>(StringComparer.Ordinal);
-    foreach (var (fromId, list) in ids.Bridge.Graph.Adjacency)
-    {
-      foreach (var edge in list)
-      {
-        var a = fromId;
-        var b = edge.To.Value;
-        var key = string.CompareOrdinal(a, b) <= 0 ? $"{a}|{b}" : $"{b}|{a}";
-        if (!seen.Add(key))
-        {
-          continue;
-        }
-
-        edges.Add(new StarMapEdge
-        {
-          FromId = a,
-          ToId = b,
-          BandTag = edge.BandTag,
-        });
-      }
-    }
+    var (points, edges, hubDetails) = DeskMapProjection.Build(ids);
 
     var feed = new List<FeedLine>();
     if (inFtl)
@@ -359,6 +326,8 @@ internal sealed class CaptainDeskModel
       Scorecard = scoreRows,
       ScorecardTitle = $"Life moments {lifeHits}/{LifeMoments.Kinds.Length}",
       SpotJobs = spot,
+      BerthOffers = berthOffers,
+      MeshBoardUnlocked = session.Player.MeshBoardUnlocked,
       Charters = charters,
       MarketLots = market,
       ManifestLines = manifestLines,

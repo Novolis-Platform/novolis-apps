@@ -1,6 +1,6 @@
 using System.Globalization;
 
-using SinsOfACapitalismTycoon.Universe.Mesh.Kernel;
+using Novolis.Simulation.Mesh;
 namespace SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 /// <summary>Stable logical keys for spot offers (price/qty changes ⇒ new key; old must retract).</summary>

@@ -53,6 +53,7 @@ internal static class Program
             var result = await CampaignRunner.RunAsync(
                 options.Seed, options.DaysHours, options.Quiet, options.Drama, options.Story,
                 playerControl: options.Player, autopilot: options.Autopilot, lastTramp: options.LastTramp);
+            // Headless RunAsync doesn't expose session for neural bootstrap — use captain mode for neural.
             SpectreHeadlessReport.Write(AnsiConsole.Console, result);
             TryWriteArtifact(result, options.Quiet);
             return 0;
