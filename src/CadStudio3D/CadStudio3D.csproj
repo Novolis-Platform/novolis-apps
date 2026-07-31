@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>CadStudio3D</RootNamespace>
+    <AssemblyName>CadStudio3D</AssemblyName>
+    <ApplicationTitle>Novolis CAD Studio 3D</ApplicationTitle>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <Description>Novolis CAD Studio 3D — 2D/3D CAD drafting, appearance, limited mesh modelling, staging, and lit PNG render. Dual Cad+Scene Agent Surfaces.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CadStudio3D.Unit" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="MessagePack" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Novolis.Avalonia.Cad" />
+    <PackageReference Include="Novolis.Avalonia.3D" />
+    <PackageReference Include="Novolis.Cad.Primitives" />
+    <PackageReference Include="Novolis.Cad.SceneBridge" />
+    <PackageReference Include="Novolis.Modeling.Scene" />
+    <PackageReference Include="Novolis.Agent.Core" />
+    <PackageReference Include="Novolis.Agent.Surface" />
+    <PackageReference Include="Novolis.Avalonia.Agent" />
+    <PackageReference Include="Novolis.Avalonia.Agent.Protocol" />
+    <PackageReference Include="Novolis.Avalonia.Raylib" />
+    <PackageReference Include="Novolis.Avalonia.Studio" />
+    <PackageReference Include="Novolis.Avalonia.Rendering" />
+    <PackageReference Include="Novolis.Commands.Expressions" />
+    <PackageReference Include="Novolis.Math.Geometry" />
+    <PackageReference Include="Novolis.Raylib" />
+    <PackageReference Include="Novolis.Raylib.Abstractions" />
+    <PackageReference Include="Novolis.Raylib.Bindings" />
+    <PackageReference Include="Novolis.Raylib.Runtime" />
+    <PackageReference Include="Novolis.Rendering.Presentation.Silk" />
+    <PackageReference Include="Novolis.Rendering.Backends.Vulkan" />
+    <PackageReference Include="Silk.NET.OpenGL" />
+    <PackageReference Include="Silk.NET.Vulkan" />
+    <PackageReference Include="Silk.NET.Shaderc" />
+    <PackageReference Include="Silk.NET.Shaderc.Native" />
+  </ItemGroup>
+</Project>

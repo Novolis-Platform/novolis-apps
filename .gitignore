@@ -5,3 +5,5 @@ artifacts/
 *.user
 *.suo
 .DS_Store
+github-client-id.txt
+**/github-client-id.txt

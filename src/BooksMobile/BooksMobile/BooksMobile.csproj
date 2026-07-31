@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>BooksMobile</RootNamespace>
+    <AssemblyName>BooksMobile</AssemblyName>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Novolis.Audio.Voice.EdgeTts" />
+    <PackageReference Include="Novolis.Audio.Voice.Manuscript" />
+    <PackageReference Include="Novolis.Avalonia.Markdown" />
+    <PackageReference Include="Novolis.Avalonia.Mobile" />
+    <PackageReference Include="Novolis.IO.GitHub" />
+    <PackageReference Include="Novolis.Markup.Manuscript" />
+  </ItemGroup>
+</Project>

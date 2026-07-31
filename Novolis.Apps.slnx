@@ -7,11 +7,18 @@
   <Folder Name="/src/">
     <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
     <Project Path="src/DraftStudio/DraftStudio.csproj" />
+    <Project Path="src/CadStudio3D/CadStudio3D.csproj" />
     <Project Path="src/SketchStudio/SketchStudio.csproj" />
     <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
   </Folder>
+  <Folder Name="/src/BooksMobile/">
+    <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
+    <Project Path="src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj" />
+    <Project Path="src/BooksMobile/BooksMobile.Android/BooksMobile.Android.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
+    <Project Path="tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
   </Folder>
   <Folder Name="/src/LiveStudio/">

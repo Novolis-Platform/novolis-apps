@@ -9,6 +9,7 @@ on:
           - All
           - BooksWriterStudio
           - DraftStudio
+          - CadStudio3D
           - SketchStudio
           - SinsOfACapitalismTycoon
           - LiveStudio

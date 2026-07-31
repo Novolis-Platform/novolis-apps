@@ -21,6 +21,7 @@ Every successful merge to `main` (non-doc paths) publishes a [GitHub Release](ht
 |-----|-----------|--------------|
 | Books Writer Studio | `BooksWriterStudioSetup-{version}-win-x64.exe` | `BooksWriterStudio-{version}-win-x64.zip` |
 | Draft Studio | `DraftStudioSetup-{version}-win-x64.exe` | `DraftStudio-{version}-win-x64.zip` |
+| Novolis CAD Studio 3D | `CadStudio3DSetup-{version}-win-x64.exe` | `CadStudio3D-{version}-win-x64.zip` |
 | Sketch Studio | `SketchStudioSetup-{version}-win-x64.exe` | `SketchStudio-{version}-win-x64.zip` |
 | Sins of a Capitalism Tycoon | `SinsOfACapitalismTycoonSetup-{version}-win-x64.exe` | `SinsOfACapitalismTycoon-{version}-win-x64.zip` |
 | Live Studio | `LiveStudioSetup-{version}-win-x64.exe` | `Novolis.Audio.Live.Studio-{version}-win-x64.zip` |
@@ -38,10 +39,12 @@ pwsh -File scripts/build-installer.ps1 -App All
 | App | Path | Description |
 |-----|------|-------------|
 | Books Writer Studio | `src/BooksWriterStudio` | Three-column book authoring: chapter nav, markdown editor, metadata/publish/SCM |
+| Books Mobile | `src/BooksMobile` | Avalonia Android + Windows markdown editor for `frankhaugen/books` (local deploy only — not released) |
 | Draft Studio | `src/DraftStudio` | Command-driven 2D/3D CAD-light (`.cadjson` + phys export) |
+| Novolis CAD Studio 3D | `src/CadStudio3D` | Full 2D/3D CAD + scene staging, materials, lit render; dual Cad/Scene agent surfaces |
 | Sketch Studio | `src/SketchStudio` | Freehand sketch desk (`SketchControl`, `.sketchjson`, PNG/SVG clipboard) |
 | Sins of a Capitalism Tycoon | `src/SinsOfACapitalismTycoon` | Headless/Avalonia BM economy sim (`Novolis.Economy.Core`) |
-| Live Studio | `src/LiveStudio/studio` | Avalonia demo for Novolis Audio Live (DSL editor + visuals) |
+| Live Studio | `src/LiveStudio` | Avalonia demo for Novolis Audio Live (host + launcher + studio; DSL editor + visuals) |
 
 ## Related
 

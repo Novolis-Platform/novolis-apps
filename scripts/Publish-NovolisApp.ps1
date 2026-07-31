@@ -28,6 +28,18 @@ function Get-NovolisAppCatalog {
             ScriptFile    = 'draft-studio.iss'
         }
         [pscustomobject]@{
+            Key           = 'cad-studio-3d'
+            Choice        = 'CadStudio3D'
+            Project       = 'src/CadStudio3D/CadStudio3D.csproj'
+            DisplayName   = 'Novolis CAD Studio 3D'
+            AppId         = 'Novolis.CadStudio3D'
+            ExeName       = 'CadStudio3D.exe'
+            GroupName     = 'Novolis CAD Studio 3D'
+            InstallDir    = 'Novolis\CAD Studio 3D'
+            SetupBase     = 'CadStudio3DSetup'
+            ScriptFile    = 'cad-studio-3d.iss'
+        }
+        [pscustomobject]@{
             Key           = 'sketch-studio'
             Choice        = 'SketchStudio'
             Project       = 'src/SketchStudio/SketchStudio.csproj'

@@ -4,6 +4,8 @@ Avalonia desktop remake of books-writer: series/book/chapter navigation, markdow
 
 ## Run
 
+From `novolis-apps`:
+
 ```powershell
 dotnet run --project src/BooksWriterStudio
 dotnet run --project src/BooksWriterStudio -- "D:\path\to\books-repo"
@@ -11,9 +13,11 @@ dotnet run --project src/BooksWriterStudio -- "D:\path\to\books-repo"
 
 Workspace roots are detected via `content/series` or `content/books`.
 
+Local multi-repo iteration: open `Novolis.Platform.slnx` (ProjectReference mode). Released builds restore **nuget.org + GitHub Packages** only.
+
 ## Packages
 
-Consumes published Novolis packages only (GitHub Packages + nuget.org): `Novolis.Markup.Manuscript`, `Novolis.Audio.Voice.Manuscript`, `Novolis.Avalonia.*`, `Novolis.IO.*`.
+Key consumers: `Novolis.Markup.Manuscript`, `Novolis.Audio.Voice.Manuscript`, `Novolis.Avalonia.Studio` / Controls / Themes, `Novolis.IO.*`.
 
 ## Shortcuts
 
@@ -27,3 +31,10 @@ Consumes published Novolis packages only (GitHub Packages + nuget.org): `Novolis
 ## Spellcheck
 
 Optional: place `en_US.aff` / `en_US.dic` under `Assets/Dictionaries` (or LocalAppData `Novolis/BooksWriterStudio/Dictionaries`). Use **Check spelling** in the editor toolbar when loaded.
+
+## Related
+
+| App / dogfood | Role |
+|---------------|------|
+| `BooksMobile` | Mobile reader companion |
+| `novolis-dogfooding/apps/manuscript/ManuscriptSmoke` | Manuscript pipeline smoke |
