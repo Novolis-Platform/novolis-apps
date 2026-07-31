@@ -1,5 +1,5 @@
 using Novolis.Economy.Logistics;
-using Novolis.Agent.Session;
+using Novolis.Agent.Core;
 using SinsOfACapitalismTycoon.Ui;
 
 namespace SinsOfACapitalismTycoon.Universe;
@@ -29,7 +29,7 @@ internal static class CaptainActions
     if (dest.Equals(desk.CurrentSystemId, StringComparison.OrdinalIgnoreCase))
     {
       var already = PlayerActionResult.Fail(
-        SessionActionIds.Travel, PlayerActionErrorCodes.AlreadyHere, "already at dock");
+        AgentActionIds.Travel, PlayerActionErrorCodes.AlreadyHere, "already at dock");
       session.Player.LastAction = already;
       return Fail(already.ErrorCode!, already.Message);
     }
@@ -38,7 +38,7 @@ internal static class CaptainActions
     if (path.Count == 0)
     {
       var noRoute = PlayerActionResult.Fail(
-        SessionActionIds.Travel, PlayerActionErrorCodes.NoRoute, $"no route → {dest}");
+        AgentActionIds.Travel, PlayerActionErrorCodes.NoRoute, $"no route → {dest}");
       session.Player.LastAction = noRoute;
       return Fail(noRoute.ErrorCode!, noRoute.Message);
     }

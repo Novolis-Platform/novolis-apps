@@ -9,7 +9,8 @@ using Novolis.Avalonia.Briefing;
 using Novolis.Avalonia.StarMap;
 using Novolis.Avalonia.Studio;
 using Novolis.Economy.Logistics;
-using Novolis.Agent.Session;
+using Novolis.Agent.Core;
+using Novolis.Agent.Surface;
 using SinsOfACapitalismTycoon.Cli;
 using SinsOfACapitalismTycoon.Universe;
 
@@ -79,7 +80,7 @@ internal sealed class MainWindow : Window
 
   CampaignRunner.LiveSession? _session;
   CaptainDeskService? _deskService;
-  SessionSurface? _sessionSurface;
+  AgentSurface? _sessionSurface;
   CaptainDeskModel? _desk;
   CampaignBriefingModel? _briefing;
   decimal _priorCash = -1m;
@@ -152,24 +153,24 @@ internal sealed class MainWindow : Window
     _btnSave = CalypsoTheme.MakeButton("Save", "calypso.save", CalypsoButtonKind.Quiet);
     _btnCancelStack = CalypsoTheme.MakeButton("Cancel stack", "calypso.cancelStack", CalypsoButtonKind.Quiet);
     _btnPrepareDepart = CalypsoTheme.MakeButton("Prepare & depart", "calypso.prepareDepart", CalypsoButtonKind.Primary);
-    _btnStep.Click += (_, _) => DeskExec(new SessionCommandDto { ActionId = SessionActionIds.Step });
+    _btnStep.Click += (_, _) => DeskExec(new AgentCommand { ActionId = AgentActionIds.Step });
     _btnContinue.Click += (_, _) =>
     {
-      DeskExec(new SessionCommandDto { ActionId = SessionActionIds.Continue });
+      DeskExec(new AgentCommand { ActionId = AgentActionIds.Continue });
       _feedback.SetStatus("Running…");
     };
     _btnResume.Click += (_, _) =>
     {
-      DeskExec(new SessionCommandDto { ActionId = SessionActionIds.Resume });
+      DeskExec(new AgentCommand { ActionId = AgentActionIds.Resume });
       _feedback.SetStatus("Running to horizon…");
     };
     _btnPause.Click += (_, _) => { _session?.Pause(); _feedback.SetStatus("Will pause after current day"); };
     _btnTravel.Click += (_, _) => TravelToSelection();
     _btnSave.Click += (_, _) => _ = SaveCheckpointAsync();
     _btnCancelStack.Click += (_, _) =>
-      DeskExec(new SessionCommandDto { ActionId = SessionActionIds.CancelStack });
+      DeskExec(new AgentCommand { ActionId = AgentActionIds.CancelStack });
     _btnPrepareDepart.Click += (_, _) =>
-      DeskExec(new SessionCommandDto { ActionId = SessionActionIds.PrepareDepart }.With(SessionCommandKeys.Prepare, true));
+      DeskExec(new AgentCommand { ActionId = AgentActionIds.PrepareDepart }.With(AgentCommandKeys.Prepare, true));
 
     _attention = new ComboBox
     {
@@ -722,9 +723,16 @@ internal sealed class MainWindow : Window
           ResetDeskCeremonyState();
           NeuralAutopilotBootstrap.ApplyIfRequested(session, _options.NeuralAutopilot);
           _deskService = new CaptainDeskService(session);
-          _sessionSurface = SessionSurface.AttachAll(
+          _sessionSurface = AgentSurface.AttachAll(
             _deskService,
-            preferredPipeName: SinsSessionEndpoints.PipeName);
+            CaptainAgentSurfaceContract.Definition,
+            new AgentAttachOptions
+            {
+              EnableIpc = true,
+              EnableHttp = true,
+              EnableTcp = true,
+              IpcAddress = SinsSessionEndpoints.PipeName,
+            });
           if (_sessionSurface?.HttpBaseUrl is { } httpUrl)
             _feedback.SetStatus($"Session HTTP {httpUrl}");
           session.PauseMode = CaptainPauseMode.UntilDecision;
@@ -1159,8 +1167,8 @@ internal sealed class MainWindow : Window
       return;
     }
 
-    DeskExec(new SessionCommandDto { ActionId = SessionActionIds.AcceptSpot }
-      .With(SessionCommandKeys.Index, offer.SpotIndex));
+    DeskExec(new AgentCommand { ActionId = AgentActionIds.AcceptSpot }
+      .With(AgentCommandKeys.Index, offer.SpotIndex));
   }
 
   void UpdateAcceptButtons()
@@ -1278,8 +1286,8 @@ internal sealed class MainWindow : Window
     _routePathWarned = false;
     ApplyRouteHighlight();
 
-    var result = _deskService.Execute(new SessionCommandDto { ActionId = SessionActionIds.Travel }
-      .With(SessionCommandKeys.DestSystemId, dest));
+    var result = _deskService.Execute(new AgentCommand { ActionId = AgentActionIds.Travel }
+      .With(AgentCommandKeys.DestSystemId, dest));
 
     // Busy only when hull can't act (underway / grounded), not when pulse is slow.
     if (!result.Ok)
@@ -1371,8 +1379,8 @@ internal sealed class MainWindow : Window
       return;
     }
 
-    DeskExec(new SessionCommandDto { ActionId = SessionActionIds.AcceptCharter }
-      .With(SessionCommandKeys.Index, _charters.SelectedIndex));
+    DeskExec(new AgentCommand { ActionId = AgentActionIds.AcceptCharter }
+      .With(AgentCommandKeys.Index, _charters.SelectedIndex));
   }
 
   void TradeSelectedMarket(bool buy)
@@ -1384,11 +1392,11 @@ internal sealed class MainWindow : Window
       return;
     }
 
-    DeskExec(new SessionCommandDto
+    DeskExec(new AgentCommand
       {
-        ActionId = buy ? SessionActionIds.MarketBuy : SessionActionIds.MarketSell,
+        ActionId = buy ? AgentActionIds.MarketBuy : AgentActionIds.MarketSell,
       }
-      .With(SessionCommandKeys.Index, _market.SelectedIndex));
+      .With(AgentCommandKeys.Index, _market.SelectedIndex));
   }
 
   void HighlightSelectedSpotRoute()
@@ -1504,18 +1512,18 @@ internal sealed class MainWindow : Window
     if (_deskService is null) return;
     var actionId = order.Kind switch
     {
-      PlayerOrderKind.Wait => SessionActionIds.Wait,
-      PlayerOrderKind.PayPremium => SessionActionIds.Premium,
-      PlayerOrderKind.RequestOverhaul => SessionActionIds.Overhaul,
-      PlayerOrderKind.RefuseStandby => SessionActionIds.RefuseStandby,
-      PlayerOrderKind.AcceptStandby => SessionActionIds.AcceptStandby,
-      PlayerOrderKind.DepartManifest => SessionActionIds.Depart,
+      PlayerOrderKind.Wait => AgentActionIds.Wait,
+      PlayerOrderKind.PayPremium => AgentActionIds.Premium,
+      PlayerOrderKind.RequestOverhaul => AgentActionIds.Overhaul,
+      PlayerOrderKind.RefuseStandby => AgentActionIds.RefuseStandby,
+      PlayerOrderKind.AcceptStandby => AgentActionIds.AcceptStandby,
+      PlayerOrderKind.DepartManifest => AgentActionIds.Depart,
       _ => order.Kind.ToString(),
     };
-    DeskExec(new SessionCommandDto { ActionId = actionId }.With(SessionCommandKeys.Sku, order.SkuLabel));
+    DeskExec(new AgentCommand { ActionId = actionId }.With(AgentCommandKeys.Sku, order.SkuLabel));
   }
 
-  void DeskExec(SessionCommandDto command)
+  void DeskExec(AgentCommand command)
   {
     if (_deskService is null) return;
     var result = _deskService.Execute(command);
@@ -1535,9 +1543,9 @@ internal sealed class MainWindow : Window
       2 => "hardPause",
       _ => "runAlways",
     };
-    DeskExec(new SessionCommandDto { ActionId = SessionActionIds.SetClock }
-      .With(SessionCommandKeys.Attention, attention)
-      .With(SessionCommandKeys.Speed, _speed.Value));
+    DeskExec(new AgentCommand { ActionId = AgentActionIds.SetClock }
+      .With(AgentCommandKeys.Attention, attention)
+      .With(AgentCommandKeys.Speed, _speed.Value));
   }
 
   void SyncClockUi(CaptainDeskModel desk)

@@ -51,18 +51,18 @@ CLI mirrors GUI: `travel`, `spot`, `charters`, `accept N`, `accept-at-dock`, `ma
 
 Agent-playable text desk: `--mode captain` or `--playtest`.
 
-### Decision-point session protocol (`session.*`)
+### Decision-point agent protocol (`agent.*`)
 
 Every decision act (travel, accept, market, continue, …) goes through `CaptainDeskService`
-(`IGameSession`) — shared by Avalonia, captain CLI, and LocalIpc. Enable the session agent host:
+(`IAgentHost`) — shared by Avalonia, captain CLI, and LocalIpc. Enable the agent host:
 
 ```powershell
 $env:NOVOLIS_GAME_SESSION = "1"   # LocalIpc + HTTP :18765 (HTTP=0 to disable; TCP=1 for :18766)
 ```
 
-Methods: `session.hello` / `snapshot` / `actions` / `command` / `continue` / `subscribe`;
-push events `session.decision` / `changed` / `actionResult`. Prefer **HTTP**
-(`http://127.0.0.1:18765/session/...`) for agents; LocalIpc remains for MessagePack clients.
+Methods: `agent.hello` / `snapshot` / `actions` / `command` / `continue` / `subscribe`;
+push events `agent.decision` / `changed` / `actionResult`. Prefer **HTTP**
+(`http://127.0.0.1:18765/agent/...`) for agents; LocalIpc remains for MessagePack clients.
 Travel returns structured `LastAction` / `ErrorCode`. See [SESSION-SMOKE.md](../SESSION-SMOKE.md)
 and [session-protocol.md](https://github.com/Novolis-Platform/novolis-gaming/blob/main/docs/session-protocol.md). Glass automation remains `ui.*` (separate pipe).
 

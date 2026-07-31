@@ -26,7 +26,8 @@
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Novolis.Avalonia.Agent" />
     <PackageReference Include="Novolis.Avalonia.Agent.Protocol" />
-    <PackageReference Include="Novolis.Agent.Session" />
+    <PackageReference Include="Novolis.Agent.Core" />
+    <PackageReference Include="Novolis.Agent.Surface" />
     <PackageReference Include="Novolis.Simulation.Mesh" />
     <PackageReference Include="Novolis.Astro.Abstractions" />
     <PackageReference Include="Novolis.Astro.Assessment" />

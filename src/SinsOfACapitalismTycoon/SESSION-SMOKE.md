@@ -1,12 +1,12 @@
-# Sins game session protocol — multi-transport smoke
+# Sins game agent protocol — multi-transport smoke
 
-Domain session (`session.*`) is separate from Avalonia glass agent (`ui.*`).
-One Sins EXE (Avalonia **or** `--mode captain`) exposes the surface via `SessionSurface`.
+Domain agent (`agent.*`) is separate from Avalonia glass agent (`ui.*`).
+One Sins EXE (Avalonia **or** `--mode captain`) exposes the surface via `AgentSurface`.
 
 ## Build
 
 ```powershell
-dotnet build d:\novolis\novolis-commands\src\Novolis.Agent.Session -p:NovolisUseProjectReferences=true
+dotnet build d:\novolis\novolis-agent\src\Novolis.Agent.Surface -p:NovolisUseProjectReferences=true
 dotnet build d:\novolis\novolis-apps\src\SinsOfACapitalismTycoon -p:NovolisUseProjectReferences=true
 ```
 
@@ -23,19 +23,21 @@ dotnet run --project d:\novolis\novolis-apps\src\SinsOfACapitalismTycoon `
   --mode captain --days 30d --seed 1001 --player on
 ```
 
-Markers: `%TEMP%/novolis-game-session.host` · `.http` · `.tcp`
+Markers: `%TEMP%/novolis-game-session.ipc` · `.http` · `.tcp`
 
 ## HTTP smoke (preferred wide transport)
 
 ```powershell
-curl http://127.0.0.1:18765/session/hello
-curl http://127.0.0.1:18765/session/snapshot
-curl http://127.0.0.1:18765/session/actions
-curl -X POST http://127.0.0.1:18765/session/command `
+curl http://127.0.0.1:18765/agent/hello
+curl http://127.0.0.1:18765/agent/snapshot
+curl http://127.0.0.1:18765/agent/actions
+curl -X POST http://127.0.0.1:18765/agent/command `
   -H "content-type: application/json" `
   -d '{"actionId":"travel","destSystemId":"ez-aquarii"}'
-# SSE: curl -N http://127.0.0.1:18765/session/events
+# SSE: curl -N http://127.0.0.1:18765/agent/events
 ```
+
+`/session/...` paths remain accepted for backward compatibility (rewritten to `/agent/...`).
 
 ## MCP
 

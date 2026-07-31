@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Novolis.Economy.Logistics;
-using Novolis.Agent.Session;
+using Novolis.Agent.Core;
+using Novolis.Agent.Surface;
 using Spectre.Console;
 using SinsOfACapitalismTycoon.Universe;
 
@@ -57,9 +58,16 @@ internal static class CaptainConsole
     };
 
     var desk = new CaptainDeskService(session);
-    await using var surface = SessionSurface.AttachAll(
+    await using var surface = AgentSurface.AttachAll(
       desk,
-      preferredPipeName: SinsSessionEndpoints.PipeName);
+      CaptainAgentSurfaceContract.Definition,
+      new AgentAttachOptions
+      {
+        EnableIpc = true,
+        EnableHttp = true,
+        EnableTcp = true,
+        IpcAddress = SinsSessionEndpoints.PipeName,
+      });
     if (surface?.HttpBaseUrl is { } httpUrl)
       Console.Error.WriteLine($"session HTTP {httpUrl}");
     if (surface?.TcpPort is { } tcpPort)
@@ -464,8 +472,8 @@ internal static class CaptainConsole
       case "depart":
       {
         var sku = parts.Length >= 2 ? parts[1] : null;
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Depart }
-          .With(SessionCommandKeys.Sku, sku));
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Depart }
+          .With(AgentCommandKeys.Sku, sku));
       }
 
       case "travel":
@@ -477,8 +485,8 @@ internal static class CaptainConsole
         }
 
         traveled = true;
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Travel }
-          .With(SessionCommandKeys.DestSystemId, parts[1]));
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Travel }
+          .With(AgentCommandKeys.DestSystemId, parts[1]));
       }
 
       case "travel-to-best":
@@ -498,8 +506,8 @@ internal static class CaptainConsole
 
         traveled = true;
         Console.WriteLine($"(best) {remote.OriginName} for {remote.Label}");
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Travel }
-          .With(SessionCommandKeys.DestSystemId, remote.OriginSystemId));
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Travel }
+          .With(AgentCommandKeys.DestSystemId, remote.OriginSystemId));
       }
 
       case "wait-dock-spot":
@@ -516,8 +524,8 @@ internal static class CaptainConsole
         }
 
         hauled = true;
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.AcceptCharter }
-          .With(SessionCommandKeys.Index, ci));
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.AcceptCharter }
+          .With(AgentCommandKeys.Index, ci));
       }
 
       case "buy":
@@ -531,40 +539,40 @@ internal static class CaptainConsole
           return HandleResult.Ok;
         }
 
-        return DeskAdvance(desk, new SessionCommandDto
+        return DeskAdvance(desk, new AgentCommand
         {
-          ActionId = cmd == "buy" ? SessionActionIds.MarketBuy : SessionActionIds.MarketSell,
-        }.With(SessionCommandKeys.Index, mi));
+          ActionId = cmd == "buy" ? AgentActionIds.MarketBuy : AgentActionIds.MarketSell,
+        }.With(AgentCommandKeys.Index, mi));
       }
 
       case "wait":
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Wait });
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Wait });
 
       case "refuse":
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.RefuseStandby });
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.RefuseStandby });
 
       case "premium":
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Premium });
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Premium });
 
       case "overhaul":
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Overhaul });
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Overhaul });
 
       case "step":
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Step });
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Step });
 
       case "continue":
       case "go":
-        return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.Continue });
+        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Continue });
 
       case "resume":
-        desk.Execute(new SessionCommandDto { ActionId = SessionActionIds.Resume });
+        desk.Execute(new AgentCommand { ActionId = AgentActionIds.Resume });
         return HandleResult.Quit;
 
       case "save":
       {
         var label = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : null;
-        var saveResult = desk.Execute(new SessionCommandDto { ActionId = SessionActionIds.Save }
-          .With(SessionCommandKeys.Label, label));
+        var saveResult = desk.Execute(new AgentCommand { ActionId = AgentActionIds.Save }
+          .With(AgentCommandKeys.Label, label));
         Console.WriteLine(saveResult.Ok
           ? $"{saveResult.Message} → {CampaignSaveStore.Default.RootPath}"
           : $"Save failed: {saveResult.Message}");
@@ -593,7 +601,7 @@ internal static class CaptainConsole
     }
   }
 
-  private static HandleResult DeskAdvance(CaptainDeskService desk, SessionCommandDto command)
+  private static HandleResult DeskAdvance(CaptainDeskService desk, AgentCommand command)
   {
     var result = desk.Execute(command);
     Console.WriteLine(result.Ok
@@ -616,8 +624,8 @@ internal static class CaptainConsole
       && j.Quantity == job.Quantity);
     if (idx < 0) idx = 0;
     hauled = true;
-    return DeskAdvance(desk, new SessionCommandDto { ActionId = SessionActionIds.AcceptSpot }
-      .With(SessionCommandKeys.Index, idx));
+    return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.AcceptSpot }
+      .With(AgentCommandKeys.Index, idx));
   }
 
   private static void PrintStatus(CampaignRunner.LiveSession session, bool banner)

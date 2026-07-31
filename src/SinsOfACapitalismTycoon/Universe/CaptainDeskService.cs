@@ -1,11 +1,11 @@
 using Novolis.Economy.Logistics;
-using Novolis.Agent.Session;
+using Novolis.Agent.Core;
 using SinsOfACapitalismTycoon.Ui;
 
 namespace SinsOfACapitalismTycoon.Universe;
 
-/// <summary>Single execution path for Avalonia, CLI, and session LocalIpc / MCP.</summary>
-internal sealed class CaptainDeskService : IGameSession
+/// <summary>Single execution path for Avalonia, CLI, and agent LocalIpc / MCP.</summary>
+internal sealed class CaptainDeskService : IAgentHost
 {
   private readonly CampaignRunner.LiveSession _session;
   private readonly object _gate = new();
@@ -19,11 +19,11 @@ internal sealed class CaptainDeskService : IGameSession
     _session.DayEnded += OnDayEnded;
   }
 
-  public event Action<SessionDecisionEventDto>? Decision;
-  public event Action<SessionChangedEventDto>? Changed;
-  public event Action<SessionActionResultEventDto>? ActionResult;
+  public event Action<AgentDecisionEvent>? Decision;
+  public event Action<AgentChangedEvent>? Changed;
+  public event Action<AgentActionResultEvent>? ActionResult;
 
-  public SessionHelloResponseDto Hello() => new()
+  public AgentHello Hello() => new()
   {
     ProtocolVersion = "1.0",
     AppId = "sins-of-a-capitalism-tycoon",
@@ -31,18 +31,18 @@ internal sealed class CaptainDeskService : IGameSession
     ProcessId = Environment.ProcessId,
     Capabilities =
     [
-      SessionMethodNames.Snapshot,
-      SessionMethodNames.Actions,
-      SessionMethodNames.Command,
-      SessionMethodNames.Continue,
-      SessionMethodNames.Subscribe,
-      SessionMethodNames.Decision,
-      SessionMethodNames.Changed,
-      SessionMethodNames.ActionResult,
+      AgentMethodNames.Snapshot,
+      AgentMethodNames.Actions,
+      AgentMethodNames.Command,
+      AgentMethodNames.Continue,
+      AgentMethodNames.Subscribe,
+      AgentMethodNames.Decision,
+      AgentMethodNames.Changed,
+      AgentMethodNames.ActionResult,
     ],
   };
 
-  public SessionSnapshotDto Snapshot()
+  public AgentSnapshot Snapshot()
   {
     lock (_gate)
     {
@@ -50,7 +50,7 @@ internal sealed class CaptainDeskService : IGameSession
     }
   }
 
-  public SessionActionsResponseDto Actions()
+  public AgentActionsResponse Actions()
   {
     lock (_gate)
     {
@@ -58,15 +58,15 @@ internal sealed class CaptainDeskService : IGameSession
     }
   }
 
-  public SessionCommandResultDto Continue()
+  public AgentCommandResult Continue()
   {
     lock (_gate)
     {
       _session.Continue();
-      return new SessionCommandResultDto
+      return new AgentCommandResult
       {
         Ok = true,
-        ActionId = SessionActionIds.Continue,
+        ActionId = AgentActionIds.Continue,
         Message = "continue",
         Snapshot = BuildSnapshot(),
       };
@@ -81,7 +81,7 @@ internal sealed class CaptainDeskService : IGameSession
     }
   }
 
-  public SessionCommandResultDto Execute(SessionCommandDto command)
+  public AgentCommandResult Execute(AgentCommand command)
   {
     lock (_gate)
     {
@@ -96,28 +96,28 @@ internal sealed class CaptainDeskService : IGameSession
       {
         return actionId switch
         {
-          SessionActionIds.Travel or "travelTo" => ExecTravel(command),
-          SessionActionIds.AcceptSpot or "accept" => ExecAcceptSpot(command),
-          SessionActionIds.AcceptCharter => ExecAcceptCharter(command),
-          SessionActionIds.MarketBuy or "buy" => ExecMarket(command, buy: true),
-          SessionActionIds.MarketSell or "sell" => ExecMarket(command, buy: false),
-          SessionActionIds.Depart => ExecDepart(command),
-          SessionActionIds.RefuseStandby or "refuse" => MapSimple(
-            SessionActionIds.RefuseStandby, PlayerOrderKind.RefuseStandby, "refuse standby"),
-          SessionActionIds.AcceptStandby => MapSimple(
-            SessionActionIds.AcceptStandby, PlayerOrderKind.AcceptStandby, "accept standby"),
-          SessionActionIds.Wait => MapSimple(SessionActionIds.Wait, PlayerOrderKind.Wait, "wait"),
-          SessionActionIds.Premium => MapSimple(
-            SessionActionIds.Premium, PlayerOrderKind.PayPremium, "premium"),
-          SessionActionIds.Overhaul => MapSimple(
-            SessionActionIds.Overhaul, PlayerOrderKind.RequestOverhaul, "overhaul"),
-          SessionActionIds.Step => ExecStep(),
-          SessionActionIds.Continue => Continue(),
-          SessionActionIds.Resume => ExecResume(),
-          SessionActionIds.Save => ExecSave(command),
-          SessionActionIds.SetClock => ExecSetClock(command),
-          SessionActionIds.CancelStack => ExecCancelStack(),
-          SessionActionIds.PrepareDepart => ExecPrepareDepart(command),
+          AgentActionIds.Travel or "travelTo" => ExecTravel(command),
+          AgentActionIds.AcceptSpot or "accept" => ExecAcceptSpot(command),
+          AgentActionIds.AcceptCharter => ExecAcceptCharter(command),
+          AgentActionIds.MarketBuy or "buy" => ExecMarket(command, buy: true),
+          AgentActionIds.MarketSell or "sell" => ExecMarket(command, buy: false),
+          AgentActionIds.Depart => ExecDepart(command),
+          AgentActionIds.RefuseStandby or "refuse" => MapSimple(
+            AgentActionIds.RefuseStandby, PlayerOrderKind.RefuseStandby, "refuse standby"),
+          AgentActionIds.AcceptStandby => MapSimple(
+            AgentActionIds.AcceptStandby, PlayerOrderKind.AcceptStandby, "accept standby"),
+          AgentActionIds.Wait => MapSimple(AgentActionIds.Wait, PlayerOrderKind.Wait, "wait"),
+          AgentActionIds.Premium => MapSimple(
+            AgentActionIds.Premium, PlayerOrderKind.PayPremium, "premium"),
+          AgentActionIds.Overhaul => MapSimple(
+            AgentActionIds.Overhaul, PlayerOrderKind.RequestOverhaul, "overhaul"),
+          AgentActionIds.Step => ExecStep(),
+          AgentActionIds.Continue => Continue(),
+          AgentActionIds.Resume => ExecResume(),
+          AgentActionIds.Save => ExecSave(command),
+          AgentActionIds.SetClock => ExecSetClock(command),
+          AgentActionIds.CancelStack => ExecCancelStack(),
+          AgentActionIds.PrepareDepart => ExecPrepareDepart(command),
           _ => Fail(actionId, "unknown", $"Unknown action '{actionId}'"),
         };
       }
@@ -128,36 +128,36 @@ internal sealed class CaptainDeskService : IGameSession
     }
   }
 
-  private SessionCommandResultDto ExecTravel(SessionCommandDto command)
+  private AgentCommandResult ExecTravel(AgentCommand command)
   {
-    var dest = command.Get(SessionCommandKeys.DestSystemId)?.Trim();
+    var dest = command.Get(AgentCommandKeys.DestSystemId)?.Trim();
     if (string.IsNullOrEmpty(dest))
     {
-      return Fail(SessionActionIds.Travel, PlayerActionErrorCodes.Incomplete, "destSystemId required");
+      return Fail(AgentActionIds.Travel, PlayerActionErrorCodes.Incomplete, "destSystemId required");
     }
 
     var r = CaptainActions.TryTravel(_session, dest);
     if (!r.Ok)
     {
-      return Fail(SessionActionIds.Travel, r.ErrorCode ?? "error", r.Message, BuildSnapshot());
+      return Fail(AgentActionIds.Travel, r.ErrorCode ?? "error", r.Message, BuildSnapshot());
     }
 
-    return new SessionCommandResultDto
+    return new AgentCommandResult
     {
       Ok = true,
-      ActionId = SessionActionIds.Travel,
+      ActionId = AgentActionIds.Travel,
       Message = r.Message,
       Snapshot = BuildSnapshot(),
     };
   }
 
-  private SessionCommandResultDto ExecAcceptSpot(SessionCommandDto command)
+  private AgentCommandResult ExecAcceptSpot(AgentCommand command)
   {
     var spots = (_session.LastDesk ?? _session.CaptureDesk()).SpotJobs;
-    var idx = command.TryGetInt(SessionCommandKeys.Index, out var parsed) ? parsed : 0;
+    var idx = command.TryGetInt(AgentCommandKeys.Index, out var parsed) ? parsed : 0;
     if (idx < 0 || idx >= spots.Count)
     {
-      return Fail(SessionActionIds.AcceptSpot, "index", "Select a spot row");
+      return Fail(AgentActionIds.AcceptSpot, "index", "Select a spot row");
     }
 
     var job = spots[idx];
@@ -165,37 +165,37 @@ internal sealed class CaptainDeskService : IGameSession
     {
       var travel = CaptainActions.TryTravel(_session, job.OriginSystemId);
       return travel.Ok
-        ? Ok(SessionActionIds.Travel, $"Not at load dock — {travel.Message}")
-        : Fail(SessionActionIds.Travel, travel.ErrorCode ?? "error", travel.Message);
+        ? Ok(AgentActionIds.Travel, $"Not at load dock — {travel.Message}")
+        : Fail(AgentActionIds.Travel, travel.ErrorCode ?? "error", travel.Message);
     }
 
     var r = CaptainActions.TryAcceptSpot(_session, job);
     return r.Ok
-      ? Ok(SessionActionIds.AcceptSpot, r.Message)
-      : Fail(SessionActionIds.AcceptSpot, r.ErrorCode ?? "error", r.Message);
+      ? Ok(AgentActionIds.AcceptSpot, r.Message)
+      : Fail(AgentActionIds.AcceptSpot, r.ErrorCode ?? "error", r.Message);
   }
 
-  private SessionCommandResultDto ExecAcceptCharter(SessionCommandDto command)
+  private AgentCommandResult ExecAcceptCharter(AgentCommand command)
   {
     var list = _session.ListCharters();
-    var idx = command.TryGetInt(SessionCommandKeys.Index, out var parsed) ? parsed : 0;
+    var idx = command.TryGetInt(AgentCommandKeys.Index, out var parsed) ? parsed : 0;
     if (idx < 0 || idx >= list.Count)
     {
-      return Fail(SessionActionIds.AcceptCharter, "index", "Select a charter row");
+      return Fail(AgentActionIds.AcceptCharter, "index", "Select a charter row");
     }
 
     var r = CaptainActions.TryAcceptCharter(_session, list[idx]);
     var action = list[idx].Kind.Equals("standby", StringComparison.OrdinalIgnoreCase)
-      ? SessionActionIds.AcceptStandby
-      : SessionActionIds.AcceptCharter;
+      ? AgentActionIds.AcceptStandby
+      : AgentActionIds.AcceptCharter;
     return r.Ok ? Ok(action, r.Message) : Fail(action, r.ErrorCode ?? "error", r.Message);
   }
 
-  private SessionCommandResultDto ExecMarket(SessionCommandDto command, bool buy)
+  private AgentCommandResult ExecMarket(AgentCommand command, bool buy)
   {
-    var action = buy ? SessionActionIds.MarketBuy : SessionActionIds.MarketSell;
+    var action = buy ? AgentActionIds.MarketBuy : AgentActionIds.MarketSell;
     var lots = _session.ListMarket();
-    var idx = command.TryGetInt(SessionCommandKeys.Index, out var parsed) ? parsed : 0;
+    var idx = command.TryGetInt(AgentCommandKeys.Index, out var parsed) ? parsed : 0;
     if (idx < 0 || idx >= lots.Count)
     {
       return Fail(action, "index", "Select a market lot");
@@ -205,73 +205,73 @@ internal sealed class CaptainDeskService : IGameSession
     return r.Ok ? Ok(action, r.Message) : Fail(action, r.ErrorCode ?? "error", r.Message);
   }
 
-  private SessionCommandResultDto ExecDepart(SessionCommandDto command)
+  private AgentCommandResult ExecDepart(AgentCommand command)
   {
     var r = CaptainActions.Simple(
-      _session, PlayerOrderKind.DepartManifest, sku: command.Get(SessionCommandKeys.Sku), message: "Depart queued");
-    return r.Ok ? Ok(SessionActionIds.Depart, r.Message) : Fail(SessionActionIds.Depart, r.ErrorCode ?? "error", r.Message);
+      _session, PlayerOrderKind.DepartManifest, sku: command.Get(AgentCommandKeys.Sku), message: "Depart queued");
+    return r.Ok ? Ok(AgentActionIds.Depart, r.Message) : Fail(AgentActionIds.Depart, r.ErrorCode ?? "error", r.Message);
   }
 
-  private SessionCommandResultDto ExecStep()
+  private AgentCommandResult ExecStep()
   {
     _session.StepDay();
-    return Ok(SessionActionIds.Step, "step 1d");
+    return Ok(AgentActionIds.Step, "step 1d");
   }
 
-  private SessionCommandResultDto ExecResume()
+  private AgentCommandResult ExecResume()
   {
     _session.ResumeToHorizon();
-    return Ok(SessionActionIds.Resume, "resume to horizon");
+    return Ok(AgentActionIds.Resume, "resume to horizon");
   }
 
-  private SessionCommandResultDto ExecSetClock(SessionCommandDto command)
+  private AgentCommandResult ExecSetClock(AgentCommand command)
   {
     DecisionAttention? attention = null;
-    var attentionRaw = command.Get(SessionCommandKeys.Attention);
+    var attentionRaw = command.Get(AgentCommandKeys.Attention);
     if (!string.IsNullOrWhiteSpace(attentionRaw)
         && DeskClock.TryParseAttention(attentionRaw, out var parsed))
     {
       attention = parsed;
     }
 
-    double? speed = command.TryGetDouble(SessionCommandKeys.Speed, out var speedVal) ? speedVal : null;
+    double? speed = command.TryGetDouble(AgentCommandKeys.Speed, out var speedVal) ? speedVal : null;
     _session.SetClock(attention, speed);
     var msg =
       $"clock attention={DeskClock.FormatAttention(_session.Player.Attention)} speed={_session.Player.SimSpeedScale:0.##} · {_session.PaceLine}";
-    return Ok(SessionActionIds.SetClock, msg);
+    return Ok(AgentActionIds.SetClock, msg);
   }
 
-  private SessionCommandResultDto ExecCancelStack()
+  private AgentCommandResult ExecCancelStack()
   {
     var r = CaptainActions.CancelStack(_session);
-    return Ok(SessionActionIds.CancelStack, r.Message);
+    return Ok(AgentActionIds.CancelStack, r.Message);
   }
 
-  private SessionCommandResultDto ExecPrepareDepart(SessionCommandDto command)
+  private AgentCommandResult ExecPrepareDepart(AgentCommand command)
   {
     // Default include premium when compound (missing prepare => true).
-    var premium = !command.TryGetBool(SessionCommandKeys.Prepare, out var prepare) || prepare;
+    var premium = !command.TryGetBool(AgentCommandKeys.Prepare, out var prepare) || prepare;
     var r = CaptainActions.PrepareAndDepart(
-      _session, premium: premium, overhaul: false, sku: command.Get(SessionCommandKeys.Sku));
+      _session, premium: premium, overhaul: false, sku: command.Get(AgentCommandKeys.Sku));
     return r.Ok
-      ? Ok(SessionActionIds.PrepareDepart, r.Message)
-      : Fail(SessionActionIds.PrepareDepart, r.ErrorCode ?? "error", r.Message);
+      ? Ok(AgentActionIds.PrepareDepart, r.Message)
+      : Fail(AgentActionIds.PrepareDepart, r.ErrorCode ?? "error", r.Message);
   }
 
-  private SessionCommandResultDto ExecSave(SessionCommandDto command)
+  private AgentCommandResult ExecSave(AgentCommand command)
   {
-    var label = command.Get(SessionCommandKeys.Label);
+    var label = command.Get(AgentCommandKeys.Label);
     var record = _session.SaveCheckpointAsync(label).AsTask().GetAwaiter().GetResult();
-    return Ok(SessionActionIds.Save, $"Saved {record.Label} ({record.Id:N})");
+    return Ok(AgentActionIds.Save, $"Saved {record.Label} ({record.Id:N})");
   }
 
-  private SessionCommandResultDto MapSimple(string actionId, PlayerOrderKind kind, string message)
+  private AgentCommandResult MapSimple(string actionId, PlayerOrderKind kind, string message)
   {
     var r = CaptainActions.Simple(_session, kind, message: message);
     return r.Ok ? Ok(actionId, r.Message) : Fail(actionId, r.ErrorCode ?? "error", r.Message);
   }
 
-  private SessionCommandResultDto Ok(string actionId, string message) => new()
+  private AgentCommandResult Ok(string actionId, string message) => new()
   {
     Ok = true,
     ActionId = actionId,
@@ -279,11 +279,11 @@ internal sealed class CaptainDeskService : IGameSession
     Snapshot = BuildSnapshot(),
   };
 
-  private static SessionCommandResultDto Fail(
+  private static AgentCommandResult Fail(
     string actionId,
     string errorCode,
     string message,
-    SessionSnapshotDto? snapshot = null) => new()
+    AgentSnapshot? snapshot = null) => new()
   {
     Ok = false,
     ActionId = actionId,
@@ -296,11 +296,11 @@ internal sealed class CaptainDeskService : IGameSession
   {
     EmitActionResultIfNeeded();
     var snap = BuildSnapshot();
-    Decision?.Invoke(new SessionDecisionEventDto
+    Decision?.Invoke(new AgentDecisionEvent
     {
       Day = snap.Day,
       HubId = snap.HubId,
-      DecisionLine = snap.Line(SessionLineKeys.Decision),
+      DecisionLine = snap.Line(AgentLineKeys.Decision),
       Snapshot = snap,
     });
   }
@@ -319,7 +319,7 @@ internal sealed class CaptainDeskService : IGameSession
       await Task.Delay(25).ConfigureAwait(false);
       Interlocked.Exchange(ref _changedCoalesce, 0);
       var snap = BuildSnapshot();
-      Changed?.Invoke(new SessionChangedEventDto
+      Changed?.Invoke(new AgentChangedEvent
       {
         Reason = "day-end",
         Snapshot = snap,
@@ -336,7 +336,7 @@ internal sealed class CaptainDeskService : IGameSession
     }
 
     _lastEmittedAction = last;
-    ActionResult?.Invoke(new SessionActionResultEventDto
+    ActionResult?.Invoke(new AgentActionResultEvent
     {
       ActionId = last.ActionId,
       Ok = last.Ok,
@@ -346,7 +346,7 @@ internal sealed class CaptainDeskService : IGameSession
     });
   }
 
-  private SessionSnapshotDto BuildSnapshot()
+  private AgentSnapshot BuildSnapshot()
   {
     var desk = _session.LastDesk ?? _session.CaptureDesk();
     var pause = _session.IsComplete
@@ -355,7 +355,7 @@ internal sealed class CaptainDeskService : IGameSession
         ? "AwaitingDecision"
         : "Running";
 
-    return new SessionSnapshotDto
+    return new AgentSnapshot
     {
       Day = desk.Day,
       SeedHash = desk.HashLine,
@@ -364,17 +364,17 @@ internal sealed class CaptainDeskService : IGameSession
       PauseReason = pause,
       StatusLines = new Dictionary<string, string>(StringComparer.Ordinal)
       {
-        [SessionLineKeys.Voyage] = desk.VoyageLine,
-        [SessionLineKeys.Hull] = desk.HullLine,
-        [SessionLineKeys.Cash] = desk.CashLine,
-        [SessionLineKeys.Standing] = desk.StandingLine,
-        [SessionLineKeys.Decision] = desk.DecisionLine,
-        [SessionLineKeys.Coach] = desk.CoachLine,
-        [SessionLineKeys.SoftFail] = desk.SoftFailLine,
-        [SessionLineKeys.Survival] = desk.SurvivalLine,
-        [SessionLineKeys.Mesh] = desk.MeshLine,
-        [SessionLineKeys.Hold] = desk.HoldLine,
-        [SessionLineKeys.Pace] = desk.PaceLine,
+        [AgentLineKeys.Voyage] = desk.VoyageLine,
+        [AgentLineKeys.Hull] = desk.HullLine,
+        [AgentLineKeys.Cash] = desk.CashLine,
+        [AgentLineKeys.Standing] = desk.StandingLine,
+        [AgentLineKeys.Decision] = desk.DecisionLine,
+        [AgentLineKeys.Coach] = desk.CoachLine,
+        [AgentLineKeys.SoftFail] = desk.SoftFailLine,
+        [AgentLineKeys.Survival] = desk.SurvivalLine,
+        [AgentLineKeys.Mesh] = desk.MeshLine,
+        [AgentLineKeys.Hold] = desk.HoldLine,
+        [AgentLineKeys.Pace] = desk.PaceLine,
       },
       Underway = desk.Underway,
       DockedIdle = desk.DockedIdle,
@@ -385,10 +385,10 @@ internal sealed class CaptainDeskService : IGameSession
       RouteSystemIds = desk.RouteSystemIds.ToArray(),
       Boards =
       [
-        new SessionBoardDto
+        new AgentBoard
         {
-          Id = SessionBoardIds.SpotFreight,
-          Items = desk.SpotJobs.Select((j, i) => new SessionBoardItemDto
+          Id = AgentBoardIds.SpotFreight,
+          Items = desk.SpotJobs.Select((j, i) => new AgentBoardItem
           {
             Index = i,
             Id = $"{j.OriginSystemId}->{j.DestSystemId}:{j.SkuLabel}",
@@ -399,10 +399,10 @@ internal sealed class CaptainDeskService : IGameSession
             CanAct = j.AtOrigin && desk.DockedIdle,
           }).ToArray(),
         },
-        new SessionBoardDto
+        new AgentBoard
         {
-          Id = SessionBoardIds.GoodsCharters,
-          Items = desk.Charters.Select((c, i) => new SessionBoardItemDto
+          Id = AgentBoardIds.GoodsCharters,
+          Items = desk.Charters.Select((c, i) => new AgentBoardItem
           {
             Index = i,
             Id = c.Kind + ":" + c.Label,
@@ -414,10 +414,10 @@ internal sealed class CaptainDeskService : IGameSession
               || c.Kind.Equals("standby", StringComparison.OrdinalIgnoreCase)),
           }).ToArray(),
         },
-        new SessionBoardDto
+        new AgentBoard
         {
-          Id = SessionBoardIds.MarketLots,
-          Items = desk.MarketLots.Select((m, i) => new SessionBoardItemDto
+          Id = AgentBoardIds.MarketLots,
+          Items = desk.MarketLots.Select((m, i) => new AgentBoardItem
           {
             Index = i,
             Id = m.Summary,
@@ -431,7 +431,7 @@ internal sealed class CaptainDeskService : IGameSession
       Actions = BuildActions(desk),
       LastAction = desk.LastAction is null
         ? null
-        : new SessionLastActionDto
+        : new AgentLastAction
         {
           ActionId = desk.LastAction.ActionId,
           Ok = desk.LastAction.Ok,
@@ -449,53 +449,53 @@ internal sealed class CaptainDeskService : IGameSession
     };
   }
 
-  private static SessionActionDto[] BuildActions(CaptainDeskModel desk)
+  private static AgentAction[] BuildActions(CaptainDeskModel desk)
   {
     var travelDest = desk.TravelTargetSystemId;
     var canTravel = desk.DockedIdle && !string.IsNullOrEmpty(travelDest)
                     && !travelDest.Equals(desk.CurrentSystemId, StringComparison.OrdinalIgnoreCase);
     return
     [
-      Act(SessionActionIds.Travel, "Travel", canTravel,
+      Act(AgentActionIds.Travel, "Travel", canTravel,
         desk.DockedIdle ? (string.IsNullOrEmpty(travelDest) ? "No destination" : "Already here") : "Hull busy"),
-      Act(SessionActionIds.AcceptSpot, "Accept spot",
+      Act(AgentActionIds.AcceptSpot, "Accept spot",
         desk.DockedIdle && desk.SpotJobs.Any(j => j.AtOrigin) && desk.ManifestUsed < CampaignWorld.HullCargoCapacity,
         desk.DockedIdle
           ? (desk.ManifestUsed >= CampaignWorld.HullCargoCapacity ? "Hold full" : "No AT-DOCK spot")
           : "Hull busy"),
-      Act(SessionActionIds.AcceptCharter, "Accept charter",
+      Act(AgentActionIds.AcceptCharter, "Accept charter",
         desk.DockedIdle && desk.Charters.Any(c =>
           !c.Kind.Equals("standby", StringComparison.OrdinalIgnoreCase) && c.CanAcceptHere),
         "No acceptable charter"),
-      Act(SessionActionIds.MarketBuy, "Market buy", desk.DockedIdle && desk.MarketLots.Any(m => m.IsAsk),
+      Act(AgentActionIds.MarketBuy, "Market buy", desk.DockedIdle && desk.MarketLots.Any(m => m.IsAsk),
         "No ASK lots"),
-      Act(SessionActionIds.MarketSell, "Market sell", desk.DockedIdle && desk.MarketLots.Any(m => !m.IsAsk),
+      Act(AgentActionIds.MarketSell, "Market sell", desk.DockedIdle && desk.MarketLots.Any(m => !m.IsAsk),
         "No BID lots"),
-      Act(SessionActionIds.Depart, "Depart",
+      Act(AgentActionIds.Depart, "Depart",
         desk.ManifestLines.Count > 0 && desk.DockedIdle && desk.ManifestAtCurrentDock,
         desk.ManifestLines.Count == 0
           ? "Manifest empty"
           : desk.ManifestAtCurrentDock
             ? "Hull busy"
             : "Not at load dock"),
-      Act(SessionActionIds.RefuseStandby, "Refuse standby", desk.StandbyOffer, "No standby"),
-      Act(SessionActionIds.AcceptStandby, "Accept standby", desk.StandbyOffer, "No standby"),
-      Act(SessionActionIds.Wait, "Wait", true, null),
-      Act(SessionActionIds.Premium, "Pay premium", true, null),
-      Act(SessionActionIds.Overhaul, "Overhaul", true, null),
-      Act(SessionActionIds.Step, "Step 1d", !desk.Complete, "Complete"),
-      Act(SessionActionIds.Continue, "Continue", !desk.Complete, "Complete"),
-      Act(SessionActionIds.Resume, "Resume to horizon", !desk.Complete, "Complete"),
-      Act(SessionActionIds.SetClock, "Set clock", !desk.Complete, "Complete"),
-      Act(SessionActionIds.PrepareDepart, "Prepare & depart",
+      Act(AgentActionIds.RefuseStandby, "Refuse standby", desk.StandbyOffer, "No standby"),
+      Act(AgentActionIds.AcceptStandby, "Accept standby", desk.StandbyOffer, "No standby"),
+      Act(AgentActionIds.Wait, "Wait", true, null),
+      Act(AgentActionIds.Premium, "Pay premium", true, null),
+      Act(AgentActionIds.Overhaul, "Overhaul", true, null),
+      Act(AgentActionIds.Step, "Step 1d", !desk.Complete, "Complete"),
+      Act(AgentActionIds.Continue, "Continue", !desk.Complete, "Complete"),
+      Act(AgentActionIds.Resume, "Resume to horizon", !desk.Complete, "Complete"),
+      Act(AgentActionIds.SetClock, "Set clock", !desk.Complete, "Complete"),
+      Act(AgentActionIds.PrepareDepart, "Prepare & depart",
         desk.ManifestLines.Count > 0 && desk.DockedIdle && desk.ManifestAtCurrentDock,
         "Need manifest at dock"),
-      Act(SessionActionIds.CancelStack, "Cancel stack", desk.IntentStackLines.Count > 0, "Stack empty"),
-      Act(SessionActionIds.Save, "Save", true, null),
+      Act(AgentActionIds.CancelStack, "Cancel stack", desk.IntentStackLines.Count > 0, "Stack empty"),
+      Act(AgentActionIds.Save, "Save", true, null),
     ];
   }
 
-  private static SessionActionDto Act(string id, string label, bool enabled, string? disabledReason) => new()
+  private static AgentAction Act(string id, string label, bool enabled, string? disabledReason) => new()
   {
     Id = id,
     Label = label,
