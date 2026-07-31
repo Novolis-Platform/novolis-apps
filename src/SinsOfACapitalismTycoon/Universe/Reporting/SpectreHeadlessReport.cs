@@ -253,12 +253,20 @@ internal static class SpectreHeadlessReport
 
     console.Write(score);
 
+    if (result.Player is { Enabled: true })
+    {
+      // Fun counters live on LiveSession; milestones still carry the playtest story.
+      console.MarkupLine(
+        "[grey]Playtest tags: escrow / soft-fail-warn / soft-fail-clear / tutorial · judge via HardPause desk[/]");
+    }
+
     var milestones = new Table().Border(TableBorder.Simple).Title("Milestones (greppable + vox)")
       .AddColumns("Day", "Kind", "Detail");
     var lifeKinds = new HashSet<string>(LifeMoments.Kinds, StringComparer.OrdinalIgnoreCase)
     {
       "overhaul", "overhaul-forced", "overhaul-due", "burnout", "reinstated", "arrears",
       "escrow", "jump-refuse", "standby-pass", "lien", "dock-fee", "berth-fee",
+      "soft-fail-warn", "soft-fail-clear",
     };
     var forGrep = result.Milestones.Entries
       .Where(m => lifeKinds.Contains(m.Kind))

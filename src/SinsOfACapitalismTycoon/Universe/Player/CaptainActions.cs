@@ -66,7 +66,7 @@ internal static class CaptainActions
         $"Not at load dock — travel to {job.OriginName} first");
     }
 
-    return Apply(
+    var result = Apply(
       session,
       new PlayerOrder(
         PlayerOrderKind.CommitSpot,
@@ -78,7 +78,15 @@ internal static class CaptainActions
         DestBid: job.DestBid,
         Profile: job.Profile),
       continueSession,
-      $"Spot → manifest {job.Label}");
+      $"Accept {job.SkuLabel} → {job.DestName} · pay {job.ContractPay:0} · lift {job.LiftCost:0} · Δ{job.Margin:0}");
+    if (result.Ok && session.Fun.FirstAccepts == 0)
+    {
+      session.Fun.NoteFirstAccept();
+      var day = session.Sim.State.Clock.Date.DayIndex;
+      session.Tutorial?.NoteLocalAccept(day);
+    }
+
+    return result;
   }
 
   public static Result TryAcceptCharter(
@@ -162,15 +170,32 @@ internal static class CaptainActions
     var order = new PlayerOrder(kind, SkuLabel: sku);
     var msg = message ?? kind switch
     {
-      PlayerOrderKind.DepartManifest => "Depart queued",
-      PlayerOrderKind.Wait => "wait",
-      PlayerOrderKind.RefuseStandby => "refuse standby",
-      PlayerOrderKind.AcceptStandby => "accept standby",
-      PlayerOrderKind.PayPremium => "premium",
-      PlayerOrderKind.RequestOverhaul => "overhaul",
+      PlayerOrderKind.DepartManifest => DepartMessage(session),
+      PlayerOrderKind.Wait => "Wait — holding berth (standing still accrues)",
+      PlayerOrderKind.RefuseStandby => "Standby refused (≠ premium)",
+      PlayerOrderKind.AcceptStandby => "Standby accepted — work the window",
+      PlayerOrderKind.PayPremium => PremiumMessage(session),
+      PlayerOrderKind.RequestOverhaul => "Overhaul requested — yard bill from cash",
       _ => kind.ToString(),
     };
     return Apply(session, order, continueSession, msg);
+  }
+
+  static string DepartMessage(CampaignRunner.LiveSession session)
+  {
+    var pay = session.Player.Manifest.Lots.Sum(l => l.DestBid * l.Quantity);
+    return pay > 0.5m
+      ? $"Depart — CCA ~{pay:0} opens on sail"
+      : "Depart — empty reposition";
+  }
+
+  static string PremiumMessage(CampaignRunner.LiveSession session)
+  {
+    var entry = session.Ids.Registry.TryGet(session.Ids.Carrier);
+    var payable = entry?.PremiumPayable ?? 0m;
+    return payable > 0.05m
+      ? $"Pay premium — settle {payable:0.#} payable"
+      : "Pay premium — remittance";
   }
 
   public static Result Apply(

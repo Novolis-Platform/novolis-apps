@@ -1,3 +1,5 @@
+using Novolis.Economy.Logistics;
+
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>Tramp berth wagers: Local / Rumor / Wait — never an empty board face.</summary>
@@ -42,6 +44,28 @@ internal static class BerthOfferBoard
     return "None";
   }
 
+  /// <summary>TTD-style time-value: Priority punishes delay; Slow/bulk forgives.</summary>
+  public static string TimeValueHint(TransitProfile profile, string distanceHint)
+  {
+    if (profile == TransitProfile.PriorityCommercial)
+    {
+      return "time-sensitive · delay eats pay";
+    }
+
+    if (profile == TransitProfile.SlowEconomic)
+    {
+      return "bulk forgives delay";
+    }
+
+    if (distanceHint.Contains("long", StringComparison.OrdinalIgnoreCase)
+        || distanceHint.Contains("12", StringComparison.Ordinal))
+    {
+      return "long haul · clock matters";
+    }
+
+    return "standard clock";
+  }
+
   /// <summary>
   /// Dock mode: locals + live rumors. Mesh mode: digests only; empty → Wait (honest).
   /// </summary>
@@ -68,14 +92,16 @@ internal static class BerthOfferBoard
       spots.Add(s);
       var idx = spots.Count - 1;
       var band = MarginBand(s.Margin);
+      var timeHint = TimeValueHint(s.Profile, s.DistanceHint);
       if (kind == BerthOfferKind.Local)
       {
         offers.Add(new BerthOffer(
           BerthOfferKind.Local,
           $"{band} · {s.SkuLabel} → {s.DestName}",
           band,
-          $"At dock · [{s.Profile}]",
-          $"Pay {s.ContractPay:0} · Lift {s.LiftCost:0} · Net Δ{s.Margin:0.#} · ×{s.Quantity:0}",
+          $"At dock · [{s.Profile}] · {timeHint}",
+          $"Pay {s.ContractPay:0} · Lift {s.LiftCost:0} · Net Δ{s.Margin:0.#} · ×{s.Quantity:0}"
+          + (band == "Thin" ? " · thin runway" : band == "Fat" ? " · fat payday" : ""),
           s,
           idx));
       }
@@ -85,7 +111,7 @@ internal static class BerthOfferBoard
           BerthOfferKind.Rumor,
           $"{band} · Steam → {s.OriginName}",
           band,
-          $"{s.SkuLabel} rumor · [{s.DistanceHint}]",
+          $"{s.SkuLabel} rumor · [{s.DistanceHint}] · {timeHint}",
           $"Pay {s.ContractPay:0} · Net Δ{s.Margin:0.#} · empty steam first",
           s,
           idx));

@@ -19,6 +19,14 @@ internal sealed class CaptainDeskModel
   public required string HullLine { get; init; }
   public required string StandingLine { get; init; }
   public required string CashLine { get; init; }
+  /// <summary>Cap+ bleed visibility: cash ÷ daily premium (~days of standing).</summary>
+  public required string RunwayLine { get; init; }
+  public decimal RunwayDays { get; init; }
+  public decimal DailyPremium { get; init; }
+  public decimal ReputationScore { get; init; }
+  /// <summary>TTD clockwork: open CCA principal while underway / staged.</summary>
+  public required string EscrowClockLine { get; init; }
+  public decimal EscrowPending { get; init; }
   public required string DecisionLine { get; init; }
   public required string CoachLine { get; init; }
   public required string SoftFailLine { get; init; }
@@ -207,6 +215,25 @@ internal sealed class CaptainDeskModel
       : listPremium * CampaignWorld.IdleStandingPremiumFactor;
     var premiumHint = operating ? $"{premium:0.#}/d" : $"{premium:0.#}/d idle";
     var payable = entry?.PremiumPayable ?? 0m;
+    var runwayDays = premium > 0.05m
+      ? Math.Round(cash / premium, 1, MidpointRounding.AwayFromZero)
+      : 999m;
+    var runwayLine = premium > 0.05m
+      ? $"~{runwayDays:0.#}d runway @ {premiumHint}"
+      : "runway —";
+    var repScore = ids.Reputation.Get(ids.Carrier);
+    var escrowPending = ids.Escrow.OpenPrincipalFor(ids.Carrier);
+    if (escrowPending < 0.5m && session.Player.Manifest.Lots.Count > 0)
+    {
+      escrowPending = session.Player.Manifest.Lots.Sum(l => l.DestBid * l.Quantity);
+    }
+
+    var escrowAge = ids.Escrow.OpenAgeDays(ids.Carrier, day);
+    var escrowClock = escrowPending > 0.5m
+      ? (underway
+        ? $"CCA pending {escrowPending:0} · day {escrowAge} underway"
+        : $"CCA staged ~{escrowPending:0} · opens on sail")
+      : "";
     // LifeFraction is wear used; desk shows remaining drive life (100% = fresh).
     var lifeRemain = entry is null ? 0m : Math.Clamp((1m - entry.LifeFraction) * 100m, 0m, 100m);
     var hull = entry is null
@@ -214,6 +241,11 @@ internal sealed class CaptainDeskModel
       : payable > 0.05m
         ? $"life {lifeRemain:0}% · premium {premiumHint} · payable {payable:0.#} · lien {entry.LienPrincipal:0} · OH {entry.OverhaulCount}"
         : $"life {lifeRemain:0}% · premium {premiumHint} · lien {entry.LienPrincipal:0} · OH {entry.OverhaulCount}";
+    if (!string.IsNullOrEmpty(escrowClock))
+    {
+      hull += $"\n{escrowClock}";
+    }
+
     var standing = entry?.StandingLabel ?? "—";
     var advice = CaptainCoach.For(session);
     var soft = advice.SoftFailEnrichment;
@@ -231,7 +263,10 @@ internal sealed class CaptainDeskModel
       new(CampaignWorld.PlayerHullName, $"{cash:0}", standing),
       new("Ops liquid", $"{session.Credits.LiquidStock:0}"),
       new("Claims / load", $"{ids.Registry.ClaimsPaid:0} / {ids.Registry.ActuarialLoad:0.##}"),
-      new("Escrow open", $"{ids.Escrow.OpenCount}"),
+      new("Escrow open", escrowPending > 0.5m
+        ? $"{ids.Escrow.OpenCount} · CCA {escrowPending:0}"
+        : $"{ids.Escrow.OpenCount}"),
+      new("Reputation", $"{repScore:0}"),
       new("Mesh inbox", inFtl
         ? "offline · FTL"
         : $"{meshSnap.FeedInboxCount} · em {meshSnap.EmergencyCount} · digests {meshSnap.SpotDigestCount}"),
@@ -301,6 +336,12 @@ internal sealed class CaptainDeskModel
       HullLine = hull,
       StandingLine = standing,
       CashLine = $"{cash:0.####}",
+      RunwayLine = runwayLine,
+      RunwayDays = runwayDays,
+      DailyPremium = premium,
+      ReputationScore = repScore,
+      EscrowClockLine = escrowClock,
+      EscrowPending = escrowPending,
       DecisionLine = decision,
       CoachLine = advice.CoachLine,
       SoftFailLine = soft,

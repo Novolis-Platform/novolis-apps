@@ -48,6 +48,21 @@ internal sealed class EscrowBook
 
   public bool FirmHasOpen(FirmId firm) => _open.Values.Any(e => e.Carrier.Equals(firm));
 
+  /// <summary>Open CCA principal still held for this carrier (clockwork mid-haul).</summary>
+  public decimal OpenPrincipalFor(FirmId firm) =>
+    _open.Values.Where(e => e.Carrier.Equals(firm)).Sum(e => e.Principal.Amount);
+
+  /// <summary>Days since oldest open escrow for carrier (0 if none).</summary>
+  public int OpenAgeDays(FirmId firm, int todayDay)
+  {
+    var oldest = _open.Values
+      .Where(e => e.Carrier.Equals(firm))
+      .Select(e => e.OpenedDay)
+      .DefaultIfEmpty(todayDay)
+      .Min();
+    return Math.Max(0, todayDay - oldest);
+  }
+
   /// <summary>
   /// Advance working capital against an open CCA escrow (fuel / premium runway mid-haul).
   /// Deducted from the eventual carrier release.

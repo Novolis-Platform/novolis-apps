@@ -76,6 +76,54 @@ public sealed class BerthFantasyTests
   }
 
   [Test]
+  public async Task Fun_telemetry_counts_first_accept_and_summary()
+  {
+    var fun = new FunTelemetry();
+    fun.NoteFirstAccept();
+    fun.NoteEscrowRelease();
+    fun.NoteMeshUnlock();
+    fun.NoteSoftFailNearMiss();
+    fun.NoteSoftFailRaised();
+    fun.NoteSoftFailRecovery();
+    await Assert.That(fun.FirstAccepts).IsEqualTo(1);
+    await Assert.That(fun.EscrowReleases).IsEqualTo(1);
+    await Assert.That(fun.MeshUnlocks).IsEqualTo(1);
+    await Assert.That(fun.SummaryLine()).Contains("payday 1");
+    await Assert.That(fun.SummaryLine()).Contains("mesh 1");
+    await Assert.That(fun.SummaryLine()).Contains("rep 0");
+  }
+
+  [Test]
+  public async Task Time_value_hints_match_transit_profiles()
+  {
+    await Assert.That(BerthOfferBoard.TimeValueHint(TransitProfile.PriorityCommercial, "short"))
+      .Contains("time-sensitive");
+    await Assert.That(BerthOfferBoard.TimeValueHint(TransitProfile.SlowEconomic, "short"))
+      .Contains("bulk");
+    await Assert.That(BerthOfferBoard.TimeValueHint(TransitProfile.StandardCommercial, "long 12 ly"))
+      .Contains("clock");
+  }
+
+  [Test]
+  public async Task Fresh_desk_projects_runway_and_escrow_clock_fields()
+  {
+    var session = new CampaignRunner.LiveSession(
+      seed: 1001,
+      hours: 48,
+      drama: false,
+      playerControl: true,
+      autopilot: false,
+      localBoard: true);
+
+    session.Player.DockBoardOnly = true;
+    var desk = session.CaptureDesk();
+    await Assert.That(desk.RunwayLine).IsNotEmpty();
+    await Assert.That(desk.RunwayDays).IsGreaterThan(0m);
+    await Assert.That(desk.ReputationScore).IsGreaterThanOrEqualTo(0m);
+    await Assert.That(desk.CoachLine).StartsWith(CaptainCoach.Prefix);
+  }
+
+  [Test]
   public async Task Fresh_desk_projects_berth_offers()
   {
     var session = new CampaignRunner.LiveSession(

@@ -28,8 +28,10 @@ internal sealed class MainWindow : Window
   readonly TextBlock _hullStats;
   readonly TextBlock _cashChipValue;
   readonly TextBlock _lifeChipValue;
+  readonly TextBlock _runwayChipValue;
   readonly TextBlock _decision;
   readonly TextBlock _coach;
+  readonly Border _coachChrome;
   readonly TextBlock _softFail;
   readonly TextBlock _survival;
   readonly ListBox _spot;
@@ -80,6 +82,13 @@ internal sealed class MainWindow : Window
   SessionSurface? _sessionSurface;
   CaptainDeskModel? _desk;
   CampaignBriefingModel? _briefing;
+  decimal _priorCash = -1m;
+  bool _priorMeshUnlocked;
+  bool _priorSoftFail;
+  int _priorGroundedDays;
+  bool _softFailStickyFlashed;
+  decimal _priorReputation = -1m;
+  bool _lowRunwayWarned;
   string? _mapSelection;
   string? _routeOrigin;
   string? _routeDest;
@@ -139,7 +148,7 @@ internal sealed class MainWindow : Window
     _btnContinue = CalypsoTheme.MakeButton("Continue", "calypso.continue", CalypsoButtonKind.Secondary);
     _btnResume = CalypsoTheme.MakeButton("To horizon", "calypso.resume", CalypsoButtonKind.Secondary);
     _btnPause = CalypsoTheme.MakeButton("Pause next day", "calypso.pause", CalypsoButtonKind.Quiet);
-    _btnTravel = CalypsoTheme.MakeButton("Travel here", "calypso.travel", CalypsoButtonKind.Primary);
+    _btnTravel = CalypsoTheme.MakeButton("Travel here", "calypso.travel", CalypsoButtonKind.Secondary);
     _btnSave = CalypsoTheme.MakeButton("Save", "calypso.save", CalypsoButtonKind.Quiet);
     _btnCancelStack = CalypsoTheme.MakeButton("Cancel stack", "calypso.cancelStack", CalypsoButtonKind.Quiet);
     _btnPrepareDepart = CalypsoTheme.MakeButton("Prepare & depart", "calypso.prepareDepart", CalypsoButtonKind.Primary);
@@ -332,11 +341,13 @@ internal sealed class MainWindow : Window
       FontSize = 18,
     };
     var cashChip = CalypsoTheme.MetricChip("Cash", "—", out _cashChipValue);
+    var runwayChip = CalypsoTheme.MetricChip("Runway", "—", out _runwayChipValue);
     var lifeChip = CalypsoTheme.MetricChip("Hull life", "—", out _lifeChipValue);
     var chipRow = new StackPanel
     {
       Orientation = Orientation.Horizontal,
-      Children = { cashChip, lifeChip },
+      Spacing = 8,
+      Children = { cashChip, runwayChip, lifeChip },
     };
     _hullStats = new TextBlock
     {
@@ -354,11 +365,22 @@ internal sealed class MainWindow : Window
     };
     _coach = new TextBlock
     {
-      Foreground = CalypsoPalette.AccentSoftBrush,
+      Foreground = CalypsoPalette.AccentBrush,
       TextWrapping = TextWrapping.Wrap,
-      FontSize = 12,
+      FontSize = 14,
       FontWeight = FontWeight.SemiBold,
-      Margin = new Thickness(0, 2, 0, 0),
+      Margin = new Thickness(0),
+    };
+    _coachChrome = new Border
+    {
+      Background = new SolidColorBrush(Color.Parse("#1a2838")),
+      BorderBrush = CalypsoPalette.AccentBrush,
+      BorderThickness = new Thickness(1, 1, 1, 1),
+      CornerRadius = new CornerRadius(4),
+      Padding = new Thickness(10, 8),
+      Margin = new Thickness(0, 4, 0, 2),
+      Child = _coach,
+      IsVisible = false,
     };
     _softFail = new TextBlock
     {
@@ -574,7 +596,7 @@ internal sealed class MainWindow : Window
         chipRow,
         _hullStats,
         _decision,
-        _coach,
+        _coachChrome,
         _survival,
         _softFail,
         new StackPanel
@@ -697,6 +719,7 @@ internal sealed class MainWindow : Window
           }
 
           _session = session;
+          ResetDeskCeremonyState();
           NeuralAutopilotBootstrap.ApplyIfRequested(session, _options.NeuralAutopilot);
           _deskService = new CaptainDeskService(session);
           _sessionSurface = SessionSurface.AttachAll(
@@ -756,7 +779,7 @@ internal sealed class MainWindow : Window
             _briefing = briefing;
             _raw.Text = briefing.RawReport;
             _feedback.ClearBusy();
-            FlashOk($"Horizon complete — {briefing.LifeMomentHits} life moments");
+            FlashOk($"Horizon complete — {briefing.LifeMomentHits} life · {session.Fun.SummaryLine()}");
             SetTransportEnabled(false);
           });
         }
@@ -802,18 +825,52 @@ internal sealed class MainWindow : Window
   void RefreshDesk()
   {
     if (_session is null) return;
-    // Always rebuild — LastDesk is a pulse snapshot and ignores board-filter toggles.
-    var desk = _session.CaptureDesk();
+    // Prefer LastDesk (captured on the sim thread). Rebuild when board filter diverges
+    // or no pulse snapshot exists yet. HubOrders snapshot is race-safe via SnapshotHubOrders.
+    CaptainDeskModel desk;
+    var last = _session.LastDesk;
+    if (last is not null && DeskMatchesBoardFilter(last))
+    {
+      desk = last;
+    }
+    else
+    {
+      try
+      {
+        desk = _session.CaptureDesk();
+      }
+      catch (NullReferenceException)
+      {
+        if (last is null)
+        {
+          throw;
+        }
+
+        desk = last;
+      }
+    }
+
     _desk = desk;
     _subtitle.Text = desk.SubtitleLine;
-    _voyage.Text = desk.VoyageLine;
     _cashChipValue.Text = desk.CashLine;
+    _runwayChipValue.Text = desk.RunwayDays >= 900m
+      ? "—"
+      : $"{desk.RunwayDays:0.#}d";
+    _runwayChipValue.Foreground = desk.RunwayDays < 5m
+      ? CalypsoPalette.DangerBrush
+      : desk.RunwayDays < 12m
+        ? CalypsoPalette.AccentBrush
+        : CalypsoPalette.SuccessBrush;
     var lifeMatch = System.Text.RegularExpressions.Regex.Match(desk.HullLine, @"life (\d+)%");
     _lifeChipValue.Text = lifeMatch.Success ? lifeMatch.Groups[1].Value + "%" : "—";
     _hullStats.Text = $"{desk.StandingLine}\n{desk.HullLine}\n{desk.HoldLine}";
+    // Voyage carries clockwork escrow when underway (TTD "watch the train").
+    _voyage.Text = string.IsNullOrEmpty(desk.EscrowClockLine) || !desk.Underway
+      ? desk.VoyageLine
+      : $"{desk.VoyageLine}\n{desk.EscrowClockLine}";
     _decision.Text = desk.DecisionLine;
     _coach.Text = desk.CoachLine;
-    _coach.IsVisible = !string.IsNullOrEmpty(desk.CoachLine);
+    _coachChrome.IsVisible = !string.IsNullOrEmpty(desk.CoachLine);
     _survival.Text = desk.SurvivalLine;
     _survival.IsVisible = !string.IsNullOrEmpty(desk.SurvivalLine);
     _survival.Foreground = desk.SurvivalLine.Contains("WIN", StringComparison.Ordinal)
@@ -832,7 +889,7 @@ internal sealed class MainWindow : Window
       {
         var badge = o.Kind switch
         {
-          BerthOfferKind.Local => "LOCAL",
+          BerthOfferKind.Local => o.Band.ToUpperInvariant(),
           BerthOfferKind.Rumor => "RUMOR",
           _ => "WAIT",
         };
@@ -843,7 +900,8 @@ internal sealed class MainWindow : Window
           Index: i,
           Badge: badge,
           IsRumor: o.Kind == BerthOfferKind.Rumor,
-          IsWait: o.Kind == BerthOfferKind.Wait);
+          IsWait: o.Kind == BerthOfferKind.Wait,
+          Band: o.Band);
       })
       .ToList();
 
@@ -932,12 +990,137 @@ internal sealed class MainWindow : Window
     _btnMarketSell.IsEnabled = desk.DockedIdle;
     _btnDepart.IsEnabled = desk.DockedIdle && desk.ManifestUsed > 0m;
 
-    if (desk.SoftFail) FlashErr(desk.SoftFailLine);
+    FireDeskCeremonies(desk);
+
     if (_session.IsWaitingForCaptain && !desk.Complete)
     {
       _feedback.ClearBusy();
       _feedback.SetStatus($"Day {desk.Day} — {desk.VoyageLine}");
     }
+  }
+
+  bool DeskMatchesBoardFilter(CaptainDeskModel desk)
+  {
+    if (_session is null)
+    {
+      return true;
+    }
+
+    var wantDock = _session.Player.DockBoardOnly;
+    var showsDock = desk.SubtitleLine.Contains("intel dock", StringComparison.Ordinal);
+    return wantDock == showsDock;
+  }
+
+  void FireDeskCeremonies(CaptainDeskModel desk)
+  {
+    if (_session is null)
+    {
+      return;
+    }
+
+    var cash = ParseDeskCash(desk.CashLine);
+    var grounded = _session.Player.SoftFailGroundedDays;
+
+    // First paint: seed priors so load/save doesn't fake payday / unlock juice.
+    if (_priorCash < 0m)
+    {
+      _priorCash = cash;
+      _priorMeshUnlocked = desk.MeshBoardUnlocked;
+      _priorSoftFail = desk.SoftFail;
+      _priorGroundedDays = grounded;
+      _softFailStickyFlashed = desk.SoftFail;
+      _priorReputation = desk.ReputationScore;
+      _lowRunwayWarned = desk.RunwayDays < 5m;
+      return;
+    }
+
+    // Cap+ bleed: low runway warning (once until recovered).
+    if (desk.RunwayDays < 5m && desk.RunwayDays < 900m && !_lowRunwayWarned)
+    {
+      _lowRunwayWarned = true;
+      FlashErr($"Runway thin — ~{desk.RunwayDays:0.#}d @ {desk.DailyPremium:0.#}/d · haul or settle");
+    }
+    else if (desk.RunwayDays >= 8m)
+    {
+      _lowRunwayWarned = false;
+    }
+
+    // Payday / cash pulse (escrow release).
+    if (cash > _priorCash + 40m)
+    {
+      var delta = cash - _priorCash;
+      _session.Fun.NoteEscrowRelease();
+      FlashOk($"CCA payday +{delta:0} · cash {cash:0} · {desk.RunwayLine}");
+    }
+
+    // Mesh unlock ceremony (first escrow payday unlocks digests).
+    if (!_priorMeshUnlocked && desk.MeshBoardUnlocked)
+    {
+      _session.Fun.NoteMeshUnlock();
+      FlashOk("Mesh digests unlocked — Filter: Mesh / Dock");
+    }
+
+    // TTD station-rating analogue: reputation lift (known-responsive / deliveries).
+    if (_priorReputation >= 0m && desk.ReputationScore >= _priorReputation + 6m)
+    {
+      _session.Fun.NoteReputationLift();
+      FlashOk($"Reputation {desk.ReputationScore:0} — board margins ease (known-responsive)");
+    }
+
+    // SoftFail near-miss (5–6d grounded).
+    if (grounded is 5 or 6 && grounded != _priorGroundedDays && !desk.SoftFail)
+    {
+      _session.Fun.NoteSoftFailNearMiss();
+      FlashErr($"Near SoftFail — {7 - grounded}d left · settle premium / overhaul");
+    }
+
+    // SoftFail raised once.
+    if (desk.SoftFail && !_priorSoftFail)
+    {
+      _session.Fun.NoteSoftFailRaised();
+      FlashErr(desk.SoftFailLine);
+      _softFailStickyFlashed = true;
+    }
+    else if (!desk.SoftFail && _priorSoftFail)
+    {
+      _session.Fun.NoteSoftFailRecovery();
+      FlashOk("Standing open again — operable");
+      _softFailStickyFlashed = false;
+    }
+    else if (desk.SoftFail && !_softFailStickyFlashed)
+    {
+      FlashErr(desk.SoftFailLine);
+      _softFailStickyFlashed = true;
+    }
+
+    _priorCash = cash;
+    _priorMeshUnlocked = desk.MeshBoardUnlocked;
+    _priorSoftFail = desk.SoftFail;
+    _priorGroundedDays = grounded;
+    _priorReputation = desk.ReputationScore;
+  }
+
+  void ResetDeskCeremonyState()
+  {
+    _priorCash = -1m;
+    _priorMeshUnlocked = false;
+    _priorSoftFail = false;
+    _priorGroundedDays = 0;
+    _softFailStickyFlashed = false;
+    _priorReputation = -1m;
+    _lowRunwayWarned = false;
+  }
+
+  static decimal ParseDeskCash(string cashLine)
+  {
+    var normalized = cashLine.Replace(',', '.');
+    return decimal.TryParse(
+      normalized,
+      System.Globalization.NumberStyles.Number,
+      System.Globalization.CultureInfo.InvariantCulture,
+      out var v)
+      ? v
+      : 0m;
   }
 
   void AcceptSelectedSpot()
@@ -983,6 +1166,7 @@ internal sealed class MainWindow : Window
   void UpdateAcceptButtons()
   {
     var docked = _desk is { DockedIdle: true };
+    var deskMeshUnlocked = _desk?.MeshBoardUnlocked == true;
     BerthOffer? offer = null;
     if (_desk is not null
         && _spot.SelectedIndex >= 0
@@ -995,22 +1179,25 @@ internal sealed class MainWindow : Window
     {
       _btnAcceptSpot.Content = "Accept at dock";
       _btnAcceptSpot.IsEnabled = docked;
-      _btnTravel.Opacity = 1;
+      // SoASE focal CTA: berth Accept is primary; Travel demoted until Mesh unlock.
+      _btnTravel.Opacity = deskMeshUnlocked ? 0.85 : 0.35;
       _btnTravel.IsVisible = true;
+      _travelSystem.Opacity = deskMeshUnlocked ? 1 : 0.4;
     }
     else if (offer is { Kind: BerthOfferKind.Rumor })
     {
       _btnAcceptSpot.Content = "Steam for this haul";
       _btnAcceptSpot.IsEnabled = docked;
-      // Demote free-floating Travel — primary verb is the offer CTA.
       _btnTravel.Opacity = 0.45;
+      _travelSystem.Opacity = 0.7;
     }
     else if (offer is { Kind: BerthOfferKind.Wait })
     {
       _btnAcceptSpot.Content = "Wait";
       _btnAcceptSpot.IsEnabled = docked;
-      _btnTravel.Opacity = 1;
+      _btnTravel.Opacity = deskMeshUnlocked ? 1 : 0.55;
       _btnTravel.IsVisible = true;
+      _travelSystem.Opacity = deskMeshUnlocked ? 1 : 0.55;
     }
     else
     {
@@ -1018,6 +1205,7 @@ internal sealed class MainWindow : Window
       _btnAcceptSpot.IsEnabled = false;
       _btnTravel.Opacity = 1;
       _btnTravel.IsVisible = true;
+      _travelSystem.Opacity = 1;
     }
 
     var charterOk = false;

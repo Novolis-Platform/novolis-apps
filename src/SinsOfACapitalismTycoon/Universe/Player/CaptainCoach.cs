@@ -56,7 +56,15 @@ internal static class CaptainCoach
 
     if (player.Manifest.Used >= 1m)
     {
-      return new Advice($"{Prefix} Depart staged hold", soft);
+      var escrowHint = player.Manifest.Lots.Sum(l => l.DestBid * l.Quantity);
+      var runway = premium > 0.05m
+        ? $" · ~{cash / premium:0.#}d runway"
+        : "";
+      return new Advice(
+        escrowHint > 0.5m
+          ? $"{Prefix} Depart staged hold — CCA ~{escrowHint:0} opens on sail{runway}"
+          : $"{Prefix} Depart staged hold{runway}",
+        soft);
     }
 
     var hub = session.CurrentSystemId;
@@ -67,21 +75,28 @@ internal static class CaptainCoach
     var top = offers.FirstOrDefault();
     if (top is { Kind: BerthOfferKind.Local, Spot: { } local })
     {
+      var time = BerthOfferBoard.TimeValueHint(local.Profile, local.DistanceHint);
       return new Advice(
-        $"{Prefix} {top.Band} local {local.SkuLabel} → {local.DestName} — Accept at dock",
+        $"{Prefix} {top.Band} local {local.SkuLabel} → {local.DestName} — Accept (Δ{local.Margin:0} · pay {local.ContractPay:0}) · {time}",
         soft);
     }
 
     if (top is { Kind: BerthOfferKind.Rumor, Spot: { } rumor })
     {
+      var time = BerthOfferBoard.TimeValueHint(rumor.Profile, rumor.DistanceHint);
       return new Advice(
-        $"{Prefix} Steam empty → {rumor.OriginName} ({top.Band} rumor · {rumor.SkuLabel})",
+        $"{Prefix} Steam empty → {rumor.OriginName} ({top.Band} rumor · Δ{rumor.Margin:0}) · {time}",
         soft);
     }
 
     if (top is { Kind: BerthOfferKind.Wait })
     {
-      return new Advice($"{Prefix} Hold berth — Wait (~{top.WaitDaysHint ?? 2}d) or scan charters", soft);
+      var waitDays = top.WaitDaysHint ?? 2;
+      var burn = premium * waitDays;
+      var runway = premium > 0.05m ? cash / premium : 0m;
+      return new Advice(
+        $"{Prefix} Hold Wait (~{waitDays}d) burns ~{burn:0.#} standing · ~{runway:0.#}d runway left · or scan charters",
+        soft);
     }
 
     if (entry is { OverhaulDue: true } or { BurnedOut: true }

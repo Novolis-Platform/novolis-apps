@@ -64,6 +64,7 @@ internal static class CampaignRunner
       Claims = new ClaimsTracker();
       Events = new SimEventCursor();
       Notices = new CampaignNoticeBus();
+      Fun = new FunTelemetry();
       var (sim, ids) = CampaignWorld.Create(seed);
       Sim = sim;
       Ids = ids;
@@ -117,6 +118,8 @@ internal static class CampaignRunner
     public ClaimsTracker Claims { get; }
     public SimEventCursor Events { get; }
     public CampaignNoticeBus Notices { get; }
+    public FunTelemetry Fun { get; }
+    public PlayerTutorialHost? Tutorial => _tutorial;
     public CreditCirculation Credits { get; }
     public SinsAgents.Bundle Agents { get; }
     public MilestoneLog Milestones { get; }

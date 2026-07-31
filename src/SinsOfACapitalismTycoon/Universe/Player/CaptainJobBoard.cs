@@ -203,7 +203,7 @@ internal static class CaptainJobBoard
 
     var loc = site.Hub.LocationId;
     var list = new List<MarketLot>();
-    foreach (var o in sim.State.World.HubOrders.ToArray())
+    foreach (var o in SnapshotHubOrders(sim.State.World))
     {
       if (o.IsFilled || o.FirmId.Equals(ids.Carrier) || !o.LocationId.Equals(loc))
       {
@@ -328,7 +328,7 @@ internal static class CaptainJobBoard
     var buys = new Dictionary<ProductId, List<HubOrder>>();
 
     // Snapshot: HubOrders mutates on the sim thread while the desk refreshes on the UI thread.
-    foreach (var o in world.HubOrders.ToArray())
+    foreach (var o in SnapshotHubOrders(world))
     {
       if (o.IsFilled || o.FirmId.Equals(ids.Carrier) || !freight.Any(p => p.Equals(o.ProductId)))
       {
@@ -506,6 +506,58 @@ internal static class CaptainJobBoard
     }
 
     return "multi-hop";
+  }
+
+  /// <summary>
+  /// Concurrent List mutation (sim MatchHubOrders vs UI desk) can yield null slots in ToArray.
+  /// Never iterate HubOrders without this on a UI/cross-thread path.
+  /// </summary>
+  internal static HubOrder[] SnapshotHubOrders(EconomyWorld world)
+  {
+    HubOrder[] snap;
+    try
+    {
+      snap = world.HubOrders.ToArray();
+    }
+    catch (ArgumentException)
+    {
+      snap = world.HubOrders.Where(static o => o is not null).ToArray()!;
+    }
+    catch (IndexOutOfRangeException)
+    {
+      snap = world.HubOrders.Where(static o => o is not null).ToArray()!;
+    }
+
+    if (snap.Length == 0)
+    {
+      return snap;
+    }
+
+    var nulls = 0;
+    for (var i = 0; i < snap.Length; i++)
+    {
+      if (snap[i] is null)
+      {
+        nulls++;
+      }
+    }
+
+    if (nulls == 0)
+    {
+      return snap;
+    }
+
+    var clean = new HubOrder[snap.Length - nulls];
+    var w = 0;
+    foreach (var o in snap)
+    {
+      if (o is not null)
+      {
+        clean[w++] = o;
+      }
+    }
+
+    return clean;
   }
 
   // Back-compat shim for older call sites.

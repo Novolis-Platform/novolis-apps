@@ -177,10 +177,12 @@ internal static class CalypsoTheme
 
   public static IDataTemplate SpotContractTemplate() =>
     new FuncDataTemplate<SpotContractRow>((row, _) =>
-      BuildContractRow(row.Title, row.Detail, row.AtDock || row.IsRumor, row.Badge), true);
+      BuildContractRow(
+        row.Title, row.Detail, row.AtDock || row.IsRumor, row.Badge, row.Band, row.IsWait), true);
 
   public static IDataTemplate CharterContractTemplate() =>
-    new FuncDataTemplate<CharterContractRow>((row, _) => BuildContractRow(row.Title, row.Detail, row.CanAccept, row.CanAccept ? "TAKE" : "HOLD"), true);
+    new FuncDataTemplate<CharterContractRow>((row, _) =>
+      BuildContractRow(row.Title, row.Detail, row.CanAccept, row.CanAccept ? "TAKE" : "HOLD"), true);
 
   public static IDataTemplate StringRowTemplate() =>
     new FuncDataTemplate<string>((s, _) => new TextBlock
@@ -193,13 +195,45 @@ internal static class CalypsoTheme
       Margin = new Thickness(4, 4),
     }, true);
 
-  static Control BuildContractRow(string title, string detail, bool actionable, string badgeText)
+  static Control BuildContractRow(
+    string title,
+    string detail,
+    bool actionable,
+    string badgeText,
+    string band = "",
+    bool isWait = false)
   {
+    IBrush badgeBg;
+    IBrush badgeFg;
+    if (isWait)
+    {
+      badgeBg = CalypsoPalette.PanelRaisedBrush;
+      badgeFg = CalypsoPalette.MutedBrush;
+    }
+    else if (band.Equals("Fat", StringComparison.OrdinalIgnoreCase))
+    {
+      badgeBg = new SolidColorBrush(Color.Parse("#3a3020"));
+      badgeFg = CalypsoPalette.AccentBrush;
+    }
+    else if (band.Equals("Thin", StringComparison.OrdinalIgnoreCase))
+    {
+      badgeBg = new SolidColorBrush(Color.Parse("#2a3038"));
+      badgeFg = CalypsoPalette.MutedBrush;
+    }
+    else if (actionable)
+    {
+      badgeBg = new SolidColorBrush(Color.Parse("#2a4030"));
+      badgeFg = CalypsoPalette.SuccessBrush;
+    }
+    else
+    {
+      badgeBg = CalypsoPalette.PanelRaisedBrush;
+      badgeFg = CalypsoPalette.MutedBrush;
+    }
+
     var badge = new Border
     {
-      Background = actionable
-        ? new SolidColorBrush(Color.Parse("#2a4030"))
-        : CalypsoPalette.PanelRaisedBrush,
+      Background = badgeBg,
       CornerRadius = new CornerRadius(3),
       Padding = new Thickness(6, 2),
       Child = new TextBlock
@@ -207,7 +241,7 @@ internal static class CalypsoTheme
         Text = badgeText,
         FontSize = 9,
         FontWeight = FontWeight.Bold,
-        Foreground = actionable ? CalypsoPalette.SuccessBrush : CalypsoPalette.MutedBrush,
+        Foreground = badgeFg,
       },
     };
 
@@ -308,7 +342,8 @@ internal sealed record SpotContractRow(
   int Index,
   string Badge = "AT DOCK",
   bool IsRumor = false,
-  bool IsWait = false);
+  bool IsWait = false,
+  string Band = "");
 
 /// <summary>ListBox row model for goods charters / standby.</summary>
 internal sealed record CharterContractRow(

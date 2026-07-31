@@ -8,6 +8,9 @@
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="Novolis.Economy.Logistics" />
+    <PackageReference Include="Novolis.Economy.Markets" />
+    <PackageReference Include="Novolis.Economy.Production" />
+    <PackageReference Include="Novolis.Economy.Simulation" />
     <PackageReference Include="Novolis.MachineLearning.Neural" />
     <PackageReference Include="Novolis.MachineLearning.Neural.Abstractions" />
     <PackageReference Include="Novolis.Simulation.Mesh" />

@@ -63,11 +63,21 @@ internal sealed class PlayerTutorialHost
     else
     {
       _player.SoftFailGroundedDays = 0;
-      // Autopilot recovered — clear sticky soft-fail so coach/desk stop screaming.
-      if (_player.Autopilot && _player.SoftFailRaised)
+      // Recovered operable — clear sticky soft-fail for human and autopilot alike.
+      if (_player.SoftFailRaised)
       {
         _player.SoftFailRaised = false;
+        _milestones.Add(day, "soft-fail-clear",
+          $"{CampaignWorld.PlayerHullName} standing open again — operable");
       }
+    }
+
+    // Near-miss: 5–6d grounded before SoftFail fires at 7.
+    if (_player.SoftFailGroundedDays is 5 or 6 && _beats.Add(50 + _player.SoftFailGroundedDays))
+    {
+      var left = 7 - _player.SoftFailGroundedDays;
+      _milestones.Add(day, "soft-fail-warn",
+        $"{CampaignWorld.PlayerHullName} grounded {_player.SoftFailGroundedDays}d — {left}d to SoftFail · settle premium / overhaul");
     }
 
     if (_player.SoftFailGroundedDays >= 7 && !_player.SoftFailRaised)
