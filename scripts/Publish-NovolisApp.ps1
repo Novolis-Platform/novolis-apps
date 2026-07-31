@@ -158,7 +158,7 @@ function Publish-NovolisApp {
         return [pscustomobject]$result
     }
 
-    $inno = Get-NovolisAppInnoProfile -AppKey $AppKey -PackageVersion $PackageVersion -PublishDir $publishDir -InstallerDir $installerDir
+    $inno = Get-NovolisAppInnoProfile -AppKey $AppKey -PackageVersion $PackageVersion -PublishDir $publishDir -InstallerDir $installerDir -RepoRoot $RepoRoot
     & dotnet msbuild $appProject `
         -t:NovolisGenerateInnoScript `
         @($inno.MsBuildArgs.GetEnumerator() | ForEach-Object { "-p:$($_.Key)=$($_.Value)" }) | Out-Host
@@ -193,7 +193,8 @@ function Get-NovolisAppInnoProfile {
         [Parameter(Mandatory)][string]$AppKey,
         [Parameter(Mandatory)][string]$PackageVersion,
         [Parameter(Mandatory)][string]$PublishDir,
-        [Parameter(Mandatory)][string]$InstallerDir
+        [Parameter(Mandatory)][string]$InstallerDir,
+        [Parameter(Mandatory)][string]$RepoRoot
     )
 
     $app = Get-NovolisAppCatalog | Where-Object { $_.Key -eq $AppKey } | Select-Object -First 1
@@ -201,22 +202,38 @@ function Get-NovolisAppInnoProfile {
 
     $script = Join-Path $InstallerDir $app.ScriptFile
     $setupBase = "$($app.SetupBase)-$PackageVersion-win-x64"
+    $license = Join-Path $RepoRoot 'LICENSE'
+    $icon = Join-Path $RepoRoot 'icon.ico'
+
+    $msbuild = @{
+        NovolisInnoAppName                = $app.DisplayName
+        NovolisInnoAppVersion             = $PackageVersion
+        NovolisInnoPublishDir             = $PublishDir
+        NovolisInnoAppExeName             = $app.ExeName
+        NovolisInnoOutputDir              = $InstallerDir
+        NovolisInnoAppId                  = $app.AppId
+        NovolisInnoDefaultGroupName       = $app.GroupName
+        NovolisInnoOutputBaseFilename     = $setupBase
+        NovolisInnoInstallDirName         = $app.InstallDir
+        NovolisInnoScriptPath             = $script
+        NovolisInnoAppPublisher           = 'Novolis'
+        NovolisInnoAppPublisherURL        = 'https://github.com/Novolis-Platform'
+        NovolisInnoAppCopyright           = 'Copyright (c) Novolis'
+        NovolisInnoVersionInfoCompany     = 'Novolis'
+        NovolisInnoVersionInfoDescription = "$($app.DisplayName) - Novolis"
+        NovolisInnoAppSupportURL          = 'https://github.com/Novolis-Platform/novolis-apps/issues'
+        NovolisInnoAppUpdatesURL          = 'https://github.com/Novolis-Platform/novolis-apps/releases'
+    }
+    if (Test-Path -LiteralPath $license) {
+        $msbuild['NovolisInnoLicenseFile'] = $license
+    }
+    if (Test-Path -LiteralPath $icon) {
+        $msbuild['NovolisInnoSetupIconFile'] = $icon
+    }
+
     return [pscustomobject]@{
         ScriptPath    = $script
         InstallerPath = Join-Path $InstallerDir "$setupBase.exe"
-        MsBuildArgs   = @{
-            NovolisInnoAppName            = $app.DisplayName
-            NovolisInnoAppVersion         = $PackageVersion
-            NovolisInnoPublishDir         = $PublishDir
-            NovolisInnoAppExeName         = $app.ExeName
-            NovolisInnoOutputDir          = $InstallerDir
-            NovolisInnoAppId              = $app.AppId
-            NovolisInnoDefaultGroupName   = $app.GroupName
-            NovolisInnoOutputBaseFilename = $setupBase
-            NovolisInnoInstallDirName     = $app.InstallDir
-            NovolisInnoScriptPath         = $script
-            NovolisInnoAppSupportURL      = 'https://github.com/Novolis-Platform/novolis-apps/issues'
-            NovolisInnoAppUpdatesURL      = 'https://github.com/Novolis-Platform/novolis-apps/releases'
-        }
+        MsBuildArgs   = $msbuild
     }
 }

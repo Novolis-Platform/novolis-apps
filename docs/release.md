@@ -19,7 +19,13 @@ Every merge to `main` that touches release-impacting paths runs Linux CI first, 
 | Live Studio installer / zip | `LiveStudioSetup-{version}-win-x64.exe` / `Novolis.Audio.Live.Studio-{version}-win-x64.zip` |
 | Checksums | `SHA256SUMS.txt` |
 
-Inno Setup scripts are generated via `Novolis.Avalonia.Packaging.Inno` (`NovolisGenerateInnoScript` MSBuild target).
+Inno Setup scripts are generated via `Novolis.Avalonia.Packaging.Inno` (`NovolisGenerateInnoScript` MSBuild target):
+
+- **Per-user** install (`PrivilegesRequired=lowest`, `%LocalAppData%\Programs\Novolis\…`) — no admin
+- **Publisher** display name `Novolis`; canonical URL [github.com/Novolis-Platform](https://github.com/Novolis-Platform)
+- **MIT** license wizard page from repo-root `LICENSE`
+- **Brand icon** from repo-root `icon.ico` (`SetupIconFile` + exe `ApplicationIcon`)
+- Version resource: Company/Product/Copyright/Description under the Novolis brand
 
 After each successful release, CI keeps the newest **5** GitHub Releases (`scripts/prune-github-releases.ps1`).
 
