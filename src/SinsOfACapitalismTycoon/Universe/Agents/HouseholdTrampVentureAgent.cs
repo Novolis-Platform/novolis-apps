@@ -143,8 +143,8 @@ internal sealed class HouseholdTrampVentureAgent : IEconomicAgent
 
     _ids.Registry.Register(ShipRegistryEntry.Create(
       trampId, name, "LightCommercial", ownerMaster: true, lienPrincipal: HullLoan));
-    _ids.Desk.Firms.Register(FirmRegistryEntry.Create(trampId, $"{name} Co."));
-    _ids.Desk.Licenses.Register(LicenseRegistryEntry.Create(
+    _ids.Books.Firms.Register(FirmRegistryEntry.Create(trampId, $"{name} Co."));
+    _ids.Books.Licenses.Register(LicenseRegistryEntry.Create(
       LicenseRegistryEntry.IdFor(trampId, "priority-freight"),
       $"{name} Priority endorsement",
       scope: "priority-freight",

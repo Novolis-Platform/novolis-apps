@@ -1,6 +1,6 @@
 namespace SinsOfACapitalismTycoon.Universe;
 
-/// <summary>How the desk treats dock decisions relative to the sim clock.</summary>
+/// <summary>How the bridge treats dock decisions relative to the sim clock.</summary>
 internal enum DecisionAttention
 {
   /// <summary>Never hard-pause for decisions; time flows at <see cref="PlayerControlState.SimSpeedScale"/>.</summary>
@@ -14,7 +14,7 @@ internal enum DecisionAttention
 }
 
 /// <summary>Maps 0..1 speed scale to wall-clock delay per simulated hour.</summary>
-internal static class DeskClock
+internal static class SessionClock
 {
   /// <summary>Crawl: 1 real minute ≈ 1 game hour.</summary>
   public const double CrawlMsPerGameHour = 60_000;

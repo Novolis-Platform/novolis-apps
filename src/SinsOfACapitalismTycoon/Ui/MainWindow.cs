@@ -16,7 +16,7 @@ using SinsOfACapitalismTycoon.Universe;
 
 namespace SinsOfACapitalismTycoon.Ui;
 
-/// <summary>Captain’s desk: voyage, travel, spot/charter intel, dock manifest.</summary>
+/// <summary>Captain’s bridge: voyage, travel, spot/charter intel, dock manifest.</summary>
 internal sealed class MainWindow : Window
 {
   readonly RunOptions _options;
@@ -79,9 +79,9 @@ internal sealed class MainWindow : Window
   DispatcherTimer? _flashClear;
 
   CampaignRunner.LiveSession? _session;
-  CaptainDeskService? _deskService;
+  CaptainBridgeService? _bridgeService;
   AgentSurface? _sessionSurface;
-  CaptainDeskModel? _desk;
+  CaptainBridgeModel? _bridge;
   CampaignBriefingModel? _briefing;
   decimal _priorCash = -1m;
   bool _priorMeshUnlocked;
@@ -103,7 +103,7 @@ internal sealed class MainWindow : Window
   {
     _options = options;
     CalypsoTheme.ApplyWindowChrome(this);
-    Title = "Sins — Captain Desk · ST Calypso";
+    Title = "Sins — Captain Bridge · ST Calypso";
     Width = 1420;
     Height = 880;
     MinWidth = 980;
@@ -126,7 +126,7 @@ internal sealed class MainWindow : Window
     AgentProperties.SetId(brand, "calypso.brand");
     var title = new TextBlock
     {
-      Text = "Captain Desk",
+      Text = "Captain Bridge",
       FontSize = 16,
       FontWeight = FontWeight.SemiBold,
       FontFamily = CalypsoPalette.BodyFont,
@@ -153,24 +153,24 @@ internal sealed class MainWindow : Window
     _btnSave = CalypsoTheme.MakeButton("Save", "calypso.save", CalypsoButtonKind.Quiet);
     _btnCancelStack = CalypsoTheme.MakeButton("Cancel stack", "calypso.cancelStack", CalypsoButtonKind.Quiet);
     _btnPrepareDepart = CalypsoTheme.MakeButton("Prepare & depart", "calypso.prepareDepart", CalypsoButtonKind.Primary);
-    _btnStep.Click += (_, _) => DeskExec(new AgentCommand { ActionId = AgentActionIds.Step });
+    _btnStep.Click += (_, _) => BridgeExec(new AgentCommand { ActionId = AgentActionIds.Step });
     _btnContinue.Click += (_, _) =>
     {
-      DeskExec(new AgentCommand { ActionId = AgentActionIds.Continue });
+      BridgeExec(new AgentCommand { ActionId = AgentActionIds.Continue });
       _feedback.SetStatus("Running…");
     };
     _btnResume.Click += (_, _) =>
     {
-      DeskExec(new AgentCommand { ActionId = AgentActionIds.Resume });
+      BridgeExec(new AgentCommand { ActionId = AgentActionIds.Resume });
       _feedback.SetStatus("Running to horizon…");
     };
     _btnPause.Click += (_, _) => { _session?.Pause(); _feedback.SetStatus("Will pause after current day"); };
     _btnTravel.Click += (_, _) => TravelToSelection();
     _btnSave.Click += (_, _) => _ = SaveCheckpointAsync();
     _btnCancelStack.Click += (_, _) =>
-      DeskExec(new AgentCommand { ActionId = AgentActionIds.CancelStack });
+      BridgeExec(new AgentCommand { ActionId = AgentActionIds.CancelStack });
     _btnPrepareDepart.Click += (_, _) =>
-      DeskExec(new AgentCommand { ActionId = AgentActionIds.PrepareDepart }.With(AgentCommandKeys.Prepare, true));
+      BridgeExec(new AgentCommand { ActionId = AgentActionIds.PrepareDepart }.With(AgentCommandKeys.Prepare, true));
 
     _attention = new ComboBox
     {
@@ -442,7 +442,7 @@ internal sealed class MainWindow : Window
                      && name.Equals("Dock", StringComparison.OrdinalIgnoreCase));
       _session.Player.DockBoardOnly = dock;
       FlashOk(dock ? "Board → Dock (live berth)" : "Board → Mesh (FTL digests)");
-      RefreshDesk();
+      RefreshCaptain();
     };
 
     _btnAcceptSpot = CalypsoTheme.MakeButton("Accept freight at dock", "calypso.acceptSpot", CalypsoButtonKind.Primary);
@@ -720,11 +720,11 @@ internal sealed class MainWindow : Window
           }
 
           _session = session;
-          ResetDeskCeremonyState();
+          ResetCaptainCeremonyState();
           NeuralAutopilotBootstrap.ApplyIfRequested(session, _options.NeuralAutopilot);
-          _deskService = new CaptainDeskService(session);
+          _bridgeService = new CaptainBridgeService(session);
           _sessionSurface = AgentSurface.AttachAll(
-            _deskService,
+            _bridgeService,
             CaptainAgentSurfaceContract.Definition,
             new AgentAttachOptions
             {
@@ -738,7 +738,7 @@ internal sealed class MainWindow : Window
           session.PauseMode = CaptainPauseMode.UntilDecision;
           if (_options.Player)
           {
-            // Interactive desk: hard-pause on berth decisions so idle days don't auto-burn cash.
+            // Interactive UI: hard-pause on berth decisions so idle days don't auto-burn cash.
             session.Player.Attention = DecisionAttention.HardPause;
             session.Player.SimSpeedScale = 1.0;
             // Live dock board until first payday unlocks Mesh.
@@ -749,13 +749,13 @@ internal sealed class MainWindow : Window
           {
             session.PauseMode = CaptainPauseMode.Never;
           }
-          session.DayEnded += () => Dispatcher.UIThread.Post(RefreshDesk);
+          session.DayEnded += () => Dispatcher.UIThread.Post(RefreshCaptain);
           session.AwaitingDecision += () => Dispatcher.UIThread.Post(() =>
           {
-            RefreshDesk();
+            RefreshCaptain();
             _feedback.ClearBusy();
             NotifyTravelOutcome();
-            var coach = _desk?.CoachLine;
+            var coach = _bridge?.CoachLine;
             FlashOk(string.IsNullOrEmpty(coach)
               ? "Decision — dock act or travel"
               : coach);
@@ -764,7 +764,7 @@ internal sealed class MainWindow : Window
 
           Dispatcher.UIThread.Post(() =>
           {
-            RefreshDesk();
+            RefreshCaptain();
             _feedback.ClearBusy();
             _feedback.SetStatus(_options.Player
               ? "Run always · set Attention/Speed · stack dock acts · Save checkpoints"
@@ -830,22 +830,22 @@ internal sealed class MainWindow : Window
     }
   }
 
-  void RefreshDesk()
+  void RefreshCaptain()
   {
     if (_session is null) return;
-    // Prefer LastDesk (captured on the sim thread). Rebuild when board filter diverges
+    // Prefer LastBridge (captured on the sim thread). Rebuild when board filter diverges
     // or no pulse snapshot exists yet. HubOrders snapshot is race-safe via SnapshotHubOrders.
-    CaptainDeskModel desk;
-    var last = _session.LastDesk;
-    if (last is not null && DeskMatchesBoardFilter(last))
+    CaptainBridgeModel bridge;
+    var last = _session.LastBridge;
+    if (last is not null && CaptainMatchesBoardFilter(last))
     {
-      desk = last;
+      bridge = last;
     }
     else
     {
       try
       {
-        desk = _session.CaptureDesk();
+        bridge = _session.CaptureBridge();
       }
       catch (NullReferenceException)
       {
@@ -854,45 +854,45 @@ internal sealed class MainWindow : Window
           throw;
         }
 
-        desk = last;
+        bridge = last;
       }
     }
 
-    _desk = desk;
-    _subtitle.Text = desk.SubtitleLine;
-    _cashChipValue.Text = desk.CashLine;
-    _runwayChipValue.Text = desk.RunwayDays >= 900m
+    _bridge = bridge;
+    _subtitle.Text = bridge.SubtitleLine;
+    _cashChipValue.Text = bridge.CashLine;
+    _runwayChipValue.Text = bridge.RunwayDays >= 900m
       ? "—"
-      : $"{desk.RunwayDays:0.#}d";
-    _runwayChipValue.Foreground = desk.RunwayDays < 5m
+      : $"{bridge.RunwayDays:0.#}d";
+    _runwayChipValue.Foreground = bridge.RunwayDays < 5m
       ? CalypsoPalette.DangerBrush
-      : desk.RunwayDays < 12m
+      : bridge.RunwayDays < 12m
         ? CalypsoPalette.AccentBrush
         : CalypsoPalette.SuccessBrush;
-    var lifeMatch = System.Text.RegularExpressions.Regex.Match(desk.HullLine, @"life (\d+)%");
+    var lifeMatch = System.Text.RegularExpressions.Regex.Match(bridge.HullLine, @"life (\d+)%");
     _lifeChipValue.Text = lifeMatch.Success ? lifeMatch.Groups[1].Value + "%" : "—";
-    _hullStats.Text = $"{desk.StandingLine}\n{desk.HullLine}\n{desk.HoldLine}";
+    _hullStats.Text = $"{bridge.StandingLine}\n{bridge.HullLine}\n{bridge.HoldLine}";
     // Voyage carries clockwork escrow when underway (TTD "watch the train").
-    _voyage.Text = string.IsNullOrEmpty(desk.EscrowClockLine) || !desk.Underway
-      ? desk.VoyageLine
-      : $"{desk.VoyageLine}\n{desk.EscrowClockLine}";
-    _decision.Text = desk.DecisionLine;
-    _coach.Text = desk.CoachLine;
-    _coachChrome.IsVisible = !string.IsNullOrEmpty(desk.CoachLine);
-    _survival.Text = desk.SurvivalLine;
-    _survival.IsVisible = !string.IsNullOrEmpty(desk.SurvivalLine);
-    _survival.Foreground = desk.SurvivalLine.Contains("WIN", StringComparison.Ordinal)
+    _voyage.Text = string.IsNullOrEmpty(bridge.EscrowClockLine) || !bridge.Underway
+      ? bridge.VoyageLine
+      : $"{bridge.VoyageLine}\n{bridge.EscrowClockLine}";
+    _decision.Text = bridge.DecisionLine;
+    _coach.Text = bridge.CoachLine;
+    _coachChrome.IsVisible = !string.IsNullOrEmpty(bridge.CoachLine);
+    _survival.Text = bridge.SurvivalLine;
+    _survival.IsVisible = !string.IsNullOrEmpty(bridge.SurvivalLine);
+    _survival.Foreground = bridge.SurvivalLine.Contains("WIN", StringComparison.Ordinal)
       ? CalypsoPalette.SuccessBrush
-      : desk.SurvivalLine.Contains("LOSE", StringComparison.Ordinal)
+      : bridge.SurvivalLine.Contains("LOSE", StringComparison.Ordinal)
         ? CalypsoPalette.DangerBrush
         : CalypsoPalette.MutedBrush;
-    _softFail.Text = desk.SoftFailLine;
-    _softFail.IsVisible = !string.IsNullOrEmpty(desk.SoftFailLine);
-    _map.SetMap(desk.MapPoints, desk.MapEdges);
-    _map.SetShipMarker(desk.ShipMapX, desk.ShipMapY, desk.ShipMapVisible);
+    _softFail.Text = bridge.SoftFailLine;
+    _softFail.IsVisible = !string.IsNullOrEmpty(bridge.SoftFailLine);
+    _map.SetMap(bridge.MapPoints, bridge.MapEdges);
+    _map.SetShipMarker(bridge.ShipMapX, bridge.ShipMapY, bridge.ShipMapVisible);
     ApplyRouteHighlight();
 
-    _spot.ItemsSource = desk.BerthOffers
+    _spot.ItemsSource = bridge.BerthOffers
       .Select((o, i) =>
       {
         var badge = o.Kind switch
@@ -915,10 +915,10 @@ internal sealed class MainWindow : Window
 
     if (_boardFilterRow is not null)
     {
-      _boardFilterRow.IsVisible = desk.MeshBoardUnlocked;
+      _boardFilterRow.IsVisible = bridge.MeshBoardUnlocked;
     }
 
-    if (desk.MeshBoardUnlocked)
+    if (bridge.MeshBoardUnlocked)
     {
       var wantDock = _session.Player.DockBoardOnly;
       var idx = wantDock ? 1 : 0;
@@ -936,8 +936,8 @@ internal sealed class MainWindow : Window
       }
     }
 
-    // Early desk: voyage over ops — keep papers collapsed until payday.
-    if (!desk.MeshBoardUnlocked)
+    // Early game: voyage over ops — keep papers collapsed until payday.
+    if (!bridge.MeshBoardUnlocked)
     {
       _opsExpander.IsExpanded = false;
       _papersExpander.IsExpanded = false;
@@ -949,7 +949,7 @@ internal sealed class MainWindow : Window
       _opsExpander.IsVisible = true;
       _papersExpander.IsVisible = true;
     }
-    _charters.ItemsSource = desk.Charters
+    _charters.ItemsSource = bridge.Charters
       .Select((c, i) => new CharterContractRow(
         c.Label,
         c.Kind.Equals("standby", StringComparison.OrdinalIgnoreCase)
@@ -958,56 +958,56 @@ internal sealed class MainWindow : Window
         c.CanAcceptHere,
         i))
       .ToList();
-    _market.ItemsSource = desk.MarketLots
+    _market.ItemsSource = bridge.MarketLots
       .Select(m => m.Summary)
       .ToList();
-    _manifest.ItemsSource = desk.ManifestLines.Count > 0
-      ? desk.ManifestLines
+    _manifest.ItemsSource = bridge.ManifestLines.Count > 0
+      ? bridge.ManifestLines
       : new List<string> { "(empty — accept freight/charter at this dock)" };
-    _intentStack.ItemsSource = desk.IntentStackLines.Count > 0
-      ? desk.IntentStackLines.ToList()
+    _intentStack.ItemsSource = bridge.IntentStackLines.Count > 0
+      ? bridge.IntentStackLines.ToList()
       : new List<string> { "(stack empty)" };
     _clockLine.Text =
-      $"clock {desk.AttentionLine} · speed {desk.SimSpeedScale:0.##} · {desk.PaceLine}";
-    SyncClockUi(desk);
+      $"clock {bridge.AttentionLine} · speed {bridge.SimSpeedScale:0.##} · {bridge.PaceLine}";
+    SyncClockUi(bridge);
 
-    _feed.SetLines(desk.Feed);
-    _scorecard.SetRows(desk.Scorecard, desk.ScorecardTitle);
-    _ledgers.SetPair("Calypso", desk.CashLine, "Ops",
-      desk.MoneyRows.FirstOrDefault(r => r.Key == "Ops liquid")?.Value ?? "—",
+    _feed.SetLines(bridge.Feed);
+    _scorecard.SetRows(bridge.Scorecard, bridge.ScorecardTitle);
+    _ledgers.SetPair("Calypso", bridge.CashLine, "Ops",
+      bridge.MoneyRows.FirstOrDefault(r => r.Key == "Ops liquid")?.Value ?? "—",
       "Never summed with Core");
-    _registry.SetRows(desk.RegistryRows);
-    _money.SetRows(desk.MoneyRows);
-    _agents.SetRows(desk.AgentRows);
+    _registry.SetRows(bridge.RegistryRows);
+    _money.SetRows(bridge.MoneyRows);
+    _agents.SetRows(bridge.AgentRows);
 
-    _btnRefuseStandby.IsEnabled = desk.StandbyOffer;
-    _btnAcceptStandby.IsEnabled = desk.StandbyOffer;
+    _btnRefuseStandby.IsEnabled = bridge.StandbyOffer;
+    _btnAcceptStandby.IsEnabled = bridge.StandbyOffer;
     // Keep Travel armed at a remote berth; never leave the box on the current system.
     var travelBox = _travelSystem.Text?.Trim();
-    var arm = desk.TravelTargetSystemId ?? desk.SuggestedTravelSystemId;
+    var arm = bridge.TravelTargetSystemId ?? bridge.SuggestedTravelSystemId;
     if (!string.IsNullOrEmpty(arm)
         && (string.IsNullOrEmpty(travelBox)
-            || travelBox.Equals(desk.CurrentSystemId, StringComparison.OrdinalIgnoreCase)))
+            || travelBox.Equals(bridge.CurrentSystemId, StringComparison.OrdinalIgnoreCase)))
     {
       _travelSystem.Text = arm;
     }
 
     UpdateTravelEnabled();
     UpdateAcceptButtons();
-    _btnMarketBuy.IsEnabled = desk.DockedIdle;
-    _btnMarketSell.IsEnabled = desk.DockedIdle;
-    _btnDepart.IsEnabled = desk.DockedIdle && desk.ManifestUsed > 0m;
+    _btnMarketBuy.IsEnabled = bridge.DockedIdle;
+    _btnMarketSell.IsEnabled = bridge.DockedIdle;
+    _btnDepart.IsEnabled = bridge.DockedIdle && bridge.ManifestUsed > 0m;
 
-    FireDeskCeremonies(desk);
+    FireCaptainCeremonies(bridge);
 
-    if (_session.IsWaitingForCaptain && !desk.Complete)
+    if (_session.IsWaitingForCaptain && !bridge.Complete)
     {
       _feedback.ClearBusy();
-      _feedback.SetStatus($"Day {desk.Day} — {desk.VoyageLine}");
+      _feedback.SetStatus($"Day {bridge.Day} — {bridge.VoyageLine}");
     }
   }
 
-  bool DeskMatchesBoardFilter(CaptainDeskModel desk)
+  bool CaptainMatchesBoardFilter(CaptainBridgeModel bridge)
   {
     if (_session is null)
     {
@@ -1015,40 +1015,40 @@ internal sealed class MainWindow : Window
     }
 
     var wantDock = _session.Player.DockBoardOnly;
-    var showsDock = desk.SubtitleLine.Contains("intel dock", StringComparison.Ordinal);
+    var showsDock = bridge.SubtitleLine.Contains("intel dock", StringComparison.Ordinal);
     return wantDock == showsDock;
   }
 
-  void FireDeskCeremonies(CaptainDeskModel desk)
+  void FireCaptainCeremonies(CaptainBridgeModel bridge)
   {
     if (_session is null)
     {
       return;
     }
 
-    var cash = ParseDeskCash(desk.CashLine);
+    var cash = ParseCaptainCash(bridge.CashLine);
     var grounded = _session.Player.SoftFailGroundedDays;
 
     // First paint: seed priors so load/save doesn't fake payday / unlock juice.
     if (_priorCash < 0m)
     {
       _priorCash = cash;
-      _priorMeshUnlocked = desk.MeshBoardUnlocked;
-      _priorSoftFail = desk.SoftFail;
+      _priorMeshUnlocked = bridge.MeshBoardUnlocked;
+      _priorSoftFail = bridge.SoftFail;
       _priorGroundedDays = grounded;
-      _softFailStickyFlashed = desk.SoftFail;
-      _priorReputation = desk.ReputationScore;
-      _lowRunwayWarned = desk.RunwayDays < 5m;
+      _softFailStickyFlashed = bridge.SoftFail;
+      _priorReputation = bridge.ReputationScore;
+      _lowRunwayWarned = bridge.RunwayDays < 5m;
       return;
     }
 
     // Cap+ bleed: low runway warning (once until recovered).
-    if (desk.RunwayDays < 5m && desk.RunwayDays < 900m && !_lowRunwayWarned)
+    if (bridge.RunwayDays < 5m && bridge.RunwayDays < 900m && !_lowRunwayWarned)
     {
       _lowRunwayWarned = true;
-      FlashErr($"Runway thin — ~{desk.RunwayDays:0.#}d @ {desk.DailyPremium:0.#}/d · haul or settle");
+      FlashErr($"Runway thin — ~{bridge.RunwayDays:0.#}d @ {bridge.DailyPremium:0.#}/d · haul or settle");
     }
-    else if (desk.RunwayDays >= 8m)
+    else if (bridge.RunwayDays >= 8m)
     {
       _lowRunwayWarned = false;
     }
@@ -1058,57 +1058,57 @@ internal sealed class MainWindow : Window
     {
       var delta = cash - _priorCash;
       _session.Fun.NoteEscrowRelease();
-      FlashOk($"CCA payday +{delta:0} · cash {cash:0} · {desk.RunwayLine}");
+      FlashOk($"CCA payday +{delta:0} · cash {cash:0} · {bridge.RunwayLine}");
     }
 
     // Mesh unlock ceremony (first escrow payday unlocks digests).
-    if (!_priorMeshUnlocked && desk.MeshBoardUnlocked)
+    if (!_priorMeshUnlocked && bridge.MeshBoardUnlocked)
     {
       _session.Fun.NoteMeshUnlock();
       FlashOk("Mesh digests unlocked — Filter: Mesh / Dock");
     }
 
     // TTD station-rating analogue: reputation lift (known-responsive / deliveries).
-    if (_priorReputation >= 0m && desk.ReputationScore >= _priorReputation + 6m)
+    if (_priorReputation >= 0m && bridge.ReputationScore >= _priorReputation + 6m)
     {
       _session.Fun.NoteReputationLift();
-      FlashOk($"Reputation {desk.ReputationScore:0} — board margins ease (known-responsive)");
+      FlashOk($"Reputation {bridge.ReputationScore:0} — board margins ease (known-responsive)");
     }
 
     // SoftFail near-miss (5–6d grounded).
-    if (grounded is 5 or 6 && grounded != _priorGroundedDays && !desk.SoftFail)
+    if (grounded is 5 or 6 && grounded != _priorGroundedDays && !bridge.SoftFail)
     {
       _session.Fun.NoteSoftFailNearMiss();
       FlashErr($"Near SoftFail — {7 - grounded}d left · settle premium / overhaul");
     }
 
     // SoftFail raised once.
-    if (desk.SoftFail && !_priorSoftFail)
+    if (bridge.SoftFail && !_priorSoftFail)
     {
       _session.Fun.NoteSoftFailRaised();
-      FlashErr(desk.SoftFailLine);
+      FlashErr(bridge.SoftFailLine);
       _softFailStickyFlashed = true;
     }
-    else if (!desk.SoftFail && _priorSoftFail)
+    else if (!bridge.SoftFail && _priorSoftFail)
     {
       _session.Fun.NoteSoftFailRecovery();
       FlashOk("Standing open again — operable");
       _softFailStickyFlashed = false;
     }
-    else if (desk.SoftFail && !_softFailStickyFlashed)
+    else if (bridge.SoftFail && !_softFailStickyFlashed)
     {
-      FlashErr(desk.SoftFailLine);
+      FlashErr(bridge.SoftFailLine);
       _softFailStickyFlashed = true;
     }
 
     _priorCash = cash;
-    _priorMeshUnlocked = desk.MeshBoardUnlocked;
-    _priorSoftFail = desk.SoftFail;
+    _priorMeshUnlocked = bridge.MeshBoardUnlocked;
+    _priorSoftFail = bridge.SoftFail;
     _priorGroundedDays = grounded;
-    _priorReputation = desk.ReputationScore;
+    _priorReputation = bridge.ReputationScore;
   }
 
-  void ResetDeskCeremonyState()
+  void ResetCaptainCeremonyState()
   {
     _priorCash = -1m;
     _priorMeshUnlocked = false;
@@ -1119,7 +1119,7 @@ internal sealed class MainWindow : Window
     _lowRunwayWarned = false;
   }
 
-  static decimal ParseDeskCash(string cashLine)
+  static decimal ParseCaptainCash(string cashLine)
   {
     var normalized = cashLine.Replace(',', '.');
     return decimal.TryParse(
@@ -1133,13 +1133,13 @@ internal sealed class MainWindow : Window
 
   void AcceptSelectedSpot()
   {
-    if (_desk is null || _spot.SelectedIndex < 0 || _spot.SelectedIndex >= _desk.BerthOffers.Count)
+    if (_bridge is null || _spot.SelectedIndex < 0 || _spot.SelectedIndex >= _bridge.BerthOffers.Count)
     {
       FlashOk("Select a berth bet");
       return;
     }
 
-    var offer = _desk.BerthOffers[_spot.SelectedIndex];
+    var offer = _bridge.BerthOffers[_spot.SelectedIndex];
     if (offer.Kind == BerthOfferKind.Wait)
     {
       Enqueue(new PlayerOrder(PlayerOrderKind.Wait));
@@ -1147,13 +1147,13 @@ internal sealed class MainWindow : Window
       return;
     }
 
-    if (offer.Spot is null || offer.SpotIndex < 0 || offer.SpotIndex >= _desk.SpotJobs.Count)
+    if (offer.Spot is null || offer.SpotIndex < 0 || offer.SpotIndex >= _bridge.SpotJobs.Count)
     {
       FlashOk("Offer has no freight");
       return;
     }
 
-    var job = _desk.SpotJobs[offer.SpotIndex];
+    var job = _bridge.SpotJobs[offer.SpotIndex];
     if (!job.AtOrigin || offer.Kind == BerthOfferKind.Rumor)
     {
       _travelSystem.Text = job.OriginSystemId;
@@ -1167,20 +1167,20 @@ internal sealed class MainWindow : Window
       return;
     }
 
-    DeskExec(new AgentCommand { ActionId = AgentActionIds.AcceptSpot }
+    BridgeExec(new AgentCommand { ActionId = AgentActionIds.AcceptSpot }
       .With(AgentCommandKeys.Index, offer.SpotIndex));
   }
 
   void UpdateAcceptButtons()
   {
-    var docked = _desk is { DockedIdle: true };
-    var deskMeshUnlocked = _desk?.MeshBoardUnlocked == true;
+    var docked = _bridge is { DockedIdle: true };
+    var meshBoardUnlocked = _bridge?.MeshBoardUnlocked == true;
     BerthOffer? offer = null;
-    if (_desk is not null
+    if (_bridge is not null
         && _spot.SelectedIndex >= 0
-        && _spot.SelectedIndex < _desk.BerthOffers.Count)
+        && _spot.SelectedIndex < _bridge.BerthOffers.Count)
     {
-      offer = _desk.BerthOffers[_spot.SelectedIndex];
+      offer = _bridge.BerthOffers[_spot.SelectedIndex];
     }
 
     if (offer is { Kind: BerthOfferKind.Local })
@@ -1188,9 +1188,9 @@ internal sealed class MainWindow : Window
       _btnAcceptSpot.Content = "Accept at dock";
       _btnAcceptSpot.IsEnabled = docked;
       // SoASE focal CTA: berth Accept is primary; Travel demoted until Mesh unlock.
-      _btnTravel.Opacity = deskMeshUnlocked ? 0.85 : 0.35;
+      _btnTravel.Opacity = meshBoardUnlocked ? 0.85 : 0.35;
       _btnTravel.IsVisible = true;
-      _travelSystem.Opacity = deskMeshUnlocked ? 1 : 0.4;
+      _travelSystem.Opacity = meshBoardUnlocked ? 1 : 0.4;
     }
     else if (offer is { Kind: BerthOfferKind.Rumor })
     {
@@ -1203,9 +1203,9 @@ internal sealed class MainWindow : Window
     {
       _btnAcceptSpot.Content = "Wait";
       _btnAcceptSpot.IsEnabled = docked;
-      _btnTravel.Opacity = deskMeshUnlocked ? 1 : 0.55;
+      _btnTravel.Opacity = meshBoardUnlocked ? 1 : 0.55;
       _btnTravel.IsVisible = true;
-      _travelSystem.Opacity = deskMeshUnlocked ? 1 : 0.55;
+      _travelSystem.Opacity = meshBoardUnlocked ? 1 : 0.55;
     }
     else
     {
@@ -1217,11 +1217,11 @@ internal sealed class MainWindow : Window
     }
 
     var charterOk = false;
-    if (docked && _desk is not null
+    if (docked && _bridge is not null
         && _charters.SelectedIndex >= 0
-        && _charters.SelectedIndex < _desk.Charters.Count)
+        && _charters.SelectedIndex < _bridge.Charters.Count)
     {
-      charterOk = _desk.Charters[_charters.SelectedIndex].CanAcceptHere;
+      charterOk = _bridge.Charters[_charters.SelectedIndex].CanAcceptHere;
     }
 
     _btnAcceptCharter.IsEnabled = charterOk;
@@ -1230,8 +1230,8 @@ internal sealed class MainWindow : Window
   void UpdateTravelEnabled()
   {
     var dest = ResolveTravelDest();
-    var here = _desk?.CurrentSystemId;
-    var can = _desk is { DockedIdle: true }
+    var here = _bridge?.CurrentSystemId;
+    var can = _bridge is { DockedIdle: true }
               && !string.IsNullOrEmpty(dest)
               && !dest.Equals(here, StringComparison.OrdinalIgnoreCase);
     _btnTravel.IsEnabled = can;
@@ -1241,7 +1241,7 @@ internal sealed class MainWindow : Window
   string? ResolveTravelDest()
   {
     var typed = _travelSystem.Text?.Trim();
-    var here = _desk?.CurrentSystemId;
+    var here = _bridge?.CurrentSystemId;
     if (!string.IsNullOrEmpty(typed)
         && !typed.Equals(here, StringComparison.OrdinalIgnoreCase))
     {
@@ -1254,21 +1254,21 @@ internal sealed class MainWindow : Window
       return _mapSelection;
     }
 
-    return _desk?.TravelTargetSystemId ?? _desk?.SuggestedTravelSystemId;
+    return _bridge?.TravelTargetSystemId ?? _bridge?.SuggestedTravelSystemId;
   }
 
   void TravelToSelection()
   {
     var dest = ResolveTravelDest();
-    if (_session is null || _deskService is null || string.IsNullOrEmpty(dest))
+    if (_session is null || _bridgeService is null || string.IsNullOrEmpty(dest))
     {
       FlashOk("Select a system on the map or type a system id");
       return;
     }
 
-    if (dest.Equals(_desk?.CurrentSystemId, StringComparison.OrdinalIgnoreCase))
+    if (dest.Equals(_bridge?.CurrentSystemId, StringComparison.OrdinalIgnoreCase))
     {
-      dest = _desk?.SuggestedTravelSystemId;
+      dest = _bridge?.SuggestedTravelSystemId;
       if (string.IsNullOrEmpty(dest))
       {
         FlashOk("Already here — pick another system (or wait for mesh freight)");
@@ -1280,13 +1280,13 @@ internal sealed class MainWindow : Window
     }
 
     _pendingTravelDest = dest;
-    _pendingTravelOrigin = _desk?.CurrentSystemId;
-    _routeOrigin = _desk?.CurrentSystemId;
+    _pendingTravelOrigin = _bridge?.CurrentSystemId;
+    _routeOrigin = _bridge?.CurrentSystemId;
     _routeDest = dest;
     _routePathWarned = false;
     ApplyRouteHighlight();
 
-    var result = _deskService.Execute(new AgentCommand { ActionId = AgentActionIds.Travel }
+    var result = _bridgeService.Execute(new AgentCommand { ActionId = AgentActionIds.Travel }
       .With(AgentCommandKeys.DestSystemId, dest));
 
     // Busy only when hull can't act (underway / grounded), not when pulse is slow.
@@ -1302,26 +1302,26 @@ internal sealed class MainWindow : Window
         ApplyRouteHighlight();
       }
 
-      RefreshDesk();
+      RefreshCaptain();
       return;
     }
 
     FlashOk(result.Message);
-    RefreshDesk();
+    RefreshCaptain();
   }
 
   void NotifyTravelOutcome()
   {
-    if (_session is null || string.IsNullOrEmpty(_pendingTravelDest) || _desk is null)
+    if (_session is null || string.IsNullOrEmpty(_pendingTravelDest) || _bridge is null)
     {
       return;
     }
 
     var last = _session.Player.LastAction;
-    var stillAtOrigin = _desk.DockedIdle
+    var stillAtOrigin = _bridge.DockedIdle
                         && !string.IsNullOrEmpty(_pendingTravelOrigin)
-                        && _desk.CurrentSystemId.Equals(_pendingTravelOrigin, StringComparison.OrdinalIgnoreCase)
-                        && !_desk.Underway;
+                        && _bridge.CurrentSystemId.Equals(_pendingTravelOrigin, StringComparison.OrdinalIgnoreCase)
+                        && !_bridge.Underway;
 
     if (last is { ActionId: "travel", Ok: false })
     {
@@ -1346,7 +1346,7 @@ internal sealed class MainWindow : Window
     if (stillAtOrigin && last is null or { ActionId: "travel", Ok: true })
     {
       // Order may not have settled yet, or silent stall — surface decision text.
-      var line = _desk.DecisionLine;
+      var line = _bridge.DecisionLine;
       if (line.Contains("failed", StringComparison.OrdinalIgnoreCase)
           || line.Contains("no route", StringComparison.OrdinalIgnoreCase)
           || line.Contains("unknown", StringComparison.OrdinalIgnoreCase)
@@ -1361,9 +1361,9 @@ internal sealed class MainWindow : Window
       }
     }
 
-    if (_desk.Underway || _desk.VoyageLine.Contains("REPOSITION", StringComparison.Ordinal)
-        || _desk.DecisionLine.Contains("awaiting departure", StringComparison.OrdinalIgnoreCase)
-        || _desk.DecisionLine.Contains("bunkering", StringComparison.OrdinalIgnoreCase))
+    if (_bridge.Underway || _bridge.VoyageLine.Contains("REPOSITION", StringComparison.Ordinal)
+        || _bridge.DecisionLine.Contains("awaiting departure", StringComparison.OrdinalIgnoreCase)
+        || _bridge.DecisionLine.Contains("bunkering", StringComparison.OrdinalIgnoreCase))
     {
       _pendingTravelDest = null;
       _pendingTravelOrigin = null;
@@ -1372,27 +1372,27 @@ internal sealed class MainWindow : Window
 
   void AcceptSelectedCharter()
   {
-    if (_desk is null || _charters.SelectedIndex < 0
-        || _charters.SelectedIndex >= _desk.Charters.Count)
+    if (_bridge is null || _charters.SelectedIndex < 0
+        || _charters.SelectedIndex >= _bridge.Charters.Count)
     {
       FlashOk("Select a goods charter");
       return;
     }
 
-    DeskExec(new AgentCommand { ActionId = AgentActionIds.AcceptCharter }
+    BridgeExec(new AgentCommand { ActionId = AgentActionIds.AcceptCharter }
       .With(AgentCommandKeys.Index, _charters.SelectedIndex));
   }
 
   void TradeSelectedMarket(bool buy)
   {
-    if (_desk is null || _market.SelectedIndex < 0
-        || _market.SelectedIndex >= _desk.MarketLots.Count)
+    if (_bridge is null || _market.SelectedIndex < 0
+        || _market.SelectedIndex >= _bridge.MarketLots.Count)
     {
       FlashOk("Select a market lot");
       return;
     }
 
-    DeskExec(new AgentCommand
+    BridgeExec(new AgentCommand
       {
         ActionId = buy ? AgentActionIds.MarketBuy : AgentActionIds.MarketSell,
       }
@@ -1401,12 +1401,12 @@ internal sealed class MainWindow : Window
 
   void HighlightSelectedSpotRoute()
   {
-    if (_desk is null || _spot.SelectedIndex < 0 || _spot.SelectedIndex >= _desk.BerthOffers.Count)
+    if (_bridge is null || _spot.SelectedIndex < 0 || _spot.SelectedIndex >= _bridge.BerthOffers.Count)
     {
       return;
     }
 
-    var offer = _desk.BerthOffers[_spot.SelectedIndex];
+    var offer = _bridge.BerthOffers[_spot.SelectedIndex];
     if (offer.Spot is null)
     {
       return;
@@ -1433,12 +1433,12 @@ internal sealed class MainWindow : Window
 
   void HighlightSelectedCharterRoute()
   {
-    if (_desk is null || _charters.SelectedIndex < 0 || _charters.SelectedIndex >= _desk.Charters.Count)
+    if (_bridge is null || _charters.SelectedIndex < 0 || _charters.SelectedIndex >= _bridge.Charters.Count)
     {
       return;
     }
 
-    var c = _desk.Charters[_charters.SelectedIndex];
+    var c = _bridge.Charters[_charters.SelectedIndex];
     if (string.IsNullOrEmpty(c.OriginSystemId) || string.IsNullOrEmpty(c.DestSystemId))
     {
       return;
@@ -1452,23 +1452,23 @@ internal sealed class MainWindow : Window
 
   void ApplyRouteHighlight()
   {
-    if (_session is null || _desk is null)
+    if (_session is null || _bridge is null)
     {
       _map.SetRoute(null);
       return;
     }
 
     var parts = new List<IReadOnlyList<StarMapEdge>>();
-    if (_desk.UnderwayRoute.Count > 0)
+    if (_bridge.UnderwayRoute.Count > 0)
     {
-      parts.Add(_desk.UnderwayRoute);
+      parts.Add(_bridge.UnderwayRoute);
     }
 
     var travel = ResolveTravelDest();
     if (!string.IsNullOrEmpty(travel)
-        && !travel.Equals(_desk.CurrentSystemId, StringComparison.OrdinalIgnoreCase))
+        && !travel.Equals(_bridge.CurrentSystemId, StringComparison.OrdinalIgnoreCase))
     {
-      var planned = RouteHighlight.BetweenSystems(_session.Ids, _desk.CurrentSystemId, travel);
+      var planned = RouteHighlight.BetweenSystems(_session.Ids, _bridge.CurrentSystemId, travel);
       if (planned.Count == 0)
       {
         if (!_routePathWarned)
@@ -1485,7 +1485,7 @@ internal sealed class MainWindow : Window
     }
 
     if (!string.IsNullOrEmpty(_routeOrigin) && !string.IsNullOrEmpty(_routeDest)
-        && !_routeDest.Equals(_desk.CurrentSystemId, StringComparison.OrdinalIgnoreCase))
+        && !_routeDest.Equals(_bridge.CurrentSystemId, StringComparison.OrdinalIgnoreCase))
     {
       var committed = RouteHighlight.BetweenSystems(_session.Ids, _routeOrigin, _routeDest);
       if (committed.Count == 0)
@@ -1509,7 +1509,7 @@ internal sealed class MainWindow : Window
 
   void Enqueue(PlayerOrder order)
   {
-    if (_deskService is null) return;
+    if (_bridgeService is null) return;
     var actionId = order.Kind switch
     {
       PlayerOrderKind.Wait => AgentActionIds.Wait,
@@ -1520,40 +1520,40 @@ internal sealed class MainWindow : Window
       PlayerOrderKind.DepartManifest => AgentActionIds.Depart,
       _ => order.Kind.ToString(),
     };
-    DeskExec(new AgentCommand { ActionId = actionId }.With(AgentCommandKeys.Sku, order.SkuLabel));
+    BridgeExec(new AgentCommand { ActionId = actionId }.With(AgentCommandKeys.Sku, order.SkuLabel));
   }
 
-  void DeskExec(AgentCommand command)
+  void BridgeExec(AgentCommand command)
   {
-    if (_deskService is null) return;
-    var result = _deskService.Execute(command);
+    if (_bridgeService is null) return;
+    var result = _bridgeService.Execute(command);
     if (result.Ok)
       FlashOk(result.Message);
     else
       FlashErr(result.Message);
-    RefreshDesk();
+    RefreshCaptain();
   }
 
   void ApplyClockFromUi()
   {
-    if (_syncingClock || _session is null || _deskService is null) return;
+    if (_syncingClock || _session is null || _bridgeService is null) return;
     var attention = _attention.SelectedIndex switch
     {
       1 => "softSlow",
       2 => "hardPause",
       _ => "runAlways",
     };
-    DeskExec(new AgentCommand { ActionId = AgentActionIds.SetClock }
+    BridgeExec(new AgentCommand { ActionId = AgentActionIds.SetClock }
       .With(AgentCommandKeys.Attention, attention)
       .With(AgentCommandKeys.Speed, _speed.Value));
   }
 
-  void SyncClockUi(CaptainDeskModel desk)
+  void SyncClockUi(CaptainBridgeModel bridge)
   {
     _syncingClock = true;
     try
     {
-      var idx = desk.AttentionLine switch
+      var idx = bridge.AttentionLine switch
       {
         "softSlow" => 1,
         "hardPause" => 2,
@@ -1564,12 +1564,12 @@ internal sealed class MainWindow : Window
         _attention.SelectedIndex = idx;
       }
 
-      if (Math.Abs(_speed.Value - desk.SimSpeedScale) > 0.001)
+      if (Math.Abs(_speed.Value - bridge.SimSpeedScale) > 0.001)
       {
-        _speed.Value = desk.SimSpeedScale;
+        _speed.Value = bridge.SimSpeedScale;
       }
 
-      _speedLabel.Text = SpeedLabel(desk.SimSpeedScale);
+      _speedLabel.Text = SpeedLabel(bridge.SimSpeedScale);
     }
     finally
     {
@@ -1606,13 +1606,13 @@ internal sealed class MainWindow : Window
   void OnStarSelected(string id)
   {
     _mapSelection = id;
-    var here = _desk?.CurrentSystemId;
+    var here = _bridge?.CurrentSystemId;
     var atHere = !string.IsNullOrEmpty(here)
                  && id.Equals(here, StringComparison.OrdinalIgnoreCase);
     if (atHere)
     {
       // Don't arm Travel on self — that soft-locks barren docks with "already at dock".
-      var escape = _desk?.SuggestedTravelSystemId ?? _desk?.TravelTargetSystemId;
+      var escape = _bridge?.SuggestedTravelSystemId ?? _bridge?.TravelTargetSystemId;
       if (!string.IsNullOrEmpty(escape)
           && !escape.Equals(here, StringComparison.OrdinalIgnoreCase))
       {
@@ -1634,13 +1634,13 @@ internal sealed class MainWindow : Window
       _travelSystem.Text = id;
     }
 
-    if (_desk?.HubDetails.TryGetValue(id, out var hub) == true)
+    if (_bridge?.HubDetails.TryGetValue(id, out var hub) == true)
     {
       _hubDetail.Text = atHere
         ? $"{hub.Name} · HERE (docked)\n{hub.ProfileHint}"
-          + (string.IsNullOrEmpty(_desk.SuggestedTravelSystemId)
+          + (string.IsNullOrEmpty(_bridge.SuggestedTravelSystemId)
             ? ""
-            : $"\n→ NEXT empty steam: {_desk.SuggestedTravelSystemId}")
+            : $"\n→ NEXT empty steam: {_bridge.SuggestedTravelSystemId}")
         : $"{hub.Name} · {hub.Role}\n{hub.ProfileHint}\n→ Travel here when idle";
       _hubDetail.Foreground = CalypsoPalette.BodyBrush;
     }

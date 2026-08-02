@@ -6,7 +6,7 @@ namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
 /// Fixed-size berth observation + discrete action heads for <see cref="NeuralSurvivalCaptain"/>.
-/// Mirrors NeuralRacing's sensor→control split, but for tramp desk verbs.
+/// Mirrors NeuralRacing's sensor→control split, but for tramp bridge verbs.
 /// </summary>
 internal static class NeuralCaptainCodec
 {

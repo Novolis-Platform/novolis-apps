@@ -10,16 +10,23 @@
     <Project Path="src/CadStudio3D/CadStudio3D.csproj" />
     <Project Path="src/SketchStudio/SketchStudio.csproj" />
     <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
+    <Project Path="src/CapitalistSimulator/CapitalistSimulator.csproj" />
   </Folder>
   <Folder Name="/src/BooksMobile/">
     <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
     <Project Path="src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj" />
     <!-- Android needs the android workload; build that project directly on Windows/macOS. -->
   </Folder>
+  <Folder Name="/src/SpaceFleetSurveyTeam/">
+    <Project Path="src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.csproj" />
+    <Project Path="src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.Desktop/SpaceFleetSurveyTeam.Desktop.csproj" />
+    <!-- Android needs the android workload; build that project directly on Windows/macOS. -->
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
     <Project Path="tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
+    <Project Path="tests/CapitalistSimulator.Unit/CapitalistSimulator.Unit.csproj" />
   </Folder>
   <Folder Name="/src/LiveStudio/">
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />

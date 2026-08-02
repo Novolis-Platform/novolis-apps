@@ -34,8 +34,8 @@ public sealed class NeuralTrampAutopilotTests
 
     await session.AdvanceHoursAsync(3L * 24, quiet: true);
     await Assert.That(session.Player.NeuralBrain).IsNotNull();
-    var desk = session.CaptureDesk();
-    await Assert.That(desk.CashLine.Length).IsGreaterThan(0);
+    var bridge = session.CaptureBridge();
+    await Assert.That(bridge.CashLine.Length).IsGreaterThan(0);
   }
 
   [Test]

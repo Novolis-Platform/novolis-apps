@@ -29,7 +29,7 @@ public sealed class CampaignSaveIntegrityTests
       var loaded = await CampaignRunner.LiveSession.FromSaveAsync(save);
       await Assert.That(loaded.HoursDone).IsEqualTo(save.HoursDone);
       await Assert.That(loaded.RequestedHours).IsEqualTo(save.HorizonHours);
-      await Assert.That(loaded.LastDesk).IsNotNull();
+      await Assert.That(loaded.LastBridge).IsNotNull();
     }
     finally
     {

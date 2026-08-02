@@ -2,7 +2,7 @@
 
 Out of scope for the campaign-universe v1 plan:
 
-- Live Spectre dashboard pulse loop / mid-tick StarMap fleet animation (Avalonia **captain desk** is shipped)
+- Live Spectre dashboard pulse loop / mid-tick StarMap fleet animation (Avalonia **captain bridge** is shipped)
 - Shared campaign library extracted from NearSol dogfood + Sins (full runner/bridge);
   **partial:** hull risk quotes, tape gate pricing, and system role assignment already live in
   Logistics / Markets / Assessment — see [architecture.md](architecture.md)
@@ -22,7 +22,7 @@ Registry, insurance, FTL profiles, drive life/overhaul, mega bulk lane — plus 
 **commerce teeth**: reputation → MinMargin, Opportunities ugly-standby pool, escrow 5%/10%,
 port tiers, jump-band refuse, hull liens, tramp biographies.
 Hull quote math / tape gate / `RoleAssigner` promoted into Logistics, Markets, and Assessment.
-**Playable captain desk:** ST Calypso / James Simmons player agency, order queue, pause/step days.
+**Playable captain bridge:** ST Calypso / James Simmons player agency, order queue, pause/step days.
 See [ship-law-and-transit.md](ship-law-and-transit.md), [commerce-stack.md](commerce-stack.md),
 and [gameplay.md](gameplay.md).
 

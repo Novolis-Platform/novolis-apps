@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>CapitalistSimulator</RootNamespace>
+    <AssemblyName>CapitalistSimulator</AssemblyName>
+    <ApplicationTitle>Capitalist Simulator</ApplicationTitle>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <Description>Capitalism 2 homage — firm/unit supply-chain firm sim (Avalonia + headless).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CapitalistSimulator.Unit" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" />
+    <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="Novolis.Avalonia.Briefing" />
+    <PackageReference Include="Novolis.Avalonia.Controls" />
+    <PackageReference Include="Novolis.Avalonia.Studio" />
+    <PackageReference Include="Novolis.Storage.Abstractions" />
+    <PackageReference Include="Novolis.Storage.Json" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Data\*.json" />
+  </ItemGroup>
+</Project>

@@ -127,10 +127,10 @@ internal static class CampaignWorld
     public required VehicleClass Hull { get; init; }
     public required VehicleClassId MegaHullId { get; init; }
     public required VehicleClass MegaHull { get; init; }
-    public required CampaignRegistryDesk Desk { get; init; }
+    public required CampaignRegistryBooks Books { get; init; }
 
-    /// <summary>Ship registry door (alias of <see cref="Desk"/>.Ships).</summary>
-    public ShipRegistry Registry => Desk.Ships;
+    /// <summary>Ship registry door (alias of <see cref="Books"/>.Ships).</summary>
+    public ShipRegistry Registry => Books.Ships;
 
     public ReputationLedger Reputation { get; set; } = new();
     public EscrowBook Escrow { get; set; } = new();
@@ -444,34 +444,34 @@ internal static class CampaignWorld
 
     builder.SetOwnership(industry, station, 0.35m);
 
-    var desk = new CampaignRegistryDesk();
-    desk.Ships.Underwriter = station;
-    desk.Ships.Register(ShipRegistryEntry.Create(
+    var books = new CampaignRegistryBooks();
+    books.Ships.Underwriter = station;
+    books.Ships.Register(ShipRegistryEntry.Create(
       carrier, PlayerHullName, "LightCommercial", ownerMaster: true, lienPrincipal: PlayerRestorationLien));
     for (var i = 1; i < carriers.Length; i++)
     {
-      desk.Ships.Register(ShipRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1}", "LightCommercial"));
+      books.Ships.Register(ShipRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1}", "LightCommercial"));
     }
 
-    desk.Ships.Register(ShipRegistryEntry.Create(megaHauler, "MV Bulk River", "MegaHauler", ownerMaster: false));
+    books.Ships.Register(ShipRegistryEntry.Create(megaHauler, "MV Bulk River", "MegaHauler", ownerMaster: false));
 
-    desk.Firms.Register(FirmRegistryEntry.Create(mining, "Sins Mining"));
-    desk.Firms.Register(FirmRegistryEntry.Create(industry, "Sins Industry"));
-    desk.Firms.Register(FirmRegistryEntry.Create(station, "Sins Station"));
+    books.Firms.Register(FirmRegistryEntry.Create(mining, "Sins Mining"));
+    books.Firms.Register(FirmRegistryEntry.Create(industry, "Sins Industry"));
+    books.Firms.Register(FirmRegistryEntry.Create(station, "Sins Station"));
     var playerFirm = FirmRegistryEntry.Create(carrier, PlayerFirmName);
     playerFirm.LienPrincipal = PlayerRestorationLien;
-    desk.Firms.Register(playerFirm);
+    books.Firms.Register(playerFirm);
     for (var i = 1; i < carriers.Length; i++)
     {
-      desk.Firms.Register(FirmRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1} Co."));
+      books.Firms.Register(FirmRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1} Co."));
     }
 
-    desk.Firms.Register(FirmRegistryEntry.Create(megaHauler, "Bulk River Lines"));
+    books.Firms.Register(FirmRegistryEntry.Create(megaHauler, "Bulk River Lines"));
 
     // Commercial Priority endorsement per light hull (door for dense sprints later).
-    foreach (var ship in desk.Ships.Entries.Where(e => e.OwnerMaster))
+    foreach (var ship in books.Ships.Entries.Where(e => e.OwnerMaster))
     {
-      desk.Licenses.Register(LicenseRegistryEntry.Create(
+      books.Licenses.Register(LicenseRegistryEntry.Create(
         LicenseRegistryEntry.IdFor(ship.FirmId, "priority-freight"),
         $"{ship.RegistryName} Priority endorsement",
         scope: "priority-freight",
@@ -497,13 +497,13 @@ internal static class CampaignWorld
       Hull = hull,
       MegaHullId = megaHullId,
       MegaHull = megaHull,
-      Desk = desk,
+      Books = books,
       Bridge = bridge,
       Sites = sites,
       RoleSummary = roleSummary,
     };
 
-    ids.Mesh = SeedMesh(bridge, desk, householdSeeds, sites);
+    ids.Mesh = SeedMesh(bridge, books, householdSeeds, sites);
     var sim = new EconomySimulation(seed, builder.Build());
     SeedInventory(sim, ids);
     ApplyStoreLimits(sim, ids);
@@ -513,7 +513,7 @@ internal static class CampaignWorld
 
   private static MeshState SeedMesh(
     AstroEconomyBridge.BridgeResult bridge,
-    CampaignRegistryDesk desk,
+    CampaignRegistryBooks books,
     List<(AstroEconomyBridge.HubBinding Hub, int Households, FirmId HouseholdId)> householdSeeds,
     IReadOnlyDictionary<string, Site> sites)
   {
@@ -525,7 +525,7 @@ internal static class CampaignWorld
     mesh = MeshBridge.RegisterMailbox(mesh, calypso, sol, MeshIdentityKind.Person);
 
     // Ships
-    foreach (var ship in desk.Ships.Entries)
+    foreach (var ship in books.Ships.Entries)
     {
       var shipId = MeshIdentityIds.Ship(ship.RegistryName);
       mesh = MeshBridge.RegisterMailbox(mesh, shipId, sol, MeshIdentityKind.Ship);

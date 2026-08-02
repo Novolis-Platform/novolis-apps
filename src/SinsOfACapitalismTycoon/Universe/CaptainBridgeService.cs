@@ -5,14 +5,14 @@ using SinsOfACapitalismTycoon.Ui;
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>Single execution path for Avalonia, CLI, and agent LocalIpc / MCP.</summary>
-internal sealed class CaptainDeskService : IAgentHost
+internal sealed class CaptainBridgeService : IAgentHost
 {
   private readonly CampaignRunner.LiveSession _session;
   private readonly object _gate = new();
   private PlayerActionResult? _lastEmittedAction;
   private int _changedCoalesce;
 
-  public CaptainDeskService(CampaignRunner.LiveSession session)
+  public CaptainBridgeService(CampaignRunner.LiveSession session)
   {
     _session = session ?? throw new ArgumentNullException(nameof(session));
     _session.AwaitingDecision += OnAwaitingDecision;
@@ -27,7 +27,7 @@ internal sealed class CaptainDeskService : IAgentHost
   {
     ProtocolVersion = "1.0",
     AppId = "sins-of-a-capitalism-tycoon",
-    AppTitle = "Sins — Captain Desk · ST Calypso",
+    AppTitle = "Sins — Captain Bridge · ST Calypso",
     ProcessId = Environment.ProcessId,
     Capabilities =
     [
@@ -54,7 +54,7 @@ internal sealed class CaptainDeskService : IAgentHost
   {
     lock (_gate)
     {
-      return new() { Actions = BuildActions(_session.LastDesk ?? _session.CaptureDesk()) };
+      return new() { Actions = BuildActions(_session.LastBridge ?? _session.CaptureBridge()) };
     }
   }
 
@@ -153,7 +153,7 @@ internal sealed class CaptainDeskService : IAgentHost
 
   private AgentCommandResult ExecAcceptSpot(AgentCommand command)
   {
-    var spots = (_session.LastDesk ?? _session.CaptureDesk()).SpotJobs;
+    var spots = (_session.LastBridge ?? _session.CaptureBridge()).SpotJobs;
     var idx = command.TryGetInt(AgentCommandKeys.Index, out var parsed) ? parsed : 0;
     if (idx < 0 || idx >= spots.Count)
     {
@@ -229,7 +229,7 @@ internal sealed class CaptainDeskService : IAgentHost
     DecisionAttention? attention = null;
     var attentionRaw = command.Get(AgentCommandKeys.Attention);
     if (!string.IsNullOrWhiteSpace(attentionRaw)
-        && DeskClock.TryParseAttention(attentionRaw, out var parsed))
+        && SessionClock.TryParseAttention(attentionRaw, out var parsed))
     {
       attention = parsed;
     }
@@ -237,7 +237,7 @@ internal sealed class CaptainDeskService : IAgentHost
     double? speed = command.TryGetDouble(AgentCommandKeys.Speed, out var speedVal) ? speedVal : null;
     _session.SetClock(attention, speed);
     var msg =
-      $"clock attention={DeskClock.FormatAttention(_session.Player.Attention)} speed={_session.Player.SimSpeedScale:0.##} · {_session.PaceLine}";
+      $"clock attention={SessionClock.FormatAttention(_session.Player.Attention)} speed={_session.Player.SimSpeedScale:0.##} · {_session.PaceLine}";
     return Ok(AgentActionIds.SetClock, msg);
   }
 
@@ -348,7 +348,7 @@ internal sealed class CaptainDeskService : IAgentHost
 
   private AgentSnapshot BuildSnapshot()
   {
-    var desk = _session.LastDesk ?? _session.CaptureDesk();
+    var bridge = _session.LastBridge ?? _session.CaptureBridge();
     var pause = _session.IsComplete
       ? "Complete"
       : _session.IsWaitingForCaptain
@@ -357,38 +357,38 @@ internal sealed class CaptainDeskService : IAgentHost
 
     return new AgentSnapshot
     {
-      Day = desk.Day,
-      SeedHash = desk.HashLine,
-      HubId = desk.CurrentSystemId,
-      HubName = desk.CurrentSystemName,
+      Day = bridge.Day,
+      SeedHash = bridge.HashLine,
+      HubId = bridge.CurrentSystemId,
+      HubName = bridge.CurrentSystemName,
       PauseReason = pause,
       StatusLines = new Dictionary<string, string>(StringComparer.Ordinal)
       {
-        [AgentLineKeys.Voyage] = desk.VoyageLine,
-        [AgentLineKeys.Hull] = desk.HullLine,
-        [AgentLineKeys.Cash] = desk.CashLine,
-        [AgentLineKeys.Standing] = desk.StandingLine,
-        [AgentLineKeys.Decision] = desk.DecisionLine,
-        [AgentLineKeys.Coach] = desk.CoachLine,
-        [AgentLineKeys.SoftFail] = desk.SoftFailLine,
-        [AgentLineKeys.Survival] = desk.SurvivalLine,
-        [AgentLineKeys.Mesh] = desk.MeshLine,
-        [AgentLineKeys.Hold] = desk.HoldLine,
-        [AgentLineKeys.Pace] = desk.PaceLine,
+        [AgentLineKeys.Voyage] = bridge.VoyageLine,
+        [AgentLineKeys.Hull] = bridge.HullLine,
+        [AgentLineKeys.Cash] = bridge.CashLine,
+        [AgentLineKeys.Standing] = bridge.StandingLine,
+        [AgentLineKeys.Decision] = bridge.DecisionLine,
+        [AgentLineKeys.Coach] = bridge.CoachLine,
+        [AgentLineKeys.SoftFail] = bridge.SoftFailLine,
+        [AgentLineKeys.Survival] = bridge.SurvivalLine,
+        [AgentLineKeys.Mesh] = bridge.MeshLine,
+        [AgentLineKeys.Hold] = bridge.HoldLine,
+        [AgentLineKeys.Pace] = bridge.PaceLine,
       },
-      Underway = desk.Underway,
-      DockedIdle = desk.DockedIdle,
-      Complete = desk.Complete,
-      SoftFail = desk.SoftFail,
-      StandbyOffer = desk.StandbyOffer,
-      TravelTargetSystemId = desk.TravelTargetSystemId,
-      RouteSystemIds = desk.RouteSystemIds.ToArray(),
+      Underway = bridge.Underway,
+      DockedIdle = bridge.DockedIdle,
+      Complete = bridge.Complete,
+      SoftFail = bridge.SoftFail,
+      StandbyOffer = bridge.StandbyOffer,
+      TravelTargetSystemId = bridge.TravelTargetSystemId,
+      RouteSystemIds = bridge.RouteSystemIds.ToArray(),
       Boards =
       [
         new AgentBoard
         {
           Id = AgentBoardIds.SpotFreight,
-          Items = desk.SpotJobs.Select((j, i) => new AgentBoardItem
+          Items = bridge.SpotJobs.Select((j, i) => new AgentBoardItem
           {
             Index = i,
             Id = $"{j.OriginSystemId}->{j.DestSystemId}:{j.SkuLabel}",
@@ -396,13 +396,13 @@ internal sealed class CaptainDeskService : IAgentHost
             Detail = j.AtOrigin
               ? $"pay {j.ContractPay:0} lift {j.LiftCost:0} Δ{j.Margin:0.#} ×{j.Quantity:0}"
               : $"intel — travel {j.OriginName} · pay {j.ContractPay:0}",
-            CanAct = j.AtOrigin && desk.DockedIdle,
+            CanAct = j.AtOrigin && bridge.DockedIdle,
           }).ToArray(),
         },
         new AgentBoard
         {
           Id = AgentBoardIds.GoodsCharters,
-          Items = desk.Charters.Select((c, i) => new AgentBoardItem
+          Items = bridge.Charters.Select((c, i) => new AgentBoardItem
           {
             Index = i,
             Id = c.Kind + ":" + c.Label,
@@ -410,87 +410,87 @@ internal sealed class CaptainDeskService : IAgentHost
             Detail = c.ContractPay > 0m
               ? $"pay {c.ContractPay:0} lift {c.LiftCost:0} Δ{c.Margin:0.#} · {c.Detail}"
               : c.Detail,
-            CanAct = desk.DockedIdle && (c.CanAcceptHere
+            CanAct = bridge.DockedIdle && (c.CanAcceptHere
               || c.Kind.Equals("standby", StringComparison.OrdinalIgnoreCase)),
           }).ToArray(),
         },
         new AgentBoard
         {
           Id = AgentBoardIds.MarketLots,
-          Items = desk.MarketLots.Select((m, i) => new AgentBoardItem
+          Items = bridge.MarketLots.Select((m, i) => new AgentBoardItem
           {
             Index = i,
             Id = m.Summary,
             Label = m.Summary,
             Detail = m.IsAsk ? "ASK" : "BID",
-            CanAct = desk.DockedIdle,
+            CanAct = bridge.DockedIdle,
           }).ToArray(),
         },
       ],
-      Manifest = desk.ManifestLines.ToArray(),
-      Actions = BuildActions(desk),
-      LastAction = desk.LastAction is null
+      Manifest = bridge.ManifestLines.ToArray(),
+      Actions = BuildActions(bridge),
+      LastAction = bridge.LastAction is null
         ? null
         : new AgentLastAction
         {
-          ActionId = desk.LastAction.ActionId,
-          Ok = desk.LastAction.Ok,
-          Message = desk.LastAction.Message,
-          ErrorCode = desk.LastAction.ErrorCode,
+          ActionId = bridge.LastAction.ActionId,
+          Ok = bridge.LastAction.Ok,
+          Message = bridge.LastAction.Message,
+          ErrorCode = bridge.LastAction.ErrorCode,
         },
-      Attention = DeskClock.FormatAttention(_session.Player.Attention),
+      Attention = SessionClock.FormatAttention(_session.Player.Attention),
       SimSpeedScale = _session.Player.SimSpeedScale,
-      IntentStack = desk.IntentStackLines.ToArray(),
-      MapX = desk.ShipMapX,
-      MapY = desk.ShipMapY,
-      MapVisible = desk.ShipMapVisible,
-      GameHoursPerRealMinute = desk.GameHoursPerRealMinute,
-      SessionGameHoursPerRealMinute = desk.SessionGameHoursPerRealMinute,
+      IntentStack = bridge.IntentStackLines.ToArray(),
+      MapX = bridge.ShipMapX,
+      MapY = bridge.ShipMapY,
+      MapVisible = bridge.ShipMapVisible,
+      GameHoursPerRealMinute = bridge.GameHoursPerRealMinute,
+      SessionGameHoursPerRealMinute = bridge.SessionGameHoursPerRealMinute,
     };
   }
 
-  private static AgentAction[] BuildActions(CaptainDeskModel desk)
+  private static AgentAction[] BuildActions(CaptainBridgeModel bridge)
   {
-    var travelDest = desk.TravelTargetSystemId;
-    var canTravel = desk.DockedIdle && !string.IsNullOrEmpty(travelDest)
-                    && !travelDest.Equals(desk.CurrentSystemId, StringComparison.OrdinalIgnoreCase);
+    var travelDest = bridge.TravelTargetSystemId;
+    var canTravel = bridge.DockedIdle && !string.IsNullOrEmpty(travelDest)
+                    && !travelDest.Equals(bridge.CurrentSystemId, StringComparison.OrdinalIgnoreCase);
     return
     [
       Act(AgentActionIds.Travel, "Travel", canTravel,
-        desk.DockedIdle ? (string.IsNullOrEmpty(travelDest) ? "No destination" : "Already here") : "Hull busy"),
+        bridge.DockedIdle ? (string.IsNullOrEmpty(travelDest) ? "No destination" : "Already here") : "Hull busy"),
       Act(AgentActionIds.AcceptSpot, "Accept spot",
-        desk.DockedIdle && desk.SpotJobs.Any(j => j.AtOrigin) && desk.ManifestUsed < CampaignWorld.HullCargoCapacity,
-        desk.DockedIdle
-          ? (desk.ManifestUsed >= CampaignWorld.HullCargoCapacity ? "Hold full" : "No AT-DOCK spot")
+        bridge.DockedIdle && bridge.SpotJobs.Any(j => j.AtOrigin) && bridge.ManifestUsed < CampaignWorld.HullCargoCapacity,
+        bridge.DockedIdle
+          ? (bridge.ManifestUsed >= CampaignWorld.HullCargoCapacity ? "Hold full" : "No AT-DOCK spot")
           : "Hull busy"),
       Act(AgentActionIds.AcceptCharter, "Accept charter",
-        desk.DockedIdle && desk.Charters.Any(c =>
+        bridge.DockedIdle && bridge.Charters.Any(c =>
           !c.Kind.Equals("standby", StringComparison.OrdinalIgnoreCase) && c.CanAcceptHere),
         "No acceptable charter"),
-      Act(AgentActionIds.MarketBuy, "Market buy", desk.DockedIdle && desk.MarketLots.Any(m => m.IsAsk),
+      Act(AgentActionIds.MarketBuy, "Market buy", bridge.DockedIdle && bridge.MarketLots.Any(m => m.IsAsk),
         "No ASK lots"),
-      Act(AgentActionIds.MarketSell, "Market sell", desk.DockedIdle && desk.MarketLots.Any(m => !m.IsAsk),
+      Act(AgentActionIds.MarketSell, "Market sell", bridge.DockedIdle && bridge.MarketLots.Any(m => !m.IsAsk),
         "No BID lots"),
       Act(AgentActionIds.Depart, "Depart",
-        desk.ManifestLines.Count > 0 && desk.DockedIdle && desk.ManifestAtCurrentDock,
-        desk.ManifestLines.Count == 0
+        bridge.ManifestLines.Count > 0 && bridge.DockedIdle && bridge.ManifestAtCurrentDock,
+        bridge.ManifestLines.Count == 0
           ? "Manifest empty"
-          : desk.ManifestAtCurrentDock
+          : bridge.ManifestAtCurrentDock
             ? "Hull busy"
             : "Not at load dock"),
-      Act(AgentActionIds.RefuseStandby, "Refuse standby", desk.StandbyOffer, "No standby"),
-      Act(AgentActionIds.AcceptStandby, "Accept standby", desk.StandbyOffer, "No standby"),
+      Act(AgentActionIds.RefuseStandby, "Refuse standby", bridge.StandbyOffer, "No standby"),
+      Act(AgentActionIds.AcceptStandby, "Accept standby", bridge.StandbyOffer, "No standby"),
       Act(AgentActionIds.Wait, "Wait", true, null),
       Act(AgentActionIds.Premium, "Pay premium", true, null),
       Act(AgentActionIds.Overhaul, "Overhaul", true, null),
-      Act(AgentActionIds.Step, "Step 1d", !desk.Complete, "Complete"),
-      Act(AgentActionIds.Continue, "Continue", !desk.Complete, "Complete"),
-      Act(AgentActionIds.Resume, "Resume to horizon", !desk.Complete, "Complete"),
-      Act(AgentActionIds.SetClock, "Set clock", !desk.Complete, "Complete"),
+      Act(AgentActionIds.Step, "Step 1d", !bridge.Complete, "Complete"),
+      Act(AgentActionIds.Continue, "Continue", !bridge.Complete, "Complete"),
+      Act(AgentActionIds.Resume, "Resume to horizon", !bridge.Complete, "Complete"),
+      Act(AgentActionIds.SetClock, "Set clock", !bridge.Complete, "Complete"),
       Act(AgentActionIds.PrepareDepart, "Prepare & depart",
-        desk.ManifestLines.Count > 0 && desk.DockedIdle && desk.ManifestAtCurrentDock,
+        bridge.ManifestLines.Count > 0 && bridge.DockedIdle && bridge.ManifestAtCurrentDock,
         "Need manifest at dock"),
-      Act(AgentActionIds.CancelStack, "Cancel stack", desk.IntentStackLines.Count > 0, "Stack empty"),
+      Act(AgentActionIds.CancelStack, "Cancel stack", bridge.IntentStackLines.Count > 0, "Stack empty"),
       Act(AgentActionIds.Save, "Save", true, null),
     ];
   }

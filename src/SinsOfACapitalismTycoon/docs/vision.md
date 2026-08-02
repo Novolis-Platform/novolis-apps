@@ -3,7 +3,7 @@
 Sins of a Capitalism Tycoon is a **campaign-scale economic dogfood** that should feel like
 a living trade mesh: one hundred systems near Sol, hop-linked freight, firms and households
 that must pay, haul, stock, and settle — watched headless in Spectre, or captained live from
-the Avalonia desk as James aboard ST Calypso.
+the Avalonia UI as James aboard ST Calypso.
 
 The “sins” are ordinary: thin working capital, narrow logistics residual, fiscal overreach,
 leverage that looks solvent until due-now arrives, insurance that redistributes loss without
@@ -20,14 +20,14 @@ and the Calypso lore bridge ([calypso-canon.md](calypso-canon.md)).
 
 ## What this app is not
 
-- Not a 4X conquest UI (Avalonia captain desk is shipped; mid-tick fleet animation is later).
+- Not a 4X conquest UI (Avalonia captain bridge is shipped; mid-tick fleet animation is later).
 - Not a second money stock. Ops FirmLedgers and Core vault/deposits are labeled separately
   and never summed into one “total cash.”
 - Not abstract policy theater. Like founding container standards, the interesting machinery
   is dimensions, locks, plates, inspections, and patience — here: capacity, tolls, berths,
   obligations, premiums, wear, and deterministic seeds.
 - Not silent. Headless still has voice: institutional narrator, dock memoir, actuarial
-  paragraphs, traffic-desk urgency ([flavor-and-audio.md](flavor-and-audio.md)).
+  paragraphs, traffic-bridge urgency ([flavor-and-audio.md](flavor-and-audio.md)).
 
 ## Success criterion
 

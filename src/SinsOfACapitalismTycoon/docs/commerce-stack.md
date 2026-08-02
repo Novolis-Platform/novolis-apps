@@ -34,7 +34,7 @@ bureaucracy that is **boring on purpose**.
 | Port tiers | Capital / refinery / edge friction | `PortTier` dwell/toll/dock fee (now) |
 
 **Aphorism:** plenty of opportunity — all of it locked behind registration.
-Captain desk adds: **plenty of opportunity; acceptance is a dock act** — mesh intel,
+Captain bridge adds: **plenty of opportunity; acceptance is a dock act** — mesh intel,
 empty `PlanReposition` travel, dock-gated spot accept, separate Spot vs Charter panels.
 
 ### Quote engine (tramp margin — flavor numbers)

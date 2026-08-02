@@ -42,7 +42,7 @@ internal static class CampaignRunner
     private readonly CampaignPulse _pulse;
     private readonly ManualResetEventSlim _dayGate = new(false);
     private int _continuePending;
-    private readonly object _deskGate = new();
+    private readonly object _bridgeGate = new();
     private long _remaining;
     private bool _completed;
     private bool _waiting;
@@ -110,7 +110,7 @@ internal static class CampaignRunner
         Player.SimSpeedScale = 1.0;
       }
 
-      CaptureDesk();
+      CaptureBridge();
     }
 
     public EconomySimulation Sim { get; }
@@ -146,7 +146,7 @@ internal static class CampaignRunner
       }
     }
 
-    public string PaceLine => DeskClock.FormatPace(_gameHoursPerRealMinute);
+    public string PaceLine => SessionClock.FormatPace(_gameHoursPerRealMinute);
 
     /// <summary>
     /// True when UI speed is max and we are not rebuilding from a save checkpoint.
@@ -186,30 +186,30 @@ internal static class CampaignRunner
     public event Action? DayEnded;
     public event Action? AwaitingDecision;
 
-    /// <summary>Last desk projection captured on the sim path (thread-safe read).</summary>
-    public CaptainDeskModel? LastDesk
+    /// <summary>Last captain projection captured on the sim path (thread-safe read).</summary>
+    public CaptainBridgeModel? LastBridge
     {
       get
       {
-        lock (_deskGate)
+        lock (_bridgeGate)
         {
-          return _lastDesk;
+          return _lastBridge;
         }
       }
     }
 
-    private CaptainDeskModel? _lastDesk;
+    private CaptainBridgeModel? _lastBridge;
 
-    /// <summary>Build desk model on the calling (sim) thread; UI must bind <see cref="LastDesk"/>.</summary>
-    public CaptainDeskModel CaptureDesk()
+    /// <summary>Build captain projection on the calling (sim) thread; UI must bind <see cref="LastBridge"/>.</summary>
+    public CaptainBridgeModel CaptureBridge()
     {
-      var desk = CaptainDeskModel.From(this);
-      lock (_deskGate)
+      var bridge = CaptainBridgeModel.From(this);
+      lock (_bridgeGate)
       {
-        _lastDesk = desk;
+        _lastBridge = bridge;
       }
 
-      return desk;
+      return bridge;
     }
 
     /// <summary>Ends the run early (last-tramp win).</summary>
@@ -330,7 +330,7 @@ internal static class CampaignRunner
 
     /// <summary>
     /// After enqueue + <see cref="Continue"/>, block until at least one queued order is drained
-    /// (or timeout). Desk/HTTP must not report success before the agent tick runs.
+    /// (or timeout). Bridge/HTTP must not report success before the agent tick runs.
     /// </summary>
     public bool WaitForOrderDrain(int ordersBeforeEnqueue, TimeSpan timeout)
     {
@@ -339,21 +339,21 @@ internal static class CampaignRunner
       {
         if (_completed)
         {
-          CaptureDesk();
+          CaptureBridge();
           return true;
         }
 
         // One order processed when count drops below post-enqueue size.
         if (Player.Orders.Count < ordersBeforeEnqueue + 1)
         {
-          CaptureDesk();
+          CaptureBridge();
           return true;
         }
 
         Thread.Sleep(5);
       }
 
-      CaptureDesk();
+      CaptureBridge();
       return Player.Orders.Count < ordersBeforeEnqueue + 1;
     }
 
@@ -411,7 +411,7 @@ internal static class CampaignRunner
         _warming = false;
         Player.Autopilot = priorAuto;
         PauseMode = priorPause;
-        CaptureDesk();
+        CaptureBridge();
         if (!quiet)
         {
           EmitLiveTickers(Milestones, story: false);
@@ -442,7 +442,7 @@ internal static class CampaignRunner
         await _pulse.PulseDaysAsync(step).ConfigureAwait(false);
         _remaining -= step;
         RecordPaceSample(step);
-        // At max speed, desk rebuild is expensive — but always refresh while Calypso is
+        // At max speed, bridge rebuild is expensive — but always refresh while Calypso is
         // underway so Mesh FTL offline / map pose stay live.
         var maxSpeed = PreferMaxSpeedThroughput;
         var playerUnderway = Sim.State.World.Shipments.Any(s =>
@@ -453,7 +453,7 @@ internal static class CampaignRunner
             || HoursDone % (24 * 3) == 0
             || _remaining <= 0)
         {
-          CaptureDesk();
+          CaptureBridge();
         }
 
         var done = HoursDone;
@@ -479,7 +479,7 @@ internal static class CampaignRunner
         // Wall-clock pacing (crawl ↔ max). SoftSlow throttles while a decision is needed.
         var softSlow = Player is { Enabled: true, Attention: DecisionAttention.SoftSlow }
                        && NeedsPlayerDecision();
-        var paceMs = DeskClock.DelayMs(Player.SimSpeedScale, step, softSlow);
+        var paceMs = SessionClock.DelayMs(Player.SimSpeedScale, step, softSlow);
         if (paceMs > 0 && PauseMode != CaptainPauseMode.Never)
         {
           try
@@ -511,7 +511,7 @@ internal static class CampaignRunner
         if (shouldWait)
         {
           _waiting = true;
-          CaptureDesk();
+          CaptureBridge();
           AwaitingDecision?.Invoke();
           // Captain may ResumeToHorizon during AwaitingDecision — don't Reset over that Set.
           if (PauseMode != CaptainPauseMode.Never)
@@ -557,7 +557,7 @@ internal static class CampaignRunner
       }
 
       _completed = true;
-      CaptureDesk();
+      CaptureBridge();
       DayEnded?.Invoke();
     }
 
@@ -657,7 +657,7 @@ internal static class CampaignRunner
       session.Player.LastTrampWon = save.LastTrampWon;
       session.Player.LastTrampLost = save.LastTrampLost;
       session.Player.LastSurvival = TrampSurvival.Capture(session.Ids);
-      session.CaptureDesk();
+      session.CaptureBridge();
       return session;
     }
   }

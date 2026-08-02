@@ -10,7 +10,7 @@ internal enum BerthOfferKind
   Wait,
 }
 
-/// <summary>One playable berth bet for the captain desk.</summary>
+/// <summary>One playable berth bet for the captain bridge.</summary>
 internal sealed record BerthOffer(
   BerthOfferKind Kind,
   string Title,

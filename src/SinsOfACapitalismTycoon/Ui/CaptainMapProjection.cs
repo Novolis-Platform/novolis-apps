@@ -4,8 +4,8 @@ using SinsOfACapitalismTycoon.Universe;
 
 namespace SinsOfACapitalismTycoon.Ui;
 
-/// <summary>Map projection helpers for <see cref="CaptainDeskModel"/> — keeps desk composition thin.</summary>
-internal static class DeskMapProjection
+/// <summary>Map projection helpers for <see cref="CaptainBridgeModel"/> — keeps UI composition thin.</summary>
+internal static class CaptainMapProjection
 {
   public static (IReadOnlyList<StarMapPoint> Points, IReadOnlyList<StarMapEdge> Edges,
     IReadOnlyDictionary<string, CampaignBriefingModel.HubDetail> HubDetails)

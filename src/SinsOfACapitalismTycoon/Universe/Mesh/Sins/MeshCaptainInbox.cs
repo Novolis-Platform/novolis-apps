@@ -1,7 +1,7 @@
 using Novolis.Simulation.Mesh;
 namespace SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
-/// <summary>Captain desk / CLI projection of mesh mailbox + feed inbox.</summary>
+/// <summary>Captain bridge / CLI projection of mesh mailbox + feed inbox.</summary>
 internal static class MeshCaptainInbox
 {
   public sealed record Snapshot(

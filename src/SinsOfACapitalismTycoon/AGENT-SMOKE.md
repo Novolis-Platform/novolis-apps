@@ -1,7 +1,7 @@
-# Sins captain desk — Avalonia agent smoke
+# Sins captain bridge — Avalonia agent smoke
 
 Wire-up uses `Novolis.Avalonia.Agent` (+ Protocol) and Cursor MCP `avalonia-agent`.
-Text captain (`--mode captain` / `--playtest`) remains the fast headless path; this smoke drives the GUI desk.
+Text captain (`--mode captain` / `--playtest`) remains the fast headless path; this smoke drives the GUI bridge.
 
 ## Build
 
@@ -11,7 +11,7 @@ dotnet build d:\novolis\novolis-apps\src\SinsOfACapitalismTycoon -p:NovolisUsePr
 dotnet build d:\novolis\novolis-dogfooding\apps\AvaloniaAgentMcp -p:NovolisUseProjectReferences=true
 ```
 
-## Run captain desk with agent host
+## Run captain bridge with agent host
 
 ```powershell
 $env:NOVOLIS_AVALONIA_AGENT = "1"
@@ -41,8 +41,8 @@ dotnet run --project d:\novolis\novolis-apps\src\SinsOfACapitalismTycoon `
 Enable `avalonia-agent` in Cursor (`.cursor/mcp.json`), then:
 
 1. `ui_hosts` → `ui_connect` `endpoint=novolis-avalonia-agent-sins` (Sins dedicated pipe)
-2. `ui_hello` — title contains `Captain Desk` / `Calypso`
-3. `ui_get` ids=`calypso.voyage,calypso.survival,calypso.continue,calypso.decision` — compact desk
+2. `ui_hello` — title contains `Captain Bridge` / `Calypso`
+3. `ui_get` ids=`calypso.voyage,calypso.survival,calypso.continue,calypso.decision` — compact bridge
 4. `ui_items` `calypso.spot` — spot lines with indexes (no select needed)
 5. `ui_select` `calypso.boards` `itemText=Spot` — Spot tab
 6. `ui_type` `calypso.travelSystem` `ez-aquarii` `clear=true` then `ui_click` `calypso.travel`

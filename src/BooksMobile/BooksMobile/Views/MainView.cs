@@ -217,7 +217,7 @@ public sealed class MainView : UserControl
                 BooksTheme.BrandTitle("Books", 34),
                 BooksTheme.Muted(
                     _session.IsLocalWorkspace
-                        ? $"Local desk mode · {_session.WorkspaceRoot}"
+                        ? $"Local bridge mode · {_session.WorkspaceRoot}"
                         : "Your manuscript library on the go — pull, edit or read a chapter, listen with Edge TTS, then save & push."),
                 _signIn,
                 _userCode,

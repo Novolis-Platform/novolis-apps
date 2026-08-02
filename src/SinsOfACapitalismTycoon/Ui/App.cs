@@ -39,7 +39,7 @@ public sealed class App : Application
                 ? new MainWindow(options)
                 : new CoreReportWindow(CoreReportText ?? "");
             desktop.MainWindow = window;
-            // Dedicated pipe so Draft Studio (default novolis-avalonia-agent) cannot steal the desk.
+            // Dedicated pipe so Draft Studio (default novolis-avalonia-agent) cannot steal the session.
             if (AgentHost.IsEnabledByEnvironment())
             {
                 var endpoint = Environment.GetEnvironmentVariable(UiTransportEndpoints.EndpointEnvVar);

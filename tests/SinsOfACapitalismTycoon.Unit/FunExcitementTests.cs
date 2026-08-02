@@ -9,16 +9,16 @@ namespace SinsOfACapitalismTycoon.Unit;
 public sealed class FunExcitementTests
 {
   [Test]
-  public async Task Fresh_desk_meets_excitement_bar()
+  public async Task Fresh_captain_meets_excitement_bar()
   {
     var session = NewPlayerDesk(seed: 1001, days: 2);
     session.Player.DockBoardOnly = true;
-    var desk = session.CaptureDesk();
-    var beats = FunExcitementScorecard.EvaluateDesk(desk);
+    var bridge = session.CaptureBridge();
+    var beats = FunExcitementScorecard.EvaluateCaptain(bridge);
 
     await Assert.That(FunExcitementScorecard.PassCount(beats))
-      .IsGreaterThanOrEqualTo(FunExcitementScorecard.MinFreshDeskPasses);
-    await Assert.That(FunExcitementScorecard.MeetsFreshDeskBar(desk)).IsTrue();
+      .IsGreaterThanOrEqualTo(FunExcitementScorecard.MinFreshCaptainPasses);
+    await Assert.That(FunExcitementScorecard.MeetsFreshCaptainBar(bridge)).IsTrue();
     if (beats.Any(b => !b.Ok))
     {
       // Soft diagnostic — still fail the bar assertion above when under threshold.
@@ -31,10 +31,10 @@ public sealed class FunExcitementTests
   {
     var session = NewPlayerDesk(seed: 1001, days: 2);
     session.Player.DockBoardOnly = true;
-    var desk = session.CaptureDesk();
+    var bridge = session.CaptureBridge();
 
-    await Assert.That(desk.CoachLine).StartsWith(CaptainCoach.Prefix);
-    var stakes = FunExcitementScorecard.EvaluateDesk(desk)
+    await Assert.That(bridge.CoachLine).StartsWith(CaptainCoach.Prefix);
+    var stakes = FunExcitementScorecard.EvaluateCaptain(bridge)
       .First(b => b.Id == "coach-stakes");
     await Assert.That(stakes.Ok).IsTrue();
   }
@@ -62,10 +62,10 @@ public sealed class FunExcitementTests
   public async Task Runway_chip_fields_track_cash_over_premium()
   {
     var session = NewPlayerDesk(seed: 1001, days: 2);
-    var desk = session.CaptureDesk();
-    await Assert.That(desk.DailyPremium).IsGreaterThan(0m);
-    await Assert.That(desk.RunwayDays).IsGreaterThan(0m);
-    await Assert.That(desk.RunwayLine).Contains("runway");
+    var bridge = session.CaptureBridge();
+    await Assert.That(bridge.DailyPremium).IsGreaterThan(0m);
+    await Assert.That(bridge.RunwayDays).IsGreaterThan(0m);
+    await Assert.That(bridge.RunwayLine).Contains("runway");
   }
 
   [Test]
@@ -130,8 +130,8 @@ public sealed class FunExcitementTests
     await Assert.That(session.Fun.EscrowReleases).IsEqualTo(1);
     await Assert.That(session.Fun.MeshUnlocks).IsEqualTo(1);
 
-    var desk = session.CaptureDesk();
-    await Assert.That(desk.MeshBoardUnlocked).IsTrue();
+    var bridge = session.CaptureBridge();
+    await Assert.That(bridge.MeshBoardUnlocked).IsTrue();
   }
 
   [Test]
@@ -139,8 +139,8 @@ public sealed class FunExcitementTests
   {
     var session = NewPlayerDesk(seed: 1001, days: 2);
     session.Player.DockBoardOnly = true;
-    var desk = session.CaptureDesk();
-    var local = desk.BerthOffers.FirstOrDefault(o => o is { Kind: BerthOfferKind.Local, Spot: not null });
+    var bridge = session.CaptureBridge();
+    var local = bridge.BerthOffers.FirstOrDefault(o => o is { Kind: BerthOfferKind.Local, Spot: not null });
     if (local?.Spot is null)
     {
       // Seed may lack a Fat local at day 0 — still validate NoteLocalAccept + Fun path.
@@ -180,8 +180,8 @@ public sealed class FunExcitementTests
       .IsGreaterThanOrEqualTo(FunExcitementScorecard.MinArcPasses);
     await Assert.That(FunExcitementScorecard.MeetsArcBar(session)).IsTrue();
 
-    var desk = session.CaptureDesk();
-    await Assert.That(FunExcitementScorecard.MeetsFreshDeskBar(desk)).IsTrue();
+    var bridge = session.CaptureBridge();
+    await Assert.That(FunExcitementScorecard.MeetsFreshCaptainBar(bridge)).IsTrue();
 
     // Sticky SoftFail after operable reinstate is anti-fun.
     if (session.Ids.Registry.CanOperate(session.Ids.Carrier))
@@ -212,10 +212,10 @@ public sealed class FunExcitementTests
   public async Task Escrow_clock_fields_exist_for_mid_haul_sensation()
   {
     var session = NewPlayerDesk(seed: 1001, days: 2);
-    var desk = session.CaptureDesk();
+    var bridge = session.CaptureBridge();
     // Docked idle may have empty clock — field must still project without throwing.
-    await Assert.That(desk.EscrowClockLine).IsNotNull();
-    await Assert.That(desk.EscrowPending).IsGreaterThanOrEqualTo(0m);
+    await Assert.That(bridge.EscrowClockLine).IsNotNull();
+    await Assert.That(bridge.EscrowPending).IsGreaterThanOrEqualTo(0m);
   }
 
   [Test]

@@ -3,7 +3,7 @@ using Novolis.Economy;
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
-/// Ranked next-act hint for the captain desk — why standing hurts and what to do now.
+/// Ranked next-act hint for the captain bridge — why standing hurts and what to do now.
 /// Does not change economy rules; copy only.
 /// </summary>
 internal static class CaptainCoach

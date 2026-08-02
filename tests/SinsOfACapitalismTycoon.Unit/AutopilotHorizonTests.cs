@@ -25,18 +25,18 @@ public sealed class AutopilotHorizonTests
 
     await session.RunAsync(quiet: true, story: false);
 
-    var desk = session.CaptureDesk();
-    var cash = ParseCash(desk.CashLine);
-    var uninsured = desk.HullLine.Contains("uninsured", StringComparison.OrdinalIgnoreCase);
-    var burnedOut = desk.HullLine.Contains("burned-out", StringComparison.OrdinalIgnoreCase);
+    var bridge = session.CaptureBridge();
+    var cash = ParseCash(bridge.CashLine);
+    var uninsured = bridge.HullLine.Contains("uninsured", StringComparison.OrdinalIgnoreCase);
+    var burnedOut = bridge.HullLine.Contains("burned-out", StringComparison.OrdinalIgnoreCase);
 
     await Assert.That(session.IsComplete).IsTrue();
-    await Assert.That(desk.Day).IsGreaterThanOrEqualTo(998);
+    await Assert.That(bridge.Day).IsGreaterThanOrEqualTo(998);
 
     if (cash < MinSolventCash || session.Player.SoftFailRaised || uninsured || burnedOut)
     {
       throw new Exception(
-        $"horizon broke: d{desk.Day} cash={cash} hull={desk.HullLine} decision={desk.DecisionLine} soft={session.Player.SoftFailRaised} coach={desk.CoachLine}");
+        $"horizon broke: d{bridge.Day} cash={cash} hull={bridge.HullLine} decision={bridge.DecisionLine} soft={session.Player.SoftFailRaised} coach={bridge.CoachLine}");
     }
   }
 

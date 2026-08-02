@@ -8,7 +8,7 @@ using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Universe;
 
-/// <summary>Spot commodity intel + charter offers for the captain desk.</summary>
+/// <summary>Spot commodity intel + charter offers for the captain bridge.</summary>
 internal static class CaptainJobBoard
 {
   public sealed record SpotCandidate(
@@ -327,7 +327,7 @@ internal static class CaptainJobBoard
     var sells = new Dictionary<ProductId, List<HubOrder>>();
     var buys = new Dictionary<ProductId, List<HubOrder>>();
 
-    // Snapshot: HubOrders mutates on the sim thread while the desk refreshes on the UI thread.
+    // Snapshot: HubOrders mutates on the sim thread while the UI refreshes on the UI thread.
     foreach (var o in SnapshotHubOrders(world))
     {
       if (o.IsFilled || o.FirmId.Equals(ids.Carrier) || !freight.Any(p => p.Equals(o.ProductId)))
@@ -509,7 +509,7 @@ internal static class CaptainJobBoard
   }
 
   /// <summary>
-  /// Concurrent List mutation (sim MatchHubOrders vs UI desk) can yield null slots in ToArray.
+  /// Concurrent List mutation (sim MatchHubOrders vs UI bridge) can yield null slots in ToArray.
   /// Never iterate HubOrders without this on a UI/cross-thread path.
   /// </summary>
   internal static HubOrder[] SnapshotHubOrders(EconomyWorld world)

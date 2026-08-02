@@ -4,7 +4,7 @@ internal enum AppMode
 {
     Headless,
     Avalonia,
-    /// <summary>Interactive / scripted text captain desk (agent- and human-playable).</summary>
+    /// <summary>Interactive / scripted text captain bridge (agent- and human-playable).</summary>
     Captain
 }
 
@@ -427,7 +427,7 @@ internal sealed record RunOptions(
               --seed U                 Seed (default: 1001 campaign / use with core too)
               --mode headless|avalonia|captain
                                        headless = Spectre report
-                                       avalonia = GUI captain desk
+                                       avalonia = GUI captain bridge
                                        captain  = text REPL / scripted play (agent-friendly)
               --player on|off          James / ST Calypso agency (default: on in avalonia/captain)
               --autopilot on|off       AI hauls when player queue empty (default: off)

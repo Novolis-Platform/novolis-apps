@@ -8,7 +8,7 @@ using SinsOfACapitalismTycoon.Universe;
 namespace SinsOfACapitalismTycoon.Cli;
 
 /// <summary>
-/// Text captain desk — scriptable. Verbs mirror Avalonia:
+/// Text captain bridge — scriptable. Verbs mirror Avalonia:
 /// status, spot, charters, manifest, accept N, depart, travel &lt;system&gt;,
 /// refuse, wait, premium, overhaul, board mesh|dock, step, continue, resume, help, quit.
 /// </summary>
@@ -57,9 +57,9 @@ internal static class CaptainConsole
       }
     };
 
-    var desk = new CaptainDeskService(session);
+    var bridge = new CaptainBridgeService(session);
     await using var surface = AgentSurface.AttachAll(
-      desk,
+      bridge,
       CaptainAgentSurfaceContract.Definition,
       new AgentAttachOptions
       {
@@ -146,7 +146,7 @@ internal static class CaptainConsole
         await WaitPause(session).ConfigureAwait(false);
       }
 
-      var result = Handle(line, session, desk, ref hauled, ref traveled, ref remoteReject);
+      var result = Handle(line, session, bridge, ref hauled, ref traveled, ref remoteReject);
       if (result == HandleResult.Quit)
       {
         session.ResumeToHorizon();
@@ -295,7 +295,7 @@ internal static class CaptainConsole
   private static IEnumerable<string> ReadInteractive()
   {
     Console.WriteLine();
-    Console.WriteLine($"{CampaignWorld.PlayerMasterLabel} — text captain desk");
+    Console.WriteLine($"{CampaignWorld.PlayerMasterLabel} — text captain bridge");
     Console.WriteLine("See spot anywhere; accept only at load dock; travel empty. Type help.");
     while (true)
     {
@@ -322,7 +322,7 @@ internal static class CaptainConsole
   private static HandleResult Handle(
     string line,
     CampaignRunner.LiveSession session,
-    CaptainDeskService desk,
+    CaptainBridgeService bridge,
     ref bool hauled,
     ref bool traveled,
     ref bool remoteReject)
@@ -435,7 +435,7 @@ internal static class CaptainConsole
           return HandleResult.Ok;
         }
 
-        return CommitAndContinue(session, desk, job, ref hauled);
+        return CommitAndContinue(session, bridge, job, ref hauled);
       }
 
       case "accept-remote":
@@ -466,13 +466,13 @@ internal static class CaptainConsole
           return HandleResult.Ok;
         }
 
-        return CommitAndContinue(session, desk, job, ref hauled);
+        return CommitAndContinue(session, bridge, job, ref hauled);
       }
 
       case "depart":
       {
         var sku = parts.Length >= 2 ? parts[1] : null;
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Depart }
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Depart }
           .With(AgentCommandKeys.Sku, sku));
       }
 
@@ -485,7 +485,7 @@ internal static class CaptainConsole
         }
 
         traveled = true;
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Travel }
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Travel }
           .With(AgentCommandKeys.DestSystemId, parts[1]));
       }
 
@@ -506,7 +506,7 @@ internal static class CaptainConsole
 
         traveled = true;
         Console.WriteLine($"(best) {remote.OriginName} for {remote.Label}");
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Travel }
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Travel }
           .With(AgentCommandKeys.DestSystemId, remote.OriginSystemId));
       }
 
@@ -524,7 +524,7 @@ internal static class CaptainConsole
         }
 
         hauled = true;
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.AcceptCharter }
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.AcceptCharter }
           .With(AgentCommandKeys.Index, ci));
       }
 
@@ -539,39 +539,39 @@ internal static class CaptainConsole
           return HandleResult.Ok;
         }
 
-        return DeskAdvance(desk, new AgentCommand
+        return CaptainAdvance(bridge, new AgentCommand
         {
           ActionId = cmd == "buy" ? AgentActionIds.MarketBuy : AgentActionIds.MarketSell,
         }.With(AgentCommandKeys.Index, mi));
       }
 
       case "wait":
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Wait });
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Wait });
 
       case "refuse":
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.RefuseStandby });
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.RefuseStandby });
 
       case "premium":
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Premium });
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Premium });
 
       case "overhaul":
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Overhaul });
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Overhaul });
 
       case "step":
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Step });
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Step });
 
       case "continue":
       case "go":
-        return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.Continue });
+        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Continue });
 
       case "resume":
-        desk.Execute(new AgentCommand { ActionId = AgentActionIds.Resume });
+        bridge.Execute(new AgentCommand { ActionId = AgentActionIds.Resume });
         return HandleResult.Quit;
 
       case "save":
       {
         var label = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : null;
-        var saveResult = desk.Execute(new AgentCommand { ActionId = AgentActionIds.Save }
+        var saveResult = bridge.Execute(new AgentCommand { ActionId = AgentActionIds.Save }
           .With(AgentCommandKeys.Label, label));
         Console.WriteLine(saveResult.Ok
           ? $"{saveResult.Message} → {CampaignSaveStore.Default.RootPath}"
@@ -601,9 +601,9 @@ internal static class CaptainConsole
     }
   }
 
-  private static HandleResult DeskAdvance(CaptainDeskService desk, AgentCommand command)
+  private static HandleResult CaptainAdvance(CaptainBridgeService bridge, AgentCommand command)
   {
-    var result = desk.Execute(command);
+    var result = bridge.Execute(command);
     Console.WriteLine(result.Ok
       ? result.Message
       : $"FAIL [{result.ErrorCode ?? "error"}] {result.Message}");
@@ -612,7 +612,7 @@ internal static class CaptainConsole
 
   private static HandleResult CommitAndContinue(
     CampaignRunner.LiveSession session,
-    CaptainDeskService desk,
+    CaptainBridgeService bridge,
     CaptainJobBoard.SpotCandidate job,
     ref bool hauled)
   {
@@ -624,33 +624,33 @@ internal static class CaptainConsole
       && j.Quantity == job.Quantity);
     if (idx < 0) idx = 0;
     hauled = true;
-    return DeskAdvance(desk, new AgentCommand { ActionId = AgentActionIds.AcceptSpot }
+    return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.AcceptSpot }
       .With(AgentCommandKeys.Index, idx));
   }
 
   private static void PrintStatus(CampaignRunner.LiveSession session, bool banner)
   {
-    var desk = session.LastDesk ?? session.CaptureDesk();
+    var bridge = session.LastBridge ?? session.CaptureBridge();
     if (banner)
     {
       Console.WriteLine();
       Console.WriteLine("── DECISION ──────────────────────────────────────────");
     }
 
-    Console.WriteLine($"d{desk.Day}  {desk.VoyageLine}");
-    Console.WriteLine($"  cash {desk.CashLine}  {desk.StandingLine}  {desk.HoldLine}");
-    Console.WriteLine($"  decision: {desk.DecisionLine}");
-    if (desk.LastAction is { } last)
+    Console.WriteLine($"d{bridge.Day}  {bridge.VoyageLine}");
+    Console.WriteLine($"  cash {bridge.CashLine}  {bridge.StandingLine}  {bridge.HoldLine}");
+    Console.WriteLine($"  decision: {bridge.DecisionLine}");
+    if (bridge.LastAction is { } last)
     {
       var tag = last.Ok ? "ok" : (last.ErrorCode ?? "fail");
       Console.WriteLine($"  last-action: [{tag}] {last.ActionId} — {last.Message}");
     }
 
-    Console.WriteLine($"  {desk.MeshLine}");
-    if (!string.IsNullOrEmpty(desk.CoachLine)) Console.WriteLine($"  {desk.CoachLine}");
-    if (!string.IsNullOrEmpty(desk.SurvivalLine)) Console.WriteLine($"  {desk.SurvivalLine}");
-    if (desk.StandbyOffer) Console.WriteLine("  STANDBY — refuse | accept standby via charters");
-    if (!string.IsNullOrEmpty(desk.SoftFailLine)) Console.WriteLine($"  {desk.SoftFailLine}");
+    Console.WriteLine($"  {bridge.MeshLine}");
+    if (!string.IsNullOrEmpty(bridge.CoachLine)) Console.WriteLine($"  {bridge.CoachLine}");
+    if (!string.IsNullOrEmpty(bridge.SurvivalLine)) Console.WriteLine($"  {bridge.SurvivalLine}");
+    if (bridge.StandbyOffer) Console.WriteLine("  STANDBY — refuse | accept standby via charters");
+    if (!string.IsNullOrEmpty(bridge.SoftFailLine)) Console.WriteLine($"  {bridge.SoftFailLine}");
     if (banner)
     {
       PrintSpot(session);

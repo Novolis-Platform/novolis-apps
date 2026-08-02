@@ -81,7 +81,7 @@ dotnet run --project src/BooksWriterStudio
 dotnet run --project src/SketchStudio
 ```
 
-Freehand sketch desk (`SketchControl`): pen/line/spline/box/circle/eraser/select, grid snap + meetup + Gridify, Open/Save `.sketchjson`, clipboard PNG/SVG.
+Freehand sketch studio (`SketchControl`): pen/line/spline/box/circle/eraser/select, grid snap + meetup + Gridify, Open/Save `.sketchjson`, clipboard PNG/SVG.
 
 - Shortcuts: `Ctrl+N/O/S`, `Ctrl+Shift+S`, `Ctrl+Z/Y`, `P/L/S/R/C/E/V` tools, `Del` delete selection
 
@@ -91,6 +91,15 @@ Freehand sketch desk (`SketchControl`): pen/line/spline/box/circle/eraser/select
 dotnet run --project src/SinsOfACapitalismTycoon -- --mode headless
 dotnet run --project src/SinsOfACapitalismTycoon -- --mode avalonia
 ```
+
+## Capitalist Simulator
+
+```powershell
+dotnet run --project d:\novolis\novolis-apps\src\CapitalistSimulator -- --mode headless --days 36
+dotnet run --project d:\novolis\novolis-apps\src\CapitalistSimulator -- --mode avalonia
+```
+
+Capitalism 2 homage bridge (local only). See `src/CapitalistSimulator/docs/gameplay.md`.
 
 ## Live Studio
 

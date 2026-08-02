@@ -1,6 +1,6 @@
 namespace SinsOfACapitalismTycoon.Universe;
 
-/// <summary>Structured outcome for the last captain desk action (travel, market, etc.).</summary>
+/// <summary>Structured outcome for the last captain bridge action (travel, market, etc.).</summary>
 internal sealed record PlayerActionResult(
   string ActionId,
   bool Ok,

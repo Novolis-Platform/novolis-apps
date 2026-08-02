@@ -5,7 +5,7 @@ namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
 /// Campaign star field from <see cref="CatalogPacks.NearSol100"/> (Astro Catalog.Data),
-/// not a local JSON fork. Memoized — desk refresh must not rebuild every frame.
+/// not a local JSON fork. Memoized — UI refresh must not rebuild every frame.
 /// </summary>
 internal static class SinsCatalog
 {

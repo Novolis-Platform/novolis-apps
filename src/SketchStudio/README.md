@@ -1,6 +1,6 @@
 # Sketch Studio
 
-Freehand sketching desk built on [`Novolis.Avalonia.Controls`](../../../novolis-avalonia/src/Novolis.Avalonia.Controls/README.md) `SketchControl`.
+Freehand sketching studio built on [`Novolis.Avalonia.Controls`](../../../novolis-avalonia/src/Novolis.Avalonia.Controls/README.md) `SketchControl`.
 
 Tools: Pen, Line, Spline, Box, Circle, Eraser, Select  
 Options: Snap to grid, Meetup (vertex snap), Gridify, stroke color + width + style  

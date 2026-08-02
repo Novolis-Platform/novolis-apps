@@ -27,7 +27,7 @@ WinExe for command-driven 2D/3D CAD-light drafting (LibreCAD/AutoCAD-light): typ
 
 ## Sketch Studio
 
-WinExe freehand sketch desk on `SketchControl` (pen, line, spline, box, circle, eraser, select; grid/snap/meetup/Gridify). Persists `.sketchjson` via `SketchJson`; clipboard PNG/SVG export.
+WinExe freehand sketch studio on `SketchControl` (pen, line, spline, box, circle, eraser, select; grid/snap/meetup/Gridify). Persists `.sketchjson` via `SketchJson`; clipboard PNG/SVG export.
 
 - Path: `src/SketchStudio/`
 - Consumes `Novolis.Avalonia.Controls` from GitHub Packages (NuGet-only)
@@ -40,6 +40,15 @@ Exe with dual shell for the bounded-minimum economy package:
 - `--mode headless` — period loop + console report (agent entrypoint)
 - `--mode avalonia` — same report in a desktop window
 - Consumes `Novolis.Economy.Core` from GitHub Packages (NuGet-only)
+
+## Capitalist Simulator
+
+Exe dual-shell Capitalism 2 homage (app-local firm/unit/linkage sim + Avalonia UI). Not in the release installer catalog yet.
+
+- Path: `src/CapitalistSimulator/`
+- `--mode headless` — month ticks + Spectre report
+- `--mode avalonia` — city map / firm interior bridge
+- Consumes `Novolis.Avalonia.Studio`, `.Briefing`, `.Controls`, `Novolis.Storage.Json` (NuGet-only)
 
 ## Live Studio
 

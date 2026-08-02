@@ -25,18 +25,18 @@ public sealed class EarlySolvencyTests
     session.Player.Attention = DecisionAttention.RunAlways;
     session.PauseMode = CaptainPauseMode.Never;
 
-    var start = session.CaptureDesk();
+    var start = session.CaptureBridge();
     var startCash = ParseCash(start.CashLine);
     await Assert.That(startCash).IsEqualTo(9_000m);
     await Assert.That(start.HullLine).Contains("lien 4500");
 
     await session.AdvanceHoursAsync(21L * 24, quiet: true);
-    var mid = session.CaptureDesk();
+    var mid = session.CaptureBridge();
     await Assert.That(mid.HullLine).Contains("lien 4500");
     await Assert.That(ParseCash(mid.CashLine)).IsGreaterThan(8_000m);
 
     await session.AdvanceHoursAsync(24, quiet: true);
-    var after = session.CaptureDesk();
+    var after = session.CaptureBridge();
     await Assert.That(after.HullLine).DoesNotContain("lien 4500");
   }
 

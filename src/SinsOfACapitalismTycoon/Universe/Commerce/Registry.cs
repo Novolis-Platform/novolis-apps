@@ -92,10 +92,10 @@ internal sealed class RegistryBook<T>
 }
 
 /// <summary>
-/// Campaign desk: ship / firm / license books under one CCA-shaped roof.
+/// Campaign books: ship / firm / license books under one CCA-shaped roof.
 /// Spectre and pulses still talk mostly to <see cref="Ships"/>; firms and licenses are first-class doors.
 /// </summary>
-internal sealed class CampaignRegistryDesk
+internal sealed class CampaignRegistryBooks
 {
   public ShipRegistry Ships { get; } = new();
 

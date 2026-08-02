@@ -9,7 +9,7 @@ using Novolis.Economy.Simulation;
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
-/// Keeps Calypso insured/overhauled and working the dock desk when autopilot is on —
+/// Keeps Calypso insured/overhauled and working the dock board when autopilot is on —
 /// enough to chase last-tramp survival without a human at the glass.
 /// </summary>
 internal static class SurvivalCaptain

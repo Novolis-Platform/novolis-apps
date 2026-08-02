@@ -70,7 +70,7 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
           }
           else if (string.IsNullOrEmpty(LastDecision) || LastDecision.StartsWith("autopilot", StringComparison.Ordinal))
           {
-            LastDecision = "autopilot · desk hold";
+            LastDecision = "autopilot · bridge hold";
           }
 
           return;

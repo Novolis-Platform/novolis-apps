@@ -15,7 +15,7 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 | `--seed U` | `1001` | Campaign seed |
 | `--drama on\|off` | `on` | Fuel famine / production / fiscal / Calypso dock beats |
 | `--story` / `--story on` | off | Live `[vox.*]` tickers + session overture on stderr |
-| `--mode headless\|avalonia\|captain` | `headless` | Spectre / GUI desk / text REPL |
+| `--mode headless\|avalonia\|captain` | `headless` | Spectre / GUI bridge / text REPL |
 | `--player on\|off` | on in avalonia/captain / off headless | James / ST Calypso agency vs AI tramp |
 | `--autopilot on\|off` | `off` | When player on: AI hauls if order queue empty |
 | `--board mesh\|dock` | `mesh` | Spot intel filter (`dock`/`berth`/`local` = current system only; accept still dock-gated; aliases `network`) |
@@ -44,7 +44,7 @@ dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `
 How to *play* the report: [gameplay.md](gameplay.md). Who is speaking: [characters.md](characters.md).
 Mesh doctrine: [mesh-and-communications.md](mesh-and-communications.md).
 
-## Avalonia captain desk
+## Avalonia captain bridge
 
 ```powershell
 dotnet run --project novolis-apps/src/SinsOfACapitalismTycoon `

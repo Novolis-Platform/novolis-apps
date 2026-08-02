@@ -16,7 +16,7 @@ Johnston seed without requiring the full plot of *Calypso* / *Personage* / *IBIC
 |----|-------|
 | Lift **institutions** (CCA, Meridian, escrow, HILS, ST class) | Paste chapter prose wholesale |
 | Adapt **station tiers** onto Astro roles | Relocate Duckville onto a Johnston star without a mapping note |
-| Borrow **voices** (Ixa, Lydia, Torrik, Varr-adjacent) as `vox.*` | Claim Sins *is* James’s inheritance plot (except Avalonia/`--player` captain desk, which *does* put James aboard Calypso) |
+| Borrow **voices** (Ixa, Lydia, Torrik, Varr-adjacent) as `vox.*` | Claim Sins *is* James’s inheritance plot (except Avalonia/`--player` captain bridge, which *does* put James aboard Calypso) |
 | Cite Review articles for public tone | Invent a second money stock called “credits” that secretly equals Ops+Core |
 
 When fiction and sim disagree, **sim ledgers win**; flavor annotates.
@@ -25,7 +25,7 @@ When fiction and sim disagree, **sim ledgers win**; flavor annotates.
 
 | Calypso doctrine | Sins surface today |
 |------------------|-------------------|
-| Registry as door / standing | `CampaignRegistryDesk` / `ShipRegistry` / `CanOperate` |
+| Registry as door / standing | `CampaignRegistryBooks` / `ShipRegistry` / `CanOperate` |
 | Insurance prices freedom | `InsurancePulse` premiums + claims |
 | Speed burns life | `TransitProfile` wear × Priority |
 | Bulk vs tramp | `MV Bulk River` Slow vs `ST Calypso` / tramp Priority |

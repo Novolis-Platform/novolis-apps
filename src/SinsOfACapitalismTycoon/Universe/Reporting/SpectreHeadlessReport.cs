@@ -83,7 +83,7 @@ internal static class SpectreHeadlessReport
     header.AddRow("Low-degree hubs", $"{lowDeg}");
     header.AddRow(
       "Registries",
-      $"ship {ids.Desk.Ships.Entries.Count} · firm {ids.Desk.Firms.Count} · license {ids.Desk.Licenses.Count}");
+      $"ship {ids.Books.Ships.Entries.Count} · firm {ids.Books.Firms.Count} · license {ids.Books.Licenses.Count}");
     console.Write(header);
 
     var money = new Table().Border(TableBorder.Simple).Title("Ops money (FirmLedgers)").AddColumns("Metric", "Amount");
@@ -207,7 +207,7 @@ internal static class SpectreHeadlessReport
 
     var firmReg = new Table().Border(TableBorder.Simple).Title("Firm registry")
       .AddColumns("Firm", "Standing", "Lien");
-    foreach (var f in ids.Desk.Firms.Entries.OrderBy(x => x.RegistryName))
+    foreach (var f in ids.Books.Firms.Entries.OrderBy(x => x.RegistryName))
     {
       firmReg.AddRow(Markup.Escape(f.RegistryName), f.StandingLabel, $"{f.LienPrincipal:0}");
     }
@@ -216,7 +216,7 @@ internal static class SpectreHeadlessReport
 
     var licReg = new Table().Border(TableBorder.Simple).Title("License registry (sample)")
       .AddColumns("License", "Scope", "Standing");
-    foreach (var l in ids.Desk.Licenses.Entries.OrderBy(x => x.RegistryName).Take(8))
+    foreach (var l in ids.Books.Licenses.Entries.OrderBy(x => x.RegistryName).Take(8))
     {
       licReg.AddRow(Markup.Escape(l.RegistryName), Markup.Escape(l.Scope), l.StandingLabel);
     }
@@ -257,7 +257,7 @@ internal static class SpectreHeadlessReport
     {
       // Fun counters live on LiveSession; milestones still carry the playtest story.
       console.MarkupLine(
-        "[grey]Playtest tags: escrow / soft-fail-warn / soft-fail-clear / tutorial · judge via HardPause desk[/]");
+        "[grey]Playtest tags: escrow / soft-fail-warn / soft-fail-clear / tutorial · judge via HardPause session[/]");
     }
 
     var milestones = new Table().Border(TableBorder.Simple).Title("Milestones (greppable + vox)")

@@ -69,10 +69,10 @@ public sealed class BerthFantasyTests
     MeshBoardUnlock.Sync(session.Player, session.Milestones);
     await Assert.That(session.Player.MeshBoardUnlocked).IsTrue();
 
-    var desk = session.CaptureDesk();
-    await Assert.That(desk.MeshBoardUnlocked).IsTrue();
-    await Assert.That(desk.BerthOffers.Count).IsGreaterThanOrEqualTo(1);
-    await Assert.That(desk.VoyageLine).Contains("Grace");
+    var bridge = session.CaptureBridge();
+    await Assert.That(bridge.MeshBoardUnlocked).IsTrue();
+    await Assert.That(bridge.BerthOffers.Count).IsGreaterThanOrEqualTo(1);
+    await Assert.That(bridge.VoyageLine).Contains("Grace");
   }
 
   [Test]
@@ -105,7 +105,7 @@ public sealed class BerthFantasyTests
   }
 
   [Test]
-  public async Task Fresh_desk_projects_runway_and_escrow_clock_fields()
+  public async Task Fresh_captain_projects_runway_and_escrow_clock_fields()
   {
     var session = new CampaignRunner.LiveSession(
       seed: 1001,
@@ -116,15 +116,15 @@ public sealed class BerthFantasyTests
       localBoard: true);
 
     session.Player.DockBoardOnly = true;
-    var desk = session.CaptureDesk();
-    await Assert.That(desk.RunwayLine).IsNotEmpty();
-    await Assert.That(desk.RunwayDays).IsGreaterThan(0m);
-    await Assert.That(desk.ReputationScore).IsGreaterThanOrEqualTo(0m);
-    await Assert.That(desk.CoachLine).StartsWith(CaptainCoach.Prefix);
+    var bridge = session.CaptureBridge();
+    await Assert.That(bridge.RunwayLine).IsNotEmpty();
+    await Assert.That(bridge.RunwayDays).IsGreaterThan(0m);
+    await Assert.That(bridge.ReputationScore).IsGreaterThanOrEqualTo(0m);
+    await Assert.That(bridge.CoachLine).StartsWith(CaptainCoach.Prefix);
   }
 
   [Test]
-  public async Task Fresh_desk_projects_berth_offers()
+  public async Task Fresh_captain_projects_berth_offers()
   {
     var session = new CampaignRunner.LiveSession(
       seed: 1001,
@@ -135,11 +135,11 @@ public sealed class BerthFantasyTests
       localBoard: true);
 
     session.Player.DockBoardOnly = true;
-    var desk = session.CaptureDesk();
-    await Assert.That(desk.MeshBoardUnlocked).IsFalse();
-    await Assert.That(desk.BerthOffers.Count).IsGreaterThanOrEqualTo(1);
-    await Assert.That(desk.BerthOffers.Count).IsLessThanOrEqualTo(3);
-    await Assert.That(desk.CoachLine).StartsWith(CaptainCoach.Prefix);
+    var bridge = session.CaptureBridge();
+    await Assert.That(bridge.MeshBoardUnlocked).IsFalse();
+    await Assert.That(bridge.BerthOffers.Count).IsGreaterThanOrEqualTo(1);
+    await Assert.That(bridge.BerthOffers.Count).IsLessThanOrEqualTo(3);
+    await Assert.That(bridge.CoachLine).StartsWith(CaptainCoach.Prefix);
   }
 
   static CaptainJobBoard.SpotCandidate FakeSpot(

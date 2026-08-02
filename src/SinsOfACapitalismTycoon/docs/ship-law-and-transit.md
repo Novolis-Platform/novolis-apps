@@ -18,7 +18,7 @@ burn that life. You overhaul in the elective window, or you wait and **guarantee
 
 | Fiction | Code |
 |---------|------|
-| Registry record / standing | Generic `RegistryRecord` / `RegistryBook{T}` + `CampaignRegistryDesk` |
+| Registry record / standing | Generic `RegistryRecord` / `RegistryBook{T}` + `CampaignRegistryBooks` |
 | Ship registry door | `ShipRegistry` / `ShipRegistryEntry` — insured, drive life, `CanOperate` |
 | Firm registry | `FirmRegistryEntry` — solvent / encumbered / blacklisted |
 | License registry | `LicenseRegistryEntry` — Priority endorsements (term / revoked) |

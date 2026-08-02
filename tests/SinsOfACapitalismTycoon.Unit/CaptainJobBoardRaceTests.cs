@@ -16,7 +16,7 @@ public sealed class CaptainJobBoardRaceTests
   }
 
   [Test]
-  public async Task CaptureDesk_survives_null_hub_order_slots()
+  public async Task CaptureBridge_survives_null_hub_order_slots()
   {
     var session = new CampaignRunner.LiveSession(
       seed: 1001,
@@ -27,8 +27,8 @@ public sealed class CaptainJobBoardRaceTests
       localBoard: true);
 
     session.Sim.State.World.HubOrders.Insert(0, null!);
-    var desk = session.CaptureDesk();
-    await Assert.That(desk.BerthOffers.Count).IsGreaterThanOrEqualTo(1);
-    await Assert.That(desk.Charters).IsNotNull();
+    var bridge = session.CaptureBridge();
+    await Assert.That(bridge.BerthOffers.Count).IsGreaterThanOrEqualTo(1);
+    await Assert.That(bridge.Charters).IsNotNull();
   }
 }

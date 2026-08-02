@@ -5,7 +5,7 @@ using SinsOfACapitalismTycoon.Ui;
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
-/// In-process captain verbs shared by desk service, Avalonia, and CLI.
+/// In-process captain verbs shared by bridge service, Avalonia, and CLI.
 /// Enqueues <see cref="PlayerOrder"/> and optionally advances the day gate.
 /// </summary>
 internal static class CaptainActions
@@ -20,13 +20,13 @@ internal static class CaptainActions
       return Fail(PlayerActionErrorCodes.Incomplete, "destSystemId required");
     }
 
-    var desk = session.LastDesk ?? session.CaptureDesk();
-    if (!desk.DockedIdle)
+    var bridge = session.LastBridge ?? session.CaptureBridge();
+    if (!bridge.DockedIdle)
     {
       return Fail(PlayerActionErrorCodes.Busy, "Hull busy — wait for dock");
     }
 
-    if (dest.Equals(desk.CurrentSystemId, StringComparison.OrdinalIgnoreCase))
+    if (dest.Equals(bridge.CurrentSystemId, StringComparison.OrdinalIgnoreCase))
     {
       var already = PlayerActionResult.Fail(
         AgentActionIds.Travel, PlayerActionErrorCodes.AlreadyHere, "already at dock");
@@ -34,7 +34,7 @@ internal static class CaptainActions
       return Fail(already.ErrorCode!, already.Message);
     }
 
-    var path = RouteHighlight.BetweenSystems(session.Ids, desk.CurrentSystemId, dest);
+    var path = RouteHighlight.BetweenSystems(session.Ids, bridge.CurrentSystemId, dest);
     if (path.Count == 0)
     {
       var noRoute = PlayerActionResult.Fail(
@@ -132,8 +132,8 @@ internal static class CaptainActions
     bool buy,
     bool continueSession = true)
   {
-    var desk = session.LastDesk ?? session.CaptureDesk();
-    if (!desk.DockedIdle)
+    var bridge = session.LastBridge ?? session.CaptureBridge();
+    if (!bridge.DockedIdle)
     {
       return Fail(PlayerActionErrorCodes.Busy, "Hull busy — wait for dock");
     }
@@ -216,7 +216,7 @@ internal static class CaptainActions
       var drained = session.WaitForOrderDrain(ordersBefore, TimeSpan.FromSeconds(3));
       if (!drained && session.Player.Orders.Count > ordersBefore)
       {
-        session.CaptureDesk();
+        session.CaptureBridge();
         return new Result(true, $"{message} · queued", Advanced: continueSession);
       }
     }

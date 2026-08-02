@@ -15,7 +15,7 @@ internal enum CaptainPauseMode
   UntilDecision,
 }
 
-/// <summary>Shared captain desk state for Calypso when <see cref="Enabled"/>.</summary>
+/// <summary>Shared captain bridge state for Calypso when <see cref="Enabled"/>.</summary>
 internal sealed class PlayerControlState
 {
   public bool Enabled { get; init; }
@@ -60,7 +60,7 @@ internal sealed class PlayerControlState
   /// <summary>Map / CLI travel target system id.</summary>
   public string? TravelTargetSystemId { get; set; }
 
-  /// <summary>Last structured desk action result (travel, market, accept, …).</summary>
+  /// <summary>Last structured captain action result (travel, market, accept, …).</summary>
   public PlayerActionResult? LastAction { get; set; }
 
   /// <summary>Consecutive days Calypso cannot operate (soft-fail tracker).</summary>

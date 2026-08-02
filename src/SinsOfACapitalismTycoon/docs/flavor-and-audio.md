@@ -28,7 +28,7 @@ schedule tones, empty autonomous docks, and the dry voice that refuses to sum Op
 | **Liaison** | Underwriter-fluent, unsentimental | `vox.ixa` |
 | **Actuarial / Meridian** | Recordable euphemism | `vox.meridian`, `vox.broker` |
 | **Continuity** | Flat threshold talk | `vox.torrik` |
-| **Traffic desk** | Short urgency | `vox.drama` |
+| **Traffic bridge** | Short urgency | `vox.drama` |
 | **Schedule** | Tonne-plans | `vox.bulk` |
 
 Flavor *annotates* causality; it does not replace tables.

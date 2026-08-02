@@ -7,7 +7,7 @@ using Novolis.Economy.Simulation;
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
-/// Sol Capital export desk.
+/// Sol Capital export hub.
 /// <list type="bullet">
 /// <item>Overflow <b>buy</b> bids only below Industry delivered price (never steal plant feedstock).</item>
 /// <item><b>Export</b> (exogenous dump) only when warehouse Raw is above soft store-limit.</item>

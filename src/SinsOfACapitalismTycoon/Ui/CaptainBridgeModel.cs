@@ -9,8 +9,8 @@ using SinsOfACapitalismTycoon.Universe.Mesh.Sins;
 
 namespace SinsOfACapitalismTycoon.Ui;
 
-/// <summary>Calypso-centric desk projection: voyage + spot intel + charters + manifest.</summary>
-internal sealed class CaptainDeskModel
+/// <summary>Calypso-centric captain projection: voyage + spot intel + charters + manifest.</summary>
+internal sealed class CaptainBridgeModel
 {
   public required string SubtitleLine { get; init; }
   public required string HashLine { get; init; }
@@ -84,7 +84,7 @@ internal sealed class CaptainDeskModel
   // Compat for older binders
   public IReadOnlyList<CaptainJobBoard.SpotCandidate> Jobs => SpotJobs;
 
-  public static CaptainDeskModel From(CampaignRunner.LiveSession session)
+  public static CaptainBridgeModel From(CampaignRunner.LiveSession session)
   {
     var sim = session.Sim;
     var ids = session.Ids;
@@ -156,7 +156,7 @@ internal sealed class CaptainDeskModel
       ? Array.Empty<StarMapEdge>()
       : RouteHighlight.FromShipment(ids, sim.State.World, ship);
 
-    var (points, edges, hubDetails) = DeskMapProjection.Build(ids);
+    var (points, edges, hubDetails) = CaptainMapProjection.Build(ids);
 
     var feed = new List<FeedLine>();
     if (inFtl)
@@ -166,7 +166,7 @@ internal sealed class CaptainDeskModel
         "vox.mesh",
         "Mesh offline · FTL — no node link until in-system",
         "mesh"));
-      if (session.LastDesk is { Feed: { Count: > 0 } prevFeed })
+      if (session.LastBridge is { Feed: { Count: > 0 } prevFeed })
       {
         foreach (var line in prevFeed)
         {
@@ -234,7 +234,7 @@ internal sealed class CaptainDeskModel
         ? $"CCA pending {escrowPending:0} · day {escrowAge} underway"
         : $"CCA staged ~{escrowPending:0} · opens on sail")
       : "";
-    // LifeFraction is wear used; desk shows remaining drive life (100% = fresh).
+    // LifeFraction is wear used; bridge shows remaining drive life (100% = fresh).
     var lifeRemain = entry is null ? 0m : Math.Clamp((1m - entry.LifeFraction) * 100m, 0m, 100m);
     var hull = entry is null
       ? "—"
@@ -324,7 +324,7 @@ internal sealed class CaptainDeskModel
 
     var (shipX, shipY, shipVis) = ShipMapPose.Compute(ids, sim.State.World, currentSystem, ship, points);
 
-    return new CaptainDeskModel
+    return new CaptainBridgeModel
     {
       SubtitleLine =
         $"{CampaignWorld.PlayerMasterLabel} · day {day} · {DurationArg.Format(session.HoursDone)}/{DurationArg.Format(session.RequestedHours)} · {session.PaceLine} · intel {(session.Player.DockBoardOnly ? "dock" : "mesh")}",
@@ -394,7 +394,7 @@ internal sealed class CaptainDeskModel
       ShipMapY = shipY,
       ShipMapVisible = shipVis,
       IntentStackLines = session.Player.IntentStack.FormatLines(),
-      AttentionLine = DeskClock.FormatAttention(session.Player.Attention),
+      AttentionLine = SessionClock.FormatAttention(session.Player.Attention),
       SimSpeedScale = session.Player.SimSpeedScale,
       GameHoursPerRealMinute = session.GameHoursPerRealMinute,
       SessionGameHoursPerRealMinute = session.SessionGameHoursPerRealMinute,

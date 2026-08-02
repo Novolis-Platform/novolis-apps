@@ -36,7 +36,7 @@ internal sealed class PlayerTutorialHost
     if (day <= 1 && _beats.Add(0))
     {
       _milestones.Add(day, "tutorial",
-        $"{CampaignWorld.PlayerMasterLabel} registered — Marsh check / CCA desk ({CampaignWorld.PlayerFlavorId})");
+        $"{CampaignWorld.PlayerMasterLabel} registered — Marsh check / CCA registry ({CampaignWorld.PlayerFlavorId})");
     }
 
     if (day is >= 2 and <= 3 && _beats.Add(2))

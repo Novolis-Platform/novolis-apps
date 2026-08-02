@@ -3,23 +3,23 @@ using SinsOfACapitalismTycoon.Ui;
 namespace SinsOfACapitalismTycoon.Universe;
 
 /// <summary>
-/// Judges whether the desk / session still produces Cap+ / TTD / SoASE excitement beats.
+/// Judges whether the bridge / session still produces Cap+ / TTD / SoASE excitement beats.
 /// Used by unit tests (and Spectre) — not a vibe score.
 /// </summary>
 internal static class FunExcitementScorecard
 {
   public sealed record Beat(string Id, bool Ok, string Detail);
 
-  /// <summary>Minimum desk beats that must pass for a fresh HardPause session.</summary>
-  public const int MinFreshDeskPasses = 5;
+  /// <summary>Minimum captain beats that must pass for a fresh HardPause session.</summary>
+  public const int MinFreshCaptainPasses = 5;
 
   /// <summary>Minimum milestone / telemetry beats for a short tramp arc (~60–90d).</summary>
   public const int MinArcPasses = 3;
 
-  public static IReadOnlyList<Beat> EvaluateDesk(CaptainDeskModel desk)
+  public static IReadOnlyList<Beat> EvaluateCaptain(CaptainBridgeModel bridge)
   {
-    var coach = desk.CoachLine ?? "";
-    var offers = desk.BerthOffers ?? [];
+    var coach = bridge.CoachLine ?? "";
+    var offers = bridge.BerthOffers ?? [];
     var offerBlob = string.Join('\n',
       offers.Select(o => $"{o.Title}\n{o.Hook}\n{o.Detail}"));
 
@@ -39,16 +39,16 @@ internal static class FunExcitementScorecard
         $"offers={offers.Count}"),
       new(
         "runway-visible",
-        desk.RunwayDays > 0m && !string.IsNullOrWhiteSpace(desk.RunwayLine),
-        desk.RunwayLine),
+        bridge.RunwayDays > 0m && !string.IsNullOrWhiteSpace(bridge.RunwayLine),
+        bridge.RunwayLine),
       new(
         "band-or-time-value",
         HasBandOrTimeValue(offerBlob),
         "Fat/Fair/Thin or time-sensitive/bulk/clock on berth face"),
       new(
         "mesh-gated-ftue",
-        desk.MeshBoardUnlocked || offers.Any(o => o.Kind is BerthOfferKind.Local or BerthOfferKind.Wait or BerthOfferKind.Rumor),
-        $"mesh={desk.MeshBoardUnlocked}"),
+        bridge.MeshBoardUnlocked || offers.Any(o => o.Kind is BerthOfferKind.Local or BerthOfferKind.Wait or BerthOfferKind.Rumor),
+        $"mesh={bridge.MeshBoardUnlocked}"),
     ];
   }
 
@@ -118,8 +118,8 @@ internal static class FunExcitementScorecard
   public static string FailSummary(IReadOnlyList<Beat> beats) =>
     string.Join("; ", beats.Where(b => !b.Ok).Select(b => $"{b.Id}: {b.Detail}"));
 
-  public static bool MeetsFreshDeskBar(CaptainDeskModel desk) =>
-    PassCount(EvaluateDesk(desk)) >= MinFreshDeskPasses;
+  public static bool MeetsFreshCaptainBar(CaptainBridgeModel bridge) =>
+    PassCount(EvaluateCaptain(bridge)) >= MinFreshCaptainPasses;
 
   public static bool MeetsArcBar(CampaignRunner.LiveSession session) =>
     PassCount(EvaluateSession(session)) >= MinArcPasses;

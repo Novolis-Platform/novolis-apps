@@ -82,23 +82,23 @@ Makes main routes livable. Leaves edges to tramps.
 ### The Small Port
 
 “Can she carry it?” / “Ask if her cold hold works.” / “Do we still owe her?”
-**Tell:** Sol export desk, soft/hard Raw caps.
+**Tell:** Sol export hub, soft/hard Raw caps.
 
 ## Calypso Cycle faces (flavor cast — not separate save entities)
 
-Use for milestone VO, Avalonia captain desk, and documentary asides. Virtues/sins condensed
+Use for milestone VO, Avalonia captain bridge, and documentary asides. Virtues/sins condensed
 from Cycle character refs + Eska arc.
 
 | Face | Role | Virtue | Sin | Wire as |
 |------|------|--------|-----|---------|
-| **James** | Reluctant owner-captain (ST Calypso) | Finishes the job; won’t take uninsurable range | Avoidance; underprices danger | `vox.james` / captain desk |
+| **James** | Reluctant owner-captain (ST Calypso) | Finishes the job; won’t take uninsurable range | Avoidance; underprices danger | `vox.james` / captain bridge |
 | **Ixa Ven** | Contracts / underwriter-reader | Borlingly compliant; institutional credibility | Masks problems too well | `vox.ixa` |
 | **Mira** | Pilot / engineer | Envelope-pusher; pays for real safety | Impatience with timid captaincy | tramp FO lines |
 | **Kethra Sel** | Systems / standards | Math over hope | Contempt for optimistic models | wear / service |
 | **Marsh** | Ship AI / Keystone-capable | Maintenance truth; docking discipline | Emotional gravity | registry logs |
 | **Torrik Vesh** | Continuity / threshold | Exit over win; anti-spectacle | Cold envelope thinking | `vox.torrik` |
 | **Lydia Chen** | Meridian branch | Prices cascade early; pays for outcomes | Recorded deniability | `vox.meridian` |
-| **Varek Thol** | Complex risk fixer | Buys options cheap | Leaves ugly work on other desks | drama prep |
+| **Varek Thol** | Complex risk fixer | Buys options cheap | Leaves ugly work on other boards | drama prep |
 | **Eska Zunmi** | Protected dependent | Sincere; expensive freedom without entitlement | Naïveté about invisible moats | Continuity cargo fiction |
 | **Greth CCA clerk** | Registry onboarding | Escrow-honest thoroughness | Bureaucracy-as-destiny | `vox.cca` |
 | **Trel Vaesh** | Nosies admiral | Procedural brake; prize law | Slows captains to a crawl | enforcement flavor |
@@ -122,7 +122,7 @@ Eska arc doctrine worth stealing for standby drama:
 | `vox.broker` / `vox.meridian` | Underwriter | “Odd vessel. Stable risk.” / “That is what the number was for.” |
 | `vox.cca` | CCA / Greth clerk | “Issuer five percent. Contractor ten plus risk. Escrowed.” |
 | `vox.dock` | Dock clerk | “Stations that did not know you could still know the ship.” |
-| `vox.torrik` | Continuity desk | “Pattern break. Soft pickup. That’s not your call.” |
+| `vox.torrik` | Continuity bridge | “Pattern break. Soft pickup. That’s not your call.” |
 | `vox.bulk` | Bulk River ops | “We move what we were built to move.” |
 | `vox.drama` | Traffic / emergency | “Fuel window closed on the long band.” |
 | `vox.ledger` | Institutional narrator | “Ops and Core are never summed.” |

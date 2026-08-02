@@ -5,7 +5,7 @@
     <AssemblyName>SketchStudio</AssemblyName>
     <ApplicationTitle>Sketch Studio</ApplicationTitle>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <Description>Freehand sketching desk — SketchControl with .sketchjson persistence and clipboard PNG/SVG export.</Description>
+    <Description>Freehand sketching studio — SketchControl with .sketchjson persistence and clipboard PNG/SVG export.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" />

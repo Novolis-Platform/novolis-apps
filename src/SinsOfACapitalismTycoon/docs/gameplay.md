@@ -3,7 +3,7 @@
 Sins is a **Near-Sol trade memoir** with two shells:
 
 - **Headless** — seed a universe, let NPCs run, read Spectre like a CCA briefing.
-- **Avalonia captain desk** — you are **James Simmons** aboard **ST Calypso**; pause/step
+- **Avalonia captain bridge** — you are **James Simmons** aboard **ST Calypso**; pause/step
   days, travel empty, commit spot lots at dock, refuse standby, while the Johnston
   100-system campaign keeps moving.
 
@@ -20,7 +20,7 @@ Firms dig, make, and sell; ST Calypso (player or AI) and other tramps plus a meg
 move cargo under registry and insurance; households eat **Final**; drama and wear try to
 kill the margin; you either **captain** Calypso or **judge** the report.
 
-## Captain desk (Avalonia / `--player on` / `--mode captain`)
+## Captain bridge (Avalonia / `--player on` / `--mode captain`)
 
 You play owner-master of **ST Calypso** (`ST-7749-63325116` flavor): lean cash, restoration
 lien, Priority endorsement. Time runs until Calypso needs a decision (idle on dock / standby /
@@ -49,11 +49,11 @@ Terminology: [terminology.md](terminology.md).
 (aliases: `network` / `berth` / `local`).
 CLI mirrors GUI: `travel`, `spot`, `charters`, `accept N`, `accept-at-dock`, `manifest`, `depart`, `refuse`.
 
-Agent-playable text desk: `--mode captain` or `--playtest`.
+Agent-playable text bridge: `--mode captain` or `--playtest`.
 
 ### Decision-point agent protocol (`agent.*`)
 
-Every decision act (travel, accept, market, continue, …) goes through `CaptainDeskService`
+Every decision act (travel, accept, market, continue, …) goes through `CaptainBridgeService`
 (`IAgentHost`) — shared by Avalonia, captain CLI, and LocalIpc. Enable the agent host:
 
 ```powershell
@@ -67,7 +67,7 @@ Travel returns structured `LastAction` / `ErrorCode`. See [SESSION-SMOKE.md](../
 and [session-protocol.md](https://github.com/Novolis-Platform/novolis-gaming/blob/main/docs/session-protocol.md). Glass automation remains `ui.*` (separate pipe).
 
 Checkpoints use `Novolis.Storage.Json` under `%LocalAppData%/Novolis/SinsOfACapitalismTycoon/saves`.
-Desk **Save** / captain `save`; resume with `--load latest`. A checkpoint stores
+Bridge **Save** / captain `save`; resume with `--load latest`. A checkpoint stores
 **seed + hours + integrity** (`SimHash`, day, ops cash) — not a world dump. Load
 **replays** seed→hours, then verifies hash/day/cash; mismatch fails the load.
 
