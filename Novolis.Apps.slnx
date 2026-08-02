@@ -14,7 +14,7 @@
   <Folder Name="/src/BooksMobile/">
     <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
     <Project Path="src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj" />
-    <Project Path="src/BooksMobile/BooksMobile.Android/BooksMobile.Android.csproj" />
+    <!-- Android needs the android workload; build that project directly on Windows/macOS. -->
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
