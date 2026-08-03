@@ -63,9 +63,10 @@ internal static class WorldFactory
         switch (scenario)
         {
             case ScenarioId.RetailProfit:
-                world.ScenarioTargetProfit = 2_000_000;
+                // Trailing 12-month P&L (not EMA). Achievable with ~2 profitable stores.
+                world.ScenarioTargetProfit = 40_000;
                 world.ScenarioMaxDays = 365 * 15;
-                world.AddNews("Goal: build a retail chain and reach strong annualized profit.");
+                world.AddNews("Goal: 2+ stores and $40k trailing-year profit.");
                 break;
             case ScenarioId.WineDominance:
                 world.ScenarioMaxDays = 365 * 25;

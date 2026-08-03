@@ -74,6 +74,8 @@
     <PackageVersion Include="Novolis.Economy.Simulation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Economy.Finance" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Economy.Agents" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Geopolitics.Core" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Geopolitics.Simulation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.MachineLearning.Neural" Version="2026.1.*" />
     <PackageVersion Include="Novolis.MachineLearning.Neural.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Storage.Abstractions" Version="2026.1.*" />

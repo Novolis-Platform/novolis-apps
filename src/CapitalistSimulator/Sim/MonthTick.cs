@@ -63,6 +63,29 @@ internal sealed class MonthTick
                 var need = unit.PurchaseQtyTarget;
                 if (need <= 0) continue;
                 var productId = unit.PurchaseProductId!;
+                // Replenish only what sold (plus small buffer), never refill past ~1.2 months of sell-through.
+                var linkedSold = firm.Units
+                    .Where(u => u.Kind == UnitKind.Sales
+                        && string.Equals(u.SalesProductId, productId, StringComparison.OrdinalIgnoreCase))
+                    .Sum(u => u.LastSold);
+                var onHand = _world.FindLot(firm, productId)?.Quantity ?? 0;
+                var desiredShelf = linkedSold > 0 ? linkedSold * 1.2m + 20m : (firm.Kind == FirmKind.Retail ? 220m : need);
+                need = Math.Min(need, Math.Max(0m, desiredShelf - onHand));
+                if (need <= 0) continue;
+                // #region agent log
+                if (_world.Day <= 90 && firm.Owner.Equals(_world.Player.Id))
+                {
+                    DebugSessionLog.Write("F", "MonthTick.cs:RunPurchasing", "purchase replenish", new
+                    {
+                        day = _world.Day,
+                        firm = firm.Name,
+                        productId,
+                        linkedSold = DebugSessionLog.DescribeMoney(linkedSold),
+                        onHand = DebugSessionLog.DescribeMoney(onHand),
+                        need = DebugSessionLog.DescribeMoney(need),
+                    }, runId: "post-fix");
+                }
+                // #endregion
 
                 if (!unit.PurchaseFromSeaport && unit.PurchaseFromFirm is { } fromId)
                 {
@@ -105,8 +128,7 @@ internal sealed class MonthTick
             cost = qty * offer.UnitCost;
         }
         if (qty <= 0) return;
-        corp.Cash -= cost;
-        corp.MonthExpense += cost;
+        corp.Cash -= cost; // inventory purchase — not P&L expense (COGS booked on sale)
         var quality = offer.Quality;
         if (privateLabel)
             quality = Math.Min(0.95, quality + 0.05);
@@ -135,11 +157,12 @@ internal sealed class MonthTick
             cost = qty * price;
         }
         if (qty <= 0) return;
+        var sellerCogs = qty * lot.UnitCost;
         lot.Quantity -= qty;
-        buyerCorp.Cash -= cost;
-        buyerCorp.MonthExpense += cost;
+        buyerCorp.Cash -= cost; // inventory — COGS on buyer's later sale
         sellerCorp.Cash += cost;
         sellerCorp.MonthRevenue += cost;
+        sellerCorp.MonthExpense += sellerCogs;
         var q = unit.PrivateLabel ? Math.Min(0.95, lot.Quality + 0.05) : lot.Quality;
         var dest = _world.GetOrCreateLot(buyer, productId, q);
         BlendLot(dest, qty, q, price);
@@ -313,7 +336,8 @@ internal sealed class MonthTick
                 EconomicClimate.Panic => 0.5,
                 _ => 1.0,
             };
-            var demandBase = (double)city.Population / 1000.0 * city.SpendingLevel * climateMul;
+            // Cap2-scale grocery throughput across SKUs.
+            var demandBase = (double)city.Population / 8.0 * city.SpendingLevel * climateMul;
 
             var retailFirms = _world.Firms.Where(f => f.CityId.Equals(city.Id) && f.Kind == FirmKind.Retail).ToList();
             var byProduct = new Dictionary<string, List<(Firm Firm, FunctionalUnit Unit, Corporation Corp, StockLot Lot)>>(StringComparer.OrdinalIgnoreCase);
@@ -366,10 +390,12 @@ internal sealed class MonthTick
                         o.Unit.LastSold = 0;
                         continue;
                     }
+                    var cogs = sold * o.Lot.UnitCost;
                     o.Lot.Quantity -= sold;
                     var revenue = sold * o.Unit.SalesPrice;
                     o.Corp.Cash += revenue;
                     o.Corp.MonthRevenue += revenue;
+                    o.Corp.MonthExpense += cogs;
                     o.Unit.LastSold = sold;
                     // satisfaction → loyalty
                     var brandKey = ResolveBrandKey(o.Corp, productId, prod.Class.ToString());
@@ -401,10 +427,12 @@ internal sealed class MonthTick
                 var lot = _world.FindLot(firm, unit.SalesProductId!);
                 if (lot is null || lot.Quantity <= 0) continue;
                 var sold = Math.Min(lot.Quantity, Math.Max(5m, lot.Quantity * 0.35m));
+                var cogs = sold * lot.UnitCost;
                 lot.Quantity -= sold;
                 var revenue = sold * unit.SalesPrice;
                 corp.Cash += revenue;
                 corp.MonthRevenue += revenue;
+                corp.MonthExpense += cogs;
                 unit.LastSold = sold;
                 _world.LastMonthSales.Add(new MarketShareSnap
                 {
@@ -421,8 +449,8 @@ internal sealed class MonthTick
     {
         if (basePrice <= 0) return 0.5;
         var ratio = (double)(price / basePrice);
-        // cheaper → higher attractiveness
-        return Math.Clamp(1.4 - ratio, 0.05, 1.2);
+        // At 1.0× base → ~1.0; at 1.5× still ~0.75; only extreme gouging collapses demand.
+        return Math.Clamp(1.25 - (ratio - 1.0) * 0.5, 0.2, 1.25);
     }
 
     private void RunExpensesAndLoans()
@@ -431,7 +459,8 @@ internal sealed class MonthTick
         {
             var corp = _world.FindCorp(firm.Owner);
             if (corp is null || corp.Retired) continue;
-            var wages = firm.Units.Sum(u => 500m + u.Level * 200m + (decimal)u.Training * 300m);
+            // Lean staffing so a stocked supermarket clears profit after COGS.
+            var wages = firm.Units.Sum(u => 70m + u.Level * 25m + (decimal)u.Training * 30m);
             var expense = firm.MonthlyExpense + wages;
             corp.Cash -= expense;
             corp.MonthExpense += expense;
@@ -516,7 +545,22 @@ internal sealed class MonthTick
         foreach (var corp in _world.Corporations.Where(c => !c.Retired))
         {
             var profit = corp.MonthRevenue - corp.MonthExpense;
+            var prevLyp = corp.LastYearProfit;
             corp.LastYearProfit = corp.LastYearProfit * 0.92m + profit * 0.08m;
+            // #region agent log
+            if (corp.IsPlayer && (_world.Day % 180 == 1 || _world.Day < 60))
+            {
+                DebugSessionLog.Write("A", "MonthTick.cs:UpdateStockPrices", "LYP ema update", new
+                {
+                    day = _world.Day,
+                    monthProfit = DebugSessionLog.DescribeMoney(profit),
+                    prevLyp = DebugSessionLog.DescribeMoney(prevLyp),
+                    newLyp = DebugSessionLog.DescribeMoney(corp.LastYearProfit),
+                    target = DebugSessionLog.DescribeMoney(_world.ScenarioTargetProfit),
+                    equilibriumHint = DebugSessionLog.DescribeMoney(profit),
+                });
+            }
+            // #endregion
             var book = Math.Max(1m, corp.Cash + _world.FirmsOf(corp.Id).Sum(f => f.Inventory.Sum(l => l.Quantity * l.UnitCost)));
             var target = book / Math.Max(1m, corp.SharesOutstanding) * 10m + corp.LastYearProfit / Math.Max(1m, corp.SharesOutstanding) * 40m;
             corp.SharePrice = Math.Max(0.5m, corp.SharePrice * 0.85m + target * 0.15m);
@@ -544,6 +588,12 @@ internal sealed class MonthTick
             var profit = corp.MonthRevenue - corp.MonthExpense;
             corp.MonthlyPnl[corp.PnlCursor % 12] = profit;
             corp.PnlCursor++;
+            corp.MonthsRecorded = Math.Min(12, corp.MonthsRecorded + 1);
+            corp.TrailingYearProfit = 0;
+            var slots = corp.MonthsRecorded >= 12 ? 12 : corp.MonthsRecorded;
+            for (var i = 0; i < slots; i++)
+                corp.TrailingYearProfit += corp.MonthlyPnl[i];
+            // Keep EMA for stock pricing; win conditions use TrailingYearProfit.
             foreach (var firm in _world.FirmsOf(corp.Id))
                 firm.LastMonthProfit = profit / Math.Max(1, _world.FirmsOf(corp.Id).Count());
         }

@@ -29,8 +29,12 @@ internal sealed class MainWindow : Window
     private readonly TextBlock _profitChip = CapitalTheme.Mono("$0");
     private readonly TextBlock _shareChip = CapitalTheme.Mono("$0");
     private readonly TextBlock _status = CapitalTheme.Label("", muted: true);
+    private readonly TextBlock _coachTitle = CapitalTheme.Title("Getting started", 18);
+    private readonly TextBlock _coachBody = CapitalTheme.Label("", muted: false);
+    private readonly Button _coachPrimary = CapitalTheme.MakeButton("Advance month", CapitalButtonKind.Primary);
     private readonly TextBlock _firmDetail = CapitalTheme.Mono("", 11);
     private readonly StackPanel _productBars = new() { Spacing = 6 };
+    private bool _welcomeShown;
     private readonly ComboBox _cityBox = new() { MinWidth = 140 };
     private readonly ComboBox _buildTypeBox = new() { MinWidth = 180 };
     private readonly ComboBox _speedBox = new();
@@ -76,9 +80,16 @@ internal sealed class MainWindow : Window
             RedrawMap();
         };
 
+        var buildIdx = 0;
+        var i = 0;
         foreach (var ft in _world.Catalog.FirmTypes.Values)
-            _buildTypeBox.Items.Add(ft.Id);
-        _buildTypeBox.SelectedIndex = 0;
+        {
+            _buildTypeBox.Items.Add(new FirmTypeItem(ft.Id, ft.Name));
+            if (ft.Id == "retail_super")
+                buildIdx = i;
+            i++;
+        }
+        _buildTypeBox.SelectedIndex = buildIdx;
 
         for (var s = 0; s <= 5; s++)
             _speedBox.Items.Add(s);
@@ -105,37 +116,60 @@ internal sealed class MainWindow : Window
             }
         };
 
+        _coachPrimary.Click += (_, _) => RunCoachPrimary();
+        _coachBody.TextWrapping = TextWrapping.Wrap;
+        _coachBody.MaxWidth = 520;
+
         Content = BuildLayout();
         KeyDown += OnKeyDown;
+
+        // Playable first session: stocked supermarket already on the map.
+        if (!_world.FirmsOf(_world.Player.Id).Any())
+        {
+            var firm = StarterBootstrap.EnsureStarterRetail(_world);
+            if (firm is not null)
+                _selectedFirm = firm.Id;
+        }
+
         RefreshAll();
         _timer.Start();
-        _feedback.SetStatus("Capitalist Simulator — click map to site a firm, open firm to configure units.");
+        _feedback.SetStatus("Your Corner Market is ready — press Advance month.");
+        Opened += async (_, _) => await ShowWelcomeIfNeededAsync();
     }
 
     private Control BuildLayout()
     {
-        var toolbar = new WrapPanel
+        var primary = new WrapPanel
         {
-            Margin = new Thickness(8),
+            Margin = new Thickness(8, 8, 8, 0),
             Children =
             {
-                CapitalTheme.MakeButton("Build", CapitalButtonKind.Primary).Tap(b => b.Click += (_, _) => TryBuild()),
-                CapitalTheme.MakeButton("Demolish").Tap(b => b.Click += (_, _) => DemolishSelected()),
-                CapitalTheme.MakeButton("Auto-Link").Tap(b => b.Click += (_, _) => AutoLinkSelected()),
-                CapitalTheme.MakeButton("Reports").Tap(b => b.Click += (_, _) => ShowReports()),
-                CapitalTheme.MakeButton("HQ").Tap(b => b.Click += (_, _) => ShowHq()),
-                CapitalTheme.MakeButton("Stock").Tap(b => b.Click += (_, _) => ShowStock()),
-                CapitalTheme.MakeButton("Bank").Tap(b => b.Click += (_, _) => ShowBank()),
-                CapitalTheme.MakeButton("Brand").Tap(b => b.Click += (_, _) => ShowBrand()),
+                CapitalTheme.MakeButton("Advance month", CapitalButtonKind.Primary).Tap(b => b.Click += async (_, _) => await AdvanceAsync(30)),
+                CapitalTheme.MakeButton("Build store").Tap(b => b.Click += (_, _) => TryBuild()),
+                CapitalTheme.MakeButton("Fix starter stock").Tap(b => b.Click += (_, _) => FixStarterStock()),
                 CapitalTheme.MakeButton("Ops").Tap(b => b.Click += (_, _) => ShowOps()),
-                CapitalTheme.MakeButton("+30d", CapitalButtonKind.Primary).Tap(b => b.Click += async (_, _) => await AdvanceAsync(30)),
-                CapitalTheme.MakeButton("Save").Tap(b => b.Click += (_, _) => { _saves.Save(_world); Flash("Saved autosave"); }),
-                CapitalTheme.MakeButton("Load").Tap(b => b.Click += (_, _) => ShowLoad()),
-                CapitalTheme.MakeButton("New").Tap(b => b.Click += (_, _) => NewGame()),
+                CapitalTheme.MakeButton("Reports").Tap(b => b.Click += (_, _) => ShowReports()),
+            },
+        };
+
+        var secondary = new WrapPanel
+        {
+            Margin = new Thickness(8, 4, 8, 0),
+            Children =
+            {
+                CapitalTheme.MakeButton("Bank", CapitalButtonKind.Quiet).Tap(b => b.Click += (_, _) => ShowBank()),
+                CapitalTheme.MakeButton("Stock", CapitalButtonKind.Quiet).Tap(b => b.Click += (_, _) => ShowStock()),
+                CapitalTheme.MakeButton("Brand", CapitalButtonKind.Quiet).Tap(b => b.Click += (_, _) => ShowBrand()),
+                CapitalTheme.MakeButton("HQ", CapitalButtonKind.Quiet).Tap(b => b.Click += (_, _) => ShowHq()),
+                CapitalTheme.MakeButton("Auto-Link", CapitalButtonKind.Quiet).Tap(b => b.Click += (_, _) => AutoLinkSelected()),
+                CapitalTheme.MakeButton("Demolish", CapitalButtonKind.Quiet).Tap(b => b.Click += (_, _) => DemolishSelected()),
+                CapitalTheme.MakeButton("Save", CapitalButtonKind.Quiet).Tap(b => b.Click += (_, _) => { _saves.Save(_world); Flash("Saved"); }),
+                CapitalTheme.MakeButton("Load", CapitalButtonKind.Quiet).Tap(b => b.Click += (_, _) => ShowLoad()),
+                CapitalTheme.MakeButton("New", CapitalButtonKind.Quiet).Tap(b => b.Click += (_, _) => NewGame()),
                 CapitalTheme.MakeButton("Retire", CapitalButtonKind.Danger).Tap(b => b.Click += (_, _) => { _proc.Apply(new RetireCommand()); RefreshAll(); }),
                 new TextBlock { Text = "City", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), Foreground = CapitalPalette.MutedBrush },
                 _cityBox,
-                new TextBlock { Text = "Type", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), Foreground = CapitalPalette.MutedBrush },
+                new TextBlock { Text = "Build type", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), Foreground = CapitalPalette.MutedBrush },
                 _buildTypeBox,
                 new TextBlock { Text = "Speed", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0), Foreground = CapitalPalette.MutedBrush },
                 _speedBox,
@@ -143,6 +177,8 @@ internal sealed class MainWindow : Window
                 _zoomBox,
             },
         };
+
+        var toolbar = new StackPanel { Children = { primary, secondary } };
 
         var metrics = new WrapPanel { Margin = new Thickness(8, 0) };
         metrics.Children.Add(WrapMetric("Cash", _cashChip));
@@ -174,14 +210,30 @@ internal sealed class MainWindow : Window
         var applySales = CapitalTheme.MakeButton("Apply Price/Slot", CapitalButtonKind.Primary);
         applySales.Click += (_, _) => ApplySalesConfig();
 
+        var coachPanel = new Border
+        {
+            Background = CapitalPalette.PanelRaisedBrush,
+            BorderBrush = CapitalPalette.AccentBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = new StackPanel
+            {
+                Spacing = 8,
+                Children = { _coachTitle, _coachBody, _coachPrimary },
+            },
+        };
+
         var left = new StackPanel
         {
-            Width = 300,
+            Width = 320,
             Margin = new Thickness(8),
             Children =
             {
+                coachPanel,
                 CapitalTheme.Section("Firms", _firmList),
-                CapitalTheme.Section("Sales slot", new StackPanel
+                CapitalTheme.Section("Sales slot (price here)", new StackPanel
                 {
                     Children =
                     {
@@ -344,10 +396,15 @@ internal sealed class MainWindow : Window
     {
         if (_pendingBuildX is null || _pendingBuildY is null)
         {
-            Flash("Click an empty map tile first");
+            Flash("Click an empty green map tile first, then Build store");
             return;
         }
-        if (_buildTypeBox.SelectedItem is not string typeId) return;
+        var typeId = _buildTypeBox.SelectedItem switch
+        {
+            FirmTypeItem item => item.Id,
+            string s => s,
+            _ => "retail_super",
+        };
         var city = _cityBox.SelectedItem as string ?? _world.Cities[0].Name;
         var r = _proc.Apply(new BuildFirmCommand(city, typeId, _pendingBuildX.Value, _pendingBuildY.Value));
         Flash(r.Message);
@@ -355,8 +412,102 @@ internal sealed class MainWindow : Window
         {
             _selectedFirm = _world.FirmsOf(_world.Player.Id).Last().Id;
             _pendingBuildX = _pendingBuildY = null;
+            PopulateFirmEditors();
         }
         RefreshAll();
+    }
+
+    private void FixStarterStock()
+    {
+        var firm = _selectedFirm is { } id
+            ? _world.FindFirm(id)
+            : _world.FirmsOf(_world.Player.Id).FirstOrDefault(f => f.Kind == FirmKind.Retail);
+        if (firm is null || !firm.Owner.Equals(_world.Player.Id))
+        {
+            firm = StarterBootstrap.EnsureStarterRetail(_world);
+        }
+        else
+        {
+            StarterBootstrap.ConfigureStockedSupermarket(_world, _proc, firm);
+        }
+        if (firm is not null)
+            _selectedFirm = firm.Id;
+        Flash("Starter shelves restocked (bread / milk / soda)");
+        RefreshAll();
+    }
+
+    private void RunCoachPrimary()
+    {
+        var step = TutorialCoach.Next(_world);
+        switch (step.PrimaryAction)
+        {
+            case "Advance month":
+                _ = AdvanceAsync(30);
+                break;
+            case "Build store":
+                TryBuild();
+                break;
+            case "Fix starter stock":
+                FixStarterStock();
+                break;
+            case "Reports":
+                ShowReports();
+                break;
+            case "New":
+                NewGame();
+                break;
+            default:
+                Flash(step.Title);
+                break;
+        }
+    }
+
+    private void RefreshCoach()
+    {
+        var step = TutorialCoach.Next(_world);
+        _coachTitle.Text = step.Title;
+        _coachBody.Text = step.Body;
+        _coachPrimary.Content = step.PrimaryAction;
+    }
+
+    private async Task ShowWelcomeIfNeededAsync()
+    {
+        if (_welcomeShown) return;
+        _welcomeShown = true;
+        var go = CapitalTheme.MakeButton("Got it — Advance month", CapitalButtonKind.Primary);
+        var dlg = new Window
+        {
+            Title = "Capitalist Simulator",
+            Width = 520,
+            Height = 360,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(24),
+                Spacing = 12,
+                Children =
+                {
+                    CapitalTheme.Title("Your first store is open", 22),
+                    CapitalTheme.Label(
+                        "Corner Market is already built in Metropolis and stocked from the seaport (bread, milk, soda).",
+                        muted: false),
+                    CapitalTheme.Label(
+                        "1) Press Advance month — cash goes out for stock/wages, comes back from shoppers.\n" +
+                        "2) Watch the right-hand P/Q/B bars (price, quality, brand) and blue/red supply bars.\n" +
+                        "3) Raise prices or expand when the coach says you're profitable.",
+                        muted: false),
+                    CapitalTheme.Label("Green tiles = yours · Red tiles = rivals · Teal strip = seaport.", muted: true),
+                    go,
+                },
+            },
+        };
+        CapitalTheme.ApplyWindowChrome(dlg);
+        go.Click += async (_, _) =>
+        {
+            dlg.Close();
+            await AdvanceAsync(30);
+        };
+        await dlg.ShowDialog(this);
     }
 
     private void DemolishSelected()
@@ -714,6 +865,19 @@ internal sealed class MainWindow : Window
         RefreshFeed();
         if (_world.Win.Won || _world.Win.Lost)
             _status.Text = _world.Win.Message;
+        RefreshCoach();
+        if (_selectedFirm is null)
+        {
+            var first = _world.FirmsOf(_world.Player.Id).FirstOrDefault();
+            if (first is not null)
+            {
+                _selectedFirm = first.Id;
+                SelectFirmInList(first.Id);
+                PopulateFirmEditors();
+                RedrawInterior();
+                RefreshFirmDetail();
+            }
+        }
     }
 
     private void RefreshFirmList()
@@ -931,13 +1095,19 @@ internal sealed class MainWindow : Window
     private void NewGame()
     {
         _runLoop = false;
-        ReplaceWorld(WorldFactory.Create(
+        _welcomeShown = false;
+        var world = WorldFactory.Create(
             _options.Scenario,
             _options.StartingCash,
             _options.AiCount,
             _options.AiAggressiveness,
-            Environment.TickCount));
-        Flash("New game");
+            Environment.TickCount);
+        var firm = StarterBootstrap.EnsureStarterRetail(world);
+        ReplaceWorld(world);
+        if (firm is not null)
+            _selectedFirm = firm.Id;
+        Flash("New game — starter store ready");
+        _ = ShowWelcomeIfNeededAsync();
     }
 
     private void ShowLoad()
@@ -1153,6 +1323,11 @@ internal sealed class MainWindow : Window
     private sealed record ZoomItem(string Label, double Cell)
     {
         public override string ToString() => Label;
+    }
+
+    private sealed record FirmTypeItem(string Id, string Name)
+    {
+        public override string ToString() => Name;
     }
 }
 

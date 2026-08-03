@@ -24,9 +24,8 @@ internal static class HeadlessRunner
                 options.Seed);
         }
 
-        // Seed a playable retail loop for smoke if player has no firms
         if (!world.FirmsOf(world.Player.Id).Any())
-            BootstrapRetail(world);
+            StarterBootstrap.EnsureStarterRetail(world);
 
         var proc = new CommandProcessor(world);
         proc.Apply(new AdvanceDaysCommand(options.Days));
@@ -40,27 +39,9 @@ internal static class HeadlessRunner
         return world.Win.Lost ? 1 : 0;
     }
 
-    internal static void BootstrapRetail(GameWorld world)
-    {
-        var proc = new CommandProcessor(world);
-        var city = world.Cities[0].Name;
-        proc.Apply(new BuildFirmCommand(city, "retail_super", 1, 2, "Flagship Market"));
-        var firm = world.FirmsOf(world.Player.Id).First();
-        proc.Apply(new PlaceUnitCommand(firm.Id, UnitKind.Purchasing, 1, 1));
-        var buys = firm.Units.Where(u => u.Kind == UnitKind.Purchasing).ToList();
-        var sales = firm.Units.Where(u => u.Kind == UnitKind.Sales).ToList();
-        proc.Apply(new ConfigurePurchasingCommand(firm.Id, buys[0].Id, "bread", 200, true, null, false));
-        if (buys.Count > 1)
-            proc.Apply(new ConfigurePurchasingCommand(firm.Id, buys[1].Id, "milk", 150, true, null, false));
-        if (sales.Count > 0)
-            proc.Apply(new ConfigureSalesCommand(firm.Id, sales[0].Id, "bread", 3.5m));
-        if (sales.Count > 1)
-            proc.Apply(new ConfigureSalesCommand(firm.Id, sales[1].Id, "milk", 4.5m));
-        var ad = firm.Units.FirstOrDefault(u => u.Kind == UnitKind.Advertising);
-        if (ad is not null)
-            proc.Apply(new ConfigureAdvertisingCommand(firm.Id, ad.Id, "bread", "Food", 3000));
-        proc.Apply(new AutoLinkCommand(firm.Id));
-    }
+    /// <summary>Test helper — same as production starter.</summary>
+    internal static void BootstrapRetail(GameWorld world) =>
+        StarterBootstrap.EnsureStarterRetail(world);
 
     private static void WriteReport(GameWorld world)
     {
@@ -72,6 +53,9 @@ internal static class HeadlessRunner
         console.WriteLine($"Firms {world.FirmsOf(world.Player.Id).Count()}  Loans {world.Player.Loans.Sum(l => l.Principal):N0}");
         if (world.Win.Won) console.MarkupLine($"[green]WIN[/] {world.Win.Message}");
         if (world.Win.Lost) console.MarkupLine($"[red]LOSE[/] {world.Win.Message}");
+
+        var coach = TutorialCoach.Next(world);
+        console.MarkupLine($"[cyan]Next:[/] {coach.Title} — {coach.Body}");
 
         var table = new Table().AddColumns("Product", "Sold", "Revenue");
         foreach (var g in world.LastMonthSales.Where(s => s.CorpId.Equals(world.Player.Id))

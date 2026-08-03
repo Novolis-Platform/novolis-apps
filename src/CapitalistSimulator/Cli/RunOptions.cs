@@ -20,6 +20,7 @@ internal sealed class RunOptions
     public bool Quiet { get; init; }
     public string? SaveName { get; init; }
     public string? LoadName { get; init; }
+    public string? PlaytestWin { get; init; }
 
     public static RunOptions Parse(string[] args)
     {
@@ -33,6 +34,7 @@ internal sealed class RunOptions
         var quiet = false;
         string? save = null;
         string? load = null;
+        string? playtestWin = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -71,6 +73,10 @@ internal sealed class RunOptions
                 case "--load":
                     load = Next();
                     break;
+                case "--playtest-win":
+                    playtestWin = Next();
+                    mode = AppMode.Headless;
+                    break;
                 case "--help":
                 case "-h":
                     throw new ArgumentException(HelpText);
@@ -93,6 +99,7 @@ internal sealed class RunOptions
             Quiet = quiet,
             SaveName = save,
             LoadName = load,
+            PlaytestWin = playtestWin,
         };
     }
 
@@ -110,5 +117,6 @@ internal sealed class RunOptions
           --save NAME
           --load NAME
           --quiet
+          --playtest-win retail|wine|both
         """;
 }

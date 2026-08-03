@@ -14,6 +14,17 @@ internal static class Program
         try
         {
             var options = RunOptions.Parse(args);
+            if (options.PlaytestWin is { } playtest)
+            {
+                return playtest.ToLowerInvariant() switch
+                {
+                    "retail" => WinPlaytest.RunRetailProfit(options.Seed),
+                    "wine" => WinPlaytest.RunWineDominance(options.Seed),
+                    "both" => Math.Max(WinPlaytest.RunRetailProfit(options.Seed), WinPlaytest.RunWineDominance(options.Seed + 1)),
+                    _ => throw new ArgumentException("Use --playtest-win retail|wine|both"),
+                };
+            }
+
             if (options.Mode == AppMode.Headless)
                 return HeadlessRunner.Run(options);
 

@@ -46,6 +46,7 @@ pwsh -File scripts/build-installer.ps1 -App All
 | Sketch Studio | `src/SketchStudio` | Freehand sketch studio (`SketchControl`, `.sketchjson`, PNG/SVG clipboard) |
 | Sins of a Capitalism Tycoon | `src/SinsOfACapitalismTycoon` | Headless/Avalonia BM economy sim (`Novolis.Economy.Core`) |
 | Capitalist Simulator | `src/CapitalistSimulator` | Capitalism 2 homage firm/unit firm sim (local only — not released) |
+| GeoPolity | `src/GeoPolity` | Full-world geopolitics session host (Avalonia / Spectre / headless; local only — not released) |
 | Live Studio | `src/LiveStudio` | Avalonia demo for Novolis Audio Live (host + launcher + studio; DSL editor + visuals) |
 
 ## Related

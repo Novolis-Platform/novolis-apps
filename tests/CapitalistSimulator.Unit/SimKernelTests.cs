@@ -63,6 +63,26 @@ public class SimKernelTests
     }
 
     [Test]
+    public async Task StarterRetail_IsProfitable_InFirstMonth()
+    {
+        var world = WorldFactory.Create(ScenarioId.Sandbox, startingCash: 2_000_000, aiCount: 0, seed: 42);
+        StarterBootstrap.EnsureStarterRetail(world);
+        new MonthTick(world).RunMonth();
+        var pnl = world.Player.MonthRevenue - world.Player.MonthExpense;
+        await Assert.That(world.Player.MonthRevenue).IsGreaterThan(5_000);
+        await Assert.That(pnl).IsGreaterThan(0);
+    }
+
+    [Test]
+    public async Task Coach_PointsAtAdvance_AfterStarter()
+    {
+        var world = WorldFactory.Create(aiCount: 0, seed: 1);
+        StarterBootstrap.EnsureStarterRetail(world);
+        var step = TutorialCoach.Next(world);
+        await Assert.That(step.PrimaryAction).IsEqualTo("Advance month");
+    }
+
+    [Test]
     public async Task Bank_BorrowAndRepay()
     {
         var world = WorldFactory.Create(aiCount: 0, seed: 3);
@@ -107,7 +127,7 @@ public class SimKernelTests
     public async Task WinCondition_RetailProfit_CanTrigger()
     {
         var world = WorldFactory.Create(ScenarioId.RetailProfit, aiCount: 0, seed: 2);
-        world.Player.LastYearProfit = world.ScenarioTargetProfit;
+        world.Player.TrailingYearProfit = world.ScenarioTargetProfit;
         // need 2 retail firms
         var proc = new CommandProcessor(world);
         var city = world.Cities[0].Name;

@@ -11,6 +11,7 @@
     <Project Path="src/SketchStudio/SketchStudio.csproj" />
     <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
     <Project Path="src/CapitalistSimulator/CapitalistSimulator.csproj" />
+    <Project Path="src/GeoPolity/GeoPolity.csproj" />
   </Folder>
   <Folder Name="/src/BooksMobile/">
     <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
@@ -27,6 +28,7 @@
     <Project Path="tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
     <Project Path="tests/CapitalistSimulator.Unit/CapitalistSimulator.Unit.csproj" />
+    <Project Path="tests/GeoPolity.Unit/GeoPolity.Unit.csproj" />
   </Folder>
   <Folder Name="/src/LiveStudio/">
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />

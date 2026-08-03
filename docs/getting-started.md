@@ -95,11 +95,18 @@ dotnet run --project src/SinsOfACapitalismTycoon -- --mode avalonia
 ## Capitalist Simulator
 
 ```powershell
-dotnet run --project d:\novolis\novolis-apps\src\CapitalistSimulator -- --mode headless --days 36
-dotnet run --project d:\novolis\novolis-apps\src\CapitalistSimulator -- --mode avalonia
+dotnet run --project d:\novolis\novolis-apps\src\CapitalistSimulator -p:NovolisUseProjectReferences=true -- --mode avalonia
 ```
 
-Capitalism 2 homage bridge (local only). See `src/CapitalistSimulator/docs/gameplay.md`.
+Starts with a **stocked Corner Market** in Metropolis and a coach card. Press **Advance month**, watch cash / P&L, then follow the coach.
+
+Headless smoke (same starter store):
+
+```powershell
+dotnet run --project d:\novolis\novolis-apps\src\CapitalistSimulator -p:NovolisUseProjectReferences=true -- --mode headless --days 36
+```
+
+Full first-session walkthrough: [`src/CapitalistSimulator/docs/gameplay.md`](../src/CapitalistSimulator/docs/gameplay.md).
 
 ## Live Studio
 
