@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TUnit" />
+    <PackageReference Include="MessagePack" />
     <PackageReference Include="Novolis.Agent.Core" />
     <PackageReference Include="Novolis.Agent.Surface" />
     <PackageReference Include="Novolis.Avalonia.StarMap" />

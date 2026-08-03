@@ -16,6 +16,7 @@
     <PackageReference Include="Avalonia.Controls.DataGrid" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="MessagePack" />
     <PackageReference Include="Novolis.Agent.Core" />
     <PackageReference Include="Novolis.Agent.Surface" />
     <PackageReference Include="Novolis.Avalonia.Agent" />

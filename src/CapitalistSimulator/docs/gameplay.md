@@ -42,7 +42,13 @@ Same starter store; prints a month report + “Next:” coach tip.
 3. Factory + recipes for vertical integration (wine scenario: farm grapes → factory wine → your stores).
 4. Bank / stock / brand when cash or expansion needs it.
 
-Scenarios: `Sandbox` (default), `RetailProfit`, `WineDominance` via `--scenario`.
+Scenarios via `--scenario`:
+
+| Scenario | Win |
+| --- | --- |
+| `Sandbox` | No win — open play |
+| `RetailProfit` | 2+ retail stores and **$40k trailing-year profit** |
+| `WineDominance` | Farm + winery + majority wine market share |
 
 ## Saves
 

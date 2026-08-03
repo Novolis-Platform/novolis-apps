@@ -42,7 +42,8 @@ internal static class WinPlaytest
         // #endregion
 
         Console.WriteLine($"RetailProfit playtest: won={world.Win.Won} lost={world.Win.Lost} msg={world.Win.Message}");
-        Console.WriteLine($"LYP={world.Player.LastYearProfit:N0} target={world.ScenarioTargetProfit:N0} day={world.Day}");
+        Console.WriteLine(
+            $"trailing={world.Player.TrailingYearProfit:N0} ema={world.Player.LastYearProfit:N0} target={world.ScenarioTargetProfit:N0} day={world.Day}");
         return world.Win.Won ? 0 : 1;
     }
 

@@ -61,13 +61,13 @@ internal static class StarterBootstrap
             proc.Apply(new ConfigurePurchasingCommand(firm.Id, buys[1].Id, "milk", 700, true, null, false));
         if (buys.Count > 2)
             proc.Apply(new ConfigurePurchasingCommand(firm.Id, buys[2].Id, "soda", 500, true, null, false));
-        // ~1.6× catalog base — margin over seaport cost; attractiveness curve still accepts this.
+        // ~1.8–1.9× catalog base — enough gross margin for 2 stores to clear $40k trailing-year.
         if (sales.Count > 0)
-            proc.Apply(new ConfigureSalesCommand(firm.Id, sales[0].Id, "bread", 4.80m));
+            proc.Apply(new ConfigureSalesCommand(firm.Id, sales[0].Id, "bread", 5.60m));
         if (sales.Count > 1)
-            proc.Apply(new ConfigureSalesCommand(firm.Id, sales[1].Id, "milk", 6.40m));
+            proc.Apply(new ConfigureSalesCommand(firm.Id, sales[1].Id, "milk", 7.60m));
         if (sales.Count > 2)
-            proc.Apply(new ConfigureSalesCommand(firm.Id, sales[2].Id, "soda", 4.80m));
+            proc.Apply(new ConfigureSalesCommand(firm.Id, sales[2].Id, "soda", 5.60m));
 
         var ad = firm.Units.FirstOrDefault(u => u.Kind == UnitKind.Advertising);
         if (ad is not null)

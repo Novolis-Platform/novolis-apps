@@ -1,12 +1,10 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using GeoPolity.Agent;
 using GeoPolity.AvaloniaUi;
 using GeoPolity.Session;
-using Novolis.Agent.Core;
 using Novolis.Agent.Surface;
 using Novolis.Geopolitics.Core;
 

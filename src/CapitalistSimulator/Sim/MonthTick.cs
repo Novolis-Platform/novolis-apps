@@ -459,8 +459,10 @@ internal sealed class MonthTick
         {
             var corp = _world.FindCorp(firm.Owner);
             if (corp is null || corp.Retired) continue;
-            // Lean staffing so a stocked supermarket clears profit after COGS.
-            var wages = firm.Units.Sum(u => 70m + u.Level * 25m + (decimal)u.Training * 30m);
+            // Inventory tiles are layout only — don't staff them. Keep wages lean vs grocery margin.
+            var wages = firm.Units
+                .Where(u => u.Kind != UnitKind.Inventory)
+                .Sum(u => 55m + u.Level * 20m + (decimal)u.Training * 25m);
             var expense = firm.MonthlyExpense + wages;
             corp.Cash -= expense;
             corp.MonthExpense += expense;
@@ -571,11 +573,20 @@ internal sealed class MonthTick
     {
         foreach (var city in _world.Cities)
         {
-            city.SpendingLevel = Math.Clamp(city.SpendingLevel + (_world.Rng.NextDouble() - 0.5) * 0.04, 0.5, 1.5);
-            if (_world.Rng.NextDouble() < 0.08)
+            city.SpendingLevel = Math.Clamp(city.SpendingLevel + (_world.Rng.NextDouble() - 0.5) * 0.03, 0.7, 1.4);
+            // Weighted climates — Panic/Recession are rare so retail chains stay solvent long enough to win.
+            if (_world.Rng.NextDouble() < 0.06)
             {
-                var values = Enum.GetValues<EconomicClimate>();
-                city.Climate = values[_world.Rng.Next(values.Length)];
+                var roll = _world.Rng.NextDouble();
+                city.Climate = roll switch
+                {
+                    < 0.28 => EconomicClimate.Boom,
+                    < 0.55 => EconomicClimate.Growth,
+                    < 0.82 => EconomicClimate.Stable,
+                    < 0.93 => EconomicClimate.Slowdown,
+                    < 0.98 => EconomicClimate.Recession,
+                    _ => EconomicClimate.Panic,
+                };
                 _world.AddNews($"{city.Name} climate → {city.Climate}");
             }
         }
