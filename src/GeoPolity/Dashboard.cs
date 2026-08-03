@@ -44,16 +44,16 @@ internal static class Dashboard
         left.AddRow("World", $"{world.Polities.Count} nations · {world.Provinces.Count} provinces");
         left.AddRow("Wars", ColorWars(wars));
         left.AddRow("Blocs", $"[teal]{cm}[/] markets · [steelblue1]{alliances}[/] alliances · [red]{embargoes}[/] embargoes");
-        left.AddRow("Orgs", $"{world.ActiveOrgs.Count()} active · {sim.Stats.OrgJoins} joins");
+        left.AddRow("Orgs", $"{world.ActiveOrgs.Count()} active · {sim.Telemetry.OrgJoins} joins");
         left.AddRow("Strain", shortage < 500
             ? $"[green]{shortage:0}[/] shortage idx"
             : shortage < 3000
                 ? $"[yellow]{shortage:0}[/] shortage idx"
                 : $"[red]{shortage:0}[/] shortage idx");
         left.AddRow("Civics",
-            $"legit [teal]{sim.Stats.MeanLegitimacy:0.00}[/] · approval [teal]{sim.Stats.MeanApproval:0.00}[/]");
+            $"legit [teal]{sim.Telemetry.MeanLegitimacy:0.00}[/] · approval [teal]{sim.Telemetry.MeanApproval:0.00}[/]");
         left.AddRow("Campaign",
-            $"wars {sim.Stats.WarsStarted}/{sim.Stats.WarsEnded} · captured {sim.Stats.ProvincesCaptured}");
+            $"wars {sim.Telemetry.WarsStarted}/{sim.Telemetry.WarsEnded} · captured {sim.Telemetry.ProvincesCaptured}");
 
         left.AddRow("", "");
         left.AddRow("[grey]Power[/]", "[grey]top 5[/]");

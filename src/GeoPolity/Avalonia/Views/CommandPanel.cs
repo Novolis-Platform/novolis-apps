@@ -73,8 +73,8 @@ internal sealed class CommandPanel : UserControl
         _clock.Foreground = clock.Running ? Teal : Copper;
         _player.Text = $"{player.Name}  treasury {player.Treasury:0}";
         _status.Text = clock.StatusNote ?? "";
-        _civicStrip.LeftValue = sim.Stats.MeanLegitimacy.ToString("0.00");
-        _civicStrip.RightValue = sim.Stats.MeanApproval.ToString("0.00");
+        _civicStrip.LeftValue = sim.Telemetry.MeanLegitimacy.ToString("0.00");
+        _civicStrip.RightValue = sim.Telemetry.MeanApproval.ToString("0.00");
 
         var wars = world.ActiveWars.Count();
         var cm = world.CountActiveTreatiesOfKind(TreatyKind.CommonMarket);
@@ -84,7 +84,7 @@ internal sealed class CommandPanel : UserControl
                 new ScorecardRow("wars", wars, $"{wars} active wars", wars > 0),
                 new ScorecardRow("markets", cm, $"{cm} common markets", cm > 0),
                 new ScorecardRow("allies", alliances, $"{alliances} alliances", alliances > 0),
-                new ScorecardRow("captures", sim.Stats.ProvincesCaptured, $"{sim.Stats.ProvincesCaptured} habitats taken", sim.Stats.ProvincesCaptured > 0),
+                new ScorecardRow("captures", sim.Telemetry.ProvincesCaptured, $"{sim.Telemetry.ProvincesCaptured} habitats taken", sim.Telemetry.ProvincesCaptured > 0),
             ],
             "Theatre");
 

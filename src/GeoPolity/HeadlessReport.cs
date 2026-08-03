@@ -77,18 +77,18 @@ internal static class HeadlessReport
         Console.WriteLine($"Years: {years}  Elapsed: {elapsed.TotalSeconds:0.00}s");
         Console.WriteLine($"Polities: {world.Polities.Count}  Provinces: {world.Provinces.Count}");
         Console.WriteLine($"Day: {world.Day} (Y{world.Year})");
-        Console.WriteLine($"Wars started/ended: {sim.Stats.WarsStarted}/{sim.Stats.WarsEnded}  active: {activeWars}");
-        Console.WriteLine($"Provinces captured: {sim.Stats.ProvincesCaptured}  ownership churn: {churn}");
-        Console.WriteLine($"Treaties signed: {sim.Stats.TreatiesSigned}  active: {treaties}");
-        Console.WriteLine($"Orgs: {world.ActiveOrgs.Count()} (joins {sim.Stats.OrgJoins}/leaves {sim.Stats.OrgLeaves})");
-        Console.WriteLine($"Common markets: {world.CountActiveTreatiesOfKind(TreatyKind.CommonMarket)}  volume {sim.Stats.CommonMarketVolume:0}");
-        Console.WriteLine($"World market volume: {sim.Stats.WorldMarketVolume:0}");
-        Console.WriteLine($"EP GDP boost (cum): {sim.Stats.EconomicPartnershipGdpBoost:0}");
-        Console.WriteLine($"Embargoes: {world.CountActiveTreatiesOfKind(TreatyKind.EconomicEmbargo)}  aid transferred: {sim.Stats.EconomicAidTransferred:0}");
-        Console.WriteLine($"Resource shortage ticks: {sim.Stats.ResourceShortageEvents}");
-        Console.WriteLine($"Budget crises: {sim.Stats.BudgetCrises}  insolvent now: {insolvent}");
-        Console.WriteLine($"Mean legitimacy/approval: {sim.Stats.MeanLegitimacy:0.00}/{sim.Stats.MeanApproval:0.00}");
-        Console.WriteLine($"Tech advances: {sim.Stats.TechAdvances}");
+        Console.WriteLine($"Wars started/ended: {sim.Telemetry.WarsStarted}/{sim.Telemetry.WarsEnded}  active: {activeWars}");
+        Console.WriteLine($"Provinces captured: {sim.Telemetry.ProvincesCaptured}  ownership churn: {churn}");
+        Console.WriteLine($"Treaties signed: {sim.Telemetry.TreatiesSigned}  active: {treaties}");
+        Console.WriteLine($"Orgs: {world.ActiveOrgs.Count()} (joins {sim.Telemetry.OrgJoins}/leaves {sim.Telemetry.OrgLeaves})");
+        Console.WriteLine($"Common markets: {world.CountActiveTreatiesOfKind(TreatyKind.CommonMarket)}  volume {sim.Telemetry.CommonMarketVolume:0}");
+        Console.WriteLine($"World market volume: {sim.Telemetry.WorldMarketVolume:0}");
+        Console.WriteLine($"EP GDP boost (cum): {sim.Telemetry.EconomicPartnershipGdpBoost:0}");
+        Console.WriteLine($"Embargoes: {world.CountActiveTreatiesOfKind(TreatyKind.EconomicEmbargo)}  aid transferred: {sim.Telemetry.EconomicAidTransferred:0}");
+        Console.WriteLine($"Resource shortage ticks: {sim.Telemetry.ResourceShortageEvents}");
+        Console.WriteLine($"Budget crises: {sim.Telemetry.BudgetCrises}  insolvent now: {insolvent}");
+        Console.WriteLine($"Mean legitimacy/approval: {sim.Telemetry.MeanLegitimacy:0.00}/{sim.Telemetry.MeanApproval:0.00}");
+        Console.WriteLine($"Tech advances: {sim.Telemetry.TechAdvances}");
         Console.WriteLine("Supranationals:");
         foreach (var o in world.ActiveOrgs)
         {
