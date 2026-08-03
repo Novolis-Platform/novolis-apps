@@ -1,15 +1,16 @@
 using Novolis.Geopolitics.Core;
+using Novolis.Geopolitics.Scenarios;
 using Novolis.Geopolitics.Simulation;
 
 namespace GeoPolity.Session;
 
-/// <summary>Shared gameplay session: world + sim + clock + headlines. Shells only observe/enqueue.</summary>
+/// <summary>Shared session: world + composition runner + clock + headlines. Shells only observe/enqueue.</summary>
 public sealed class GeoSession
 {
     public GeoSession(WorldState world, int? rngSeed = null)
     {
         World = world;
-        Simulation = new GeoSimulation(world, rngSeed);
+        Simulation = new WorldSimulation(world, rngSeed);
         Clock = new SessionClockController();
         Headlines = new HeadlineFeedController();
         OpeningOwnership = world.Provinces.ToDictionary(p => p.Id.Value, p => p.OwnerId.Value);
@@ -21,7 +22,7 @@ public sealed class GeoSession
         new(DefaultWorld.Load(), rngSeed);
 
     public WorldState World { get; }
-    public GeoSimulation Simulation { get; }
+    public WorldSimulation Simulation { get; }
     public SessionClockController Clock { get; }
     public HeadlineFeedController Headlines { get; }
     public IReadOnlyDictionary<int, int> OpeningOwnership { get; }

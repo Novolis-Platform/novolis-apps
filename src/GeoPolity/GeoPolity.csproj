@@ -26,6 +26,7 @@
     <PackageReference Include="Novolis.Avalonia.StarMap" />
     <PackageReference Include="Novolis.Avalonia.Studio" />
     <PackageReference Include="Novolis.Geopolitics.Core" />
+    <PackageReference Include="Novolis.Geopolitics.Scenarios" />
     <PackageReference Include="Novolis.Geopolitics.Simulation" />
     <PackageReference Include="Spectre.Console" />
   </ItemGroup>

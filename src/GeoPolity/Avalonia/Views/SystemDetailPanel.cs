@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using GeoPolity.Presentation;
 using GeoPolity.Session;
 using Novolis.Avalonia.Agent;
 using Novolis.Avalonia.Agent.Protocol;
@@ -124,7 +125,7 @@ internal sealed class SystemDetailPanel : UserControl
                 var owned = p.OwnerId == sel.Id ? "" : "!";
                 return new MarkedListRow(
                     owned,
-                    HabitatRules.ShortLabel(p.Habitat)[..Math.Min(3, HabitatRules.ShortLabel(p.Habitat).Length)],
+                    TheatreLabels.HabitatTag(p),
                     p.Name,
                     $"pop {p.Population / 1_000_000:0.0}M",
                     p.Id);

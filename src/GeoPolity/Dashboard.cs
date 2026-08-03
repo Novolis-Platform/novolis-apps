@@ -10,7 +10,7 @@ internal static class Dashboard
 {
     public static IRenderable Build(
         WorldState world,
-        GeoSimulation sim,
+        WorldSimulation sim,
         IReadOnlyList<string> headlines,
         bool running,
         int daysPerPulse,
@@ -144,7 +144,7 @@ internal static class Dashboard
             .Select(o =>
             {
                 var bar = Bar(o.MemberIds.Count / 25.0, 8);
-                var tag = Markup.Escape(SupranationalCatalog.ShortLabel(o.Kind));
+                var tag = Markup.Escape(GeoPolity.Presentation.TheatreLabels.OrgKind(o.Kind));
                 return $"[grey]{tag,-8}[/] [teal]{Markup.Escape(Truncate(o.Name, 16)),-16}[/] {bar} {o.MemberIds.Count}";
             });
 

@@ -2,6 +2,7 @@ using GeoPolity.Agent;
 using GeoPolity.Session;
 using Novolis.Agent.Core;
 using Novolis.Geopolitics.Core;
+using Novolis.Geopolitics.Scenarios;
 
 namespace GeoPolity.Unit;
 

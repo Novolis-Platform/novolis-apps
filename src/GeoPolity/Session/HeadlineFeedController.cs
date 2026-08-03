@@ -19,7 +19,7 @@ public sealed class HeadlineFeedController
         GeoEventKind.EmbargoImposed,
         GeoEventKind.BudgetCrisis,
         GeoEventKind.ResourceShortage,
-        GeoEventKind.MilitaryBuild,
+        GeoEventKind.ForceExpansion,
     ];
 
     private readonly Queue<Headline> _headlines = new();
@@ -44,7 +44,7 @@ public sealed class HeadlineFeedController
             GeoEventKind.EmbargoImposed => ("EMB", "trade"),
             GeoEventKind.BudgetCrisis => ("BUD", "civic"),
             GeoEventKind.ResourceShortage => ("RES", "trade"),
-            GeoEventKind.MilitaryBuild => ("BUILD", "force"),
+            GeoEventKind.ForceExpansion => ("BUILD", "force"),
             _ => ("···", "status"),
         };
 

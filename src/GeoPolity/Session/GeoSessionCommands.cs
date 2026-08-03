@@ -72,7 +72,8 @@ public static class GeoSessionCommands
         }
 
         var msg = $"{player.Name} builds {qty:0} {domain} (−{cost:0} treasury)";
-        session.World.AddEvent(GeoEventKind.MilitaryBuild, msg, player.Id);
+        // Player lever outside CivicEngine monthly force accumulation.
+        session.World.AddEvent(GeoEventKind.ForceExpansion, msg, player.Id);
         session.Headlines.SyncFrom(session.World);
         session.Clock.StatusNote = msg;
         return msg;

@@ -2,15 +2,17 @@
 
 Full-world geopolitics session host for `Novolis.Geopolitics` — Avalonia theatre, Spectre console, or headless report. Local dogfood only (not in the release catalog).
 
-## Theatre vocabulary
+## Theatre vocabulary (UI-only)
+
+These terms are **presentation only**. Core keeps `Polity` / `Province` / `Continent` — no map coords, no habitat kinds.
 
 | UI term | Core type | Meaning |
 |---------|-----------|---------|
 | **System** | `Polity` | StarMap node / playable power |
-| **Habitat** | `Province` | Local holdings around a system |
+| **Habitat** | `Province` | Local holdings; labels from `ResourceWeights` + `Coastal` |
 | **Cluster** | Continent | Geographic grouping (scorecard legend) |
 
-One **player system** is chosen at load (highest GDP). AI runs every other system. The player sets military budget share and orders Land / Air / Naval builds that spend treasury immediately.
+StarMap layout is computed in-app (`TheatreMapProjection`) from polity id + continent. One **player system** is chosen at load (highest GDP). AI runs everyone else via fiscal policy; force stocks grow through Core `CivicEngine`. The player may also order Land / Air / Naval builds (treasury spend → `ForceExpansion` event).
 
 ## Run
 

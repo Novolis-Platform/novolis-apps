@@ -72,20 +72,6 @@ internal sealed class MonthTick
                 var desiredShelf = linkedSold > 0 ? linkedSold * 1.2m + 20m : (firm.Kind == FirmKind.Retail ? 220m : need);
                 need = Math.Min(need, Math.Max(0m, desiredShelf - onHand));
                 if (need <= 0) continue;
-                // #region agent log
-                if (_world.Day <= 90 && firm.Owner.Equals(_world.Player.Id))
-                {
-                    DebugSessionLog.Write("F", "MonthTick.cs:RunPurchasing", "purchase replenish", new
-                    {
-                        day = _world.Day,
-                        firm = firm.Name,
-                        productId,
-                        linkedSold = DebugSessionLog.DescribeMoney(linkedSold),
-                        onHand = DebugSessionLog.DescribeMoney(onHand),
-                        need = DebugSessionLog.DescribeMoney(need),
-                    }, runId: "post-fix");
-                }
-                // #endregion
 
                 if (!unit.PurchaseFromSeaport && unit.PurchaseFromFirm is { } fromId)
                 {
@@ -547,22 +533,7 @@ internal sealed class MonthTick
         foreach (var corp in _world.Corporations.Where(c => !c.Retired))
         {
             var profit = corp.MonthRevenue - corp.MonthExpense;
-            var prevLyp = corp.LastYearProfit;
             corp.LastYearProfit = corp.LastYearProfit * 0.92m + profit * 0.08m;
-            // #region agent log
-            if (corp.IsPlayer && (_world.Day % 180 == 1 || _world.Day < 60))
-            {
-                DebugSessionLog.Write("A", "MonthTick.cs:UpdateStockPrices", "LYP ema update", new
-                {
-                    day = _world.Day,
-                    monthProfit = DebugSessionLog.DescribeMoney(profit),
-                    prevLyp = DebugSessionLog.DescribeMoney(prevLyp),
-                    newLyp = DebugSessionLog.DescribeMoney(corp.LastYearProfit),
-                    target = DebugSessionLog.DescribeMoney(_world.ScenarioTargetProfit),
-                    equilibriumHint = DebugSessionLog.DescribeMoney(profit),
-                });
-            }
-            // #endregion
             var book = Math.Max(1m, corp.Cash + _world.FirmsOf(corp.Id).Sum(f => f.Inventory.Sum(l => l.Quantity * l.UnitCost)));
             var target = book / Math.Max(1m, corp.SharesOutstanding) * 10m + corp.LastYearProfit / Math.Max(1m, corp.SharesOutstanding) * 40m;
             corp.SharePrice = Math.Max(0.5m, corp.SharePrice * 0.85m + target * 0.15m);

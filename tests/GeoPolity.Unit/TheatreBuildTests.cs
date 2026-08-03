@@ -7,20 +7,22 @@ using GeoPolity.AvaloniaUi;
 using GeoPolity.Session;
 using Novolis.Agent.Surface;
 using Novolis.Geopolitics.Core;
+using Novolis.Geopolitics.Scenarios;
 
 namespace GeoPolity.Unit;
 
 public sealed class TheatreBuildTests
 {
     [Test]
-    public async Task DefaultSeed_HasNonZeroMapCoordinates()
+    public async Task TheatreMapProjection_Layout_IsNonDegenerate()
     {
         var world = DefaultWorld.Load();
-        await Assert.That(world.Polities.Max(p => p.MapX)).IsGreaterThan(0);
-        await Assert.That(world.Polities.Max(p => p.MapY)).IsGreaterThan(0);
-        await Assert.That(world.Polities.Any(p => p.MapX != 0 || p.MapY != 0)).IsTrue();
-        await Assert.That(world.Provinces.Any(p => p.MapX != 0 || p.MapY != 0)).IsTrue();
-        await Assert.That(world.Provinces.Select(p => p.Habitat).Distinct().Count()).IsGreaterThan(1);
+        var (points, _) = TheatreMapProjection.Project(world);
+        await Assert.That(points.Count).IsEqualTo(world.Polities.Count);
+        await Assert.That(points.Max(p => p.X)).IsGreaterThan(0);
+        await Assert.That(points.Max(p => p.Y)).IsGreaterThan(0);
+        await Assert.That(points.Select(p => (p.X, p.Y)).Distinct().Count())
+            .IsEqualTo(world.Polities.Count);
     }
 
     [Test]
@@ -53,7 +55,7 @@ public sealed class TheatreBuildTests
         await Assert.That(player.Treasury).IsEqualTo(treasuryBefore - expectedCost);
         await Assert.That(player.Military.Naval).IsEqualTo(navalBefore + amount);
         await Assert.That(other.Military.Naval).IsEqualTo(otherNavalBefore);
-        await Assert.That(session.World.Events.Any(e => e.Kind == GeoEventKind.MilitaryBuild)).IsTrue();
+        await Assert.That(session.World.Events.Any(e => e.Kind == GeoEventKind.ForceExpansion)).IsTrue();
     }
 
     [Test]

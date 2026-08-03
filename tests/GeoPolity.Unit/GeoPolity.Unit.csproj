@@ -12,6 +12,7 @@
     <PackageReference Include="Novolis.Agent.Surface" />
     <PackageReference Include="Novolis.Avalonia.StarMap" />
     <PackageReference Include="Novolis.Geopolitics.Core" />
+    <PackageReference Include="Novolis.Geopolitics.Scenarios" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\GeoPolity\GeoPolity.csproj" />

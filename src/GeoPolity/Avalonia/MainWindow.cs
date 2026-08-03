@@ -194,7 +194,8 @@ public sealed class MainWindow : Window
 
         var player = _session.Player;
         _map.SelectedId = _session.SelectedSystemId.Value.ToString();
-        _map.SetShipMarker(player.MapX, player.MapY, visible: true);
+        var (sx, sy) = TheatreMapProjection.PositionOf(_session.World, player.Id);
+        _map.SetShipMarker(sx, sy, visible: true);
 
         _command.Bind(_session);
         _detail.Bind(_session);
