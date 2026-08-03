@@ -74,6 +74,10 @@
     <PackageVersion Include="Novolis.Economy.Simulation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Economy.Finance" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Economy.Agents" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Civics.Agents" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Civics.Core" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Civics.EconomyBridge" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Civics.Simulation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Geopolitics.Core" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Geopolitics.Conflict" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Geopolitics.Diplomacy" Version="2026.1.*" />
