@@ -15,9 +15,8 @@
 </p>
 
 <p align="center">
-  [![Novolis](https://img.shields.io/badge/Novolis-Platform-111827?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgMTIwIj48Y2lyY2xlIGN4PSI2MCIgY3k9IjYwIiByPSI1NCIgZmlsbD0iIzA1MDcwZCIvPjx0ZXh0IHg9IjYwIiB5PSI3MiIgZmlsbD0iIzJmZGZmZiIgZm9udC1zaXplPSI0OCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsIj5OPC90ZXh0Pjwvc3ZnPg==)](https://github.com/Novolis-Platform)
-  [![CI](https://img.shields.io/github/actions/workflow/status/Novolis-Platform/novolis-apps/merge.yml?branch=main&label=merge&logo=github)](https://github.com/Novolis-Platform/novolis-apps/actions)
-  [![Packages](https://img.shields.io/badge/packages-GitHub%20Packages-0a7ea3?logo=nuget)](https://github.com/orgs/Novolis-Platform/packages?repo_name=novolis-apps)
+  <a href="https://github.com/Novolis-Platform/novolis-apps/actions"><img src="https://img.shields.io/github/actions/workflow/status/Novolis-Platform/novolis-apps/merge.yml?branch=main&label=merge&logo=github" alt="merge"/></a>
+  <a href="https://github.com/orgs/Novolis-Platform/packages?repo_name=novolis-apps"><img src="https://img.shields.io/badge/packages-GitHub%20Packages-0a7ea3?logo=nuget" alt="packages"/></a>
   <a href="https://github.com/Novolis-Platform"><img src="https://img.shields.io/badge/org-Novolis--Platform-111827" alt="org"/></a>
 </p>
 
@@ -31,26 +30,6 @@
 
 ---
 <!-- novolis-marketing:end -->
-<!-- novolis-package-index:start -->
-> **GitHub Packages shows this repository README on every package page** (upstream limitation).
-> Open the **package README** for install and quick start — embedded in each .nupkg and linked below.
-
-## Published packages
-
-| Package | Install | Package README |
-|---------|---------|----------------|
-| `BooksWriterStudio` | `dotnet add package BooksWriterStudio` | [README](https://github.com/Novolis-Platform/novolis-apps/blob/main/src/BooksWriterStudio/README.md) |
-| `CadStudio3D` | `dotnet add package CadStudio3D` | [README](https://github.com/Novolis-Platform/novolis-apps/blob/main/src/CadStudio3D/README.md) |
-| `CapitalistSimulator` | `dotnet add package CapitalistSimulator` | [README](https://github.com/Novolis-Platform/novolis-apps/blob/main/src/CapitalistSimulator/README.md) |
-| `DraftStudio` | `dotnet add package DraftStudio` | [README](https://github.com/Novolis-Platform/novolis-apps/blob/main/src/DraftStudio/README.md) |
-| `GeoPolity` | `dotnet add package GeoPolity` | [README](https://github.com/Novolis-Platform/novolis-apps/blob/main/src/GeoPolity/README.md) |
-| `SinsOfACapitalismTycoon` | `dotnet add package SinsOfACapitalismTycoon` | [README](https://github.com/Novolis-Platform/novolis-apps/blob/main/src/SinsOfACapitalismTycoon/README.md) |
-| `SketchStudio` | `dotnet add package SketchStudio` | [README](https://github.com/Novolis-Platform/novolis-apps/blob/main/src/SketchStudio/README.md) |
-
-For NuGet.org and Visual Studio, the **embedded** README.md inside each package is authoritative.
-
-<!-- novolis-package-index:end -->
-
 # novolis-apps
 
 Production desktop applications built exclusively from **NuGet packages** (`PackageReference` to `Novolis.*` on GitHub Packages). No in-repo shared libraries — each app under `src/` is a complete project.
