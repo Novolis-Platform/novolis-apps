@@ -137,14 +137,11 @@ jobs:
       - uses: Novolis-Platform/novolis-workflows/actions/read-version@main
         id: ver
 
-      - name: Install Inno Setup
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          choco install innosetup -y --no-progress
-          if ($LASTEXITCODE -ne 0) { throw "Chocolatey failed to install Inno Setup." }
+      - uses: Novolis-Platform/novolis-workflows/actions/install-inno-setup@main
+        id: inno
 
       - name: Publish all apps and build installers
+        id: publish
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ steps.ver.outputs.package-version }}
@@ -154,7 +151,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           . ./scripts/Publish-NovolisApp.ps1
 
-          $published = [System.Collections.Generic.List[object]]::new()
+          $paths = [System.Collections.Generic.List[string]]::new()
           foreach ($app in (Get-NovolisAppCatalog)) {
             $item = Publish-NovolisApp `
               -RepoRoot $env:GITHUB_WORKSPACE `
@@ -168,35 +165,31 @@ jobs:
             if (-not $item -or -not $item.ZipPath) {
               throw "Publish-NovolisApp did not return a ZipPath for $($app.Key)."
             }
-            $published.Add($item)
-          }
-
-          $lines = @()
-          $assets = [System.Collections.Generic.List[string]]::new()
-          foreach ($item in $published) {
-            $assets.Add($item.ZipPath)
-            $hashZip = (Get-FileHash -LiteralPath $item.ZipPath -Algorithm SHA256).Hash
-            $lines += "$hashZip  $($item.ZipName)"
+            $paths.Add($item.ZipPath)
             if ($item.InstallerPath) {
-              $assets.Add($item.InstallerPath)
-              $hashExe = (Get-FileHash -LiteralPath $item.InstallerPath -Algorithm SHA256).Hash
-              $lines += "$hashExe  $($item.InstallerName)"
+              $paths.Add($item.InstallerPath)
             }
           }
 
-          $sumsPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts/SHA256SUMS.txt'
-          New-Item -ItemType Directory -Force -Path (Split-Path $sumsPath) | Out-Null
-          $lines | Set-Content -Path $sumsPath -Encoding utf8NoBOM
-          $assets.Add($sumsPath)
+          @(
+            'assets<<EOF'
+          ) + @($paths) + @(
+            'EOF'
+          ) | Add-Content -Path $env:GITHUB_OUTPUT -Encoding utf8NoBOM
 
-          $tag = "v$env:PACKAGE_VERSION"
-          gh release view $tag 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Novolis Apps $env:PACKAGE_VERSION" --generate-notes
-            if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE." }
-          }
-          gh release upload $tag @($assets.ToArray()) --clobber
-          if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE." }
+      - uses: Novolis-Platform/novolis-workflows/actions/write-sha256sums@main
+        id: sums
+        with:
+          files: ${{ steps.publish.outputs.assets }}
+          output-path: artifacts/SHA256SUMS.txt
+
+      - uses: Novolis-Platform/novolis-workflows/actions/ensure-github-release@main
+        with:
+          tag: v${{ steps.ver.outputs.package-version }}
+          title: Novolis Apps ${{ steps.ver.outputs.package-version }}
+          assets: |
+            ${{ steps.publish.outputs.assets }}
+            ${{ steps.sums.outputs.path }}
 
       - name: Prune older GitHub Releases (keep last 5)
         shell: pwsh
