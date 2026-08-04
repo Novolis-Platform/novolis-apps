@@ -13,11 +13,14 @@ Every merge to `main` that touches release-impacting paths runs Linux CI first, 
 | Asset | Pattern |
 |-------|---------|
 | Books Writer Studio installer / zip | `BooksWriterStudioSetup-{version}-win-x64.exe` / `BooksWriterStudio-{version}-win-x64.zip` |
+| Books Mobile installer / zip | `BooksMobileSetup-{version}-win-x64.exe` / `BooksMobile-{version}-win-x64.zip` |
 | Draft Studio installer / zip | `DraftStudioSetup-{version}-win-x64.exe` / `DraftStudio-{version}-win-x64.zip` |
 | Sketch Studio installer / zip | `SketchStudioSetup-{version}-win-x64.exe` / `SketchStudio-{version}-win-x64.zip` |
 | Sins of a Capitalism Tycoon installer / zip | `SinsOfACapitalismTycoonSetup-{version}-win-x64.exe` / `SinsOfACapitalismTycoon-{version}-win-x64.zip` |
 | Live Studio installer / zip | `LiveStudioSetup-{version}-win-x64.exe` / `Novolis.Audio.Live.Studio-{version}-win-x64.zip` |
 | Checksums | `SHA256SUMS.txt` |
+
+Android APK for Books Mobile is **not** a release asset — local deploy only.
 
 Inno Setup scripts are generated via `Novolis.Avalonia.Packaging.Inno` (`NovolisGenerateInnoScript` MSBuild target):
 
@@ -37,5 +40,5 @@ Manual republish:
 
 ```powershell
 pwsh -File scripts/build-installer.ps1 -App All
-# or: BooksWriterStudio | DraftStudio | SketchStudio | SinsOfACapitalismTycoon | LiveStudio
+# or: BooksWriterStudio | BooksMobile | DraftStudio | SketchStudio | SinsOfACapitalismTycoon | LiveStudio
 ```

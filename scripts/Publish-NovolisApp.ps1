@@ -75,6 +75,18 @@ function Get-NovolisAppCatalog {
             SetupBase     = 'LiveStudioSetup'
             ScriptFile    = 'live-studio.iss'
         }
+        [pscustomobject]@{
+            Key           = 'books-mobile'
+            Choice        = 'BooksMobile'
+            Project       = 'src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj'
+            DisplayName   = 'Books Mobile'
+            AppId         = 'Novolis.BooksMobile'
+            ExeName       = 'BooksMobile.exe'
+            GroupName     = 'Books Mobile'
+            InstallDir    = 'Novolis\Books Mobile'
+            SetupBase     = 'BooksMobileSetup'
+            ScriptFile    = 'books-mobile.iss'
+        }
     )
 }
 

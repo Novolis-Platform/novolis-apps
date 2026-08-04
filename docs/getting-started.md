@@ -22,6 +22,8 @@ Download only from official [GitHub Releases](https://github.com/Novolis-Platfor
 | Asset | Use |
 |-------|-----|
 | `BooksWriterStudioSetup-*-win-x64.exe` | **Books Writer Studio installer** |
+| `BooksMobileSetup-*-win-x64.exe` | **Books Mobile installer** — `%LOCALAPPDATA%\Programs\Novolis\Books Mobile` |
+| `BooksMobile-*-win-x64.zip` | Books Mobile portable |
 | `DraftStudioSetup-*-win-x64.exe` | **Draft Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Draft Studio` |
 | `DraftStudio-*-win-x64.zip` | Draft Studio portable |
 | `SketchStudioSetup-*-win-x64.exe` | **Sketch Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Sketch Studio` |
