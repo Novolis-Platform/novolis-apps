@@ -38,27 +38,63 @@ internal static class SketchExport
         {
             if (stroke.Points.Count == 0)
                 continue;
-            var color = string.IsNullOrWhiteSpace(stroke.StrokeColor) ? "#1e1e1e" : stroke.StrokeColor;
-            var width = stroke.StrokeWidth <= 0 ? 2 : stroke.StrokeWidth;
+
+            var rot = stroke.RotationDegrees;
+            var center = SketchBounds.FromPoints(stroke.Points).Center;
+            var transform = Math.Abs(rot) < 1e-9
+                ? ""
+                : $" transform=\"rotate({rot.ToString("0.###", CultureInfo.InvariantCulture)} {(center.X - ox).ToString("0.###", CultureInfo.InvariantCulture)} {(center.Y - oy).ToString("0.###", CultureInfo.InvariantCulture)})\"";
+
+            if (stroke.Kind == SketchElementKind.Image && !string.IsNullOrWhiteSpace(stroke.ImagePngBase64))
+            {
+                var box = SketchBounds.FromPoints(stroke.Points);
+                sb.Append(CultureInfo.InvariantCulture,
+                    $"  <image{transform} x=\"{box.X - ox:0.###}\" y=\"{box.Y - oy:0.###}\" width=\"{box.Width:0.###}\" height=\"{box.Height:0.###}\" href=\"data:image/png;base64,{stroke.ImagePngBase64}\"/>\n");
+                continue;
+            }
+
+            if (stroke.Kind is SketchElementKind.Text or SketchElementKind.TextBox)
+            {
+                var box = SketchBounds.FromPoints(stroke.Points);
+                var color = string.IsNullOrWhiteSpace(stroke.StrokeColor) ? "#1e1e1e" : stroke.StrokeColor;
+                if (stroke.Kind == SketchElementKind.TextBox)
+                {
+                    var fill = string.IsNullOrWhiteSpace(stroke.FillColor) ? "none" : EscapeXml(stroke.FillColor!);
+                    var width = stroke.StrokeWidth <= 0 ? 2 : stroke.StrokeWidth;
+                    sb.Append(CultureInfo.InvariantCulture,
+                        $"  <rect{transform} x=\"{box.X - ox:0.###}\" y=\"{box.Y - oy:0.###}\" width=\"{box.Width:0.###}\" height=\"{box.Height:0.###}\" fill=\"{fill}\" stroke=\"{EscapeXml(color)}\" stroke-width=\"{width:0.###}\"/>\n");
+                }
+
+                var text = EscapeXml(stroke.Text ?? "");
+                var fontSize = stroke.FontSize <= 0 ? 16 : stroke.FontSize;
+                var tx = stroke.Kind == SketchElementKind.Text ? stroke.Points[0].X - ox : box.X - ox + 4;
+                var ty = stroke.Kind == SketchElementKind.Text ? stroke.Points[0].Y - oy + fontSize : box.Y - oy + fontSize;
+                sb.Append(CultureInfo.InvariantCulture,
+                    $"  <text{transform} x=\"{tx:0.###}\" y=\"{ty:0.###}\" fill=\"{EscapeXml(color)}\" font-size=\"{fontSize:0.###}\" font-family=\"Segoe UI, sans-serif\">{text}</text>\n");
+                continue;
+            }
+
+            var strokeColor = string.IsNullOrWhiteSpace(stroke.StrokeColor) ? "#1e1e1e" : stroke.StrokeColor;
+            var strokeWidth = stroke.StrokeWidth <= 0 ? 2 : stroke.StrokeWidth;
             if (stroke.Points.Count == 1)
             {
                 var p = stroke.Points[0];
                 sb.Append(CultureInfo.InvariantCulture,
-                    $"  <circle cx=\"{p.X - ox:0.###}\" cy=\"{p.Y - oy:0.###}\" r=\"{Math.Max(0.25, width * 0.5):0.###}\" fill=\"{EscapeXml(color)}\"/>\n");
+                    $"  <circle{transform} cx=\"{p.X - ox:0.###}\" cy=\"{p.Y - oy:0.###}\" r=\"{Math.Max(0.25, strokeWidth * 0.5):0.###}\" fill=\"{EscapeXml(strokeColor)}\"/>\n");
                 continue;
             }
 
             var closed = stroke.Closed
                          || (stroke.Points.Count >= 3
                              && NearlyEqual(stroke.Points[0], stroke.Points[^1]));
-            var fill = !string.IsNullOrWhiteSpace(stroke.FillColor) && closed
+            var fillAttr = !string.IsNullOrWhiteSpace(stroke.FillColor) && closed
                 ? EscapeXml(stroke.FillColor!)
                 : "none";
-            var dash = SketchStrokeStyles.SvgDashArray(stroke.StrokeStyle, width);
+            var dash = SketchStrokeStyles.SvgDashArray(stroke.StrokeStyle, strokeWidth);
             var dashAttr = dash is null ? "" : $" stroke-dasharray=\"{dash}\"";
             var tag = closed ? "polygon" : "polyline";
             sb.Append(CultureInfo.InvariantCulture,
-                $"  <{tag} fill=\"{fill}\" stroke=\"{EscapeXml(color)}\" stroke-width=\"{width:0.###}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"{dashAttr} points=\"");
+                $"  <{tag}{transform} fill=\"{fillAttr}\" stroke=\"{EscapeXml(strokeColor)}\" stroke-width=\"{strokeWidth:0.###}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"{dashAttr} points=\"");
             var count = stroke.Points.Count;
             if (closed && count >= 2 && NearlyEqual(stroke.Points[0], stroke.Points[^1]))
                 count--;
@@ -70,7 +106,7 @@ internal static class SketchExport
                 sb.Append(CultureInfo.InvariantCulture, $"{p.X - ox:0.###},{p.Y - oy:0.###}");
             }
 
-            sb.Append(CultureInfo.InvariantCulture, $"/>\n");
+            sb.Append("/>\n");
         }
 
         sb.Append("</svg>\n");
@@ -122,8 +158,10 @@ internal static class SketchExport
         {
             if (stroke.Points.Count == 0)
                 continue;
-            var b = SketchBounds.FromPoints(stroke.Points);
+            var b = SketchBounds.RotatedAabb(stroke.Points, stroke.RotationDegrees);
             var pad = Math.Max(1, stroke.StrokeWidth);
+            if (stroke.Kind is SketchElementKind.Text or SketchElementKind.TextBox)
+                pad = Math.Max(pad, stroke.FontSize);
             b = b.Inflate(pad);
             union = union is null ? b : Union(union.Value, b);
         }
@@ -172,6 +210,7 @@ internal static class SketchExport
         readonly double _originY;
         readonly double _scale;
         readonly Color? _background;
+        readonly Dictionary<string, Bitmap> _images = new(StringComparer.Ordinal);
 
         public StrokeExportSurface(
             SketchDocument document,
@@ -196,54 +235,152 @@ internal static class SketchExport
             {
                 if (stroke.Points.Count == 0)
                     continue;
-                Color color;
+
+                var center = SketchBounds.FromPoints(stroke.Points).Center;
+                var screenCenter = Map(center);
+                using (PushRotation(context, screenCenter, stroke.RotationDegrees))
+                {
+                    if (stroke.Kind == SketchElementKind.Image)
+                    {
+                        DrawImage(context, stroke);
+                        continue;
+                    }
+
+                    if (stroke.Kind is SketchElementKind.Text or SketchElementKind.TextBox)
+                    {
+                        DrawText(context, stroke);
+                        continue;
+                    }
+
+                    DrawStroke(context, stroke);
+                }
+            }
+        }
+
+        void DrawStroke(DrawingContext context, StrokeShape stroke)
+        {
+            Color color;
+            try
+            {
+                color = Color.Parse(string.IsNullOrWhiteSpace(stroke.StrokeColor) ? "#1e1e1e" : stroke.StrokeColor);
+            }
+            catch
+            {
+                color = Color.Parse("#1e1e1e");
+            }
+
+            var thickness = Math.Max(0.15, stroke.StrokeWidth * _scale);
+            var pen = new ImmutablePen(
+                new ImmutableSolidColorBrush(color),
+                thickness,
+                dashStyle: SketchStrokeStyles.CreateDash(stroke.StrokeStyle, thickness),
+                lineCap: PenLineCap.Round,
+                lineJoin: PenLineJoin.Round);
+
+            if (stroke.Points.Count == 1)
+            {
+                var p = Map(stroke.Points[0]);
+                var r = Math.Max(0.5, thickness * 0.5);
+                context.DrawEllipse(pen.Brush, null, p, r, r);
+                return;
+            }
+
+            var closed = stroke.Closed
+                         || (stroke.Points.Count >= 3 && NearlyEqual(stroke.Points[0], stroke.Points[^1]));
+            IBrush? fill = null;
+            if (!string.IsNullOrWhiteSpace(stroke.FillColor) && closed)
+            {
+                try { fill = new ImmutableSolidColorBrush(Color.Parse(stroke.FillColor)); }
+                catch { fill = new ImmutableSolidColorBrush(color); }
+            }
+
+            var screen = new List<Point>(stroke.Points.Count + 1);
+            foreach (var pt in stroke.Points)
+                screen.Add(Map(pt));
+            if (closed && screen.Count >= 3)
+            {
+                var a = screen[0];
+                var b = screen[^1];
+                if (Math.Abs(a.X - b.X) > 0.5 || Math.Abs(a.Y - b.Y) > 0.5)
+                    screen.Add(a);
+            }
+
+            context.DrawGeometry(fill, pen, new PolylineGeometry(screen, isFilled: fill is not null));
+        }
+
+        void DrawText(DrawingContext context, StrokeShape stroke)
+        {
+            var box = SketchBounds.FromPoints(stroke.Points);
+            Color color;
+            try { color = Color.Parse(string.IsNullOrWhiteSpace(stroke.StrokeColor) ? "#1e1e1e" : stroke.StrokeColor); }
+            catch { color = Color.Parse("#1e1e1e"); }
+
+            if (stroke.Kind == SketchElementKind.TextBox)
+            {
+                var thickness = Math.Max(0.15, stroke.StrokeWidth * _scale);
+                var pen = new ImmutablePen(new ImmutableSolidColorBrush(color), thickness);
+                IBrush? fill = null;
+                if (!string.IsNullOrWhiteSpace(stroke.FillColor))
+                {
+                    try { fill = new ImmutableSolidColorBrush(Color.Parse(stroke.FillColor)); }
+                    catch { /* ignore */ }
+                }
+
+                var tl = Map(new SketchPoint(box.X, box.Y));
+                var br = Map(new SketchPoint(box.Right, box.Bottom));
+                context.DrawRectangle(fill, pen,
+                    new Rect(Math.Min(tl.X, br.X), Math.Min(tl.Y, br.Y), Math.Abs(br.X - tl.X), Math.Abs(br.Y - tl.Y)));
+            }
+
+            var text = string.IsNullOrEmpty(stroke.Text) ? " " : stroke.Text;
+            var fontSize = Math.Max(8, stroke.FontSize * _scale);
+            var ft = new FormattedText(
+                text,
+                CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                new Typeface("Segoe UI"),
+                fontSize,
+                new ImmutableSolidColorBrush(color));
+            var origin = stroke.Kind == SketchElementKind.Text
+                ? Map(stroke.Points[0])
+                : Map(new SketchPoint(box.X + 4, box.Y + 4));
+            context.DrawText(ft, origin);
+        }
+
+        void DrawImage(DrawingContext context, StrokeShape stroke)
+        {
+            if (!_images.TryGetValue(stroke.Id, out var bmp))
+            {
+                if (string.IsNullOrWhiteSpace(stroke.ImagePngBase64))
+                    return;
                 try
                 {
-                    color = Color.Parse(string.IsNullOrWhiteSpace(stroke.StrokeColor) ? "#1e1e1e" : stroke.StrokeColor);
+                    var bytes = Convert.FromBase64String(stroke.ImagePngBase64);
+                    using var ms = new MemoryStream(bytes);
+                    bmp = new Bitmap(ms);
+                    _images[stroke.Id] = bmp;
                 }
                 catch
                 {
-                    color = Color.Parse("#1e1e1e");
+                    return;
                 }
-
-                var thickness = Math.Max(0.15, stroke.StrokeWidth * _scale);
-                var pen = new ImmutablePen(
-                    new ImmutableSolidColorBrush(color),
-                    thickness,
-                    dashStyle: SketchStrokeStyles.CreateDash(stroke.StrokeStyle, thickness),
-                    lineCap: PenLineCap.Round,
-                    lineJoin: PenLineJoin.Round);
-
-                if (stroke.Points.Count == 1)
-                {
-                    var p = Map(stroke.Points[0]);
-                    var r = Math.Max(0.5, thickness * 0.5);
-                    context.DrawEllipse(pen.Brush, null, p, r, r);
-                    continue;
-                }
-
-                var closed = stroke.Closed
-                             || (stroke.Points.Count >= 3 && NearlyEqual(stroke.Points[0], stroke.Points[^1]));
-                IBrush? fill = null;
-                if (!string.IsNullOrWhiteSpace(stroke.FillColor) && closed)
-                {
-                    try { fill = new ImmutableSolidColorBrush(Color.Parse(stroke.FillColor)); }
-                    catch { fill = new ImmutableSolidColorBrush(color); }
-                }
-
-                var screen = new List<Point>(stroke.Points.Count + 1);
-                foreach (var pt in stroke.Points)
-                    screen.Add(Map(pt));
-                if (closed && screen.Count >= 3)
-                {
-                    var a = screen[0];
-                    var b = screen[^1];
-                    if (Math.Abs(a.X - b.X) > 0.5 || Math.Abs(a.Y - b.Y) > 0.5)
-                        screen.Add(a);
-                }
-
-                context.DrawGeometry(fill, pen, new PolylineGeometry(screen, isFilled: fill is not null));
             }
+
+            var box = SketchBounds.FromPoints(stroke.Points);
+            var tl = Map(new SketchPoint(box.X, box.Y));
+            var br = Map(new SketchPoint(box.Right, box.Bottom));
+            context.DrawImage(bmp,
+                new Rect(Math.Min(tl.X, br.X), Math.Min(tl.Y, br.Y), Math.Abs(br.X - tl.X), Math.Abs(br.Y - tl.Y)));
+        }
+
+        static IDisposable PushRotation(DrawingContext context, Point center, double degrees)
+        {
+            if (Math.Abs(degrees) < 1e-12)
+                return context.PushTransform(Matrix.Identity);
+            var m = Matrix.CreateTranslation(-center.X, -center.Y)
+                    * Matrix.CreateRotation(degrees * Math.PI / 180.0)
+                    * Matrix.CreateTranslation(center.X, center.Y);
+            return context.PushTransform(m);
         }
 
         Point Map(SketchPoint p) =>

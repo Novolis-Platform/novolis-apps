@@ -146,6 +146,9 @@ internal sealed class MainWindow : Window
                 ToolBtn("fa-solid fa-bezier-curve", "Spline (S)", SketchTool.Spline),
                 ToolBtn("fa-regular fa-square", "Box (R)", SketchTool.Rect),
                 ToolBtn("fa-regular fa-circle", "Circle (C)", SketchTool.Ellipse),
+                ToolBtn("fa-solid fa-comment", "Speech bubble (B)", SketchTool.SpeechBubble),
+                ToolBtn("fa-solid fa-font", "Text (T)", SketchTool.Text),
+                ToolBtn("fa-solid fa-i-cursor", "Text box (X)", SketchTool.TextBox),
                 ToolBtn("fa-solid fa-eraser", "Eraser (E)", SketchTool.Eraser),
                 ToolBtn("fa-solid fa-mouse-pointer", "Select (V)", SketchTool.Select),
                 Sep(),
@@ -195,6 +198,14 @@ internal sealed class MainWindow : Window
             Spacing = 6,
             Children =
             {
+                IconButton("fa-solid fa-object-group", "Fuse selection (Ctrl+G)", () =>
+                {
+                    SetStatus(_sketch.FuseSelection() ? "Fused." : "Select ≥2 shapes to fuse.");
+                }),
+                IconButton("fa-solid fa-object-ungroup", "Ungroup (Ctrl+Shift+G)", () =>
+                {
+                    SetStatus(_sketch.UngroupSelection() ? "Ungrouped." : "Nothing to ungroup.");
+                }),
                 IconButton("fa-solid fa-table-cells", "Gridify", () =>
                 {
                     _sketch.GridifySelection();
@@ -207,6 +218,7 @@ internal sealed class MainWindow : Window
                     _sketch.Clear();
                     SetStatus("Cleared.");
                 }),
+                IconButton("fa-solid fa-paste", "Paste image (Ctrl+V)", () => _ = PasteImageAsync()),
                 IconButton("fa-solid fa-image", "Copy PNG", () => _ = CopyPngAsync()),
                 IconButton("fa-solid fa-code", "Copy SVG", () => _ = CopySvgAsync()),
             }
@@ -254,7 +266,7 @@ internal sealed class MainWindow : Window
 
         var hint = new TextBlock
         {
-            Text = "Ctrl+N/O/S · Line/Spline: click points · Done (Enter) or Close (Ctrl+Enter / click first point) · Fill applies to closed shapes · Stroke swatches: solid/dash/dot/stipple · Shift+circle for perfect · Del deletes selection",
+            Text = "Ctrl+N/O/S · Ctrl+V paste image · Ctrl+G fuse / Ctrl+Shift+G ungroup · rotate grip above selection · B bubble · T text · X text box · Line/Spline: Done (Enter) or Close (Ctrl+Enter) · Meetup off for pen freehand · Del deletes",
             Opacity = 0.6,
             FontSize = 11,
             Margin = new Thickness(12, 0, 12, 6),
@@ -708,6 +720,17 @@ internal sealed class MainWindow : Window
                     _sketch.Redo();
                     e.Handled = true;
                     return;
+                case Key.V:
+                    _ = PasteImageAsync();
+                    e.Handled = true;
+                    return;
+                case Key.G:
+                    if (shift)
+                        SetStatus(_sketch.UngroupSelection() ? "Ungrouped." : "Nothing to ungroup.");
+                    else
+                        SetStatus(_sketch.FuseSelection() ? "Fused." : "Select ≥2 shapes to fuse.");
+                    e.Handled = true;
+                    return;
             }
         }
 
@@ -736,6 +759,18 @@ internal sealed class MainWindow : Window
                 SelectTool(SketchTool.Ellipse);
                 e.Handled = true;
                 break;
+            case Key.B:
+                SelectTool(SketchTool.SpeechBubble);
+                e.Handled = true;
+                break;
+            case Key.T:
+                SelectTool(SketchTool.Text);
+                e.Handled = true;
+                break;
+            case Key.X:
+                SelectTool(SketchTool.TextBox);
+                e.Handled = true;
+                break;
             case Key.E:
                 SelectTool(SketchTool.Eraser);
                 e.Handled = true;
@@ -748,6 +783,38 @@ internal sealed class MainWindow : Window
                 _sketch.Document?.DeleteSelection();
                 e.Handled = true;
                 break;
+        }
+    }
+
+    async Task PasteImageAsync()
+    {
+        var clipboard = GetClipboard();
+        if (clipboard is null)
+        {
+            SetStatus("No clipboard.");
+            return;
+        }
+
+        try
+        {
+            var bitmap = await clipboard.TryGetBitmapAsync();
+            if (bitmap is null)
+            {
+                SetStatus("Clipboard has no image.");
+                return;
+            }
+
+            using (bitmap)
+            {
+                using var ms = new MemoryStream();
+                bitmap.Save(ms);
+                var placed = _sketch.PasteImage(ms.ToArray(), _sketch.ViewportCenterWorld());
+                SetStatus(placed is null ? "Could not decode clipboard image." : "Pasted image.");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Paste failed: {ex.Message}");
         }
     }
 
