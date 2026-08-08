@@ -10,6 +10,7 @@
     <Project Path="src/CadStudio3D/CadStudio3D.csproj" />
     <Project Path="src/SketchStudio/SketchStudio.csproj" />
     <Project Path="src/CoverageStudio/CoverageStudio.csproj" />
+    <Project Path="src/RepoStudio/RepoStudio.csproj" />
     <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
     <Project Path="src/CapitalistSimulator/CapitalistSimulator.csproj" />
     <Project Path="src/GeoPolity/GeoPolity.csproj" />

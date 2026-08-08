@@ -43,6 +43,7 @@
     <PackageVersion Include="Novolis.Avalonia.Raylib" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Rendering" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Studio" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Git" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Tools.Coverage" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Cad" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.3D" Version="2026.1.*" />
