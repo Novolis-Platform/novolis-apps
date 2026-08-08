@@ -85,13 +85,16 @@ internal sealed class MainWindow : Window
 
     Control BuildLayout()
     {
+        // Avalonia TabControl: use Items (TabItem children). ItemsSource expects data+templates
+        // and leaves Working/Diff/Detail empty when fed TabItem[].
         var tabs = new TabControl
         {
-            ItemsSource = new TabItem[]
+            MinHeight = 180,
+            Items =
             {
-                new() { Header = "Working tree", Content = _working },
-                new() { Header = "Diff", Content = _diff },
-                new() { Header = "Detail", Content = _detail },
+                new TabItem { Header = "Working tree", Content = _working },
+                new TabItem { Header = "Diff", Content = _diff },
+                new TabItem { Header = "Detail", Content = _detail },
             },
         };
 
@@ -213,6 +216,12 @@ internal sealed class MainWindow : Window
             if (gen != _matrixGen)
                 return;
 
+            var shouldAutoOpen = _openRepoPath is null && matrix.Repos.Count > 0;
+            var autoRepo = shouldAutoOpen
+                ? matrix.Repos.FirstOrDefault(r => r.Status?.Dirty == true)?.Repo
+                  ?? matrix.Repos[0].Repo
+                : null;
+
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _repos.SetMatrix(matrix);
@@ -224,6 +233,9 @@ internal sealed class MainWindow : Window
                 _fetchAge.SetLastFetch(stamps.Length == 0 ? null : stamps.Max());
                 Flash($"{matrix.Summary.Git} repos · dirty {matrix.Summary.Dirty} · behind {matrix.Summary.Behind}");
             });
+
+            if (autoRepo is not null)
+                await OpenRepoAsync(autoRepo).ConfigureAwait(false);
 
             // Second pass for stash counts — never blocks first paint.
             if (!includeStashCount)
@@ -238,10 +250,13 @@ internal sealed class MainWindow : Window
     async Task OpenRepoAsync(RepoEntry repo)
     {
         _openRepoPath = repo.Path;
-        _emptyHint.IsVisible = false;
-        Flash($"Opening {repo.Name}…");
-        await RefreshOpenRepoAsync().ConfigureAwait(true);
-        Flash($"Opened {repo.Name}");
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            _emptyHint.IsVisible = false;
+            Flash($"Opening {repo.Name}…");
+        });
+        await RefreshOpenRepoAsync().ConfigureAwait(false);
+        await Dispatcher.UIThread.InvokeAsync(() => Flash($"Opened {repo.Name}"));
     }
 
     async Task RefreshOpenRepoAsync()
