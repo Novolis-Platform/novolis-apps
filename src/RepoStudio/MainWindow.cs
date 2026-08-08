@@ -43,6 +43,11 @@ internal sealed class MainWindow : Window
     string _root = "";
     string? _openRepoPath;
     string? _openRepoName;
+    string? _openBranch;
+    string? _openUpstream;
+    int _openAhead;
+    bool _openDirty;
+    int _openChangeCount;
     FetchScheduler? _scheduler;
     int _matrixGen;
     int _openGen;
@@ -324,7 +329,8 @@ internal sealed class MainWindow : Window
                 var stashes = _git.ListStashes(path);
                 var graph = _git.GetCommitGraph(path, new CommitGraphOptions { MaxCount = 120 });
                 var wt = _git.GetWorkingTree(path);
-                return (branches, stashes, graph, wt);
+                var status = _git.GetStatus(path, lite: true);
+                return (branches, stashes, graph, wt, status);
             }).ConfigureAwait(false);
 
             if (gen != _openGen)
@@ -336,6 +342,11 @@ internal sealed class MainWindow : Window
                 _stashes.SetStashes(snapshot.stashes);
                 _graph.SetGraph(snapshot.graph);
                 _working.SetWorkingTree(snapshot.wt);
+                _openBranch = snapshot.status.Branch;
+                _openUpstream = snapshot.status.Upstream;
+                _openAhead = snapshot.status.Ahead;
+                _openDirty = snapshot.status.Dirty;
+                _openChangeCount = snapshot.wt.Staged.Count + snapshot.wt.Unstaged.Count + snapshot.wt.Untracked.Count;
                 Flash($"Opened {name}");
             });
         }
@@ -380,6 +391,24 @@ internal sealed class MainWindow : Window
     {
         if (_openRepoPath is null)
             return;
+
+        var dirtyNote = _openDirty
+            ? $"Working tree has {_openChangeCount} uncommitted change(s). Checkout may fail or carry changes."
+            : "Working tree is clean.";
+        var ok = await ConfirmAsync(new GitConfirmRequest
+        {
+            Title = "Checkout ref",
+            Severity = _openDirty ? GitConfirmSeverity.Warning : GitConfirmSeverity.Info,
+            Summary = $"Checkout “{tipName}” in {_openRepoName}?",
+            Detail = $"{dirtyNote}\nCurrent branch: {_openBranch ?? "(unknown)"}",
+            ConfirmLabel = "Checkout",
+        }).ConfigureAwait(true);
+        if (!ok)
+        {
+            Flash("Checkout cancelled.");
+            return;
+        }
+
         var path = _openRepoPath;
         Flash($"Checkout {tipName}…");
         var result = await Task.Run(() => _git.Checkout(path, tipName)).ConfigureAwait(false);
@@ -433,6 +462,24 @@ internal sealed class MainWindow : Window
                         break;
                     }
 
+                    var names = string.Join('\n', sel.Selected.Take(12).Select(r => $"• {r.Name}"));
+                    if (sel.Selected.Count > 12)
+                        names += $"\n… +{sel.Selected.Count - 12} more";
+
+                    var pullOk = await ConfirmAsync(new GitConfirmRequest
+                    {
+                        Title = "Pull (fast-forward only)",
+                        Severity = GitConfirmSeverity.Warning,
+                        Summary = $"Fast-forward pull in {sel.Selected.Count} selected repo(s)? Non–fast-forward updates will fail safely (no merge/rebase).",
+                        Detail = names,
+                        ConfirmLabel = "Pull ff-only",
+                    }).ConfigureAwait(true);
+                    if (!pullOk)
+                    {
+                        Flash("Pull cancelled.");
+                        break;
+                    }
+
                     Flash("Pulling…");
                     var batch = new GitWorkspaceBatch(_git);
                     var result = await batch.PullFfOnlyAsync(sel.Selected, new BatchOptions { WorkspaceRoot = _root })
@@ -445,8 +492,27 @@ internal sealed class MainWindow : Window
                 case GitChromeCommand.Push:
                     if (_openRepoPath is null) { Flash("Open a repo first."); break; }
                     {
+                        var pushOk = await ConfirmAsync(new GitConfirmRequest
+                        {
+                            Title = "Push",
+                            Severity = _openAhead > 0 ? GitConfirmSeverity.Info : GitConfirmSeverity.Warning,
+                            Summary = $"Push {_openRepoName} without force?",
+                            Detail =
+                                $"Branch: {_openBranch ?? "(unknown)"}\n" +
+                                $"Upstream: {_openUpstream ?? "(none — may need set-upstream)"}\n" +
+                                $"Ahead: {_openAhead} commit(s)\n" +
+                                "Force push is never offered from this UI.",
+                            ConfirmLabel = "Push",
+                        }).ConfigureAwait(true);
+                        if (!pushOk)
+                        {
+                            Flash("Push cancelled.");
+                            break;
+                        }
+
                         var path = _openRepoPath;
-                        var r = await Task.Run(() => _git.Push(path)).ConfigureAwait(false);
+                        var r = await Task.Run(() => _git.Push(path, new PushOptions { Force = false }))
+                            .ConfigureAwait(false);
                         Flash(r.Message);
                     }
                     break;
@@ -484,6 +550,65 @@ internal sealed class MainWindow : Window
 
         var path = _openRepoPath;
         var idx = e.StashIndex ?? 0;
+        var stashLabel = $"stash@{{{idx}}}  {e.Detail ?? ""}".Trim();
+
+        if (e.Command is GitChromeCommand.StashDrop)
+        {
+            var dropOk = await ConfirmAsync(new GitConfirmRequest
+            {
+                Title = "Drop stash permanently",
+                Severity = GitConfirmSeverity.Danger,
+                Summary = "This permanently deletes the stash entry. It cannot be undone from Repo Studio.",
+                Detail = $"{_openRepoName}\n{stashLabel}",
+                ConfirmLabel = "Drop stash",
+                RequireTypedPhrase = "drop",
+                TypedPhraseHint = "Type drop to enable the Drop stash button.",
+            }).ConfigureAwait(true);
+            if (!dropOk)
+            {
+                Flash("Stash drop cancelled.");
+                return;
+            }
+        }
+        else if (e.Command is GitChromeCommand.StashPop)
+        {
+            var popOk = await ConfirmAsync(new GitConfirmRequest
+            {
+                Title = "Pop stash",
+                Severity = GitConfirmSeverity.Warning,
+                Summary = "Apply the stash, then remove it from the stash list.",
+                Detail = $"{_openRepoName}\n{stashLabel}" +
+                         (_openDirty ? $"\nWorking tree already dirty ({_openChangeCount} change(s)) — conflicts possible." : ""),
+                ConfirmLabel = "Pop stash",
+            }).ConfigureAwait(true);
+            if (!popOk)
+            {
+                Flash("Stash pop cancelled.");
+                return;
+            }
+        }
+        else if (e.Command is GitChromeCommand.StashApply && _openDirty)
+        {
+            var applyOk = await ConfirmAsync(new GitConfirmRequest
+            {
+                Title = "Apply stash onto dirty tree",
+                Severity = GitConfirmSeverity.Warning,
+                Summary = "Working tree already has local changes. Applying a stash may conflict.",
+                Detail = $"{_openRepoName}\n{stashLabel}\nDirty files: {_openChangeCount}",
+                ConfirmLabel = "Apply anyway",
+            }).ConfigureAwait(true);
+            if (!applyOk)
+            {
+                Flash("Stash apply cancelled.");
+                return;
+            }
+        }
+        else if (e.Command is GitChromeCommand.StashPush && !_openDirty)
+        {
+            Flash("Nothing to stash (working tree clean).");
+            return;
+        }
+
         var r = await Task.Run(() => e.Command switch
         {
             GitChromeCommand.StashPush => _git.StashPush(path),
@@ -538,9 +663,38 @@ internal sealed class MainWindow : Window
         var plan = await Task.Run(() =>
             planner.Plan(_root, body.BranchName, sel.Selected, body.BaseRef)).ConfigureAwait(false);
         body.SetPreview(plan);
-        var confirm = await ShowDialogAsync("Confirm apply", body).ConfigureAwait(true);
-        if (!confirm)
+        var preview = await ShowDialogAsync("Review dry-run", body, okLabel: "Continue…").ConfigureAwait(true);
+        if (!preview)
+        {
+            Flash("Branch cut cancelled.");
             return;
+        }
+
+        var runnable = plan.Steps.Count(s => s.BlockReason is null);
+        if (runnable == 0)
+        {
+            Flash("Branch cut: nothing to apply (all repos blocked).");
+            return;
+        }
+
+        var apply = await ConfirmAsync(new GitConfirmRequest
+        {
+            Title = "Apply branch cut",
+            Severity = GitConfirmSeverity.Danger,
+            Summary = $"Create/checkout “{body.BranchName}” in {runnable} repo(s) (of {plan.Steps.Count} planned).",
+            Detail = string.Join('\n', plan.Steps.Select(s =>
+                s.BlockReason is null
+                    ? $"APPLY  {s.Repo.Name}"
+                    : $"SKIP   {s.Repo.Name} — {s.BlockReason}")),
+            ConfirmLabel = "Apply branch cut",
+            RequireTypedPhrase = body.BranchName,
+            TypedPhraseHint = $"Type the branch name ({body.BranchName}) to enable apply.",
+        }).ConfigureAwait(true);
+        if (!apply)
+        {
+            Flash("Branch cut cancelled.");
+            return;
+        }
 
         Flash("Applying branch cut…");
         var applied = await planner.ApplyAsync(plan, dryRun: false).ConfigureAwait(false);
@@ -548,7 +702,10 @@ internal sealed class MainWindow : Window
         _ = RefreshMatrixAsync(includeStashCount: false);
     }
 
-    async Task<bool> ShowDialogAsync(string title, Control body)
+    Task<bool> ConfirmAsync(GitConfirmRequest request) =>
+        GitConfirmDialog.ShowAsync(this, request);
+
+    async Task<bool> ShowDialogAsync(string title, Control body, string okLabel = "OK")
     {
         var tcs = new TaskCompletionSource<bool>();
         Window? dlg = null;
@@ -585,7 +742,7 @@ internal sealed class MainWindow : Window
                         Children =
                         {
                             MakeButton("Cancel", false),
-                            MakeButton("OK", true),
+                            MakeButton(okLabel, true),
                         },
                     },
                     body,
