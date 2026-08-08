@@ -3,7 +3,6 @@ using BooksWriterStudio.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Novolis.Manuscript.Export.Audio;
-using QuestPDF.Infrastructure;
 
 namespace BooksWriterStudio;
 
@@ -20,8 +19,6 @@ internal static class Program
 
         try
         {
-            QuestPDF.Settings.License = LicenseType.Community;
-
             if (args.Length > 0 && Directory.Exists(args[0]))
                 StartupFolder = Path.GetFullPath(args[0]);
 

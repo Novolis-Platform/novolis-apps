@@ -31,7 +31,6 @@
     <PackageReference Include="Novolis.Manuscript.Export.Pdf" />
     <PackageReference Include="Novolis.Manuscript.IO" />
     <PackageReference Include="Novolis.Manuscript.Metrics" />
-    <PackageReference Include="QuestPDF" />
     <PackageReference Include="WeCantSpell.Hunspell" />
   </ItemGroup>
 </Project>

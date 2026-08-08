@@ -61,7 +61,7 @@ Avalonia demo for Novolis Audio Live (DSL editor + visuals), with bundled host a
 | Source | URL |
 |--------|-----|
 | GitHub Packages | `Novolis.Avalonia.Studio` and other `Novolis.*` |
-| nuget.org | Avalonia, Markdig, QuestPDF, YamlDotNet |
+| nuget.org | Avalonia, YamlDotNet |
 
 ## Related
 
