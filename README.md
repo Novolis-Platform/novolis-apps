@@ -77,6 +77,7 @@ pwsh -File scripts/build-installer.ps1 -App All
 | Draft Studio | `src/DraftStudio` | Command-driven 2D/3D CAD-light (`.cadjson` + phys export) |
 | Novolis CAD Studio 3D | `src/CadStudio3D` | Full 2D/3D CAD + scene staging, materials, lit render; dual Cad/Scene agent surfaces |
 | Sketch Studio | `src/SketchStudio` | Freehand sketch studio (`SketchControl`, `.sketchjson`, PNG/SVG clipboard) |
+| Coverage Studio | `src/CoverageStudio` | Org coverage / CRAP / test runner across `novolis-*` (local tooling — not released) |
 | Sins of a Capitalism Tycoon | `src/SinsOfACapitalismTycoon` | Headless/Avalonia BM economy sim (`Novolis.Economy.Core`) |
 | Capitalist Simulator | `src/CapitalistSimulator` | Capitalism 2 homage firm/unit firm sim (local only — not released) |
 | GeoPolity | `src/GeoPolity` | Full-world geopolitics session host (Avalonia / Spectre / headless; local only — not released) |
