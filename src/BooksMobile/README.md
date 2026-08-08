@@ -1,6 +1,8 @@
 # Books Mobile
 
-Avalonia **Android + Windows** companion for [frankhaugen/books](https://github.com/frankhaugen/books): **Sign in with GitHub** (passkey / GitHub app), sparse `src/` (NMP/1) mirror, markdown editing, chapter TTS, **Pull** and **Save/Commit/Push**.
+Avalonia **Android + Windows desktop** companion for [frankhaugen/books](https://github.com/frankhaugen/books): **Sign in with GitHub** (passkey / GitHub app), sparse `src/` (NMP/1) mirror, markdown editing, chapter TTS, **Pull** and **Save/Commit/Push**.
+
+Composes a Narrow `AuthoringWorkspace` (`Novolis.Avalonia.Layout`) — stacked nav / primary / context — with the same region vocabulary as BooksWriterStudio Wide. Domain ops stay in `Novolis.Manuscript*` libraries; this host owns sync, light edit, and full-chapter listen (no publish).
 
 **Windows** ships on [GitHub Releases](https://github.com/Novolis-Platform/novolis-apps/releases) as a per-user Inno installer and portable zip. **Android APK** is local deploy only (not CI-released).
 
@@ -9,7 +11,7 @@ Avalonia **Android + Windows** companion for [frankhaugen/books](https://github.
 | Project | Path | Role |
 |---------|------|------|
 | `BooksMobile` | `BooksMobile/` | Shared UI, GitHub session, markdown editor, voice services |
-| `BooksMobile.Desktop` | `BooksMobile.Desktop/` | Windows head (`WinExe`) — release catalog |
+| `BooksMobile.Desktop` | `BooksMobile.Desktop/` | Windows desktop head (`WinExe`) — release catalog |
 | `BooksMobile.Android` | `BooksMobile.Android/` | Android APK (`net10.0-android`, API 23+) — local only |
 
 ## Platforms
@@ -18,6 +20,20 @@ Avalonia **Android + Windows** companion for [frankhaugen/books](https://github.
 |--------|-----------|-------|
 | Windows desktop | Avalonia Desktop | Installer + portable zip on merge to `main` |
 | Android | `net10.0-android` | Deploy via `adb`; APK not CI-released |
+
+## Composition
+
+| Layer | Role in Mobile |
+|-------|----------------|
+| `Novolis.Avalonia.Layout` | Narrow `AuthoringWorkspace` (nav / primary / context) |
+| `Novolis.Avalonia.Markdown` | Editor + preview |
+| `Novolis.Manuscript` | NMP/1 / catalog workspace façade |
+| App host | GitHub session, sync, listen — thin composition only |
+
+Grain and library-vs-CLI rules:
+
+- `d:\novolis\novolis-governance\docs\avalonia-composition-grain.md`
+- `d:\novolis\novolis-governance\docs\library-vs-cli.md`
 
 ## Releases (Windows)
 
@@ -80,7 +96,7 @@ Consumes GitHub Packages `2026.1.*`:
 
 ## Local development (ProjectReference mode)
 
-For sibling Mobile/Markdown/IO packages, open **`Novolis.Platform.slnx`** or:
+For sibling Mobile/Markdown/IO packages, open **`d:\novolis\Novolis.Platform.slnx`** or:
 
 ```powershell
 dotnet build d:\novolis\novolis-apps\src\BooksMobile\BooksMobile.Desktop -p:NovolisUseProjectReferences=true
