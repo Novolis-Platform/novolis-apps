@@ -25,6 +25,7 @@ internal sealed class MainWindow : Window
     readonly GitWorkingTreeView _working = new();
     readonly GitActionBar _actions = new();
     readonly GitFetchAgeLabel _fetchAge = new();
+    TabControl? _detailTabs;
     readonly TextBlock _openLabel = new()
     {
         Text = "No repo open",
@@ -101,6 +102,7 @@ internal sealed class MainWindow : Window
                 new TabItem { Header = "Detail", Content = _detail },
             },
         };
+        _detailTabs = tabs;
 
         var left = Pane(
             "Repositories",
@@ -364,6 +366,8 @@ internal sealed class MainWindow : Window
             {
                 _detail.SetDetail(detail);
                 _diff.SetDiff(diff);
+                if (_detailTabs is not null)
+                    _detailTabs.SelectedIndex = 1; // Diff
             });
         }
         catch (Exception ex)
