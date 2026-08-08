@@ -1,17 +1,14 @@
-using System.Diagnostics;
-using System.Text;
 using CoverageStudio.Models;
-using Novolis.Avalonia.Controls;
 using Novolis.Tools.Coverage;
 
 namespace CoverageStudio.Services;
 
-/// <summary>Workspace discovery, test runs, Cobertura collection, and CRAP analysis.</summary>
+/// <summary>Workspace discovery, typed test/coverage runs, and Cobertura / CRAP analysis.</summary>
 internal sealed class CoverageSession
 {
-    private readonly object _logGate = new();
-    private readonly StringBuilder _log = new();
+    private readonly WorkspaceRunner _runner = new();
     private CancellationTokenSource? _runCts;
+    private bool _active;
 
     public string Root { get; private set; } = TryResolveRoot();
     public string OutputDir { get; set; }
@@ -20,7 +17,10 @@ internal sealed class CoverageSession
     public bool RegenerateSlnx { get; set; }
     public double FailBelow { get; set; } = -1;
     public double CrapThreshold { get; set; } = CrapScore.DefaultThreshold;
-    public int ThrottleLimit { get; set; }
+    public int ThrottleLimit { get; set; } = 4;
+
+    /// <summary>Per-host <c>dotnet</c> wall timeout in seconds (default 60). Use 0 to disable.</summary>
+    public int HostTimeoutSeconds { get; set; } = 60;
 
     public CoverageSession()
     {
@@ -31,22 +31,12 @@ internal sealed class CoverageSession
     public CoverageCollectResult? LastCollect { get; private set; }
     public CrapReport? LastCrap { get; private set; }
     public CoberturaDocument? LastDocument { get; private set; }
+    public WorkRun? ActiveRun { get; private set; }
     public string? HtmlIndexPath { get; private set; }
     public bool IsBusy => _active;
 
-    private bool _active;
-
     public event Action? Changed;
-    public event Action? LogChanged;
-
-    public string LogText
-    {
-        get
-        {
-            lock (_logGate)
-                return _log.ToString();
-        }
-    }
+    public event Action? RunChanged;
 
     public void SetRoot(string root)
     {
@@ -60,16 +50,13 @@ internal sealed class CoverageSession
         EnsureRoot();
         var excludeFile = CoverageWorkspace.DefaultExcludeFile(Root);
         var excludes = CoverageWorkspace.ReadExcludes(excludeFile, []);
-        IReadOnlyList<CoverageRepo> discovered;
-        if (PlatformMode)
-        {
-            var slnx = CoverageWorkspace.ResolvePlatformSlnx(Root);
-            discovered = TestHostDiscovery.DiscoverFromPlatformSlnx(Root, slnx, excludes, include: null);
-        }
-        else
-        {
-            discovered = TestHostDiscovery.DiscoverRepos(Root, excludes, include: null);
-        }
+        IReadOnlyList<CoverageRepo> discovered = PlatformMode
+            ? TestHostDiscovery.DiscoverFromPlatformSlnx(
+                Root,
+                CoverageWorkspace.ResolvePlatformSlnx(Root),
+                excludes,
+                include: null)
+            : TestHostDiscovery.DiscoverRepos(Root, excludes, include: null);
 
         var previous = Repos.ToDictionary(r => r.Name, r => r.IsSelected, StringComparer.OrdinalIgnoreCase);
         Repos = discovered
@@ -82,7 +69,6 @@ internal sealed class CoverageSession
                 IsSelected = previous.TryGetValue(r.Name, out var sel) ? sel : true,
             })
             .ToList();
-        AppendLog($"Discovered {Repos.Count} repo(s) ({(PlatformMode ? "Platform.slnx" : "NuGet per-repo")}).");
         RaiseChanged();
     }
 
@@ -96,62 +82,12 @@ internal sealed class CoverageSession
         RaiseChanged();
     }
 
-    public async Task CollectCoverageAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default)
+    public async Task CollectCoverageAsync(
+        IProgress<WorkRun>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         EnsureRoot();
-        var include = SelectedRepoNames();
-        if (include.Count == 0)
-            throw new InvalidOperationException("Select at least one repo.");
-
-        using var linked = LinkToken(cancellationToken);
-        _active = true;
-        RaiseChanged();
-        try
-        {
-            Directory.CreateDirectory(OutputDir);
-            AppendLog($"Collect coverage → {OutputDir}");
-            progress?.Report("Collecting coverage…");
-
-            var writer = new CallbackTextWriter(line =>
-            {
-                AppendLog(line);
-                progress?.Report(line);
-            });
-
-            var collector = new CoverageCollector(writer);
-            var result = await collector.CollectAsync(new CoverageCollectOptions
-            {
-                Root = Root,
-                OutputDir = OutputDir,
-                PlatformSlnx = PlatformMode,
-                SkipBuild = SkipBuild,
-                RegenerateSlnx = RegenerateSlnx,
-                FailBelow = FailBelow,
-                ThrottleLimit = ThrottleLimit,
-                Include = include,
-                FlattenHtml = true,
-            }, linked.Token).ConfigureAwait(false);
-
-            LastCollect = result;
-            HtmlIndexPath = result.HtmlIndexPath;
-            TryLoadMergedCobertura();
-            AppendLog(
-                $"Done in {result.DurationSeconds:0.0}s — line {Fmt(result.AggregateLinePercent)}% / branch {Fmt(result.AggregateBranchPercent)}%.");
-            if (result.GateFailed)
-                AppendLog($"Gate: {result.GateMessage}");
-        }
-        finally
-        {
-            _active = false;
-            ClearRunToken();
-            RaiseChanged();
-        }
-    }
-
-    public async Task RunTestsAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default)
-    {
-        EnsureRoot();
-        var selected = Repos.Where(r => r.IsSelected).ToList();
+        var selected = ResolveSelectedRepos();
         if (selected.Count == 0)
             throw new InvalidOperationException("Select at least one repo.");
 
@@ -160,61 +96,117 @@ internal sealed class CoverageSession
         RaiseChanged();
         try
         {
-            var useProjectRef = PlatformMode;
-            var throttle = ThrottleLimit > 0 ? ThrottleLimit : Math.Max(1, Environment.ProcessorCount - 1);
-            using var gate = new SemaphoreSlim(throttle, throttle);
-            var tasks = selected.Select(async repo =>
+            Directory.CreateDirectory(OutputDir);
+            var failBelow = FailBelow;
+            if (PlatformMode && failBelow == 0)
+                failBelow = 95;
+
+            IProgress<WorkRun> bridge = new Progress<WorkRun>(run =>
             {
-                await gate.WaitAsync(linked.Token).ConfigureAwait(false);
-                try
-                {
-                    foreach (var proj in Directory.EnumerateFiles(Path.Combine(repo.Path, "tests"), "*.csproj", SearchOption.AllDirectories))
-                    {
-                        if (!TestHostDiscovery.IsTestHostProject(proj))
-                            continue;
-
-                        linked.Token.ThrowIfCancellationRequested();
-                        var leaf = Path.GetFileNameWithoutExtension(proj);
-                        AppendLog($"test {repo.Name}/{leaf}");
-                        progress?.Report($"Testing {repo.Name}/{leaf}…");
-
-                        var args = new List<string>
-                        {
-                            "test", proj,
-                            "-c", "Debug",
-                            $"-p:NovolisUseProjectReferences={(useProjectRef ? "true" : "false")}",
-                        };
-                        if (SkipBuild)
-                            args.Add("--no-build");
-
-                        var (code, output) = await RunDotnetAsync(args, linked.Token).ConfigureAwait(false);
-                        if (!string.IsNullOrWhiteSpace(output))
-                            AppendLog(output.TrimEnd());
-                        if (code != 0)
-                            AppendLog($"FAIL {repo.Name}/{leaf} exit {code}");
-                    }
-                }
-                finally
-                {
-                    gate.Release();
-                }
+                ActiveRun = run;
+                progress?.Report(run);
+                RunChanged?.Invoke();
             });
 
-            await Task.WhenAll(tasks).ConfigureAwait(false);
-            AppendLog("Test run finished.");
+            var (run, result) = await _runner.CollectCoverageAsync(
+                selected,
+                Root,
+                OutputDir,
+                PlatformMode,
+                SkipBuild,
+                RegenerateSlnx,
+                configuration: "Debug",
+                failBelow,
+                ThrottleLimit,
+                HostTimeoutSeconds,
+                bridge,
+                linked.Token).ConfigureAwait(false);
+
+            ActiveRun = run;
+            LastCollect = result;
+            HtmlIndexPath = result.HtmlIndexPath ?? run.HtmlIndexPath;
+            TryLoadMergedCobertura();
         }
         finally
         {
             _active = false;
             ClearRunToken();
             RaiseChanged();
+            RunChanged?.Invoke();
+        }
+    }
+
+    public async Task RunTestsAsync(
+        IProgress<WorkRun>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureRoot();
+        var selected = ResolveSelectedRepos();
+        if (selected.Count == 0)
+            throw new InvalidOperationException("Select at least one repo.");
+
+        using var linked = LinkToken(cancellationToken);
+        _active = true;
+        RaiseChanged();
+        try
+        {
+            IProgress<WorkRun> bridge = new Progress<WorkRun>(run =>
+            {
+                ActiveRun = run;
+                progress?.Report(run);
+                RunChanged?.Invoke();
+            });
+
+            ActiveRun = await _runner.RunTestsAsync(
+                selected,
+                projectReferences: PlatformMode,
+                SkipBuild,
+                configuration: "Debug",
+                ThrottleLimit,
+                HostTimeoutSeconds,
+                bridge,
+                linked.Token).ConfigureAwait(false);
+
+            // Reflect host outcomes into Coverage-style repo rows for the Results tab.
+            LastCollect = new CoverageCollectResult
+            {
+                OutputDir = OutputDir,
+                HtmlIndexPath = HtmlIndexPath,
+                SummaryMarkdownPath = Path.Combine(OutputDir, "SUMMARY.md"),
+                DurationSeconds = ActiveRun.ElapsedSeconds,
+                Repos = ActiveRun.Hosts
+                    .GroupBy(h => h.Repo, StringComparer.OrdinalIgnoreCase)
+                    .Select(g =>
+                    {
+                        var hosts = g.ToList();
+                        var failed = hosts.Any(h => h.Phase is HostPhase.Failed);
+                        return new CoverageRepoResult
+                        {
+                            Repo = g.Key,
+                            Status = failed ? "fail" : "ok",
+                            Error = hosts.FirstOrDefault(h => h.Phase is HostPhase.Failed)?.Error,
+                            Seconds = Math.Round(hosts.Sum(h => h.Seconds), 1),
+                            TestsTotal = hosts.Sum(h => h.TestsTotal),
+                            TestsPassed = hosts.Sum(h => h.TestsPassed),
+                            TestsFailed = hosts.Sum(h => h.TestsFailed),
+                        };
+                    })
+                    .OrderBy(r => r.Repo, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+            };
+        }
+        finally
+        {
+            _active = false;
+            ClearRunToken();
+            RaiseChanged();
+            RunChanged?.Invoke();
         }
     }
 
     public void AnalyzeCrap()
     {
         EnsureRoot();
-        AppendLog("Analyzing CRAP / complexity…");
         LastCrap = CrapAnalyzer.AnalyzePlatform(new CrapAnalyzeOptions
         {
             Root = Root,
@@ -222,33 +214,18 @@ internal sealed class CoverageSession
             Threshold = CrapThreshold,
             Include = SelectedRepoNames().Count == Repos.Count ? [] : SelectedRepoNames(),
         });
-        AppendLog(
-            $"CRAP: {LastCrap.Methods.Count} methods, {LastCrap.FlaggedCount} flagged (threshold {CrapThreshold}), max {LastCrap.MaxScore:0.##}.");
         RaiseChanged();
     }
 
     public void LoadCobertura(string path)
     {
         LastDocument = CoberturaDocumentParser.Load(path);
-        AppendLog(
-            $"Loaded Cobertura {path} — line {LastDocument.Summary.LinePercent:0.0}% / branch {LastDocument.Summary.BranchPercent:0.0}%.");
         RaiseChanged();
     }
 
     public void SetHtmlIndexPath(string? path) => HtmlIndexPath = path;
 
-    public void Cancel()
-    {
-        _runCts?.Cancel();
-        AppendLog("Cancel requested.");
-    }
-
-    public void ClearLog()
-    {
-        lock (_logGate)
-            _log.Clear();
-        LogChanged?.Invoke();
-    }
+    public void Cancel() => _runCts?.Cancel();
 
     public IReadOnlyList<CoverageRepoRow> RepoRows()
     {
@@ -304,31 +281,31 @@ internal sealed class CoverageSession
         }).ToList();
     }
 
-    public JobQueueRow BuildJobRow(string title)
+    private IReadOnlyList<CoverageRepo> ResolveSelectedRepos()
     {
-        return new JobQueueRow
-        {
-            Title = title,
-            StatusLabel = _active ? "Running" : "Idle",
-            Detail = LastCollect is null
-                ? $"{Repos.Count} repos · {(PlatformMode ? "Platform" : "NuGet")}"
-                : $"line {Fmt(LastCollect.AggregateLinePercent)}% · branch {Fmt(LastCollect.AggregateBranchPercent)}%",
-            LogTail = Tail(LogText, 4000),
-            CanCancel = _active,
-            CanOpenOutput = !string.IsNullOrWhiteSpace(HtmlIndexPath) && File.Exists(HtmlIndexPath!),
-            Progress = null,
-            Tag = this,
-        };
+        var names = new HashSet<string>(SelectedRepoNames(), StringComparer.OrdinalIgnoreCase);
+        if (names.Count == 0)
+            return [];
+
+        var excludeFile = CoverageWorkspace.DefaultExcludeFile(Root);
+        var excludes = CoverageWorkspace.ReadExcludes(excludeFile, []);
+        IReadOnlyList<CoverageRepo> all = PlatformMode
+            ? TestHostDiscovery.DiscoverFromPlatformSlnx(
+                Root,
+                CoverageWorkspace.ResolvePlatformSlnx(Root),
+                excludes,
+                names)
+            : TestHostDiscovery.DiscoverRepos(Root, excludes, names);
+        return all;
     }
 
     private void TryLoadMergedCobertura()
     {
-        var candidates = new[]
-        {
-            Path.Combine(OutputDir, "Cobertura.xml"),
-            Path.Combine(OutputDir, "report", "Cobertura.xml"),
-        };
-        foreach (var c in candidates)
+        foreach (var c in new[]
+                 {
+                     Path.Combine(OutputDir, "Cobertura.xml"),
+                     Path.Combine(OutputDir, "report", "Cobertura.xml"),
+                 })
         {
             if (!File.Exists(c))
                 continue;
@@ -358,16 +335,6 @@ internal sealed class CoverageSession
         _runCts = null;
     }
 
-    private void AppendLog(string line)
-    {
-        lock (_logGate)
-        {
-            _log.Append('[').Append(DateTime.Now.ToString("HH:mm:ss")).Append("] ");
-            _log.AppendLine(line);
-        }
-        LogChanged?.Invoke();
-    }
-
     private void RaiseChanged() => Changed?.Invoke();
 
     private static string TryResolveRoot()
@@ -379,76 +346,6 @@ internal sealed class CoverageSession
         catch
         {
             return @"d:\novolis";
-        }
-    }
-
-    private static string Fmt(double? value) =>
-        value is { } v ? v.ToString("0.0") : "—";
-
-    private static string Tail(string text, int max)
-    {
-        if (text.Length <= max)
-            return text;
-        return text[^max..];
-    }
-
-    private static async Task<(int ExitCode, string Output)> RunDotnetAsync(
-        IReadOnlyList<string> args,
-        CancellationToken cancellationToken)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var a in args)
-            psi.ArgumentList.Add(a);
-
-        using var process = Process.Start(psi)
-            ?? throw new InvalidOperationException("Failed to start dotnet.");
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-        var stdout = await stdoutTask.ConfigureAwait(false);
-        var stderr = await stderrTask.ConfigureAwait(false);
-        var combined = string.IsNullOrWhiteSpace(stderr) ? stdout : stdout + Environment.NewLine + stderr;
-        return (process.ExitCode, combined);
-    }
-
-    private sealed class CallbackTextWriter(Action<string> onLine) : TextWriter
-    {
-        private readonly StringBuilder _buf = new();
-        public override Encoding Encoding => Encoding.UTF8;
-
-        public override void Write(char value)
-        {
-            if (value is '\n' or '\r')
-                FlushLine();
-            else
-                _buf.Append(value);
-        }
-
-        public override void Write(string? value)
-        {
-            if (value is null)
-                return;
-            foreach (var ch in value)
-                Write(ch);
-        }
-
-        public override void Flush() => FlushLine();
-
-        private void FlushLine()
-        {
-            if (_buf.Length == 0)
-                return;
-            var line = _buf.ToString();
-            _buf.Clear();
-            if (!string.IsNullOrWhiteSpace(line))
-                onLine(line.TrimEnd());
         }
     }
 }

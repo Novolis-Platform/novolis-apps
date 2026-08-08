@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using CoverageStudio.Models;
 using Novolis.Tools.Coverage;
 
@@ -14,6 +13,7 @@ internal sealed class WorkspaceRunner
         bool skipBuild,
         string configuration,
         int throttleLimit,
+        int hostTimeoutSeconds,
         IProgress<WorkRun>? progress,
         CancellationToken cancellationToken)
     {
@@ -25,6 +25,7 @@ internal sealed class WorkspaceRunner
             skipBuild,
             configuration,
             throttleLimit,
+            hostTimeoutSeconds,
             collectCoverage: false,
             outputDir: null,
             progress,
@@ -41,6 +42,7 @@ internal sealed class WorkspaceRunner
         string configuration,
         double failBelow,
         int throttleLimit,
+        int hostTimeoutSeconds,
         IProgress<WorkRun>? progress,
         CancellationToken cancellationToken)
     {
@@ -66,6 +68,7 @@ internal sealed class WorkspaceRunner
             skipBuild,
             configuration,
             throttleLimit,
+            hostTimeoutSeconds,
             collectCoverage: true,
             outputDir,
             progress,
@@ -259,6 +262,7 @@ internal sealed class WorkspaceRunner
         bool skipBuild,
         string configuration,
         int throttleLimit,
+        int hostTimeoutSeconds,
         bool collectCoverage,
         string? outputDir,
         IProgress<WorkRun>? progress,
@@ -269,16 +273,24 @@ internal sealed class WorkspaceRunner
         run.Title = collectCoverage ? "Coverage collect" : "Test run";
         progress?.Report(run);
 
-        var throttle = throttleLimit > 0 ? throttleLimit : Math.Max(1, Environment.ProcessorCount - 1);
-        using var gate = new SemaphoreSlim(throttle, throttle);
+        var throttle = throttleLimit > 0
+            ? throttleLimit
+            : Math.Clamp(Environment.ProcessorCount - 1, 1, 4);
+        var hostTimeout = hostTimeoutSeconds > 0
+            ? TimeSpan.FromSeconds(hostTimeoutSeconds)
+            : Timeout.InfiniteTimeSpan;
         var projectRef = projectReferences ? "true" : "false";
 
-        var tasks = run.Hosts.Select(async host =>
+        // Agent LocalIpc/HTTP hosts deadlock / thrash under massively parallel batches
+        // (same policy as Novolis.Tools.Coverage.CoverageCollector).
+        var parallelHosts = run.Hosts.Where(h => !IsSerialRepo(h.Repo)).ToList();
+        var serialHosts = run.Hosts.Where(h => IsSerialRepo(h.Repo)).ToList();
+
+        async Task RunOneAsync(WorkHostItem host)
         {
-            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 await RunHostAsync(
                     host,
                     skipBuild,
@@ -286,6 +298,7 @@ internal sealed class WorkspaceRunner
                     projectRef,
                     collectCoverage,
                     outputDir,
+                    hostTimeout,
                     () =>
                     {
                         run.ElapsedSeconds = Math.Round(sw.Elapsed.TotalSeconds, 1);
@@ -301,16 +314,35 @@ internal sealed class WorkspaceRunner
             }
             finally
             {
-                gate.Release();
                 run.ElapsedSeconds = Math.Round(sw.Elapsed.TotalSeconds, 1);
                 run.Recalculate();
                 progress?.Report(run);
             }
-        });
+        }
 
         try
         {
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+            if (parallelHosts.Count > 0)
+            {
+                using var gate = new SemaphoreSlim(throttle, throttle);
+                var tasks = parallelHosts.Select(async host =>
+                {
+                    await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        await RunOneAsync(host).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        gate.Release();
+                    }
+                });
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+            }
+
+            foreach (var host in serialHosts)
+                await RunOneAsync(host).ConfigureAwait(false);
+
             run.Phase = run.Failed > 0 && run.Completed == run.Failed
                 ? WorkPhase.Failed
                 : WorkPhase.Succeeded;
@@ -322,10 +354,15 @@ internal sealed class WorkspaceRunner
 
         run.ElapsedSeconds = Math.Round(sw.Elapsed.TotalSeconds, 1);
         run.Recalculate();
+        if (serialHosts.Count > 0)
+            run.Detail = $"{run.CountsLabel} · serial: {string.Join(", ", serialHosts.Select(h => h.Repo).Distinct())}";
         progress?.Report(run);
         _ = repos;
         return run;
     }
+
+    private static bool IsSerialRepo(string repoName) =>
+        repoName.Equals("novolis-agent", StringComparison.OrdinalIgnoreCase);
 
     private static async Task RunHostAsync(
         WorkHostItem host,
@@ -334,32 +371,53 @@ internal sealed class WorkspaceRunner
         string projectRef,
         bool collectCoverage,
         string? outputDir,
+        TimeSpan hostTimeout,
         Action notify,
         CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
         host.Phase = HostPhase.Queued;
         host.Progress = 0.02;
+        host.LiveElapsedSeconds = 0;
+        host.LiveTimeoutSeconds = hostTimeout > TimeSpan.Zero && hostTimeout != Timeout.InfiniteTimeSpan
+            ? hostTimeout.TotalSeconds
+            : null;
         notify();
+
+        void Tick(TimeSpan elapsed, TimeSpan? limit, double baseProgress, double span)
+        {
+            host.LiveElapsedSeconds = Math.Round(elapsed.TotalSeconds, 0);
+            host.LiveTimeoutSeconds = limit?.TotalSeconds;
+            if (limit is { } t && t > TimeSpan.Zero)
+                host.Progress = baseProgress + span * Math.Clamp(elapsed.TotalSeconds / t.TotalSeconds, 0, 0.99);
+            else
+                host.Progress = baseProgress + Math.Min(span * 0.5, span * (elapsed.TotalSeconds / 120.0));
+            notify();
+        }
 
         try
         {
             if (!skipBuild)
             {
                 host.Phase = HostPhase.Building;
-                host.Progress = 0.1;
+                host.Progress = 0.05;
                 notify();
                 var build = await DotnetProcessRunner.RunAsync(
                     ["build", host.ProjectPath, "-c", configuration, "--nologo", $"-p:NovolisUseProjectReferences={projectRef}"],
                     host.WorkingDirectory,
-                    cancellationToken).ConfigureAwait(false);
+                    hostTimeout,
+                    cancellationToken,
+                    (elapsed, limit) => Tick(elapsed, limit, 0.05, 0.25)).ConfigureAwait(false);
                 host.ExitCode = build.ExitCode;
+                if (build.TimedOut)
+                    throw new TimeoutException($"build timed out after {hostTimeout.TotalSeconds:0}s");
                 if (build.ExitCode != 0)
                     throw new InvalidOperationException($"build exit {build.ExitCode}");
             }
 
             host.Phase = HostPhase.Testing;
             host.Progress = 0.35;
+            host.LiveElapsedSeconds = 0;
             notify();
 
             var args = new List<string>
@@ -387,7 +445,12 @@ internal sealed class WorkspaceRunner
                 args.Add(coberturaOut);
             }
 
-            var test = await DotnetProcessRunner.RunAsync(args, host.WorkingDirectory, cancellationToken)
+            var test = await DotnetProcessRunner.RunAsync(
+                    args,
+                    host.WorkingDirectory,
+                    hostTimeout,
+                    cancellationToken,
+                    (elapsed, limit) => Tick(elapsed, limit, 0.35, 0.5))
                 .ConfigureAwait(false);
             host.ExitCode = test.ExitCode;
             var counts = DotnetProcessRunner.ParseTestCounts(test.Output);
@@ -397,6 +460,8 @@ internal sealed class WorkspaceRunner
             host.Progress = 0.85;
             notify();
 
+            if (test.TimedOut)
+                throw new TimeoutException($"timed out after {hostTimeout.TotalSeconds:0}s");
             if (test.ExitCode != 0)
                 throw new InvalidOperationException($"test exit {test.ExitCode}");
 
@@ -426,6 +491,7 @@ internal sealed class WorkspaceRunner
             host.Phase = HostPhase.Succeeded;
             host.Progress = 1;
             host.Seconds = Math.Round(sw.Elapsed.TotalSeconds, 1);
+            host.LiveElapsedSeconds = 0;
             notify();
         }
         catch (OperationCanceledException)

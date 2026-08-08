@@ -19,6 +19,7 @@ internal sealed class MainWindow : Window
     private readonly CoverageSession _session;
     private readonly StudioChrome _chrome;
     private readonly StudioFeedback _feedback;
+    private readonly RunProgressView _runView = new();
 
     private readonly TextBox _rootBox;
     private readonly TextBox _outBox;
@@ -29,14 +30,13 @@ internal sealed class MainWindow : Window
     private readonly NumericUpDown _failBelow;
     private readonly NumericUpDown _crapThreshold;
     private readonly NumericUpDown _throttle;
+    private readonly NumericUpDown _timeout;
     private readonly ListBox _repoList = new();
     private readonly TextBlock _summary = CoverageTheme.Mono("—");
     private readonly PacketTableView _repoGrid = new();
     private readonly PacketTableView _gapGrid = new();
     private readonly PacketTableView _crapGrid = new();
     private readonly TreeDetailsView _details = new();
-    private readonly JobQueuePanel _jobs = new();
-    private readonly TextBox _logBox;
     private readonly TabControl _tabs;
 
     private bool _busyUi;
@@ -59,48 +59,29 @@ internal sealed class MainWindow : Window
         _chrome.FlashLine.FontFamily = CoverageTheme.BodyFont;
 
         _rootBox = CoverageTheme.MakeTextBox(_session.Root, 420);
-        _outBox = CoverageTheme.MakeTextBox(
-            string.IsNullOrWhiteSpace(_session.OutputDir)
-                ? Path.Combine(_session.Root, "coverage")
-                : _session.OutputDir,
-            280);
+        _outBox = CoverageTheme.MakeTextBox(_session.OutputDir, 280);
         _platformBox = CoverageTheme.MakeCheck("Platform.slnx ProjectRef", true);
         _skipBuildBox = CoverageTheme.MakeCheck("Skip build", true);
         _regenBox = CoverageTheme.MakeCheck("Regenerate slnx", false);
         _flaggedOnlyBox = CoverageTheme.MakeCheck("Flagged only", true);
         _failBelow = CoverageTheme.MakeNumeric(-1, -1, 100, 72);
         _crapThreshold = CoverageTheme.MakeNumeric((decimal)CrapScore.DefaultThreshold, 1, 500, 72);
-        _throttle = CoverageTheme.MakeNumeric(0, 0, 64, 64);
-
-        _logBox = new TextBox
-        {
-            IsReadOnly = true,
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.NoWrap,
-            FontFamily = CoverageTheme.MonoFont,
-            FontSize = 11,
-            Background = CoverageTheme.PanelAltBrush,
-            Foreground = CoverageTheme.TextBrush,
-            BorderBrush = CoverageTheme.BorderBrush,
-            MinHeight = 120,
-        };
+        _throttle = CoverageTheme.MakeNumeric(4, 0, 64, 64);
+        _timeout = CoverageTheme.MakeNumeric(60, 0, 3600, 72);
 
         ConfigureGrids();
         _tabs = BuildTabs();
 
-        _platformBox.IsCheckedChanged += (_, _) =>
-        {
-            _session.PlatformMode = _platformBox.IsChecked == true;
-        };
+        _platformBox.IsCheckedChanged += (_, _) => _session.PlatformMode = _platformBox.IsChecked == true;
         _skipBuildBox.IsCheckedChanged += (_, _) => _session.SkipBuild = _skipBuildBox.IsChecked == true;
         _regenBox.IsCheckedChanged += (_, _) => _session.RegenerateSlnx = _regenBox.IsChecked == true;
         _flaggedOnlyBox.IsCheckedChanged += (_, _) => RefreshComplexityGrid();
 
-        _jobs.CancelRequested += _ => _session.Cancel();
-        _jobs.OpenOutputRequested += _ => OpenHtmlReport();
+        _runView.CancelRequested += () => _session.Cancel();
+        _runView.OpenReportRequested += OpenHtmlReport;
 
         _session.Changed += () => Dispatcher.UIThread.Post(RefreshFromSession);
-        _session.LogChanged += () => Dispatcher.UIThread.Post(RefreshLog);
+        _session.RunChanged += () => Dispatcher.UIThread.Post(RefreshRun);
 
         Content = BuildLayout();
         Opened += (_, _) =>
@@ -123,36 +104,25 @@ internal sealed class MainWindow : Window
     {
         var toolbar = BuildToolbar();
         var left = BuildRepoPane();
+
         var center = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
         Grid.SetRow(_tabs, 0);
         center.Children.Add(_tabs);
 
-        var bottom = new Grid
+        var runHost = new StackPanel
         {
-            RowDefinitions = new RowDefinitions("Auto,*"),
-            MinHeight = 180,
             Margin = new Thickness(0, 8, 0, 0),
+            Children =
+            {
+                CoverageTheme.Title("Run", 13),
+                _runView,
+            },
         };
-        var bottomTitle = CoverageTheme.Title("Jobs & log", 13);
-        Grid.SetRow(bottomTitle, 0);
-        bottom.Children.Add(bottomTitle);
-
-        var split = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("320,*"),
-            Margin = new Thickness(0, 6, 0, 0),
-        };
-        Grid.SetColumn(_jobs, 0);
-        split.Children.Add(CoverageTheme.PanelBox(_jobs));
-        var logPanel = CoverageTheme.PanelBox(_logBox);
-        Grid.SetColumn(logPanel, 1);
-        split.Children.Add(logPanel);
-        Grid.SetRow(split, 1);
-        bottom.Children.Add(split);
-        Grid.SetRow(bottom, 1);
-        center.Children.Add(bottom);
+        Grid.SetRow(runHost, 1);
+        center.Children.Add(runHost);
 
         var body = new Grid { ColumnDefinitions = new ColumnDefinitions("300,*") };
+        left.VerticalAlignment = VerticalAlignment.Stretch;
         Grid.SetColumn(left, 0);
         body.Children.Add(left);
         Grid.SetColumn(center, 1);
@@ -193,16 +163,17 @@ internal sealed class MainWindow : Window
         runTests.Click += async (_, _) => await RunSafeAsync("Running tests…", "Tests finished.", async () =>
         {
             SyncOptionsToSession();
-            await _session.RunTestsAsync(new Progress<string>(msg => _feedback.SetStatus(msg)));
+            await _session.RunTestsAsync();
+            _tabs.SelectedIndex = 0;
         });
 
         var collect = CoverageTheme.MakeButton("Collect coverage", primary: true);
         collect.Click += async (_, _) => await RunSafeAsync("Collecting coverage…", "Coverage collected.", async () =>
         {
             SyncOptionsToSession();
-            await _session.CollectCoverageAsync(new Progress<string>(msg => _feedback.SetStatus(msg)));
+            await _session.CollectCoverageAsync();
             _session.AnalyzeCrap();
-            RefreshFromSession();
+            _tabs.SelectedIndex = 0;
         });
 
         var crap = CoverageTheme.MakeButton("Analyze CRAP");
@@ -242,30 +213,29 @@ internal sealed class MainWindow : Window
                 _crapThreshold,
                 CoverageTheme.Label("Throttle"),
                 _throttle,
+                CoverageTheme.Label("Timeout s"),
+                _timeout,
             },
         };
 
-        var actions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            Children = { discover, runTests, collect, crap, load, openHtml },
-        };
-
-        var header = new StackPanel
+        return new StackPanel
         {
             Margin = new Thickness(10, 10, 10, 6),
             Spacing = 4,
             Children =
             {
                 CoverageTheme.Title("Coverage Studio", 20),
-                CoverageTheme.Label("Explore coverage, cyclomatic complexity / CRAP, and run tests across novolis-* repos.", muted: true),
-                actions,
+                CoverageTheme.Label("Coverage, complexity, and tests — typed progress, no console host.", muted: true),
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 6,
+                    Children = { discover, runTests, collect, crap, load, openHtml },
+                },
                 options,
                 _summary,
             },
         };
-        return header;
     }
 
     private Control BuildRepoPane()
@@ -294,38 +264,38 @@ internal sealed class MainWindow : Window
         header.Children.Add(buttons);
         header.Children.Add(CoverageTheme.Title("Repos", 13));
 
+        var hint = CoverageTheme.Label("Checked repos are included in runs.", muted: true);
+        hint.Margin = new Thickness(0, 0, 0, 6);
+
         _repoList.Background = CoverageTheme.PanelAltBrush;
         _repoList.BorderBrush = CoverageTheme.BorderBrush;
+        _repoList.VerticalAlignment = VerticalAlignment.Stretch;
+        ScrollViewer.SetVerticalScrollBarVisibility(_repoList, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
+        ScrollViewer.SetHorizontalScrollBarVisibility(_repoList, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
 
-        var stack = new StackPanel
+        var grid = new Grid
         {
-            Children =
-            {
-                header,
-                CoverageTheme.Label("Checked repos are included in runs.", muted: true),
-                _repoList,
-            },
+            RowDefinitions = new RowDefinitions("Auto,Auto,*"),
         };
-        return CoverageTheme.PanelBox(stack);
+        grid.Children.Add(header);
+        Grid.SetRow(hint, 1);
+        grid.Children.Add(hint);
+        Grid.SetRow(_repoList, 2);
+        grid.Children.Add(_repoList);
+
+        return CoverageTheme.PanelBox(grid);
     }
 
-    private TabControl BuildTabs()
+    private TabControl BuildTabs() => new()
     {
-        return new TabControl
+        Items =
         {
-            Items =
-            {
-                new TabItem { Header = "Coverage", Content = CoverageTheme.PanelBox(_repoGrid, new Thickness(4)) },
-                new TabItem { Header = "Gaps", Content = CoverageTheme.PanelBox(_gapGrid, new Thickness(4)) },
-                new TabItem
-                {
-                    Header = "Complexity / CRAP",
-                    Content = BuildComplexityPane(),
-                },
-                new TabItem { Header = "Details", Content = CoverageTheme.PanelBox(_details, new Thickness(4)) },
-            },
-        };
-    }
+            new TabItem { Header = "Results", Content = CoverageTheme.PanelBox(_repoGrid, new Thickness(4)) },
+            new TabItem { Header = "Gaps", Content = CoverageTheme.PanelBox(_gapGrid, new Thickness(4)) },
+            new TabItem { Header = "Complexity / CRAP", Content = BuildComplexityPane() },
+            new TabItem { Header = "Details", Content = CoverageTheme.PanelBox(_details, new Thickness(4)) },
+        },
+    };
 
     private Control BuildComplexityPane()
     {
@@ -334,7 +304,11 @@ internal sealed class MainWindow : Window
             Orientation = Orientation.Horizontal,
             Spacing = 8,
             Margin = new Thickness(4, 4, 4, 8),
-            Children = { _flaggedOnlyBox, CoverageTheme.Label("Sort is CRAP descending · CC = cyclomatic complexity", muted: true) },
+            Children =
+            {
+                _flaggedOnlyBox,
+                CoverageTheme.Label("CRAP descending · CC = cyclomatic complexity", muted: true),
+            },
         };
         var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
         grid.Children.Add(bar);
@@ -398,6 +372,7 @@ internal sealed class MainWindow : Window
         _session.FailBelow = (double)(_failBelow.Value ?? -1);
         _session.CrapThreshold = (double)(_crapThreshold.Value ?? (decimal)CrapScore.DefaultThreshold);
         _session.ThrottleLimit = (int)(_throttle.Value ?? 0);
+        _session.HostTimeoutSeconds = (int)(_timeout.Value ?? 60);
         _outBox.Text = _session.OutputDir;
         _rootBox.Text = _session.Root;
     }
@@ -409,8 +384,7 @@ internal sealed class MainWindow : Window
         _gapGrid.ItemsSource = _session.GapRows();
         RefreshComplexityGrid();
         RefreshDetails();
-        _jobs.SetJobs([_session.BuildJobRow("Coverage / tests")]);
-        _jobs.Refresh();
+        RefreshRun();
 
         var line = _session.LastCollect?.AggregateLinePercent;
         var branch = _session.LastCollect?.AggregateBranchPercent;
@@ -421,6 +395,24 @@ internal sealed class MainWindow : Window
             $"CRAP flagged {crap?.FlaggedCount.ToString() ?? "—"} / methods {crap?.Methods.Count.ToString() ?? "—"}";
         _feedback.SetStatus(_summary.Text);
     }
+
+    private void RefreshRun()
+    {
+        if (_session.ActiveRun is { } run)
+        {
+            if (!ReferenceEquals(_runViewTag, run))
+            {
+                _runView.Bind(run);
+                _runViewTag = run;
+            }
+            else
+            {
+                _runView.Refresh();
+            }
+        }
+    }
+
+    private WorkRun? _runViewTag;
 
     private void RefreshComplexityGrid() =>
         _crapGrid.ItemsSource = _session.ComplexityRows(_flaggedOnlyBox.IsChecked == true);
@@ -440,14 +432,13 @@ internal sealed class MainWindow : Window
         if (_session.LastDocument is { } doc)
         {
             var shortfall = CoverageAnalyzer.Shortfall(doc.Summary, 95);
-            children.Add(new DetailTreeNode("Cobertura",
-                $"{doc.SourcePath}",
-                [
-                    new DetailTreeNode("Line", $"{doc.Summary.LinePercent:0.0}% ({doc.Summary.LinesCovered}/{doc.Summary.LinesValid})"),
-                    new DetailTreeNode("Branch", $"{doc.Summary.BranchPercent:0.0}% ({doc.Summary.BranchesCovered}/{doc.Summary.BranchesValid})"),
-                    new DetailTreeNode("To 95%", $"+{shortfall.LinesNeeded} lines, +{shortfall.BranchesNeeded} branches"),
-                    new DetailTreeNode("Packages", doc.Packages.Count.ToString()),
-                ]));
+            children.Add(new DetailTreeNode("Cobertura", doc.SourcePath,
+            [
+                new DetailTreeNode("Line", $"{doc.Summary.LinePercent:0.0}% ({doc.Summary.LinesCovered}/{doc.Summary.LinesValid})"),
+                new DetailTreeNode("Branch", $"{doc.Summary.BranchPercent:0.0}% ({doc.Summary.BranchesCovered}/{doc.Summary.BranchesValid})"),
+                new DetailTreeNode("To 95%", $"+{shortfall.LinesNeeded} lines, +{shortfall.BranchesNeeded} branches"),
+                new DetailTreeNode("Packages", doc.Packages.Count.ToString()),
+            ]));
         }
 
         if (_session.LastCrap is { } crap)
@@ -472,20 +463,10 @@ internal sealed class MainWindow : Window
             {
                 local.IsSelected = box.IsChecked == true;
                 _summary.Text =
-                    $"Repos {_session.Repos.Count} selected {_session.SelectedRepoNames().Count} · " +
-                    $"coverage line {(_session.LastCollect?.AggregateLinePercent is { } l ? $"{l:0.0}%" : "—")} / " +
-                    $"branch {(_session.LastCollect?.AggregateBranchPercent is { } b ? $"{b:0.0}%" : "—")}";
+                    $"Repos {_session.Repos.Count} selected {_session.SelectedRepoNames().Count}";
             };
             _repoList.Items.Add(new ListBoxItem { Content = box, Tag = local });
         }
-    }
-
-    private void RefreshLog()
-    {
-        _logBox.Text = _session.LogText;
-        _logBox.CaretIndex = _logBox.Text?.Length ?? 0;
-        _jobs.SetJobs([_session.BuildJobRow("Coverage / tests")]);
-        _jobs.Refresh();
     }
 
     private void TryLoadExistingArtifacts()
@@ -501,14 +482,8 @@ internal sealed class MainWindow : Window
         if (File.Exists(index))
             _session.SetHtmlIndexPath(index);
 
-        try
-        {
-            _session.AnalyzeCrap();
-        }
-        catch
-        {
-            // No Cobertura yet — fine on first launch.
-        }
+        try { _session.AnalyzeCrap(); }
+        catch { /* no cobertura yet */ }
 
         RefreshFromSession();
     }
@@ -536,10 +511,7 @@ internal sealed class MainWindow : Window
         {
             Title = "Open Cobertura XML",
             AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Cobertura") { Patterns = ["*.xml"] },
-            ],
+            FileTypeFilter = [new FilePickerFileType("Cobertura") { Patterns = ["*.xml"] }],
         });
         if (files.Count == 0)
             return;
@@ -559,6 +531,7 @@ internal sealed class MainWindow : Window
     private void OpenHtmlReport()
     {
         var path = _session.HtmlIndexPath
+                   ?? _session.ActiveRun?.HtmlIndexPath
                    ?? Path.Combine(_session.OutputDir, "index.html");
         if (!File.Exists(path))
         {
@@ -600,12 +573,21 @@ internal sealed class MainWindow : Window
         _busyUi = true;
         try
         {
-            await _feedback.RunAsync(busy, success, action);
+            // Soft busy: keep the run panel interactive; avoid full-window overlay for long batches.
+            _feedback.SetStatus(busy);
+            await action();
+            _feedback.Flash(success);
             RefreshFromSession();
         }
-        catch
+        catch (OperationCanceledException)
         {
-            // Flash already set by StudioFeedback
+            _feedback.FlashWarning("Cancelled.");
+            RefreshFromSession();
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+            RefreshFromSession();
         }
         finally
         {

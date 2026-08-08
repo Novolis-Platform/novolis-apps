@@ -2,7 +2,9 @@
 
 Avalonia desktop host for org-wide **test coverage**, **cyclomatic complexity / CRAP**, and **test runs** across `novolis-*` repos.
 
-Built on [`Novolis.Tools.Coverage`](../../../novolis-tools/src/Novolis.Tools.Coverage/README.md) plus Avalonia controls (`PacketTableView`, `JobQueuePanel`, `MarkedListBox`, `TreeDetailsView`) and `Novolis.Avalonia.Studio` chrome.
+Built on [`Novolis.Tools.Coverage`](../../../novolis-tools/src/Novolis.Tools.Coverage/README.md) plus Avalonia controls (`PacketTableView`, `TreeDetailsView`) and `Novolis.Avalonia.Studio` chrome.
+
+Child `dotnet` / `pwsh` processes always run **hidden** (`CreateNoWindow`). Progress is typed (`WorkRun` / `WorkHostItem`) with compact in-UI bars — no console host pane.
 
 ## Run
 
@@ -27,7 +29,7 @@ dotnet run --project d:\novolis\novolis-apps\src\CoverageStudio
 | **Gaps** | Packages below the 95% line/branch target |
 | **Open HTML** | Opens the merged ReportGenerator index |
 
-Defaults: workspace root from `NOVOLIS_ROOT` / walk to `Novolis.Platform.slnx`, output `d:\novolis\coverage`, Platform ProjectRef, skip build, FailBelow disabled (`-1`).
+Defaults: workspace root from `NOVOLIS_ROOT` / walk to `Novolis.Platform.slnx`, output `d:\novolis\coverage`, Platform ProjectRef, skip build, FailBelow disabled (`-1`), **per-host timeout 60s** (0 = no limit).
 
 ## Related
 

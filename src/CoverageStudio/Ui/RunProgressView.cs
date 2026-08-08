@@ -5,7 +5,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using CoverageStudio.Models;
-using CoverageStudio.Ui;
 
 namespace CoverageStudio.Ui;
 

@@ -42,6 +42,8 @@ internal sealed class WorkHostItem : INotifyPropertyChanged
     private string? _error;
     private double _seconds;
     private int? _exitCode;
+    private double _liveElapsedSeconds;
+    private double? _liveTimeoutSeconds;
 
     public required string Id { get; init; }
     public required string Repo { get; init; }
@@ -52,13 +54,40 @@ internal sealed class WorkHostItem : INotifyPropertyChanged
     public HostPhase Phase
     {
         get => _phase;
-        set { if (Set(ref _phase, value)) OnPropertyChanged(nameof(StatusLabel)); }
+        set
+        {
+            if (Set(ref _phase, value))
+            {
+                OnPropertyChanged(nameof(StatusLabel));
+                OnPropertyChanged(nameof(ResultLabel));
+            }
+        }
     }
 
     public double Progress
     {
         get => _progress;
         set => Set(ref _progress, Math.Clamp(value, 0, 1));
+    }
+
+    public double LiveElapsedSeconds
+    {
+        get => _liveElapsedSeconds;
+        set
+        {
+            if (Set(ref _liveElapsedSeconds, value))
+                OnPropertyChanged(nameof(ResultLabel));
+        }
+    }
+
+    public double? LiveTimeoutSeconds
+    {
+        get => _liveTimeoutSeconds;
+        set
+        {
+            if (Set(ref _liveTimeoutSeconds, value))
+                OnPropertyChanged(nameof(ResultLabel));
+        }
     }
 
     public int TestsTotal
@@ -131,6 +160,14 @@ internal sealed class WorkHostItem : INotifyPropertyChanged
         {
             if (!string.IsNullOrWhiteSpace(Error))
                 return Error!;
+            if (Phase is HostPhase.Building or HostPhase.Testing)
+            {
+                if (LiveTimeoutSeconds is { } limit && limit > 0)
+                    return $"{LiveElapsedSeconds:0}s / {limit:0}s";
+                if (LiveElapsedSeconds > 0)
+                    return $"{LiveElapsedSeconds:0}s";
+            }
+
             if (LinePercent is { } line)
                 return $"{line:0.0}% L · {BranchPercent:0.0}% B · {TestsPassed}/{TestsTotal} · {Seconds:0.0}s";
             if (TestsTotal > 0)
