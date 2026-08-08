@@ -74,6 +74,6 @@ internal static class ContinuityDiagnostics
     {
         ArgumentNullException.ThrowIfNull(book);
         var dir = ManuscriptPaths.ResolveChaptersDirectory(book);
-        return EditorialAnalyzer.AnalyzeChaptersDir(dir);
+        return EditorialAnalyzer.AnalyzeChaptersDir(dir, EditorialProfiles.Calypso());
     }
 }
