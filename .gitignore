@@ -7,3 +7,6 @@ artifacts/
 .DS_Store
 github-client-id.txt
 **/github-client-id.txt
+# MTP / VS test output
+TestResults/
+[Tt]est[Rr]esults/
