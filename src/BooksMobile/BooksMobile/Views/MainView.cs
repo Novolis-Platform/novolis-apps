@@ -7,12 +7,13 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using BooksMobile.Services;
 using BooksMobile.Ui;
+using Novolis.Avalonia.Layout;
 using Novolis.Avalonia.Markdown;
 using Novolis.Manuscript;
 
 namespace BooksMobile.Views;
 
-/// <summary>Novolis-branded book library → chapter editor / reader with Edge TTS.</summary>
+/// <summary>Narrow <see cref="AuthoringWorkspace"/> host: auth/library (Nav), book list (Context), chapter edit/listen (Primary).</summary>
 public sealed class MainView : UserControl
 {
     enum Screen
@@ -32,11 +33,9 @@ public sealed class MainView : UserControl
     readonly BooksMobileSession _session;
     readonly ChapterSpeechService _speech;
     readonly IScreenWakeLock _wakeLock;
-    readonly Grid _root = new();
+    readonly AuthoringWorkspace _workspace;
     readonly Control _authPanel;
-    readonly Panel _shellPanel;
-    readonly ContentControl _pageHost = new();
-    readonly TextBlock _statusAuth = BooksTheme.Muted(string.Empty, 13);
+    readonly Control _chrome;
     readonly TextBlock _statusShell = BooksTheme.Muted(string.Empty, 13);
     readonly TextBlock _chromeTitle = BooksTheme.Body("Library", 16);
     readonly Button _backButton;
@@ -74,7 +73,6 @@ public sealed class MainView : UserControl
         _session = session;
         _speech = speech;
         _wakeLock = wakeLock;
-        BooksTheme.ApplyRoot(_root);
         Background = BooksPalette.WindowBrush;
         Focusable = true;
 
@@ -167,23 +165,17 @@ public sealed class MainView : UserControl
         _chapterHost.Children.Add(toolbar);
         _chapterHost.Children.Add(contentHost);
 
-        var chrome = BuildChrome();
-        _shellPanel = new DockPanel
-        {
-            Background = BooksPalette.WindowBrush,
-            LastChildFill = true,
-        };
-        DockPanel.SetDock(chrome, Dock.Top);
-        DockPanel.SetDock(_statusShell, Dock.Bottom);
+        _chrome = BuildChrome();
         _statusShell.Margin = new Thickness(16, 8);
-        _shellPanel.Children.Add(chrome);
-        _shellPanel.Children.Add(_statusShell);
-        _shellPanel.Children.Add(_pageHost);
-        _shellPanel.IsVisible = false;
-
-        _root.Children.Add(_authPanel);
-        _root.Children.Add(_shellPanel);
-        Content = _root;
+        _workspace = new AuthoringWorkspace
+        {
+            ForceMode = true,
+            LayoutMode = AuthoringLayoutMode.Narrow,
+            StatusBar = _statusShell,
+            VisibleRegion = AuthoringRegion.Nav,
+        };
+        BooksTheme.ApplyRoot(_workspace);
+        Content = _workspace;
 
         _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         _autoSaveTimer.Tick += (_, _) => AutoSaveTick();
@@ -222,7 +214,6 @@ public sealed class MainView : UserControl
                 _signIn,
                 _userCode,
                 _copyCode,
-                _statusAuth,
             },
         };
         return new Border
@@ -324,15 +315,12 @@ public sealed class MainView : UserControl
         if (!_session.IsSignedIn)
         {
             _screen = Screen.Auth;
-            _authPanel.IsVisible = true;
-            _shellPanel.IsVisible = false;
+            RenderCurrentScreen();
             UpdateAuthGadgets();
             SetStatus(_session.Status);
             return;
         }
 
-        _authPanel.IsVisible = false;
-        _shellPanel.IsVisible = true;
         UpdateAuthGadgets();
         if (_screen is Screen.Auth)
             ShowLibrary();
@@ -627,13 +615,35 @@ public sealed class MainView : UserControl
     void RenderCurrentScreen()
     {
         RefreshChrome();
-        _pageHost.Content = _screen switch
+        switch (_screen)
         {
-            Screen.Library => BuildLibraryPage(),
-            Screen.Book => BuildBookPage(),
-            Screen.Chapter => _chapterHost,
-            _ => new TextBlock { Text = string.Empty },
-        };
+            case Screen.Auth:
+                _workspace.TopBar = null;
+                _workspace.Nav = _authPanel;
+                _workspace.ShowRegion(AuthoringRegion.Nav);
+                break;
+            case Screen.Library:
+                _workspace.TopBar = _chrome;
+                _workspace.Nav = BuildLibraryPage();
+                _workspace.ShowRegion(AuthoringRegion.Nav);
+                break;
+            case Screen.Book:
+                _workspace.TopBar = _chrome;
+                _workspace.Context = BuildBookPage();
+                _workspace.ShowRegion(AuthoringRegion.Context);
+                break;
+            case Screen.Chapter:
+                _workspace.TopBar = _chrome;
+                _workspace.Primary = _chapterHost;
+                _workspace.ShowRegion(AuthoringRegion.Primary);
+                break;
+            default:
+                _workspace.TopBar = _chrome;
+                _workspace.Nav = new TextBlock { Text = string.Empty };
+                _workspace.ShowRegion(AuthoringRegion.Nav);
+                break;
+        }
+
         if (_screen == Screen.Chapter && _chapterMode == ChapterMode.Edit)
             Dispatcher.UIThread.Post(FocusEditorInput, DispatcherPriority.Input);
     }
@@ -849,9 +859,7 @@ public sealed class MainView : UserControl
 
     void SetStatus(string? text)
     {
-        var value = text ?? string.Empty;
-        _statusAuth.Text = value;
-        _statusShell.Text = value;
+        _statusShell.Text = text ?? string.Empty;
     }
 
     async Task SignInAsync()

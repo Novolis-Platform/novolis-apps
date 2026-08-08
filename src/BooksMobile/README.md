@@ -72,6 +72,7 @@ Consumes GitHub Packages `2026.1.*`:
 | Package | Role |
 |---------|------|
 | `Novolis.Avalonia.Mobile` / `.Desktop` / `.Android` | Cross-platform shell |
+| `Novolis.Avalonia.Layout` | Narrow `AuthoringWorkspace` (nav / primary / context) |
 | `Novolis.Avalonia.Markdown` | Editor + preview |
 | `Novolis.IO.GitHub` | Device-flow auth, sparse clone, commit/push |
 | `Novolis.Manuscript` | NMP/1 / catalog workspace façade |

@@ -10,6 +10,7 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Novolis.Audio.Voice.EdgeTts" />
+    <PackageReference Include="Novolis.Avalonia.Layout" />
     <PackageReference Include="Novolis.Avalonia.Markdown" />
     <PackageReference Include="Novolis.Avalonia.Manuscript" />
     <PackageReference Include="Novolis.Avalonia.Mobile" />
