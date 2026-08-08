@@ -13,18 +13,21 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Novolis.Avalonia.Controls" />
     <PackageReference Include="Novolis.Avalonia.Markdown" />
+    <PackageReference Include="Novolis.Avalonia.Manuscript" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Novolis.Avalonia.Studio" />
     <PackageReference Include="Novolis.Audio.Voice.EdgeTts" />
-    <PackageReference Include="Novolis.Audio.Voice.Manuscript" />
     <PackageReference Include="Novolis.IO.Git" />
     <PackageReference Include="Novolis.IO.Paths" />
     <PackageReference Include="Novolis.IO.Recovery" />
     <PackageReference Include="Novolis.IO.Watching" />
-    <PackageReference Include="Novolis.Markup.Manuscript" />
+    <PackageReference Include="Novolis.Manuscript" />
+    <PackageReference Include="Novolis.Manuscript.Export.Audio" />
+    <PackageReference Include="Novolis.Manuscript.Export.Pdf" />
+    <PackageReference Include="Novolis.Manuscript.IO" />
     <PackageReference Include="QuestPDF" />
     <PackageReference Include="WeCantSpell.Hunspell" />
   </ItemGroup>

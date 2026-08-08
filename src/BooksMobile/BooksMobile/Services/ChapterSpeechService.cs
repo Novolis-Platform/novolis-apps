@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Novolis.Audio.Voice.EdgeTts;
-using Novolis.Audio.Voice.Manuscript;
+using Novolis.Manuscript.Export.Audio;
 using Novolis.Avalonia.Mobile;
 
 namespace BooksMobile.Services;
@@ -9,15 +9,15 @@ namespace BooksMobile.Services;
 /// <summary>Speaks one chapter via Edge TTS (Ava), with on-disk cache so unchanged text is not re-synthesized.</summary>
 public sealed class ChapterSpeechService : IDisposable
 {
-    readonly IManuscriptSynthesizer _synthesizer;
-    readonly IManuscriptAudioPlayer _player;
+    readonly ISynthesizer _synthesizer;
+    readonly IAudioPlayer _player;
     readonly string _cacheDir;
     readonly object _gate = new();
     CancellationTokenSource? _cts;
 
     public ChapterSpeechService(
-        IManuscriptSynthesizer synthesizer,
-        IManuscriptAudioPlayer player,
+        ISynthesizer synthesizer,
+        IAudioPlayer player,
         IAppDataPaths paths)
     {
         _synthesizer = synthesizer ?? throw new ArgumentNullException(nameof(synthesizer));
@@ -25,11 +25,11 @@ public sealed class ChapterSpeechService : IDisposable
         ArgumentNullException.ThrowIfNull(paths);
         _cacheDir = Path.Combine(paths.RootDirectory, "tts-cache");
         Directory.CreateDirectory(_cacheDir);
-        Voice = ManuscriptVoiceSettings.FromProfile(EdgeVoiceProfiles.Narrator);
+        Voice = VoiceSettings.FromProfile(EdgeVoiceProfiles.Narrator);
     }
 
     /// <summary>Fixed narrator profile (Ava −4%).</summary>
-    public ManuscriptVoiceSettings Voice { get; }
+    public VoiceSettings Voice { get; }
 
     public bool IsSpeaking { get; private set; }
 

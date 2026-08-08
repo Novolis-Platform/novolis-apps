@@ -1,4 +1,4 @@
-using Novolis.Markup.Manuscript;
+using Novolis.Manuscript;
 
 namespace BooksMobile.Services;
 

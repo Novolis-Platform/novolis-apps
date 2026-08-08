@@ -27,7 +27,7 @@ dotnet run --project d:\novolis\novolis-apps\src\GeoPolity\GeoPolity.csproj -p:N
 | Headless report | `--headless --years 50` |
 | Attach Agent Surface | add `--agent` (headless) — Avalonia/Spectre attach by default |
 
-Local multi-repo: use `-p:NovolisUseProjectReferences=true` (or open `d:\novolis\novolis-governance\build\Novolis.Platform.slnx`). Package restore uses nuget.org + GitHub Packages only.
+Local multi-repo: use `-p:NovolisUseProjectReferences=true` (or open `d:\novolis\Novolis.Platform.slnx`). Package restore uses nuget.org + GitHub Packages only.
 
 ## Avalonia layout
 

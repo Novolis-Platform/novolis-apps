@@ -18,6 +18,7 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Novolis.Manuscript.Export.Audio" />
     <PackageReference Include="Novolis.Avalonia.Mobile.Desktop" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>

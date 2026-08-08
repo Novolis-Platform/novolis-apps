@@ -32,5 +32,6 @@
     <PackageReference Include="Novolis.Raylib.Bindings" />
     <PackageReference Include="Novolis.Raylib.Runtime" />
     <PackageReference Include="Novolis.Rendering.Presentation.Silk" />
+    <PackageReference Include="Novolis.Simulation.View" />
   </ItemGroup>
 </Project>
