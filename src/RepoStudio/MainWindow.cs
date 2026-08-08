@@ -20,11 +20,25 @@ internal sealed class MainWindow : Window
     readonly GitWorkingTreeView _working = new();
     readonly GitActionBar _actions = new();
     readonly GitFetchAgeLabel _fetchAge = new();
-    readonly TextBlock _status = new() { Text = "Ready", Margin = new Thickness(8, 4) };
+    readonly TextBlock _status = new()
+    {
+        Text = "Ready",
+        Margin = new Thickness(10, 4),
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+    readonly TextBlock _emptyHint = new()
+    {
+        Text = "Double-click a repository to open its graph, branches, stash, and working tree.",
+        Margin = new Thickness(16),
+        TextWrapping = TextWrapping.Wrap,
+        Opacity = 0.75,
+    };
 
     string _root = "";
     string? _openRepoPath;
     FetchScheduler? _scheduler;
+    int _matrixGen;
+    bool _busy;
 
     public MainWindow()
     {
@@ -34,37 +48,17 @@ internal sealed class MainWindow : Window
         MinWidth = 960;
         MinHeight = 640;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Background = new SolidColorBrush(Color.FromRgb(28, 30, 34));
+        Foreground = Brushes.WhiteSmoke;
 
-        _repos.RepoOpenRequested += async (_, e) => await OpenRepoAsync(e.Repo);
-        _actions.CommandRequested += async (_, e) => await OnCommandAsync(e);
-        _stashes.CommandRequested += async (_, e) => await OnCommandAsync(e);
-        _branches.RefActivated += async (_, e) =>
-        {
-            if (_openRepoPath is null) return;
-            var r = _git.Checkout(_openRepoPath, e.Tip.Name);
-            Flash(r.Message);
-            await RefreshOpenRepoAsync();
-        };
-        _graph.CommitSelected += async (_, e) =>
-        {
-            if (_openRepoPath is null || e.Node is null) return;
-            var path = _openRepoPath;
-            var sha = e.Node.Sha;
-            try
-            {
-                var (detail, diff) = await Task.Run(() =>
-                    (_git.GetCommitDetail(path, sha), _git.GetDiff(path, sha))).ConfigureAwait(true);
-                _detail.SetDetail(detail);
-                _diff.SetDiff(diff);
-            }
-            catch (Exception ex)
-            {
-                Flash(ex.Message);
-            }
-        };
+        _repos.RepoOpenRequested += (_, e) => _ = OpenRepoAsync(e.Repo);
+        _actions.CommandRequested += (_, e) => _ = OnCommandAsync(e);
+        _stashes.CommandRequested += (_, e) => _ = OnCommandAsync(e);
+        _branches.RefActivated += (_, e) => _ = CheckoutAsync(e.Tip.Name);
+        _graph.CommitSelected += (_, e) => _ = ShowCommitAsync(e.Node);
 
         Content = BuildLayout();
-        Opened += async (_, _) => await OnOpenedAsync();
+        Opened += (_, _) => _ = OnOpenedAsync();
         Closed += (_, _) => _scheduler?.Stop();
     }
 
@@ -72,20 +66,16 @@ internal sealed class MainWindow : Window
     {
         try
         {
-            _root = GitWorkspace.ResolveRoot();
+            _root = await Task.Run(() => GitWorkspace.ResolveRoot()).ConfigureAwait(true);
             Title = $"Repo Studio — {_root}";
-            Flash("Loading workspace status…");
-            // Fast first paint: no stash list per repo; work off UI thread.
-            await RefreshMatrixAsync(includeStashCount: false).ConfigureAwait(true);
+            Flash("Loading workspace…");
+            // Do not await on the UI event path — paint shell immediately.
+            _ = RefreshMatrixAsync(includeStashCount: false);
 
             _scheduler = new FetchScheduler(_git);
             _scheduler.CycleCompleted += (_, _) =>
                 Dispatcher.UIThread.Post(() => _ = RefreshMatrixAsync(includeStashCount: false));
             _scheduler.Start(_root, TimeSpan.FromMinutes(10), delayBeforeFirst: true);
-
-            Flash($"Workspace {_root}");
-            // Enrich stash counts in the background without blocking interactivity.
-            _ = RefreshMatrixAsync(includeStashCount: true);
         }
         catch (Exception ex)
         {
@@ -95,78 +85,112 @@ internal sealed class MainWindow : Window
 
     Control BuildLayout()
     {
-        var left = new DockPanel
+        var tabs = new TabControl
         {
-            Width = 320,
-            Children =
+            ItemsSource = new TabItem[]
             {
-                new Border
-                {
-                    Child = new StackPanel
-                    {
-                        Orientation = Orientation.Horizontal,
-                        Spacing = 8,
-                        Children = { _fetchAge },
-                    },
-                    [DockPanel.DockProperty] = Dock.Top,
-                    Margin = new Thickness(4),
-                },
-                _repos,
+                new() { Header = "Working tree", Content = _working },
+                new() { Header = "Diff", Content = _diff },
+                new() { Header = "Detail", Content = _detail },
             },
         };
 
-        var nav = new Grid
+        var left = new Grid
+        {
+            RowDefinitions = new RowDefinitions("Auto,*"),
+            Margin = new Thickness(8, 8, 4, 8),
+        };
+        left.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Thickness(4, 0, 4, 6),
+            Children =
+            {
+                new TextBlock { Text = "Workspace", FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center },
+                _fetchAge,
+            },
+        });
+        Grid.SetRow(_repos, 1);
+        _repos.VerticalAlignment = VerticalAlignment.Stretch;
+        left.Children.Add(_repos);
+
+        var mid = new Grid
         {
             RowDefinitions = new RowDefinitions("*,160"),
-            Width = 220,
-            Children =
-            {
-                _branches,
-                new Border { Child = _stashes, [Grid.RowProperty] = 1 },
-            },
+            Margin = new Thickness(4, 8, 4, 8),
         };
-
-        var center = new Grid
+        var branchHost = new DockPanel();
+        branchHost.Children.Add(new TextBlock
         {
-            RowDefinitions = new RowDefinitions("*,180"),
-            Children =
-            {
-                _graph,
-                new TabControl
-                {
-                    [Grid.RowProperty] = 1,
-                    Items =
-                    {
-                        new TabItem { Header = "Working tree", Content = _working },
-                        new TabItem { Header = "Diff", Content = _diff },
-                        new TabItem { Header = "Detail", Content = _detail },
-                    },
-                },
-            },
+            Text = "Branches",
+            FontWeight = FontWeight.SemiBold,
+            Margin = new Thickness(4, 0, 4, 4),
+            [DockPanel.DockProperty] = Dock.Top,
+        });
+        branchHost.Children.Add(_branches);
+        mid.Children.Add(branchHost);
+        var stashHost = new Border
+        {
+            BorderBrush = new SolidColorBrush(Color.FromRgb(55, 58, 64)),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(0, 4, 0, 0),
+            Child = _stashes,
+            [Grid.RowProperty] = 1,
         };
+        mid.Children.Add(stashHost);
+
+        var right = new Grid
+        {
+            RowDefinitions = new RowDefinitions("*,220"),
+            Margin = new Thickness(4, 8, 8, 8),
+        };
+        var graphHost = new DockPanel();
+        graphHost.Children.Add(new TextBlock
+        {
+            Text = "History",
+            FontWeight = FontWeight.SemiBold,
+            Margin = new Thickness(4, 0, 4, 4),
+            [DockPanel.DockProperty] = Dock.Top,
+        });
+        var graphLayer = new Grid();
+        graphLayer.Children.Add(_emptyHint);
+        graphLayer.Children.Add(_graph);
+        graphHost.Children.Add(graphLayer);
+        right.Children.Add(graphHost);
+        Grid.SetRow(tabs, 1);
+        right.Children.Add(tabs);
 
         var body = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("320,220,*"),
-            Children =
-            {
-                left,
-                nav,
-                center,
-            },
+            ColumnDefinitions = new ColumnDefinitions("300,220,*"),
         };
-        Grid.SetColumn(nav, 1);
-        Grid.SetColumn(center, 2);
+        Grid.SetColumn(left, 0);
+        Grid.SetColumn(mid, 1);
+        Grid.SetColumn(right, 2);
+        body.Children.Add(left);
+        body.Children.Add(mid);
+        body.Children.Add(right);
 
-        return new DockPanel
+        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        var toolbar = new Border
         {
-            Children =
-            {
-                _actions.WithDock(Dock.Top),
-                _status.WithDock(Dock.Bottom),
-                body,
-            },
+            Background = new SolidColorBrush(Color.FromRgb(36, 38, 44)),
+            Padding = new Thickness(4, 2),
+            Child = _actions,
         };
+        Grid.SetRow(toolbar, 0);
+        root.Children.Add(toolbar);
+        Grid.SetRow(body, 1);
+        root.Children.Add(body);
+        var statusBar = new Border
+        {
+            Background = new SolidColorBrush(Color.FromRgb(36, 38, 44)),
+            Child = _status,
+            [Grid.RowProperty] = 2,
+        };
+        root.Children.Add(statusBar);
+        return root;
     }
 
     async Task RefreshMatrixAsync(bool includeStashCount = false)
@@ -174,40 +198,49 @@ internal sealed class MainWindow : Window
         if (string.IsNullOrEmpty(_root))
             return;
 
+        var gen = Interlocked.Increment(ref _matrixGen);
         var root = _root;
         var git = _git;
-        WorkspaceStatusMatrix matrix;
         try
         {
-            matrix = await GitWorkspace.GetStatusMatrixAsync(
+            var matrix = await GitWorkspace.GetStatusMatrixAsync(
                 root,
                 git,
                 includeStashCount: includeStashCount,
-                parallel: 8).ConfigureAwait(false);
+                parallel: 8,
+                liteStatus: true).ConfigureAwait(false);
+
+            if (gen != _matrixGen)
+                return;
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _repos.SetMatrix(matrix);
+                var stamps = matrix.Repos
+                    .Select(r => r.LastFetchAt)
+                    .Where(t => t.HasValue)
+                    .Select(t => t!.Value)
+                    .ToArray();
+                _fetchAge.SetLastFetch(stamps.Length == 0 ? null : stamps.Max());
+                Flash($"{matrix.Summary.Git} repos · dirty {matrix.Summary.Dirty} · behind {matrix.Summary.Behind}");
+            });
+
+            // Second pass for stash counts — never blocks first paint.
+            if (!includeStashCount)
+                _ = RefreshMatrixAsync(includeStashCount: true);
         }
         catch (Exception ex)
         {
             await Dispatcher.UIThread.InvokeAsync(() => Flash(ex.Message));
-            return;
         }
-
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            _repos.SetMatrix(matrix);
-            var stamps = matrix.Repos
-                .Select(r => r.LastFetchAt)
-                .Where(t => t.HasValue)
-                .Select(t => t!.Value)
-                .ToArray();
-            _fetchAge.SetLastFetch(stamps.Length == 0 ? null : stamps.Max());
-            Flash($"{matrix.Summary.Git} repos · dirty {matrix.Summary.Dirty} · behind {matrix.Summary.Behind}");
-        });
     }
 
     async Task OpenRepoAsync(RepoEntry repo)
     {
         _openRepoPath = repo.Path;
-        await RefreshOpenRepoAsync();
+        _emptyHint.IsVisible = false;
+        Flash($"Opening {repo.Name}…");
+        await RefreshOpenRepoAsync().ConfigureAwait(true);
         Flash($"Opened {repo.Name}");
     }
 
@@ -215,44 +248,101 @@ internal sealed class MainWindow : Window
     {
         if (_openRepoPath is null)
             return;
-        await Task.Run(() =>
+
+        var path = _openRepoPath;
+        try
         {
-            var path = _openRepoPath!;
-            var branches = _git.ListBranches(path);
-            var stashes = _git.ListStashes(path);
-            var graph = _git.GetCommitGraph(path, new CommitGraphOptions { MaxCount = 120 });
-            var wt = _git.GetWorkingTree(path);
-            Dispatcher.UIThread.Post(() =>
+            var snapshot = await Task.Run(() =>
             {
-                _branches.SetBranches(branches);
-                _stashes.SetStashes(stashes);
-                _graph.SetGraph(graph);
-                _working.SetWorkingTree(wt);
+                var branches = _git.ListBranches(path);
+                var stashes = _git.ListStashes(path);
+                var graph = _git.GetCommitGraph(path, new CommitGraphOptions { MaxCount = 120 });
+                var wt = _git.GetWorkingTree(path);
+                return (branches, stashes, graph, wt);
+            }).ConfigureAwait(false);
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _branches.SetBranches(snapshot.branches);
+                _stashes.SetStashes(snapshot.stashes);
+                _graph.SetGraph(snapshot.graph);
+                _working.SetWorkingTree(snapshot.wt);
+                _emptyHint.IsVisible = false;
             });
-        });
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => Flash(ex.Message));
+        }
+    }
+
+    async Task ShowCommitAsync(CommitNode? node)
+    {
+        if (_openRepoPath is null || node is null)
+            return;
+        var path = _openRepoPath;
+        var sha = node.Sha;
+        try
+        {
+            var (detail, diff) = await Task.Run(() =>
+                (_git.GetCommitDetail(path, sha), _git.GetDiff(path, sha))).ConfigureAwait(false);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _detail.SetDetail(detail);
+                _diff.SetDiff(diff);
+            });
+        }
+        catch (Exception ex)
+        {
+            Flash(ex.Message);
+        }
+    }
+
+    async Task CheckoutAsync(string tipName)
+    {
+        if (_openRepoPath is null)
+            return;
+        var path = _openRepoPath;
+        Flash($"Checkout {tipName}…");
+        var result = await Task.Run(() => _git.Checkout(path, tipName)).ConfigureAwait(false);
+        Flash(result.Message);
+        if (result.Ok)
+            await RefreshOpenRepoAsync().ConfigureAwait(true);
     }
 
     async Task OnCommandAsync(GitChromeCommandEventArgs e)
     {
+        if (_busy && e.Command is not GitChromeCommand.Refresh)
+        {
+            Flash("Busy…");
+            return;
+        }
+
+        _busy = true;
         try
         {
             switch (e.Command)
             {
                 case GitChromeCommand.Refresh:
                     Flash("Refreshing…");
-                    await RefreshMatrixAsync(includeStashCount: true);
-                    await RefreshOpenRepoAsync();
+                    await RefreshMatrixAsync(includeStashCount: true).ConfigureAwait(true);
+                    await RefreshOpenRepoAsync().ConfigureAwait(true);
                     break;
                 case GitChromeCommand.Fetch:
                 {
+                    Flash("Fetching…");
                     var sel = _repos.GetSelection();
-                    var repos = sel.Selected.Count > 0
-                        ? sel.Selected
-                        : GitWorkspace.SelectByNames(GitWorkspace.Discover(_root), null);
+                    var repos = await Task.Run(() =>
+                    {
+                        if (sel.Selected.Count > 0)
+                            return sel.Selected;
+                        return GitWorkspace.SelectByNames(GitWorkspace.Discover(_root), null);
+                    }).ConfigureAwait(false);
                     var batch = new GitWorkspaceBatch(_git);
-                    var result = await batch.FetchAsync(repos, new BatchOptions { WorkspaceRoot = _root });
+                    var result = await batch.FetchAsync(repos, new BatchOptions { WorkspaceRoot = _root })
+                        .ConfigureAwait(false);
                     Flash($"Fetch ok={result.Ok}");
-                    await RefreshMatrixAsync(includeStashCount: false);
+                    _ = RefreshMatrixAsync(includeStashCount: false);
                     break;
                 }
                 case GitChromeCommand.Pull:
@@ -264,42 +354,34 @@ internal sealed class MainWindow : Window
                         break;
                     }
 
+                    Flash("Pulling…");
                     var batch = new GitWorkspaceBatch(_git);
-                    var result = await batch.PullFfOnlyAsync(sel.Selected, new BatchOptions { WorkspaceRoot = _root });
+                    var result = await batch.PullFfOnlyAsync(sel.Selected, new BatchOptions { WorkspaceRoot = _root })
+                        .ConfigureAwait(false);
                     Flash($"Pull failures={result.Results.Count(r => r.Outcome == "failed")}");
-                    await RefreshMatrixAsync(includeStashCount: false);
-                    await RefreshOpenRepoAsync();
+                    _ = RefreshMatrixAsync(includeStashCount: false);
+                    await RefreshOpenRepoAsync().ConfigureAwait(true);
                     break;
                 }
                 case GitChromeCommand.Push:
                     if (_openRepoPath is null) { Flash("Open a repo first."); break; }
-                    Flash(_git.Push(_openRepoPath).Message);
+                    {
+                        var path = _openRepoPath;
+                        var r = await Task.Run(() => _git.Push(path)).ConfigureAwait(false);
+                        Flash(r.Message);
+                    }
                     break;
                 case GitChromeCommand.StashPush:
-                    if (_openRepoPath is null) break;
-                    Flash(_git.StashPush(_openRepoPath).Message);
-                    await RefreshOpenRepoAsync();
-                    break;
                 case GitChromeCommand.StashApply:
-                    if (_openRepoPath is null) break;
-                    Flash(_git.StashApply(_openRepoPath, e.StashIndex ?? 0).Message);
-                    await RefreshOpenRepoAsync();
-                    break;
                 case GitChromeCommand.StashPop:
-                    if (_openRepoPath is null) break;
-                    Flash(_git.StashPop(_openRepoPath, e.StashIndex ?? 0).Message);
-                    await RefreshOpenRepoAsync();
-                    break;
                 case GitChromeCommand.StashDrop:
-                    if (_openRepoPath is null) break;
-                    Flash(_git.StashDrop(_openRepoPath, e.StashIndex ?? 0).Message);
-                    await RefreshOpenRepoAsync();
+                    await StashAsync(e).ConfigureAwait(true);
                     break;
                 case GitChromeCommand.CreateBranch:
-                    await CreateBranchAsync();
+                    await CreateBranchAsync().ConfigureAwait(true);
                     break;
                 case GitChromeCommand.BranchCut:
-                    await BranchCutAsync();
+                    await BranchCutAsync().ConfigureAwait(true);
                     break;
             }
         }
@@ -307,6 +389,31 @@ internal sealed class MainWindow : Window
         {
             Flash(ex.Message);
         }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    async Task StashAsync(GitChromeCommandEventArgs e)
+    {
+        if (_openRepoPath is null)
+        {
+            Flash("Open a repo first.");
+            return;
+        }
+
+        var path = _openRepoPath;
+        var idx = e.StashIndex ?? 0;
+        var r = await Task.Run(() => e.Command switch
+        {
+            GitChromeCommand.StashPush => _git.StashPush(path),
+            GitChromeCommand.StashApply => _git.StashApply(path, idx),
+            GitChromeCommand.StashPop => _git.StashPop(path, idx),
+            _ => _git.StashDrop(path, idx),
+        }).ConfigureAwait(false);
+        Flash(r.Message);
+        await RefreshOpenRepoAsync().ConfigureAwait(true);
     }
 
     async Task CreateBranchAsync()
@@ -318,7 +425,7 @@ internal sealed class MainWindow : Window
         }
 
         var body = new GitCreateBranchDialog();
-        var ok = await ShowDialogAsync("Create branch", body);
+        var ok = await ShowDialogAsync("Create branch", body).ConfigureAwait(true);
         if (!ok)
             return;
         var opts = body.TryRead();
@@ -328,8 +435,10 @@ internal sealed class MainWindow : Window
             return;
         }
 
-        Flash(_git.CreateBranch(_openRepoPath, opts).Message);
-        await RefreshOpenRepoAsync();
+        var path = _openRepoPath;
+        var r = await Task.Run(() => _git.CreateBranch(path, opts)).ConfigureAwait(false);
+        Flash(r.Message);
+        await RefreshOpenRepoAsync().ConfigureAwait(true);
     }
 
     async Task BranchCutAsync()
@@ -342,22 +451,22 @@ internal sealed class MainWindow : Window
         }
 
         var body = new GitBranchCutDialog();
-        var planner = new BranchCutPlanner(_git);
-        // Preview after user fills name: show dialog then plan on OK
-        var ok = await ShowDialogAsync("Branch cut", body);
+        var ok = await ShowDialogAsync("Branch cut", body).ConfigureAwait(true);
         if (!ok || string.IsNullOrWhiteSpace(body.BranchName))
             return;
 
-        var plan = planner.Plan(_root, body.BranchName, sel.Selected, body.BaseRef);
+        var planner = new BranchCutPlanner(_git);
+        var plan = await Task.Run(() =>
+            planner.Plan(_root, body.BranchName, sel.Selected, body.BaseRef)).ConfigureAwait(false);
         body.SetPreview(plan);
-        var confirm = await ShowDialogAsync("Confirm dry-run → apply", body);
+        var confirm = await ShowDialogAsync("Confirm apply", body).ConfigureAwait(true);
         if (!confirm)
             return;
-        var dry = await planner.ApplyAsync(plan, dryRun: true);
-        Flash($"Dry-run steps={dry.Results.Count}");
-        var applied = await planner.ApplyAsync(plan, dryRun: false);
+
+        Flash("Applying branch cut…");
+        var applied = await planner.ApplyAsync(plan, dryRun: false).ConfigureAwait(false);
         Flash($"Branch cut ok={applied.Ok}");
-        await RefreshMatrixAsync(includeStashCount: false);
+        _ = RefreshMatrixAsync(includeStashCount: false);
     }
 
     async Task<bool> ShowDialogAsync(string title, Control body)
@@ -403,22 +512,19 @@ internal sealed class MainWindow : Window
             },
         };
 
-        await dlg.ShowDialog(this);
-        return await tcs.Task;
+        await dlg.ShowDialog(this).ConfigureAwait(true);
+        return await tcs.Task.ConfigureAwait(true);
     }
 
     void Flash(string message)
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(() => Flash(message));
+            return;
+        }
+
         _status.Text = message;
         _status.Foreground = Brushes.LightGray;
-    }
-}
-
-file static class DockExt
-{
-    public static T WithDock<T>(this T control, Dock dock) where T : Control
-    {
-        DockPanel.SetDock(control, dock);
-        return control;
     }
 }
