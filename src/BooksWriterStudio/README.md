@@ -11,7 +11,7 @@ dotnet run --project src/BooksWriterStudio
 dotnet run --project src/BooksWriterStudio -- "D:\path\to\books-repo"
 ```
 
-Workspace roots are detected via `content/series` or `content/books`.
+Workspace roots are detected via `manuscript.yaml` (NMP/1) or legacy `content/series` / `content/books`.
 
 Local multi-repo iteration: open `Novolis.Platform.slnx` (ProjectReference mode). Released builds restore **nuget.org + GitHub Packages** only.
 

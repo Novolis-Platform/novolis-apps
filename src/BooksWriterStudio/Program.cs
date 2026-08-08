@@ -2,7 +2,7 @@ using Avalonia;
 using BooksWriterStudio.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Novolis.Audio.Voice.Manuscript;
+using Novolis.Manuscript.Export.Audio;
 using QuestPDF.Infrastructure;
 
 namespace BooksWriterStudio;
@@ -31,11 +31,11 @@ internal static class Program
                     services.AddSingleton<WriterSettingsStore>();
                     services.AddSingleton<WriterSession>();
                     services.AddSingleton<SpellService>();
-                    services.AddSingleton<EdgeTtsManuscriptSynthesizer>();
-                    services.AddSingleton<IManuscriptSynthesizer>(sp => sp.GetRequiredService<EdgeTtsManuscriptSynthesizer>());
+                    services.AddSingleton<EdgeTtsSynthesizer>();
+                    services.AddSingleton<ISynthesizer>(sp => sp.GetRequiredService<EdgeTtsSynthesizer>());
                     services.AddSingleton<NaudioMp3Player>();
-                    services.AddSingleton<IManuscriptAudioPlayer>(sp => sp.GetRequiredService<NaudioMp3Player>());
-                    services.AddSingleton<ManuscriptSpeechPreview>();
+                    services.AddSingleton<IAudioPlayer>(sp => sp.GetRequiredService<NaudioMp3Player>());
+                    services.AddSingleton<SpeechPreview>();
                     services.AddTransient<MainWindow>();
                 })
                 .Build();
@@ -50,7 +50,7 @@ internal static class Program
             {
                 ApplicationHost.StopAsync().GetAwaiter().GetResult();
                 ApplicationHost.Services.GetService<NaudioMp3Player>()?.Dispose();
-                ApplicationHost.Services.GetService<EdgeTtsManuscriptSynthesizer>()?.Dispose();
+                ApplicationHost.Services.GetService<EdgeTtsSynthesizer>()?.Dispose();
             }
         }
         catch (Exception ex)

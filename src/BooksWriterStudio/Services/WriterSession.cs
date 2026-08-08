@@ -1,6 +1,6 @@
 using Novolis.IO.Recovery;
 using Novolis.IO.Watching;
-using Novolis.Markup.Manuscript;
+using Novolis.Manuscript;
 
 namespace BooksWriterStudio.Services;
 

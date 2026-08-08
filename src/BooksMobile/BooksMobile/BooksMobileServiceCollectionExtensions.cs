@@ -1,7 +1,7 @@
 using BooksMobile.Services;
 using BooksMobile.Views;
 using Microsoft.Extensions.DependencyInjection;
-using Novolis.Audio.Voice.Manuscript;
+using Novolis.Manuscript.Export.Audio;
 
 namespace BooksMobile;
 
@@ -12,8 +12,8 @@ public static class BooksMobileServiceCollectionExtensions
     {
         services.AddSingleton<BooksMobileOptions>();
         services.AddSingleton<BooksMobileSession>();
-        services.AddSingleton<EdgeTtsManuscriptSynthesizer>();
-        services.AddSingleton<IManuscriptSynthesizer>(sp => sp.GetRequiredService<EdgeTtsManuscriptSynthesizer>());
+        services.AddSingleton<EdgeTtsSynthesizer>();
+        services.AddSingleton<ISynthesizer>(sp => sp.GetRequiredService<EdgeTtsSynthesizer>());
         services.AddSingleton<ChapterSpeechService>();
         services.AddTransient<MainView>();
         return services;

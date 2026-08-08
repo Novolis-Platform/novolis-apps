@@ -38,7 +38,9 @@ public sealed class NeuralTrampAutopilotTests
     await Assert.That(bridge.CashLine.Length).IsGreaterThan(0);
   }
 
+  /// <summary>Evolutionary trainer smoke (~8s). Opt-in only so Platform.slnx stays fast.</summary>
   [Test]
+  [Explicit]
   public async Task Tiny_evolution_produces_champion_fitness()
   {
     var result = await EvolutionaryNeuralTrampTrainer.TrainAsync(

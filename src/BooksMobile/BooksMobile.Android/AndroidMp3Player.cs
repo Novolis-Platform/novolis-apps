@@ -1,10 +1,10 @@
 using Android.Media;
-using Novolis.Audio.Voice.Manuscript;
+using Novolis.Manuscript.Export.Audio;
 
 namespace BooksMobile.Android;
 
 /// <summary>Plays Edge TTS MP3 bytes via Android <see cref="MediaPlayer"/>.</summary>
-public sealed class AndroidMp3Player : IManuscriptAudioPlayer, IDisposable
+public sealed class AndroidMp3Player : IAudioPlayer, IDisposable
 {
     readonly object _gate = new();
     MediaPlayer? _player;

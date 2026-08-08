@@ -6,7 +6,9 @@ public sealed class AutopilotHorizonTests
 {
   const decimal MinSolventCash = 100m;
 
+  /// <summary>1000-day neural horizon (~62s). Opt-in only so Platform.slnx stays fast.</summary>
   [Test]
+  [Explicit]
   public async Task Neural_autopilot_survives_1000_days()
   {
     var session = new CampaignRunner.LiveSession(

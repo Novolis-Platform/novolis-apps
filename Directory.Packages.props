@@ -36,7 +36,6 @@
     <PackageVersion Include="Novolis.Avalonia.Live" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Markdown" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Audio.Voice.EdgeTts" Version="2026.1.*" />
-    <PackageVersion Include="Novolis.Audio.Voice.Manuscript" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Paths" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Watching" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.StarMap" Version="2026.1.*" />
@@ -60,10 +59,10 @@
     <PackageVersion Include="Silk.NET.Shaderc" Version="2.22.0" />
     <PackageVersion Include="Silk.NET.Shaderc.Native" Version="2.22.0" />
     <PackageVersion Include="Novolis.Simulation.Mesh" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Simulation.View" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Commands.Expressions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Git" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Recovery" Version="2026.1.*" />
-    <PackageVersion Include="Novolis.Markup.Manuscript" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Markup.Mermaid" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Economy.Core" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Economy.Accounting" Version="2026.1.*" />
@@ -90,6 +89,11 @@
     <PackageVersion Include="Novolis.Storage.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Storage.Json" Version="2026.1.*" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
+        <PackageVersion Include="Novolis.Avalonia.Manuscript" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Manuscript" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Manuscript.Export.Audio" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Manuscript.Export.Pdf" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Manuscript.IO" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Math.Geometry" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Assessment" Version="2026.1.*" />

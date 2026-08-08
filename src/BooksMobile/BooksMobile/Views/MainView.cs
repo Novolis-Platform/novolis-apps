@@ -8,7 +8,7 @@ using Avalonia.Threading;
 using BooksMobile.Services;
 using BooksMobile.Ui;
 using Novolis.Avalonia.Markdown;
-using Novolis.Markup.Manuscript;
+using Novolis.Manuscript;
 
 namespace BooksMobile.Views;
 

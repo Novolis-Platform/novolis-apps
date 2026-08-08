@@ -1,6 +1,6 @@
 using Novolis.Avalonia.Mobile;
 using Novolis.IO.GitHub;
-using Novolis.Markup.Manuscript;
+using Novolis.Manuscript;
 
 namespace BooksMobile.Services;
 
@@ -13,7 +13,7 @@ public sealed class BooksMobileSession
     readonly BooksMobileOptions _options;
     readonly GitHubDeviceAuth _deviceAuth = new();
 
-    BooksRepoMirror? _mirror;
+    SparseRepoMirror? _mirror;
     ManuscriptWorkspace? _workspace;
     string? _localWorkspace;
     string? _openRelativePath;
@@ -45,7 +45,7 @@ public sealed class BooksMobileSession
 
     public bool IsSignedIn { get; private set; }
 
-    public BooksRepoMirror? Mirror => _mirror;
+    public SparseRepoMirror? Mirror => _mirror;
 
     public ManuscriptWorkspace? Workspace => _workspace;
 
@@ -216,8 +216,8 @@ public sealed class BooksMobileSession
 
     void BindMirror(string token)
     {
-        var client = BooksRepoMirror.CreateClient(token, "Novolis.BooksMobile");
-        _mirror = new BooksRepoMirror(client, new BooksRepoMirrorOptions
+        var client = SparseRepoMirror.CreateClient(token, "Novolis.BooksMobile");
+        _mirror = new SparseRepoMirror(client, new SparseRepoMirrorOptions
         {
             Owner = _options.RepoOwner,
             Name = _options.RepoName,

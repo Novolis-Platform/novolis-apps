@@ -4,7 +4,9 @@ namespace SinsOfACapitalismTycoon.Unit;
 
 public sealed class EarlySolvencyTests
 {
+  /// <summary>40-day idle dock (~23s). Opt-in only so Platform.slnx stays fast.</summary>
   [Test]
+  [Explicit]
   public async Task Idle_dock_through_grace_preserves_lien_and_opening_cash_band()
   {
     var cashFactor = CampaignWorld.PlayerOpeningCashFactor;

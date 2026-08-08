@@ -160,7 +160,9 @@ public sealed class FunExcitementTests
       e.Detail.Contains("First local accept", StringComparison.OrdinalIgnoreCase))).IsTrue();
   }
 
+  /// <summary>60-day autopilot fun arc (~10s). Opt-in only so Platform.slnx stays fast.</summary>
   [Test]
+  [Explicit]
   public async Task Short_autopilot_arc_produces_excitement_milestones()
   {
     var session = new CampaignRunner.LiveSession(

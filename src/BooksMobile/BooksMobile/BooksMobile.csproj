@@ -10,10 +10,13 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Novolis.Audio.Voice.EdgeTts" />
-    <PackageReference Include="Novolis.Audio.Voice.Manuscript" />
     <PackageReference Include="Novolis.Avalonia.Markdown" />
+    <PackageReference Include="Novolis.Avalonia.Manuscript" />
     <PackageReference Include="Novolis.Avalonia.Mobile" />
     <PackageReference Include="Novolis.IO.GitHub" />
-    <PackageReference Include="Novolis.Markup.Manuscript" />
+    <PackageReference Include="Novolis.Manuscript" />
+    <PackageReference Include="Novolis.Manuscript.Export.Audio" />
+    <PackageReference Include="Novolis.Manuscript.IO" />
+    <PackageReference Include="Octokit" />
   </ItemGroup>
 </Project>

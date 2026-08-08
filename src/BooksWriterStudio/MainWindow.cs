@@ -12,13 +12,14 @@ using AvaloniaEdit;
 using BooksWriterStudio.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Audio.Voice.EdgeTts;
-using Novolis.Audio.Voice.Manuscript;
+using Novolis.Manuscript.Export.Audio;
 using Novolis.Avalonia.Controls;
 using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Studio;
 using Novolis.IO.Git;
 using Novolis.IO.Recovery;
-using Novolis.Markup.Manuscript;
+using Novolis.Manuscript;
+using Novolis.Manuscript.Export.Pdf;
 
 namespace BooksWriterStudio;
 
@@ -28,7 +29,7 @@ internal sealed class MainWindow : Window
 
     readonly WriterSession _session;
     readonly WriterSettingsStore _settings;
-    readonly ManuscriptSpeechPreview _speechPreview;
+    readonly SpeechPreview _speechPreview;
     readonly SpellService _spell;
     readonly PublishJobQueue _jobs = new();
     readonly GitRepositoryService _git = new();
@@ -73,7 +74,7 @@ internal sealed class MainWindow : Window
 
     StudioFeedback _feedback = null!;
     Grid _bodyGrid = null!;
-    ManuscriptVoiceSettings _voiceSettings = new();
+    VoiceSettings _voiceSettings = new();
     ManuscriptPrintSettings _printSettings = new();
     DispatcherTimer? _autosaveTimer;
     bool _focusMode;
@@ -86,7 +87,7 @@ internal sealed class MainWindow : Window
     public MainWindow(
         WriterSession session,
         WriterSettingsStore settings,
-        ManuscriptSpeechPreview speechPreview,
+        SpeechPreview speechPreview,
         SpellService spell)
     {
         _session = session;
@@ -439,7 +440,7 @@ internal sealed class MainWindow : Window
     {
         if (!ManuscriptWorkspace.TryOpen(path, out var workspace) || workspace is null)
         {
-            _feedback.FlashError("Not a books workspace (expected content/series or content/books).");
+            _feedback.FlashError("Not a books workspace (expected manuscript.yaml or legacy content/series|books).");
             return;
         }
 
@@ -1006,9 +1007,9 @@ internal sealed class MainWindow : Window
             .Select(c => new AudiobookChapterInput(c.Id, c.Title, c.FilePath))
             .ToList();
 
-        var synthesizer = Program.ApplicationHost.Services.GetRequiredService<EdgeTtsManuscriptSynthesizer>();
-        var pipeline = new ManuscriptAudiobookPipeline(synthesizer);
-        var options = new ManuscriptAudiobookOptions
+        var synthesizer = Program.ApplicationHost.Services.GetRequiredService<EdgeTtsSynthesizer>();
+        var pipeline = new AudiobookPipeline(synthesizer);
+        var options = new AudiobookOptions
         {
             OutputDirectory = outDir,
             AssembleMode = AudiobookAssembleMode.Both,
@@ -1143,12 +1144,12 @@ internal sealed class MainWindow : Window
 
         _voiceSettings = File.Exists(_session.VoiceMapPath)
             ? VoiceMapStore.Load(_session.VoiceMapPath)
-            : ManuscriptVoiceSettings.FromProfile(EdgeVoiceProfiles.Narrator);
+            : VoiceSettings.FromProfile(EdgeVoiceProfiles.Narrator);
 
         ApplyVoiceSettingsToUi(_voiceSettings);
     }
 
-    void ApplyVoiceSettingsToUi(ManuscriptVoiceSettings settings)
+    void ApplyVoiceSettingsToUi(VoiceSettings settings)
     {
         _suppressVoiceUi = true;
         try
@@ -1189,7 +1190,7 @@ internal sealed class MainWindow : Window
         if (_voiceProfileCombo.SelectedItem is not EdgeVoiceProfile profile)
             return;
 
-        ApplyVoiceSettingsToUi(ManuscriptVoiceSettings.FromProfile(profile, _voiceSettings.Pronunciation));
+        ApplyVoiceSettingsToUi(VoiceSettings.FromProfile(profile, _voiceSettings.Pronunciation));
     }
 
     void OnSavePrintSettings(object? sender, RoutedEventArgs e)
@@ -1218,7 +1219,7 @@ internal sealed class MainWindow : Window
         if (!ProsodyPercent.TryParse(_voiceVolume.Text, out var volume))
             volume = _voiceSettings.Volume;
 
-        _voiceSettings = new ManuscriptVoiceSettings
+        _voiceSettings = new VoiceSettings
         {
             Voice = voice,
             Rate = rate,
