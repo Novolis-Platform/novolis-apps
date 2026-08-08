@@ -10,11 +10,14 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using AvaloniaEdit;
 using BooksWriterStudio.Services;
+using BooksWriterStudio.Ui;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Audio.Voice.EdgeTts;
 using Novolis.Manuscript.Export.Audio;
 using Novolis.Avalonia.Controls;
+using Novolis.Avalonia.Layout;
 using Novolis.Avalonia.Markdown;
+using Novolis.Avalonia.Manuscript;
 using Novolis.Avalonia.Studio;
 using Novolis.IO.Git;
 using Novolis.IO.Recovery;
@@ -46,21 +49,20 @@ internal sealed class MainWindow : Window
     readonly TabControl _contextTabs = new();
     readonly JobQueuePanel _jobPanel = new();
     readonly Border _topBar = new();
-
-    readonly TextBox _metaNumber = new();
-    readonly TextBox _metaTitle = new();
-    readonly TextBox _metaDate = new();
-    readonly TextBox _metaTime = new();
-    readonly TextBox _metaSystem = new();
-    readonly TextBox _metaLocation = new();
-    readonly TextBox _metaPov = new();
-    readonly TextBox _metaCharacters = new();
-    readonly TextBox _metaStatus = new();
-    readonly TextBox _metaNotes = new();
+    readonly MetadataFormPane _metadataPane = new();
+    readonly DiagnosticsListPane _diagnosticsPane = new();
+    readonly TextBox _diagnosticsSummary = new()
+    {
+        IsReadOnly = true,
+        AcceptsReturn = true,
+        TextWrapping = TextWrapping.Wrap,
+        MinHeight = 100,
+        MaxHeight = 220,
+        PlaceholderText = "Metrics / slices / ascii summaries appear here.",
+    };
 
     readonly TextBox _searchQuery = new() { PlaceholderText = "Search chapter text…" };
     readonly ListBox _searchResults = new();
-    readonly ListBox _diagnosticsList = new();
     readonly TextBlock _scmStatus = new() { TextWrapping = TextWrapping.Wrap };
     readonly TextBox _printPageWidth = new();
     readonly TextBox _printPageHeight = new();
@@ -73,7 +75,8 @@ internal sealed class MainWindow : Window
     readonly TextBox _voiceVolume = new() { PlaceholderText = "0" };
 
     StudioFeedback _feedback = null!;
-    Grid _bodyGrid = null!;
+    AuthoringWorkspace _workspace = null!;
+    Border _contextHost = null!;
     VoiceSettings _voiceSettings = new();
     ManuscriptPrintSettings _printSettings = new();
     DispatcherTimer? _autosaveTimer;
@@ -109,6 +112,7 @@ internal sealed class MainWindow : Window
         _bookCombo.SelectionChanged += (_, _) => OnBookChanged();
         _chapterList.SelectionChanged += (_, _) => OnChapterSelectionChanged();
         _voiceProfileCombo.SelectionChanged += (_, _) => OnVoiceProfileChanged();
+        _metadataPane.ApplyRequested += (_, meta) => ApplyMetadata(meta);
         _jobs.Changed += () => Dispatcher.UIThread.Post(RefreshJobPanel);
         _session.FileWatcher.FileChanged += OnExternalFileChanged;
 
@@ -162,7 +166,7 @@ internal sealed class MainWindow : Window
             Child = navDock,
         };
 
-        var contextBorder = new Border
+        _contextHost = new Border
         {
             BorderBrush = new SolidColorBrush(Color.Parse("#3F3F46")),
             BorderThickness = new Thickness(1, 0, 0, 0),
@@ -170,63 +174,39 @@ internal sealed class MainWindow : Window
             MinWidth = 360,
         };
 
-        _bodyGrid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions(
-                $"{_settings.Settings.NavColumnWidth},*,{_settings.Settings.ContextColumnWidth}"),
-        };
-        Grid.SetColumn(navBorder, 0);
-        Grid.SetColumn(editorDock, 1);
-        Grid.SetColumn(contextBorder, 2);
-        _bodyGrid.Children.Add(navBorder);
-        _bodyGrid.Children.Add(editorDock);
-        _bodyGrid.Children.Add(contextBorder);
-
         var flashStatus = new DockPanel();
         DockPanel.SetDock(chrome.FlashLine, Dock.Bottom);
         DockPanel.SetDock(chrome.StatusLine, Dock.Bottom);
         flashStatus.Children.Add(chrome.FlashLine);
         flashStatus.Children.Add(chrome.StatusLine);
 
-        var workspaceHost = new Grid();
-        workspaceHost.Children.Add(_bodyGrid);
-        workspaceHost.Children.Add(chrome.BusyOverlay);
+        _workspace = new AuthoringWorkspace
+        {
+            ForceMode = true,
+            LayoutMode = AuthoringLayoutMode.Wide,
+            NavWidth = _settings.Settings.NavColumnWidth,
+            ContextWidth = _settings.Settings.ContextColumnWidth,
+            Nav = navBorder,
+            Primary = editorDock,
+            Context = _contextHost,
+            TopBar = _topBar,
+            StatusBar = flashStatus,
+        };
 
-        var root = new DockPanel();
-        DockPanel.SetDock(_topBar, Dock.Top);
-        DockPanel.SetDock(flashStatus, Dock.Bottom);
-        root.Children.Add(_topBar);
-        root.Children.Add(flashStatus);
-        root.Children.Add(workspaceHost);
+        var root = new Grid();
+        root.Children.Add(_workspace);
+        root.Children.Add(chrome.BusyOverlay);
         return root;
     }
 
     void BuildContextTabs()
     {
-        _contextTabs.Items.Add(new TabItem { Header = "Metadata", Content = BuildMetadataPanel() });
+        _contextTabs.Items.Add(new TabItem { Header = "Metadata", Content = _metadataPane });
         _contextTabs.Items.Add(new TabItem { Header = "Search", Content = BuildSearchPanel() });
+        _contextTabs.Items.Add(new TabItem { Header = "Structure", Content = BuildStructurePanel() });
         _contextTabs.Items.Add(new TabItem { Header = "Diagnostics", Content = BuildDiagnosticsPanel() });
         _contextTabs.Items.Add(new TabItem { Header = "Publish", Content = BuildPublishPanel() });
         _contextTabs.Items.Add(new TabItem { Header = "SCM", Content = BuildScmPanel() });
-    }
-
-    Control BuildMetadataPanel()
-    {
-        var panel = new StackPanel { Margin = new Thickness(8), Spacing = 6 };
-        panel.Children.Add(Labeled("Number", _metaNumber));
-        panel.Children.Add(Labeled("Title", _metaTitle));
-        panel.Children.Add(Labeled("Date", _metaDate));
-        panel.Children.Add(Labeled("Time", _metaTime));
-        panel.Children.Add(Labeled("System", _metaSystem));
-        panel.Children.Add(Labeled("Location", _metaLocation));
-        panel.Children.Add(Labeled("POV", _metaPov));
-        panel.Children.Add(Labeled("Characters", _metaCharacters));
-        panel.Children.Add(Labeled("Status", _metaStatus));
-        panel.Children.Add(Labeled("Notes", _metaNotes));
-        var apply = Button("Apply to chapter", OnApplyMetadata);
-        apply.Margin = new Thickness(0, 8, 0, 0);
-        panel.Children.Add(apply);
-        return new ScrollViewer { Content = panel };
     }
 
     Control BuildSearchPanel()
@@ -248,12 +228,46 @@ internal sealed class MainWindow : Window
 
     Control BuildDiagnosticsPanel()
     {
+        var actions = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
+        foreach (var btn in new[]
+                 {
+                     Button("Run doctor", OnRunDiagnostics),
+                     Button("Metrics", OnRunMetrics),
+                     Button("Ascii scan", OnRunAsciiScan),
+                     Button("Character slices", OnRunCharacterSlices),
+                     Button("Editorial", OnRunEditorial),
+                 })
+        {
+            btn.Margin = new Thickness(0, 0, 8, 8);
+            actions.Children.Add(btn);
+        }
+
+        var summaryHost = new Border
+        {
+            Margin = new Thickness(0, 0, 0, 8),
+            Child = _diagnosticsSummary,
+        };
+
         var panel = new DockPanel { Margin = new Thickness(8) };
-        var refresh = Button("Run doctor", OnRunDiagnostics);
-        refresh.Margin = new Thickness(0, 0, 0, 8);
-        DockPanel.SetDock(refresh, Dock.Top);
-        panel.Children.Add(refresh);
-        panel.Children.Add(_diagnosticsList);
+        DockPanel.SetDock(actions, Dock.Top);
+        DockPanel.SetDock(summaryHost, Dock.Top);
+        panel.Children.Add(actions);
+        panel.Children.Add(summaryHost);
+        panel.Children.Add(_diagnosticsPane);
+        return panel;
+    }
+
+    Control BuildStructurePanel()
+    {
+        var panel = new StackPanel { Margin = new Thickness(8), Spacing = 8 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Structure surgery runs dry-run first, then asks before applying. Uses Novolis.Manuscript.IO.LegacyChapterSurgery.",
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.85,
+        });
+        panel.Children.Add(Button("Insert chapter after current…", OnInsertChapterAfter));
+        panel.Children.Add(Button("Sync filenames…", OnSyncFilenames));
         return panel;
     }
 
@@ -387,6 +401,8 @@ internal sealed class MainWindow : Window
             _feedback.FlashWarning("Unsaved changes in current chapter.");
         }
 
+        _settings.Settings.NavColumnWidth = _workspace.NavWidth;
+        _settings.Settings.ContextColumnWidth = _workspace.ContextWidth;
         _settings.Save();
         if (_session.Workspace is not null)
             _settings.SaveWorkspaceOverlay(_session.Workspace.ContentRoot);
@@ -848,34 +864,11 @@ internal sealed class MainWindow : Window
     void LoadMetadataFromEditor()
     {
         var (meta, _, _) = ManuscriptMetadata.Parse(_editor.Text ?? string.Empty);
-        _metaNumber.Text = meta.Number ?? string.Empty;
-        _metaTitle.Text = meta.Title ?? string.Empty;
-        _metaDate.Text = meta.Date ?? string.Empty;
-        _metaTime.Text = meta.Time ?? string.Empty;
-        _metaSystem.Text = meta.System ?? string.Empty;
-        _metaLocation.Text = meta.Location ?? string.Empty;
-        _metaPov.Text = meta.Pov ?? string.Empty;
-        _metaCharacters.Text = meta.Characters ?? string.Empty;
-        _metaStatus.Text = meta.Status ?? string.Empty;
-        _metaNotes.Text = meta.Notes ?? string.Empty;
+        _metadataPane.Load(meta);
     }
 
-    void OnApplyMetadata(object? sender, RoutedEventArgs e)
+    void ApplyMetadata(ManuscriptChapterMetadata meta)
     {
-        var meta = new ManuscriptChapterMetadata
-        {
-            Number = NullIfEmpty(_metaNumber.Text),
-            Title = NullIfEmpty(_metaTitle.Text),
-            Date = NullIfEmpty(_metaDate.Text),
-            Time = NullIfEmpty(_metaTime.Text),
-            System = NullIfEmpty(_metaSystem.Text),
-            Location = NullIfEmpty(_metaLocation.Text),
-            Pov = NullIfEmpty(_metaPov.Text),
-            Characters = NullIfEmpty(_metaCharacters.Text),
-            Status = NullIfEmpty(_metaStatus.Text),
-            Notes = NullIfEmpty(_metaNotes.Text),
-        };
-
         var updated = ManuscriptMetadata.ApplyCallouts(_editor.Text ?? string.Empty, meta);
         _suppressEditorSync = true;
         _editor.Text = updated;
@@ -916,24 +909,208 @@ internal sealed class MainWindow : Window
 
     void OnRunDiagnostics(object? sender, RoutedEventArgs e)
     {
-        _diagnosticsList.Items.Clear();
         if (_session.SelectedBook is null)
         {
             _feedback.FlashWarning("Select a book first.");
             return;
         }
 
-        var findings = ManuscriptDoctor.Diagnose(_session.SelectedBook);
-        foreach (var f in findings)
+        var findings = ContinuityDiagnostics.RunDoctorAndDebt(_session.SelectedBook);
+        _diagnosticsPane.SetFindings(findings);
+        _diagnosticsSummary.Text = $"{findings.Count} doctor / metadata-debt finding(s).";
+        _feedback.Flash($"{findings.Count} finding(s).");
+    }
+
+    void OnRunMetrics(object? sender, RoutedEventArgs e)
+    {
+        if (_session.SelectedBook is null || _session.Workspace is null)
         {
-            _diagnosticsList.Items.Add(new ListBoxItem
-            {
-                Content = $"[{f.Severity}] {f.Code}: {f.Message}",
-                Tag = f,
-            });
+            _feedback.FlashWarning("Select a book first.");
+            return;
         }
 
-        _feedback.Flash($"{findings.Count} finding(s).");
+        try
+        {
+            var dto = ContinuityDiagnostics.ComputeMetrics(_session.Workspace.ContentRoot, _session.SelectedBook);
+            _diagnosticsSummary.Text = ContinuityDiagnostics.FormatMetrics(dto);
+            _diagnosticsPane.SetFindings([]);
+            _feedback.Flash($"Metrics: {dto.TotalWords:N0} words, {dto.TotalTodos} todos.");
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+        }
+    }
+
+    void OnRunAsciiScan(object? sender, RoutedEventArgs e)
+    {
+        if (_session.SelectedBook is null)
+        {
+            _feedback.FlashWarning("Select a book first.");
+            return;
+        }
+
+        try
+        {
+            var findings = ContinuityDiagnostics.ScanAscii(_session.SelectedBook);
+            _diagnosticsPane.SetFindings(findings);
+            _diagnosticsSummary.Text = findings.Count == 0
+                ? "Ascii scan: no non-ASCII issues in chapters."
+                : $"Ascii scan: {findings.Count} issue(s) (read-only; normalize via CLI).";
+            _feedback.Flash(_diagnosticsSummary.Text);
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+        }
+    }
+
+    async void OnRunCharacterSlices(object? sender, RoutedEventArgs e)
+    {
+        if (_session.SelectedBook is null)
+        {
+            _feedback.FlashWarning("Select a book first.");
+            return;
+        }
+
+        try
+        {
+            var filter = await PromptDialog.AskAsync(
+                this,
+                "Character filter",
+                "Optional character name filter (blank = all):",
+                string.Empty);
+            var md = ContinuityDiagnostics.CharacterSlicesMarkdown(
+                _session.SelectedBook,
+                string.IsNullOrWhiteSpace(filter) ? null : filter);
+            _diagnosticsSummary.Text = md.Length > 8000 ? md[..8000] + "\n…" : md;
+            _diagnosticsPane.SetFindings([]);
+            _feedback.Flash("Character slices ready.");
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+        }
+    }
+
+    void OnRunEditorial(object? sender, RoutedEventArgs e)
+    {
+        if (_session.SelectedBook is null)
+        {
+            _feedback.FlashWarning("Select a book first.");
+            return;
+        }
+
+        try
+        {
+            var findings = ContinuityDiagnostics.RunEditorial(_session.SelectedBook);
+            _diagnosticsPane.SetFindings(findings);
+            _diagnosticsSummary.Text = $"{findings.Count} editorial finding(s).";
+            _feedback.Flash(_diagnosticsSummary.Text);
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+        }
+    }
+
+    async void OnInsertChapterAfter(object? sender, RoutedEventArgs e)
+    {
+        if (_session.SelectedBook is null || _session.SelectedChapter is null)
+        {
+            _feedback.FlashWarning("Select a chapter first.");
+            return;
+        }
+
+        if (_session.IsDirty && !await SaveCurrentIfNeededAsync())
+            return;
+
+        var title = await PromptDialog.AskAsync(this, "Insert after", "New chapter title:", "Untitled");
+        if (title is null)
+            return;
+
+        try
+        {
+            var dir = StructureSurgeryActions.ResolveChaptersDir(_session.SelectedBook);
+            var afterKey = _session.SelectedChapter.SortKey;
+            var dry = StructureSurgeryActions.InsertAfterDryRun(dir, afterKey, title);
+            var choice = await ChoiceDialog.ShowAsync(
+                this,
+                "Insert after (dry run)",
+                "Apply this chapter insert?",
+                StructureSurgeryActions.FormatPlan(dry),
+                [
+                    new ChoiceOption("apply", "Apply", IsDefault: true),
+                    new ChoiceOption("cancel", "Cancel", IsCancel: true),
+                ]);
+            if (choice != "apply")
+                return;
+
+            var applied = StructureSurgeryActions.InsertAfterApply(dir, afterKey, title);
+            RefreshCatalogAfterSurgery(applied.Message);
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+        }
+    }
+
+    async void OnSyncFilenames(object? sender, RoutedEventArgs e)
+    {
+        if (_session.SelectedBook is null)
+        {
+            _feedback.FlashWarning("Select a book first.");
+            return;
+        }
+
+        if (_session.IsDirty && !await SaveCurrentIfNeededAsync())
+            return;
+
+        try
+        {
+            var dir = StructureSurgeryActions.ResolveChaptersDir(_session.SelectedBook);
+            var dry = StructureSurgeryActions.SyncFilenamesDryRun(dir);
+            var choice = await ChoiceDialog.ShowAsync(
+                this,
+                "Sync filenames (dry run)",
+                "Apply filename sync?",
+                StructureSurgeryActions.FormatPlan(dry),
+                [
+                    new ChoiceOption("apply", "Apply", IsDefault: true),
+                    new ChoiceOption("cancel", "Cancel", IsCancel: true),
+                ]);
+            if (choice != "apply")
+                return;
+
+            var applied = StructureSurgeryActions.SyncFilenamesApply(dir);
+            RefreshCatalogAfterSurgery(applied.Message);
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+        }
+    }
+
+    void RefreshCatalogAfterSurgery(string message)
+    {
+        if (_session.Workspace is null)
+            return;
+
+        var chapterId = _session.SelectedChapter?.Id;
+        _session.OpenWorkspace(_session.Workspace);
+        BindCatalogCombos(restoreSelection: true);
+        RefreshChapterList();
+        if (chapterId is not null && _session.SelectedBook is not null)
+        {
+            var chapter = _session.SelectedBook.Chapters.FirstOrDefault(c => c.Id == chapterId);
+            if (chapter is not null)
+            {
+                SelectChapterInList(chapter);
+                _ = LoadChapterAsync(chapter, skipSavePrompt: true);
+            }
+        }
+
+        _feedback.Flash(message);
     }
 
     void OnExportBookPdf(object? sender, RoutedEventArgs e)
@@ -1444,7 +1621,17 @@ internal sealed class MainWindow : Window
     void ToggleFocusMode()
     {
         _focusMode = !_focusMode;
-        StudioFocusMode.Apply(_focusMode, _topBar, _contextTabs);
+        if (_focusMode)
+        {
+            _workspace.Context = null;
+            StudioFocusMode.Apply(true, _topBar);
+        }
+        else
+        {
+            _workspace.Context = _contextHost;
+            StudioFocusMode.Apply(false, _topBar);
+        }
+
         _feedback.Flash(_focusMode ? "Focus mode on" : "Focus mode off");
     }
 
@@ -1469,9 +1656,6 @@ internal sealed class MainWindow : Window
             },
         };
     }
-
-    static string? NullIfEmpty(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     static int CountOccurrences(string text, string query)
     {

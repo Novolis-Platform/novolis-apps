@@ -93,7 +93,9 @@
     <PackageVersion Include="Novolis.Manuscript" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Manuscript.Export.Audio" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Manuscript.Export.Pdf" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Manuscript.Editorial" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Manuscript.IO" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Manuscript.Metrics" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Math.Geometry" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Assessment" Version="2026.1.*" />
