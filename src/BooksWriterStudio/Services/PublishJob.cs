@@ -9,7 +9,7 @@ internal enum PublishJobStatus
     Cancelled,
 }
 
-internal sealed class PublishJobChapterProgress
+internal sealed class PublishJobStepProgress
 {
     public required string Label { get; init; }
     public double Progress { get; set; }
@@ -26,7 +26,7 @@ internal sealed class PublishJob
     public string? OutputPath { get; set; }
     public double? Progress { get; set; }
     public string? ProgressLabel { get; set; }
-    public List<PublishJobChapterProgress> ChapterProgress { get; } = [];
+    public List<PublishJobStepProgress> StepProgress { get; } = [];
     public CancellationTokenSource Cts { get; } = new();
 }
 

@@ -1198,10 +1198,10 @@ internal sealed class MainWindow : Window
             job.Detail = outDir;
             job.Progress = 0;
             job.ProgressLabel = $"0/{chapters.Count} chapters";
-            job.ChapterProgress.Clear();
+            job.StepProgress.Clear();
             foreach (var chapter in chapters)
             {
-                job.ChapterProgress.Add(new PublishJobChapterProgress
+                job.StepProgress.Add(new PublishJobStepProgress
                 {
                     Label = chapter.Title,
                     Progress = 0,
@@ -1220,10 +1220,10 @@ internal sealed class MainWindow : Window
                     job.Detail = $"{outDir} · {snapshot.Message}";
                     job.Log = BuildAudiobookLog(snapshot);
 
-                    for (var i = 0; i < snapshot.Chapters.Count && i < job.ChapterProgress.Count; i++)
+                    for (var i = 0; i < snapshot.Chapters.Count && i < job.StepProgress.Count; i++)
                     {
                         var src = snapshot.Chapters[i];
-                        var dst = job.ChapterProgress[i];
+                        var dst = job.StepProgress[i];
                         dst.Progress = src.Fraction;
                         dst.StatusLabel = src.StatusLabel;
                     }
@@ -1566,14 +1566,14 @@ internal sealed class MainWindow : Window
             CanOpenOutput = job.Status == PublishJobStatus.Succeeded && !string.IsNullOrWhiteSpace(job.OutputPath),
             Progress = job.Progress,
             ProgressLabel = job.ProgressLabel,
-            ChapterProgress = job.ChapterProgress.Count == 0
+            StepProgress = job.StepProgress.Count == 0
                 ? null
-                : job.ChapterProgress.Select(c => new JobChapterProgress
+                : job.StepProgress.Select(c => new JobStepProgress
                 {
                     Label = c.Label,
                     Progress = c.Progress,
                     StatusLabel = c.StatusLabel,
-                }).Cast<IJobChapterProgress>().ToList(),
+                }).Cast<IJobStepProgress>().ToList(),
             Tag = job,
         }).Cast<IJobQueueRow>().ToList();
 

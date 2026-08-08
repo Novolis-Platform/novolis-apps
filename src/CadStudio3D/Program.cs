@@ -71,6 +71,7 @@ internal static class Program
 
             var cad = ApplicationHost.Services.GetRequiredService<CadSessionService>();
             var scene = ApplicationHost.Services.GetRequiredService<SceneSessionService>();
+            Novolis.Avalonia.Cad.Ship.CadShipChrome.Attach(cad);
 
             CadSurface = CadSessionSurface.AttachAll(cad);
             SceneSurface = AgentSurface.AttachAll(scene, scene.Definition)

@@ -5,7 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Media.Immutable;
-using Novolis.Avalonia.Controls;
+using Novolis.Avalonia.Controls.Sketch;
 
 namespace SketchStudio;
 

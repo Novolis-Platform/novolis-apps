@@ -21,6 +21,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Novolis.Avalonia.Cad" />
+    <PackageReference Include="Novolis.Avalonia.Cad.Ship" />
     <PackageReference Include="Novolis.Avalonia.3D" />
     <PackageReference Include="Novolis.Cad.Primitives" />
     <PackageReference Include="Novolis.Cad.SceneBridge" />

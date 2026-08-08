@@ -2,7 +2,7 @@
 
 Avalonia desktop host for org-wide **test coverage**, **cyclomatic complexity / CRAP**, and **test runs** across `novolis-*` repos.
 
-Built on [`Novolis.Tools.Coverage`](../../../novolis-tools/src/Novolis.Tools.Coverage/README.md) plus Avalonia controls (`PacketTableView`, `TreeDetailsView`) and `Novolis.Avalonia.Studio` chrome.
+Built on [`Novolis.Tools.Coverage`](../../../novolis-tools/src/Novolis.Tools.Coverage/README.md) plus Avalonia controls (`SortableDataGrid`, `TreeDetailsView`) and `Novolis.Avalonia.Studio` chrome.
 
 Child `dotnet` / `pwsh` processes always run **hidden** (`CreateNoWindow`). Progress is typed (`WorkRun` / `WorkHostItem`) with compact in-UI bars — no console host pane.
 

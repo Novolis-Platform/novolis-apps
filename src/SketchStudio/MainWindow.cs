@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Novolis.Avalonia.Controls;
+using Novolis.Avalonia.Controls.Sketch;
 using Optris.Icons.Avalonia;
 
 namespace SketchStudio;

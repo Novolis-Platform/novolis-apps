@@ -33,9 +33,9 @@ internal sealed class MainWindow : Window
     private readonly NumericUpDown _timeout;
     private readonly ListBox _repoList = new();
     private readonly TextBlock _summary = CoverageTheme.Mono("—");
-    private readonly PacketTableView _repoGrid = new();
-    private readonly PacketTableView _gapGrid = new();
-    private readonly PacketTableView _crapGrid = new();
+    private readonly SortableDataGrid _repoGrid = new();
+    private readonly SortableDataGrid _gapGrid = new();
+    private readonly SortableDataGrid _crapGrid = new();
     private readonly TreeDetailsView _details = new();
     private readonly TabControl _tabs;
 
@@ -328,35 +328,35 @@ internal sealed class MainWindow : Window
 
         _repoGrid.SetColumns(
         [
-            PacketTableView.TextColumn("Repo", nameof(CoverageRepoRow.Repo), 160),
-            PacketTableView.TextColumn("Status", nameof(CoverageRepoRow.Status), 70),
-            PacketTableView.TextColumn("Line", nameof(CoverageRepoRow.LineDisplay), 70),
-            PacketTableView.TextColumn("Branch", nameof(CoverageRepoRow.BranchDisplay), 70),
-            PacketTableView.TextColumn("Tests", nameof(CoverageRepoRow.TestsTotal), 60),
-            PacketTableView.TextColumn("Pass", nameof(CoverageRepoRow.TestsPassed), 60),
-            PacketTableView.TextColumn("Fail", nameof(CoverageRepoRow.TestsFailed), 50),
-            PacketTableView.TextColumn("Sec", nameof(CoverageRepoRow.Seconds), 60),
-            PacketTableView.TextColumn("Error", nameof(CoverageRepoRow.Error)),
+            SortableDataGrid.TextColumn("Repo", nameof(CoverageRepoRow.Repo), 160),
+            SortableDataGrid.TextColumn("Status", nameof(CoverageRepoRow.Status), 70),
+            SortableDataGrid.TextColumn("Line", nameof(CoverageRepoRow.LineDisplay), 70),
+            SortableDataGrid.TextColumn("Branch", nameof(CoverageRepoRow.BranchDisplay), 70),
+            SortableDataGrid.TextColumn("Tests", nameof(CoverageRepoRow.TestsTotal), 60),
+            SortableDataGrid.TextColumn("Pass", nameof(CoverageRepoRow.TestsPassed), 60),
+            SortableDataGrid.TextColumn("Fail", nameof(CoverageRepoRow.TestsFailed), 50),
+            SortableDataGrid.TextColumn("Sec", nameof(CoverageRepoRow.Seconds), 60),
+            SortableDataGrid.TextColumn("Error", nameof(CoverageRepoRow.Error)),
         ]);
 
         _gapGrid.SetColumns(
         [
-            PacketTableView.TextColumn("Package", nameof(PackageGapRow.Package), 280),
-            PacketTableView.TextColumn("Line %", nameof(PackageGapRow.LinePercent), 70),
-            PacketTableView.TextColumn("Branch %", nameof(PackageGapRow.BranchPercent), 80),
-            PacketTableView.TextColumn("Line gap", nameof(PackageGapRow.LineGap), 80),
-            PacketTableView.TextColumn("Branch gap", nameof(PackageGapRow.BranchGap), 90),
+            SortableDataGrid.TextColumn("Package", nameof(PackageGapRow.Package), 280),
+            SortableDataGrid.TextColumn("Line %", nameof(PackageGapRow.LinePercent), 70),
+            SortableDataGrid.TextColumn("Branch %", nameof(PackageGapRow.BranchPercent), 80),
+            SortableDataGrid.TextColumn("Line gap", nameof(PackageGapRow.LineGap), 80),
+            SortableDataGrid.TextColumn("Branch gap", nameof(PackageGapRow.BranchGap), 90),
         ]);
 
         _crapGrid.SetColumns(
         [
-            PacketTableView.TextColumn("CRAP", nameof(ComplexityRow.Crap), 70),
-            PacketTableView.TextColumn("CC", nameof(ComplexityRow.Complexity), 50),
-            PacketTableView.TextColumn("Line %", nameof(ComplexityRow.LinePercent), 70),
-            PacketTableView.TextColumn("Branch %", nameof(ComplexityRow.BranchPercent), 80),
-            PacketTableView.TextColumn("Package", nameof(ComplexityRow.Package), 180),
-            PacketTableView.TextColumn("Method", nameof(ComplexityRow.Method)),
-            PacketTableView.TextColumn("File", nameof(ComplexityRow.File), 160),
+            SortableDataGrid.TextColumn("CRAP", nameof(ComplexityRow.Crap), 70),
+            SortableDataGrid.TextColumn("CC", nameof(ComplexityRow.Complexity), 50),
+            SortableDataGrid.TextColumn("Line %", nameof(ComplexityRow.LinePercent), 70),
+            SortableDataGrid.TextColumn("Branch %", nameof(ComplexityRow.BranchPercent), 80),
+            SortableDataGrid.TextColumn("Package", nameof(ComplexityRow.Package), 180),
+            SortableDataGrid.TextColumn("Method", nameof(ComplexityRow.Method)),
+            SortableDataGrid.TextColumn("File", nameof(ComplexityRow.File), 160),
         ]);
     }
 

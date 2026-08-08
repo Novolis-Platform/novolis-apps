@@ -58,6 +58,7 @@ internal static class Program
             ApplicationHost.Start();
 
             var cad = ApplicationHost.Services.GetRequiredService<CadSessionService>();
+            Novolis.Avalonia.Cad.Ship.CadShipChrome.Attach(cad);
             CadSession = CadSessionSurface.AttachAll(cad);
 
             try

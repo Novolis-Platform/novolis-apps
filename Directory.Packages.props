@@ -32,6 +32,9 @@
     <PackageVersion Include="Novolis.Transports.LocalIpc" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Briefing" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Controls" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Controls.Sketch" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Torrent" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Cad.Ship" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Layout" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Live" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Markdown" Version="2026.1.*" />

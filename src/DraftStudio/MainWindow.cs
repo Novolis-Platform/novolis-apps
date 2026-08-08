@@ -13,6 +13,8 @@ using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
+using Novolis.Avalonia.Cad.Ship;
+using Novolis.Avalonia.Cad.Ship.Services;
 using Novolis.Avalonia.Cad.Ui;
 using Novolis.Avalonia.Raylib;
 using Novolis.Avalonia.Studio;
@@ -624,7 +626,7 @@ internal sealed class MainWindow : Window
 
         try
         {
-            var result = _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.ImportShip });
+            var result = _cad.Execute(new CadCommandDto { ActionId = CadShipChrome.ImportShipActionId });
             if (!result.Ok)
             {
                 _feedback.FlashError(result.Message);
