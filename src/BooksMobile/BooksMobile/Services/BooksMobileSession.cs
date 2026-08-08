@@ -80,6 +80,16 @@ public sealed class BooksMobileSession
             return false;
         }
 
+        if (!await GitHubAccessToken.TryValidateAsync(token, "Novolis.BooksMobile", cancellationToken)
+                .ConfigureAwait(false))
+        {
+            await ClearStoredAuthAsync(cancellationToken).ConfigureAwait(false);
+            IsSignedIn = false;
+            Status = "GitHub session expired — sign in again.";
+            NotifyChanged();
+            return false;
+        }
+
         BindMirror(token);
         IsSignedIn = true;
         Status = "Signed in (restored token).";
@@ -142,8 +152,7 @@ public sealed class BooksMobileSession
             return;
         }
 
-        await _tokens.RemoveAsync(SecureTokenKeys.GitHubOAuthAccessToken, cancellationToken)
-            .ConfigureAwait(false);
+        await ClearStoredAuthAsync(cancellationToken).ConfigureAwait(false);
         _mirror = null;
         _workspace = null;
         _openFilePath = null;
@@ -168,6 +177,12 @@ public sealed class BooksMobileSession
         Status = "Pulling…";
         NotifyChanged();
         var result = await _mirror!.PullAsync(cancellationToken).ConfigureAwait(false);
+        if (result.RequiresReauthentication)
+        {
+            await RequireReauthenticationAsync(result.Message, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         Status = result.Message;
         if (result.Ok)
             TryOpenWorkspace();
@@ -192,9 +207,34 @@ public sealed class BooksMobileSession
         NotifyChanged();
         var result = await _mirror!.SaveCommitPushAsync(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
+        if (result.RequiresReauthentication)
+        {
+            await RequireReauthenticationAsync(result.Message, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         Status = result.Message;
         NotifyChanged();
     }
+
+    async Task RequireReauthenticationAsync(string? message, CancellationToken cancellationToken)
+    {
+        await ClearStoredAuthAsync(cancellationToken).ConfigureAwait(false);
+        _mirror = null;
+        _workspace = null;
+        _openFilePath = null;
+        _openRelativePath = null;
+        IsSignedIn = false;
+        UserCode = null;
+        Status = string.IsNullOrWhiteSpace(message)
+            ? "GitHub session expired — sign in again."
+            : message;
+        NotifyChanged();
+    }
+
+    async Task ClearStoredAuthAsync(CancellationToken cancellationToken) =>
+        await _tokens.RemoveAsync(SecureTokenKeys.GitHubOAuthAccessToken, cancellationToken)
+            .ConfigureAwait(false);
 
     void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
 
