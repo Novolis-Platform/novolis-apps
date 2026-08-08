@@ -7,7 +7,7 @@ public sealed class BooksMobileOptions
 {
     public const string DefaultOwner = "frankhaugen";
     public const string DefaultRepo = "books";
-    public const string DefaultContentPrefix = "content/";
+    public const string DefaultContentPrefix = "src/";
 
     /// <summary>
     /// Public OAuth App client id (Device Flow). Not a secret — safe to ship in the app.
@@ -39,7 +39,7 @@ public sealed class BooksMobileOptions
 
     public string RepoName { get; set; }
 
-    /// <summary>Sparse mirror path prefix (<c>content/</c> or <c>docs/</c>).</summary>
+    /// <summary>Sparse mirror path prefix (<c>src/</c> for NMP/1, or a custom prefix).</summary>
     public string ContentPrefix { get; set; }
 
     /// <summary>

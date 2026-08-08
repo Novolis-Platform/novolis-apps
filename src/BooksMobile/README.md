@@ -1,6 +1,6 @@
 # Books Mobile
 
-Avalonia **Android + Windows** companion for [frankhaugen/books](https://github.com/frankhaugen/books): **Sign in with GitHub** (passkey / GitHub app), sparse `content/` mirror, markdown editing, chapter TTS, **Pull** and **Save/Commit/Push**.
+Avalonia **Android + Windows** companion for [frankhaugen/books](https://github.com/frankhaugen/books): **Sign in with GitHub** (passkey / GitHub app), sparse `src/` (NMP/1) mirror, markdown editing, chapter TTS, **Pull** and **Save/Commit/Push**.
 
 **Windows** ships on [GitHub Releases](https://github.com/Novolis-Platform/novolis-apps/releases) as a per-user Inno installer and portable zip. **Android APK** is local deploy only (not CI-released).
 
@@ -74,8 +74,8 @@ Consumes GitHub Packages `2026.1.*`:
 | `Novolis.Avalonia.Mobile` / `.Desktop` / `.Android` | Cross-platform shell |
 | `Novolis.Avalonia.Markdown` | Editor + preview |
 | `Novolis.IO.GitHub` | Device-flow auth, sparse clone, commit/push |
-| `Novolis.Markup.Manuscript` | Manuscript `content/` layout |
-| `Novolis.Audio.Voice.Manuscript` / `.EdgeTts` | Chapter speech |
+| `Novolis.Manuscript` | NMP/1 / catalog workspace façade |
+| `Novolis.Audio.Voice.EdgeTts` | Chapter speech |
 
 ## Local development (ProjectReference mode)
 
