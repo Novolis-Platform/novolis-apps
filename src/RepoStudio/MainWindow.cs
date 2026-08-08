@@ -45,13 +45,17 @@ internal sealed class MainWindow : Window
             Flash(r.Message);
             await RefreshOpenRepoAsync();
         };
-        _graph.CommitSelected += (_, e) =>
+        _graph.CommitSelected += async (_, e) =>
         {
             if (_openRepoPath is null || e.Node is null) return;
+            var path = _openRepoPath;
+            var sha = e.Node.Sha;
             try
             {
-                _detail.SetDetail(_git.GetCommitDetail(_openRepoPath, e.Node.Sha));
-                _diff.SetDiff(_git.GetDiff(_openRepoPath, e.Node.Sha));
+                var (detail, diff) = await Task.Run(() =>
+                    (_git.GetCommitDetail(path, sha), _git.GetDiff(path, sha))).ConfigureAwait(true);
+                _detail.SetDetail(detail);
+                _diff.SetDiff(diff);
             }
             catch (Exception ex)
             {
@@ -60,26 +64,33 @@ internal sealed class MainWindow : Window
         };
 
         Content = BuildLayout();
-        Opened += async (_, _) =>
-        {
-            try
-            {
-                _root = GitWorkspace.ResolveRoot();
-                Title = $"Repo Studio — {_root}";
-                RefreshMatrix();
-                _scheduler = new FetchScheduler(_git);
-                _scheduler.CycleCompleted += (_, _) => Dispatcher.UIThread.Post(RefreshMatrix);
-                _scheduler.Start(_root, TimeSpan.FromMinutes(10));
-                Flash($"Workspace {_root}");
-            }
-            catch (Exception ex)
-            {
-                Flash(ex.Message);
-            }
-
-            await Task.CompletedTask;
-        };
+        Opened += async (_, _) => await OnOpenedAsync();
         Closed += (_, _) => _scheduler?.Stop();
+    }
+
+    async Task OnOpenedAsync()
+    {
+        try
+        {
+            _root = GitWorkspace.ResolveRoot();
+            Title = $"Repo Studio — {_root}";
+            Flash("Loading workspace status…");
+            // Fast first paint: no stash list per repo; work off UI thread.
+            await RefreshMatrixAsync(includeStashCount: false).ConfigureAwait(true);
+
+            _scheduler = new FetchScheduler(_git);
+            _scheduler.CycleCompleted += (_, _) =>
+                Dispatcher.UIThread.Post(() => _ = RefreshMatrixAsync(includeStashCount: false));
+            _scheduler.Start(_root, TimeSpan.FromMinutes(10), delayBeforeFirst: true);
+
+            Flash($"Workspace {_root}");
+            // Enrich stash counts in the background without blocking interactivity.
+            _ = RefreshMatrixAsync(includeStashCount: true);
+        }
+        catch (Exception ex)
+        {
+            Flash(ex.Message);
+        }
     }
 
     Control BuildLayout()
@@ -158,14 +169,39 @@ internal sealed class MainWindow : Window
         };
     }
 
-    void RefreshMatrix()
+    async Task RefreshMatrixAsync(bool includeStashCount = false)
     {
         if (string.IsNullOrEmpty(_root))
             return;
-        var matrix = GitWorkspace.GetStatusMatrix(_root, _git, includeStashCount: true);
-        _repos.SetMatrix(matrix);
-        var anyFetch = matrix.Repos.Select(r => r.LastFetchAt).Where(t => t is not null).Max();
-        _fetchAge.SetLastFetch(anyFetch);
+
+        var root = _root;
+        var git = _git;
+        WorkspaceStatusMatrix matrix;
+        try
+        {
+            matrix = await GitWorkspace.GetStatusMatrixAsync(
+                root,
+                git,
+                includeStashCount: includeStashCount,
+                parallel: 8).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => Flash(ex.Message));
+            return;
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            _repos.SetMatrix(matrix);
+            var stamps = matrix.Repos
+                .Select(r => r.LastFetchAt)
+                .Where(t => t.HasValue)
+                .Select(t => t!.Value)
+                .ToArray();
+            _fetchAge.SetLastFetch(stamps.Length == 0 ? null : stamps.Max());
+            Flash($"{matrix.Summary.Git} repos · dirty {matrix.Summary.Dirty} · behind {matrix.Summary.Behind}");
+        });
     }
 
     async Task OpenRepoAsync(RepoEntry repo)
@@ -203,7 +239,8 @@ internal sealed class MainWindow : Window
             switch (e.Command)
             {
                 case GitChromeCommand.Refresh:
-                    RefreshMatrix();
+                    Flash("Refreshing…");
+                    await RefreshMatrixAsync(includeStashCount: true);
                     await RefreshOpenRepoAsync();
                     break;
                 case GitChromeCommand.Fetch:
@@ -215,7 +252,7 @@ internal sealed class MainWindow : Window
                     var batch = new GitWorkspaceBatch(_git);
                     var result = await batch.FetchAsync(repos, new BatchOptions { WorkspaceRoot = _root });
                     Flash($"Fetch ok={result.Ok}");
-                    RefreshMatrix();
+                    await RefreshMatrixAsync(includeStashCount: false);
                     break;
                 }
                 case GitChromeCommand.Pull:
@@ -230,7 +267,7 @@ internal sealed class MainWindow : Window
                     var batch = new GitWorkspaceBatch(_git);
                     var result = await batch.PullFfOnlyAsync(sel.Selected, new BatchOptions { WorkspaceRoot = _root });
                     Flash($"Pull failures={result.Results.Count(r => r.Outcome == "failed")}");
-                    RefreshMatrix();
+                    await RefreshMatrixAsync(includeStashCount: false);
                     await RefreshOpenRepoAsync();
                     break;
                 }
@@ -320,7 +357,7 @@ internal sealed class MainWindow : Window
         Flash($"Dry-run steps={dry.Results.Count}");
         var applied = await planner.ApplyAsync(plan, dryRun: false);
         Flash($"Branch cut ok={applied.Ok}");
-        RefreshMatrix();
+        await RefreshMatrixAsync(includeStashCount: false);
     }
 
     async Task<bool> ShowDialogAsync(string title, Control body)
