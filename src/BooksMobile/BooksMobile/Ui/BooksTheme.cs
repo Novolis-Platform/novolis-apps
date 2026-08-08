@@ -8,7 +8,7 @@ namespace BooksMobile.Ui;
 /// <summary>Novolis brand tokens for Books Mobile — navy + cyan, reading-first (not Inter / purple SaaS).</summary>
 internal static class BooksPalette
 {
-    // Org brand canvas + mark cyan → blue (novolis-dot-github/brand).
+    // Org brand canvas + mark cyan → blue (.github/brand).
     public static readonly Color Window = Color.Parse("#05070d");
     public static readonly Color Panel = Color.Parse("#0b1522");
     public static readonly Color PanelRaised = Color.Parse("#122033");
