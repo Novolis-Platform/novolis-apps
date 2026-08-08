@@ -10,6 +10,11 @@ namespace RepoStudio;
 
 internal sealed class MainWindow : Window
 {
+    static readonly IBrush PaneBg = new SolidColorBrush(Color.FromRgb(32, 34, 40));
+    static readonly IBrush PaneBorder = new SolidColorBrush(Color.FromRgb(55, 58, 66));
+    static readonly IBrush ShellBg = new SolidColorBrush(Color.FromRgb(22, 24, 28));
+    static readonly IBrush Accent = new SolidColorBrush(Color.FromRgb(56, 140, 160));
+
     readonly GitRepositoryService _git = new();
     readonly GitRepoVisualizer _repos = new();
     readonly GitBranchNavigator _branches = new();
@@ -20,35 +25,37 @@ internal sealed class MainWindow : Window
     readonly GitWorkingTreeView _working = new();
     readonly GitActionBar _actions = new();
     readonly GitFetchAgeLabel _fetchAge = new();
+    readonly TextBlock _openLabel = new()
+    {
+        Text = "No repo open",
+        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(12, 0, 0, 0),
+        Opacity = 0.85,
+    };
     readonly TextBlock _status = new()
     {
         Text = "Ready",
         Margin = new Thickness(10, 4),
         VerticalAlignment = VerticalAlignment.Center,
     };
-    readonly TextBlock _emptyHint = new()
-    {
-        Text = "Double-click a repository to open its graph, branches, stash, and working tree.",
-        Margin = new Thickness(16),
-        TextWrapping = TextWrapping.Wrap,
-        Opacity = 0.75,
-    };
 
     string _root = "";
     string? _openRepoPath;
+    string? _openRepoName;
     FetchScheduler? _scheduler;
     int _matrixGen;
+    int _openGen;
     bool _busy;
 
     public MainWindow()
     {
         Title = "Repo Studio";
-        Width = 1400;
-        Height = 900;
-        MinWidth = 960;
-        MinHeight = 640;
+        Width = 1440;
+        Height = 920;
+        MinWidth = 1100;
+        MinHeight = 700;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = new SolidColorBrush(Color.FromRgb(28, 30, 34));
+        Background = ShellBg;
         Foreground = Brushes.WhiteSmoke;
 
         _repos.RepoOpenRequested += (_, e) => _ = OpenRepoAsync(e.Repo);
@@ -69,7 +76,6 @@ internal sealed class MainWindow : Window
             _root = await Task.Run(() => GitWorkspace.ResolveRoot()).ConfigureAwait(true);
             Title = $"Repo Studio — {_root}";
             Flash("Loading workspace…");
-            // Do not await on the UI event path — paint shell immediately.
             _ = RefreshMatrixAsync(includeStashCount: false);
 
             _scheduler = new FetchScheduler(_git);
@@ -85,11 +91,9 @@ internal sealed class MainWindow : Window
 
     Control BuildLayout()
     {
-        // Avalonia TabControl: use Items (TabItem children). ItemsSource expects data+templates
-        // and leaves Working/Diff/Detail empty when fed TabItem[].
         var tabs = new TabControl
         {
-            MinHeight = 180,
+            MinHeight = 200,
             Items =
             {
                 new TabItem { Header = "Working tree", Content = _working },
@@ -98,102 +102,132 @@ internal sealed class MainWindow : Window
             },
         };
 
-        var left = new Grid
-        {
-            RowDefinitions = new RowDefinitions("Auto,*"),
-            Margin = new Thickness(8, 8, 4, 8),
-        };
-        left.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Margin = new Thickness(4, 0, 4, 6),
-            Children =
-            {
-                new TextBlock { Text = "Workspace", FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center },
-                _fetchAge,
-            },
-        });
-        Grid.SetRow(_repos, 1);
-        _repos.VerticalAlignment = VerticalAlignment.Stretch;
-        left.Children.Add(_repos);
+        var left = Pane(
+            "Repositories",
+            _repos,
+            headerRight: _fetchAge);
 
         var mid = new Grid
         {
-            RowDefinitions = new RowDefinitions("*,160"),
-            Margin = new Thickness(4, 8, 4, 8),
+            RowDefinitions = new RowDefinitions("*,170"),
+            MinWidth = 200,
         };
-        var branchHost = new DockPanel();
-        branchHost.Children.Add(new TextBlock
-        {
-            Text = "Branches",
-            FontWeight = FontWeight.SemiBold,
-            Margin = new Thickness(4, 0, 4, 4),
-            [DockPanel.DockProperty] = Dock.Top,
-        });
-        branchHost.Children.Add(_branches);
-        mid.Children.Add(branchHost);
-        var stashHost = new Border
-        {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(55, 58, 64)),
-            BorderThickness = new Thickness(0, 1, 0, 0),
-            Padding = new Thickness(0, 4, 0, 0),
-            Child = _stashes,
-            [Grid.RowProperty] = 1,
-        };
-        mid.Children.Add(stashHost);
+        mid.Children.Add(Pane("Branches", _branches));
+        var stashPane = Pane("Stashes", _stashes);
+        Grid.SetRow(stashPane, 1);
+        mid.Children.Add(stashPane);
 
         var right = new Grid
         {
-            RowDefinitions = new RowDefinitions("*,220"),
-            Margin = new Thickness(4, 8, 8, 8),
+            RowDefinitions = new RowDefinitions("*,240"),
+            MinWidth = 420,
         };
-        var graphHost = new DockPanel();
-        graphHost.Children.Add(new TextBlock
-        {
-            Text = "History",
-            FontWeight = FontWeight.SemiBold,
-            Margin = new Thickness(4, 0, 4, 4),
-            [DockPanel.DockProperty] = Dock.Top,
-        });
-        var graphLayer = new Grid();
-        graphLayer.Children.Add(_emptyHint);
-        graphLayer.Children.Add(_graph);
-        graphHost.Children.Add(graphLayer);
-        right.Children.Add(graphHost);
-        Grid.SetRow(tabs, 1);
-        right.Children.Add(tabs);
+        right.Children.Add(Pane("History", _graph));
+        var tabPane = Pane(null, tabs);
+        Grid.SetRow(tabPane, 1);
+        right.Children.Add(tabPane);
 
         var body = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("300,220,*"),
+            ColumnDefinitions = new ColumnDefinitions("320,8,220,8,*"),
+            Margin = new Thickness(8),
         };
         Grid.SetColumn(left, 0);
-        Grid.SetColumn(mid, 1);
-        Grid.SetColumn(right, 2);
+        Grid.SetColumn(mid, 2);
+        Grid.SetColumn(right, 4);
         body.Children.Add(left);
         body.Children.Add(mid);
         body.Children.Add(right);
+        body.Children.Add(VSplit(1));
+        body.Children.Add(VSplit(3));
 
-        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         var toolbar = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(36, 38, 44)),
-            Padding = new Thickness(4, 2),
-            Child = _actions,
+            Background = PaneBg,
+            BorderBrush = PaneBorder,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Child = new DockPanel
+            {
+                LastChildFill = true,
+                Children =
+                {
+                    _openLabel,
+                    _actions,
+                },
+            },
         };
-        Grid.SetRow(toolbar, 0);
-        root.Children.Add(toolbar);
-        Grid.SetRow(body, 1);
-        root.Children.Add(body);
+        DockPanel.SetDock(_openLabel, Dock.Right);
+
         var statusBar = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(36, 38, 44)),
+            Background = PaneBg,
+            BorderBrush = PaneBorder,
+            BorderThickness = new Thickness(0, 1, 0, 0),
             Child = _status,
-            [Grid.RowProperty] = 2,
         };
+
+        var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        Grid.SetRow(toolbar, 0);
+        Grid.SetRow(body, 1);
+        Grid.SetRow(statusBar, 2);
+        root.Children.Add(toolbar);
+        root.Children.Add(body);
         root.Children.Add(statusBar);
         return root;
+    }
+
+    static Control VSplit(int column)
+    {
+        var split = new GridSplitter
+        {
+            Width = 8,
+            ResizeDirection = GridResizeDirection.Columns,
+            Background = ShellBg,
+        };
+        Grid.SetColumn(split, column);
+        return split;
+    }
+
+    static Border Pane(string? title, Control body, Control? headerRight = null)
+    {
+        body.HorizontalAlignment = HorizontalAlignment.Stretch;
+        body.VerticalAlignment = VerticalAlignment.Stretch;
+
+        var content = new DockPanel { LastChildFill = true, Margin = new Thickness(4) };
+        if (!string.IsNullOrEmpty(title) || headerRight is not null)
+        {
+            var header = new DockPanel { Margin = new Thickness(6, 4, 6, 6) };
+            if (headerRight is not null)
+            {
+                header.Children.Add(headerRight);
+                DockPanel.SetDock(headerRight, Dock.Right);
+            }
+
+            if (!string.IsNullOrEmpty(title))
+            {
+                header.Children.Add(new TextBlock
+                {
+                    Text = title,
+                    FontWeight = FontWeight.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                });
+            }
+
+            content.Children.Add(header);
+            DockPanel.SetDock(header, Dock.Top);
+        }
+
+        content.Children.Add(body);
+
+        return new Border
+        {
+            Background = PaneBg,
+            BorderBrush = PaneBorder,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(2),
+            Child = content,
+        };
     }
 
     async Task RefreshMatrixAsync(bool includeStashCount = false)
@@ -202,13 +236,11 @@ internal sealed class MainWindow : Window
             return;
 
         var gen = Interlocked.Increment(ref _matrixGen);
-        var root = _root;
-        var git = _git;
         try
         {
             var matrix = await GitWorkspace.GetStatusMatrixAsync(
-                root,
-                git,
+                _root,
+                _git,
                 includeStashCount: includeStashCount,
                 parallel: 8,
                 liteStatus: true).ConfigureAwait(false);
@@ -237,7 +269,6 @@ internal sealed class MainWindow : Window
             if (autoRepo is not null)
                 await OpenRepoAsync(autoRepo).ConfigureAwait(false);
 
-            // Second pass for stash counts — never blocks first paint.
             if (!includeStashCount)
                 _ = RefreshMatrixAsync(includeStashCount: true);
         }
@@ -249,22 +280,40 @@ internal sealed class MainWindow : Window
 
     async Task OpenRepoAsync(RepoEntry repo)
     {
+        if (string.Equals(_openRepoPath, repo.Path, StringComparison.OrdinalIgnoreCase)
+            && _openGen > 0)
+        {
+            // Same repo re-selected after matrix refresh — keep panes, light refresh.
+            await RefreshOpenRepoAsync().ConfigureAwait(false);
+            return;
+        }
+
+        var gen = Interlocked.Increment(ref _openGen);
         _openRepoPath = repo.Path;
+        _openRepoName = repo.Name;
+
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
-            _emptyHint.IsVisible = false;
+            _repos.SelectRepo(repo.Path);
+            _openLabel.Text = repo.Name;
+            _openLabel.Foreground = Accent;
+            _branches.ShowPlaceholder("Loading…");
+            _graph.ShowPlaceholder("Loading history…");
+            _working.ShowPlaceholder("Loading…");
             Flash($"Opening {repo.Name}…");
         });
-        await RefreshOpenRepoAsync().ConfigureAwait(false);
-        await Dispatcher.UIThread.InvokeAsync(() => Flash($"Opened {repo.Name}"));
+
+        await RefreshOpenRepoAsync(gen).ConfigureAwait(false);
     }
 
-    async Task RefreshOpenRepoAsync()
+    async Task RefreshOpenRepoAsync(int? expectedGen = null)
     {
         if (_openRepoPath is null)
             return;
 
         var path = _openRepoPath;
+        var name = _openRepoName ?? System.IO.Path.GetFileName(path);
+        var gen = expectedGen ?? _openGen;
         try
         {
             var snapshot = await Task.Run(() =>
@@ -276,18 +325,28 @@ internal sealed class MainWindow : Window
                 return (branches, stashes, graph, wt);
             }).ConfigureAwait(false);
 
+            if (gen != _openGen)
+                return;
+
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _branches.SetBranches(snapshot.branches);
                 _stashes.SetStashes(snapshot.stashes);
                 _graph.SetGraph(snapshot.graph);
                 _working.SetWorkingTree(snapshot.wt);
-                _emptyHint.IsVisible = false;
+                Flash($"Opened {name}");
             });
         }
         catch (Exception ex)
         {
-            await Dispatcher.UIThread.InvokeAsync(() => Flash(ex.Message));
+            if (gen != _openGen)
+                return;
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _branches.ShowPlaceholder(ex.Message);
+                _graph.ShowPlaceholder(ex.Message);
+                Flash(ex.Message);
+            });
         }
     }
 
@@ -322,7 +381,7 @@ internal sealed class MainWindow : Window
         var result = await Task.Run(() => _git.Checkout(path, tipName)).ConfigureAwait(false);
         Flash(result.Message);
         if (result.Ok)
-            await RefreshOpenRepoAsync().ConfigureAwait(true);
+            await RefreshOpenRepoAsync().ConfigureAwait(false);
     }
 
     async Task OnCommandAsync(GitChromeCommandEventArgs e)
@@ -340,8 +399,8 @@ internal sealed class MainWindow : Window
             {
                 case GitChromeCommand.Refresh:
                     Flash("Refreshing…");
-                    await RefreshMatrixAsync(includeStashCount: true).ConfigureAwait(true);
-                    await RefreshOpenRepoAsync().ConfigureAwait(true);
+                    await RefreshMatrixAsync(includeStashCount: true).ConfigureAwait(false);
+                    await RefreshOpenRepoAsync().ConfigureAwait(false);
                     break;
                 case GitChromeCommand.Fetch:
                 {
@@ -358,6 +417,7 @@ internal sealed class MainWindow : Window
                         .ConfigureAwait(false);
                     Flash($"Fetch ok={result.Ok}");
                     _ = RefreshMatrixAsync(includeStashCount: false);
+                    await RefreshOpenRepoAsync().ConfigureAwait(false);
                     break;
                 }
                 case GitChromeCommand.Pull:
@@ -375,7 +435,7 @@ internal sealed class MainWindow : Window
                         .ConfigureAwait(false);
                     Flash($"Pull failures={result.Results.Count(r => r.Outcome == "failed")}");
                     _ = RefreshMatrixAsync(includeStashCount: false);
-                    await RefreshOpenRepoAsync().ConfigureAwait(true);
+                    await RefreshOpenRepoAsync().ConfigureAwait(false);
                     break;
                 }
                 case GitChromeCommand.Push:
@@ -390,13 +450,13 @@ internal sealed class MainWindow : Window
                 case GitChromeCommand.StashApply:
                 case GitChromeCommand.StashPop:
                 case GitChromeCommand.StashDrop:
-                    await StashAsync(e).ConfigureAwait(true);
+                    await StashAsync(e).ConfigureAwait(false);
                     break;
                 case GitChromeCommand.CreateBranch:
-                    await CreateBranchAsync().ConfigureAwait(true);
+                    await CreateBranchAsync().ConfigureAwait(false);
                     break;
                 case GitChromeCommand.BranchCut:
-                    await BranchCutAsync().ConfigureAwait(true);
+                    await BranchCutAsync().ConfigureAwait(false);
                     break;
             }
         }
@@ -428,7 +488,7 @@ internal sealed class MainWindow : Window
             _ => _git.StashDrop(path, idx),
         }).ConfigureAwait(false);
         Flash(r.Message);
-        await RefreshOpenRepoAsync().ConfigureAwait(true);
+        await RefreshOpenRepoAsync().ConfigureAwait(false);
     }
 
     async Task CreateBranchAsync()
@@ -453,7 +513,7 @@ internal sealed class MainWindow : Window
         var path = _openRepoPath;
         var r = await Task.Run(() => _git.CreateBranch(path, opts)).ConfigureAwait(false);
         Flash(r.Message);
-        await RefreshOpenRepoAsync().ConfigureAwait(true);
+        await RefreshOpenRepoAsync().ConfigureAwait(false);
     }
 
     async Task BranchCutAsync()
@@ -505,6 +565,8 @@ internal sealed class MainWindow : Window
             Width = 520,
             Height = 360,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = ShellBg,
+            Foreground = Brushes.WhiteSmoke,
             Content = new DockPanel
             {
                 Children =
@@ -540,6 +602,5 @@ internal sealed class MainWindow : Window
         }
 
         _status.Text = message;
-        _status.Foreground = Brushes.LightGray;
     }
 }
