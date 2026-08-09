@@ -12,6 +12,7 @@ using Novolis.Avalonia.Ship;
 using Novolis.Avalonia.Ship.Design;
 using Novolis.Avalonia.Ship.Design.Services;
 using Novolis.Avalonia.Ship.Design.Session;
+using Novolis.Cad.Primitives;
 using Novolis.Ship.Design;
 
 namespace ShipDesigner;
@@ -50,6 +51,7 @@ internal sealed class MainWindow : Window
         _cad.FitHandler = () => _editor.Fit();
         _cad.ActionResult += OnActionResult;
         // Clean slate: no factory ship / Calypso seed until Create ship or File → New Ship.
+        _editor.SetWorkspace(CadWorkspace.Cad);
     }
 
     private Control BuildLayout()
