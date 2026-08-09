@@ -1,6 +1,6 @@
 # Ship Designer
 
-Object-first ship architecture host — Open/Save `.shipjson` (`novolis.ship`), PLAN / MODEL / PRESENT workspaces, structure-first create, Calypso `.cadjson` import.
+Object-first spacecraft architecture host — Open/Save `.shipjson` (`novolis.ship` v2), PLAN / MODEL / ANALYZE workspaces, structure-first create with environment + load cases, continuous GREEN/YELLOW/RED analysis, Calypso `.cadjson` import.
 
 ```powershell
 dotnet run --project d:\novolis\novolis-apps\src\ShipDesigner\ShipDesigner.csproj -p:NovolisUseProjectReferences=true

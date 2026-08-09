@@ -88,7 +88,7 @@ internal sealed class MainWindow : Window
             () => _cad.Execute(new CadCommandDto { ActionId = ShipChrome.ValidateShipActionId })));
         ship.Items.Add(MenuCmd("Refresh airtight",
             () => _cad.Execute(new CadCommandDto { ActionId = ShipChrome.RefreshAirtightActionId })));
-        ship.Items.Add(MenuCmd("Evaluate scene", OnEvaluateScene));
+        ship.Items.Add(MenuCmd("Export scene (.nov3djson)", OnEvaluateScene));
         menu.Items.Add(file);
         menu.Items.Add(ship);
 
@@ -185,10 +185,10 @@ internal sealed class MainWindow : Window
     {
         var outDir = Path.Combine(_settings.DataRoot, "exports");
         Directory.CreateDirectory(outDir);
-        var path = Path.Combine(outDir, "ship-present.nov3djson");
+        var path = Path.Combine(outDir, "ship-analyze.nov3djson");
         var eval = ShipDesignEvaluator.Evaluate(_design.Design, path);
         _status.Text =
-            $"PRESENT: {eval.MeshNodeCount} meshes from {eval.ObjectCount} objects, {eval.CutoutCount} cutouts → {path}";
+            $"ANALYZE scene export: {eval.MeshNodeCount} meshes from {eval.ObjectCount} objects, {eval.CutoutCount} cutouts → {path}";
     }
 
     private void OnActionResult(CadActionResultEventDto e) =>

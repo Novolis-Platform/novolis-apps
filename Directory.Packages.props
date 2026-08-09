@@ -42,6 +42,7 @@
     <PackageVersion Include="Novolis.Ship.Validation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Ship.Structure" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Ship.Design" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Ship.Analysis" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Cad.Evaluation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Layout" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Live" Version="2026.1.*" />

@@ -9,12 +9,13 @@ using Novolis.Avalonia.Ship.Design;
 using Novolis.Avalonia.Ship.Design.Services;
 using Novolis.Avalonia.Ship.Design.Session;
 using Novolis.Cad.Primitives;
+using Novolis.Ship.Analysis;
 using Novolis.Ship.Design;
 using Novolis.Ship.Primitives;
 
 namespace ShipDesigner;
 
-/// <summary>Headless checks: object-first create/save, cutouts, Calypso import, legacy CAD chrome.</summary>
+/// <summary>Headless checks: object-first create/save, cutouts, analysis, Calypso import.</summary>
 internal static class SmokeRunner
 {
     public static int Run()
@@ -54,32 +55,52 @@ internal static class SmokeRunner
             design.NewShip(new ShipDefinition
             {
                 Name = "Smoke Freighter",
-                Length = ShipLengths.FromMeters(60f),
-                Beam = ShipLengths.FromMeters(16f),
+                Length = ShipLengths.FromMeters(90f),
+                Beam = ShipLengths.FromMeters(20f),
                 Height = ShipLengths.FromMeters(12f),
                 DeckCount = 3,
+                DeckSpacing = ShipLengths.FromMeters(4f),
                 HullMaterial = MaterialId.Steel,
-                HullThickness = ShipLengths.FromMeters(0.02f),
-                FrameSpacing = ShipLengths.FromMeters(4f),
-                HullGenerator = HullGeneratorKind.TaperedBox,
+                PrimaryStructuralMaterial = MaterialId.Steel,
+                HullThickness = ShipLengths.FromMeters(0.024f),
+                FrameSpacing = ShipLengths.FromMeters(1.5f),
+                HullGenerator = HullGeneratorKind.Faceted,
+                GravitySystem = GravitySystemKind.Plating,
+                NominalGravityG = 1f,
+                NominalInternalPressureAtm = 1f,
+                ExternalEnvironment = ExternalEnvironmentKind.Vacuum,
             });
             Check("factory hull entities", design.Design.Hull.Geometry.Entities.Count > 0);
             Check("factory frames", design.Design.Frames.Count > 0);
+            Check("environment seeded", design.Design.Environment.External == ExternalEnvironmentKind.Vacuum);
+            Check("load cases seeded", design.Design.LoadCases.Count >= 4);
             Check("cad mirror populated", doc.Document.Entities.Count > 0, $"count={doc.Document.Entities.Count}");
+            Check("analysis mass", design.Analysis.TotalMassKg > 1000f);
+            Check("analysis categories", design.Analysis.Categories.Count == 6);
 
             var deck = design.Design.Decks[1];
             design.Mutate(d => ShipDesignMutations.AddPassage(
                 d, deck.Id, "Main Corridor", [[0f, -20f], [0f, 20f]], 1.2f, 2.2f));
             Check("passage cutouts", design.Design.Cutouts.Count > 0);
 
+            for (var i = 0; i < 8; i++)
+            {
+                var n = i;
+                design.Mutate(d => ShipDesignMutations.AddPassage(
+                    d, deck.Id, $"P{n}", [[n - 4f, -25f], [n - 4f, 25f]], 1.2f, 2.2f));
+            }
+
+            Check("structure analysis reacts", design.Analysis.StatusOf(AnalysisCategory.Structure) != AnalysisSeverity.Green);
+
             var shipPath = Path.Combine(root, "smoke.shipjson");
             design.SaveTo(shipPath);
             Check("save shipjson", File.Exists(shipPath));
             design.OpenFromPath(shipPath);
             Check("reopen shipjson", design.Design.Frames.Count > 0);
-            Check("passage survives reopen", design.Design.Passages.Count == 1);
+            Check("schema v2", design.Design.SchemaVersion >= 2);
+            Check("passages survive reopen", design.Design.Passages.Count >= 1);
 
-            var scenePath = Path.Combine(root, "present.nov3djson");
+            var scenePath = Path.Combine(root, "analyze.nov3djson");
             var eval = ShipDesignEvaluator.Evaluate(design.Design, scenePath);
             Check("evaluate objects", eval.ObjectCount > 0);
             Check("evaluate scene file", File.Exists(scenePath));
@@ -87,7 +108,6 @@ internal static class SmokeRunner
             var val = ShipDesignValidator.Validate(design.Design);
             Check("design validation runs", val.Issues.All(i => i.Code != "SHIP_HULL_EMPTY"));
 
-            // Legacy CAD chrome still wired.
             var wall = new CadEntity
             {
                 Kind = "wall",

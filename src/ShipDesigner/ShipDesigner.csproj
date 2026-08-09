@@ -25,6 +25,7 @@
     <PackageReference Include="Novolis.Ship.Topology" />
     <PackageReference Include="Novolis.Ship.Validation" />
     <PackageReference Include="Novolis.Ship.Design" />
+    <PackageReference Include="Novolis.Ship.Analysis" />
     <PackageReference Include="Novolis.Math.Measure" />
     <PackageReference Include="Novolis.Commands.Expressions" />
     <PackageReference Include="Novolis.Raylib" />
