@@ -17,13 +17,12 @@ namespace SketchStudio;
 
 internal sealed class MainWindow : Window
 {
+    // 13 opaque standards — custom color for #RRGGBB / #AARRGGBB via popup.
     static readonly string[] Palette =
     [
-        "#1e1e1e", "#000000", "#ffffff", "#adb5bd", "#8d99ae", "#264653",
-        "#e63946", "#fb5607", "#f4a261", "#e9c46a", "#2a9d8f", "#457b9d",
-        "#3a86ff", "#8338ec", "#ff006e", "#6d597a",
-        "#801e1e1e", "#80e63946", "#80f4a261", "#802a9d8f", "#80457b9d", "#80ffffff",
-        "#40000000", "#40e63946", "#00000000"
+        "#000000", "#1e1e1e", "#ffffff", "#adb5bd", "#264653",
+        "#e63946", "#fb5607", "#e9c46a", "#2a9d8f", "#457b9d",
+        "#3a86ff", "#8338ec", "#ff006e"
     ];
 
     static readonly FilePickerFileType SketchJsonType = new("Sketch JSON")
@@ -167,7 +166,7 @@ internal sealed class MainWindow : Window
 
         SketchShortcuts.ApplyTip(
             _colorPreview,
-            SketchShortcuts.FormatTip("Current color", "—", "Active stroke color (and fill when Fill is on). Pick a swatch to change."));
+            SketchShortcuts.FormatTip("Current color", "—", "Active stroke and fill color. Use a swatch or Custom for hex/RGBA."));
 
         _recentButton = new Button
         {
@@ -211,7 +210,7 @@ internal sealed class MainWindow : Window
                 ToolBtn("fa-solid fa-font", SketchShortcuts.FormatTip("Text", "T", "Click to place a text label."), SketchTool.Text, agentId: "sketch.tool.text"),
                 ToolBtn("fa-solid fa-i-cursor", SketchShortcuts.FormatTip("Text box", "X", "Drag a bordered text box."), SketchTool.TextBox, agentId: "sketch.tool.textbox"),
                 ToolBtn("fa-solid fa-eraser", SketchShortcuts.FormatTip("Eraser", "E", "Click or drag over strokes to erase."), SketchTool.Eraser, agentId: "sketch.tool.eraser"),
-                ToolBtn("fa-solid fa-fill-drip", SketchShortcuts.FormatTip("Paint bucket", "K", "Click a shape to apply the current fill color (supports #AARRGGBB)."), SketchTool.Fill, agentId: "sketch.tool.fill"),
+                ToolBtn("fa-solid fa-fill-drip", SketchShortcuts.FormatTip("Paint bucket", "K", "Fill a closed shape, or flood an enclosed pocket between strokes."), SketchTool.Fill, agentId: "sketch.tool.fill"),
                 ToolBtn("fa-solid fa-mouse-pointer", SketchShortcuts.FormatTip("Select", "V", "Move, resize, rotate grip; Shift multi-select."), SketchTool.Select, agentId: "sketch.tool.select"),
                 Sep(),
                 IconButton(
@@ -252,17 +251,29 @@ internal sealed class MainWindow : Window
             };
             SketchShortcuts.ApplyTip(
                 btn,
-                SketchShortcuts.FormatTip(
-                    "Color",
-                    "—",
-                    swatch == "#00000000"
-                        ? "Fully transparent (#00000000)."
-                        : swatch.Length == 9
-                            ? $"Apply {swatch} (includes alpha)."
-                            : $"Apply {swatch} (also sets fill when Fill is on)."));
+                SketchShortcuts.FormatTip("Color", "—", $"Apply {swatch} to stroke and fill."));
             btn.Click += (_, _) => SetStrokeColor(swatch);
             colors.Children.Add(btn);
         }
+
+        var customBtn = new Button
+        {
+            Height = 22,
+            Padding = new Thickness(8, 0),
+            Content = new TextBlock
+            {
+                Text = "Custom…",
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center
+            },
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        SketchShortcuts.ApplyTip(
+            customBtn,
+            SketchShortcuts.FormatTip("Custom color", "—", "Open hex / RGBA editor (#RRGGBB or #AARRGGBB)."));
+        AgentProperties.SetId(customBtn, "sketch.color.custom", AgentRoleNames.Button);
+        customBtn.Click += (_, _) => _ = ShowCustomColorAsync();
+        colors.Children.Add(customBtn);
 
         var styles = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         styles.Children.Add(StyleBtn("────", SketchShortcuts.FormatTip("Solid", "—", "Continuous stroke."), SketchStrokeStyle.Solid, selected: true));

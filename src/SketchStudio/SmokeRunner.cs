@@ -71,11 +71,48 @@ internal static class SmokeRunner
         doc.AddStroke(new StrokeShape
         {
             Id = "on-overlay",
-            Points = [new SketchPoint(0, 0), new SketchPoint(5, 0), new SketchPoint(5, 5)]
+            Closed = true,
+            Points =
+            [
+                new SketchPoint(0, 0),
+                new SketchPoint(5, 0),
+                new SketchPoint(5, 5),
+                new SketchPoint(0, 0)
+            ]
         });
         Check("stroke on active layer", doc.Find("on-overlay")!.LayerId == overlay.Id);
         Check("apply fill", doc.ApplyFill("on-overlay", "#80ff0000"));
         Check("fill color", doc.Find("on-overlay")!.FillColor == "#80ff0000");
+
+        // Flood-fill pocket between four edges.
+        doc.AddStroke(new StrokeShape
+        {
+            Id = "ft",
+            StrokeWidth = 2,
+            Points = [new SketchPoint(20, 20), new SketchPoint(40, 20)]
+        });
+        doc.AddStroke(new StrokeShape
+        {
+            Id = "fr",
+            StrokeWidth = 2,
+            Points = [new SketchPoint(40, 20), new SketchPoint(40, 40)]
+        });
+        doc.AddStroke(new StrokeShape
+        {
+            Id = "fb",
+            StrokeWidth = 2,
+            Points = [new SketchPoint(40, 40), new SketchPoint(20, 40)]
+        });
+        doc.AddStroke(new StrokeShape
+        {
+            Id = "fl",
+            StrokeWidth = 2,
+            Points = [new SketchPoint(20, 40), new SketchPoint(20, 20)]
+        });
+        var beforeFlood = doc.Elements.Count;
+        Check("flood fill", doc.TryFloodFill(new SketchPoint(30, 30), "#ffe63946"));
+        Check("flood added element", doc.Elements.Count == beforeFlood + 1);
+        Check("flood fill color", doc.Elements[^1].FillColor == "#ffe63946");
 
         var json = SketchJson.Serialize(doc);
         var loaded = SketchJson.Deserialize(json);
