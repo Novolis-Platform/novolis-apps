@@ -18,7 +18,7 @@ using Novolis.Avalonia.Cad.Ui;
 using Novolis.Avalonia.Studio;
 using Novolis.Cad.Primitives;
 using Novolis.Cad.SceneBridge;
-using Novolis.Modeling.Scene;
+using Novolis._3D;
 
 namespace CadStudio3D;
 

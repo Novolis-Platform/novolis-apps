@@ -57,7 +57,7 @@
     <PackageVersion Include="Novolis.Avalonia.3D" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Cad.Primitives" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Cad.SceneBridge" Version="2026.1.*" />
-    <PackageVersion Include="Novolis.Modeling.Scene" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.3D.Scene" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Agent" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Agent.Protocol" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Agent.Core" Version="2026.1.*" />

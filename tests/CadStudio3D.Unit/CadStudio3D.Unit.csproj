@@ -11,7 +11,7 @@
     <PackageReference Include="Novolis.Avalonia.3D" />
     <PackageReference Include="Novolis.Cad.Primitives" />
     <PackageReference Include="Novolis.Cad.SceneBridge" />
-    <PackageReference Include="Novolis.Modeling.Scene" />
+    <PackageReference Include="Novolis.3D.Scene" />
     <PackageReference Include="Novolis.Agent.Core" />
     <PackageReference Include="Novolis.Agent.Surface" />
   </ItemGroup>
