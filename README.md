@@ -79,7 +79,7 @@ pwsh -File scripts/build-installer.ps1 -App All
 | Space Fleet: Survey Team | `src/SpaceFleetSurveyTeam` | Mobile field-instrument survey game (local deploy only — not released) |
 | Draft Studio | `src/DraftStudio` | Command-driven 2D/3D CAD-light (`.cadjson` + phys export) |
 | Novolis CAD Studio 3D | `src/CadStudio3D` | Full 2D/3D CAD + scene staging, materials, lit render; dual Cad/Scene agent surfaces |
-| Sketch Studio | `src/SketchStudio` | Freehand sketch studio (`SketchControl`, `.sketchjson`, PNG/SVG clipboard) |
+| Sketch Studio | `src/SketchStudio` | Freehand sketch studio — [docs/sketch-studio/](docs/sketch-studio/README.md) |
 | Coverage Studio | `src/CoverageStudio` | Org coverage / CRAP / test runner across `novolis-*` (local tooling — not released) |
 | Sins of a Capitalism Tycoon | `src/SinsOfACapitalismTycoon` | Headless/Avalonia BM economy sim (`Novolis.Economy.Core`) |
 | Capitalist Simulator | `src/CapitalistSimulator` | Capitalism 2 homage firm/unit firm sim (local only — not released) |

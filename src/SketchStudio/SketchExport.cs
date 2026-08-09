@@ -17,7 +17,7 @@ internal static class SketchExport
     public static string ToSvg(SketchDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        var bounds = ContentBounds(document.Elements);
+        var bounds = ContentBounds(document);
         if (bounds is null)
         {
             return """
@@ -36,6 +36,8 @@ internal static class SketchExport
 
         foreach (var stroke in document.Elements)
         {
+            if (!document.IsLayerVisible(stroke.LayerId))
+                continue;
             if (stroke.Points.Count == 0)
                 continue;
 
@@ -121,7 +123,7 @@ internal static class SketchExport
     {
         ArgumentNullException.ThrowIfNull(document);
         scale = Math.Clamp(scale, 0.5, 8);
-        var bounds = ContentBounds(document.Elements);
+        var bounds = ContentBounds(document);
         if (bounds is null)
             return EncodeEmptyPng(opaqueBackground);
 
@@ -151,11 +153,13 @@ internal static class SketchExport
         return ms.ToArray();
     }
 
-    static SketchRect? ContentBounds(IReadOnlyList<StrokeShape> elements)
+    static SketchRect? ContentBounds(SketchDocument document)
     {
         SketchRect? union = null;
-        foreach (var stroke in elements)
+        foreach (var stroke in document.Elements)
         {
+            if (!document.IsLayerVisible(stroke.LayerId))
+                continue;
             if (stroke.Points.Count == 0)
                 continue;
             var b = SketchBounds.RotatedAabb(stroke.Points, stroke.RotationDegrees);
@@ -233,6 +237,8 @@ internal static class SketchExport
 
             foreach (var stroke in _document.Elements)
             {
+                if (!_document.IsLayerVisible(stroke.LayerId))
+                    continue;
                 if (stroke.Points.Count == 0)
                     continue;
 

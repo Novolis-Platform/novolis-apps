@@ -27,10 +27,20 @@ WinExe for command-driven 2D/3D CAD-light drafting (LibreCAD/AutoCAD-light): typ
 
 ## Sketch Studio
 
-WinExe freehand sketch studio on `SketchControl` (pen, line, spline, box, circle, eraser, select; grid/snap/meetup/Gridify). Persists `.sketchjson` via `SketchJson`; clipboard PNG/SVG export.
+WinExe freehand / whiteboard studio on `SketchControl`.
+
+**Drawing:** pen, line, spline, box, circle, speech bubble, text, text box, eraser, select (rotate grip, Shift multi-select).  
+**Options:** grid / snap / meetup / fill / stroke styles / Gridify.  
+**Composition:** fuse / ungroup, paste image, undo/redo.  
+**Documents:** New/Open/Save/Save As `.sketchjson`; last path + MRU under `%LocalAppData%\Novolis\Sketch Studio\`.  
+**Export:** Copy / Save As PNG (opaque) and SVG.  
+**Discoverability:** hover tooltips; **F1** shortcut reference.
 
 - Path: `src/SketchStudio/`
-- Consumes `Novolis.Avalonia.Controls` from GitHub Packages (NuGet-only)
+- **Docs:** [`docs/sketch-studio/`](sketch-studio/README.md) (getting started, tools, shortcuts, architecture, …)
+- Format: [`sketchjson.md`](../../novolis-governance/docs/sketchjson.md)
+- Smoke: `dotnet run --project src/SketchStudio -- --smoke`
+- Consumes `Novolis.Avalonia.Controls`, `Novolis.Avalonia.Controls.Sketch` from GitHub Packages (NuGet-only)
 
 ## Sins of a Capitalism Tycoon
 

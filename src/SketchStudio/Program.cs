@@ -1,6 +1,7 @@
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Novolis.Avalonia.Agent;
 using Optris.Icons.Avalonia;
 using Optris.Icons.Avalonia.FontAwesome;
 
@@ -13,8 +14,35 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (args.Any(a => string.Equals(a, "--smoke", StringComparison.OrdinalIgnoreCase)))
+        {
+            Environment.ExitCode = SmokeRunner.Run();
+            return;
+        }
+
+        if (args.Any(a => string.Equals(a, "--agent-probe", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                Environment.ExitCode = AgentProbe.RunAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex);
+                Environment.ExitCode = 99;
+            }
+
+            return;
+        }
+
+        CrashGuard.Install("SketchStudio");
+
         ApplicationHost = Host.CreateDefaultBuilder(args)
-            .ConfigureServices(services => services.AddTransient<MainWindow>())
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<SketchStudioSettings>();
+                services.AddTransient<MainWindow>();
+            })
             .Build();
 
         ApplicationHost.Start();

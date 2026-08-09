@@ -80,12 +80,25 @@ dotnet run --project src/BooksWriterStudio
 ## Sketch Studio
 
 ```powershell
-dotnet run --project src/SketchStudio
+dotnet run --project d:\novolis\novolis-apps\src\SketchStudio
+dotnet run --project d:\novolis\novolis-apps\src\SketchStudio -- --smoke
 ```
 
-Freehand sketch studio (`SketchControl`): pen/line/spline/box/circle/eraser/select, grid snap + meetup + Gridify, Open/Save `.sketchjson`, clipboard PNG/SVG.
+Freehand sketch studio (`SketchControl`) with full toolbar chrome. Hover tips + **F1** shortcuts.
 
-- Shortcuts: `Ctrl+N/O/S`, `Ctrl+Shift+S`, `Ctrl+Z/Y`, `P/L/S/R/C/E/V` tools, `Del` delete selection
+**App docs (interconnected):** [`docs/sketch-studio/README.md`](sketch-studio/README.md)
+
+| Guide | Topic |
+|-------|--------|
+| [getting-started](sketch-studio/getting-started.md) | Install, run, first five minutes |
+| [tools](sketch-studio/tools.md) | Drawing tools |
+| [shortcuts](sketch-studio/shortcuts.md) | Keys + tooltips |
+| [documents](sketch-studio/documents.md) | `.sketchjson`, MRU, dirty close |
+| [export](sketch-studio/export.md) | PNG / SVG |
+| [architecture](sketch-studio/architecture.md) | Host vs Controls.Sketch |
+
+Wire format: [`sketchjson.md`](../../novolis-governance/docs/sketchjson.md)  
+Installer / portable: `SketchStudioSetup-*-win-x64.exe` / `SketchStudio-*-win-x64.zip` → `%LOCALAPPDATA%\Programs\Novolis\Sketch Studio`.
 
 ## Sins of a Capitalism Tycoon
 

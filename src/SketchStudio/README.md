@@ -1,66 +1,30 @@
 # Sketch Studio
 
-Freehand sketching studio built on [`Novolis.Avalonia.Controls`](../../../novolis-avalonia/src/Novolis.Avalonia.Controls/README.md) `SketchControl`.
+Freehand / whiteboard product host on [`Novolis.Avalonia.Controls.Sketch`](../../../novolis-avalonia/src/Novolis.Avalonia.Controls.Sketch/README.md).
+Ships as WinExe with Inno installer + portable zip from `novolis-apps` releases.
 
-Tools: Pen, Line, Spline, Box, Circle, Eraser, Select  
-Options: Snap to grid, Meetup (vertex snap), Gridify, stroke color + width + style  
-Documents: Open / Save / Save As as `.sketchjson`  
-Clipboard: Copy PNG (opaque), Copy SVG
+## Documentation
 
-## Install / run
+**Start here:** [docs/sketch-studio/getting-started.md](../../docs/sketch-studio/getting-started.md) · [tools](../../docs/sketch-studio/tools.md) · [shortcuts](../../docs/sketch-studio/shortcuts.md)
 
-From `novolis-apps`:
+**Full index:** **[docs/sketch-studio/README.md](../../docs/sketch-studio/README.md)**
+
+In the app: hover any control for a tip; press **F1** for the shortcut dialog.
+
+## Run
 
 ```powershell
-dotnet run --project src/SketchStudio
+dotnet run --project d:\novolis\novolis-apps\src\SketchStudio -p:NovolisUseProjectReferences=true
+dotnet run --project d:\novolis\novolis-apps\src\SketchStudio -p:NovolisUseProjectReferences=true -- --smoke
 ```
 
-**Dependencies:** `Novolis.Avalonia.Controls`, Avalonia Desktop, Inno packaging.
+## Dependencies
 
-## Quick start
+`Novolis.Avalonia.Controls`, `Novolis.Avalonia.Controls.Sketch`, Avalonia Desktop / Fluent / Inter, Optris Font Awesome, `Novolis.Avalonia.Packaging.Inno`.
 
-The app hosts a `SketchControl` with full toolbar chrome. For programmatic use of the same APIs:
+## Related
 
-```csharp
-using Novolis.Avalonia.Controls;
-
-var sketch = new SketchControl
-{
-    Tool = SketchTool.Pen,
-    GridSize = 20,
-    GridVisible = true,
-    SnapEnabled = true,
-    MeetupEnabled = true,
-    StrokeColor = Colors.Black,
-    StrokeWidth = 2,
-    StrokeStyle = SketchStrokeStyle.Solid,
-};
-sketch.GridifySelection(); // snap selected strokes to grid
-var json = SketchJson.Serialize(sketch.Document!);
-```
-
-## API (consumed from Controls)
-
-| API | Purpose |
-|-----|---------|
-| `SketchControl` | Main canvas: Pen/Line/Spline/Rect/Ellipse/Eraser/Select |
-| `SketchControl.Document` / `Tool` / `GridSize` / `SnapEnabled` / `MeetupEnabled` | Document and tool state |
-| `SketchControl.CompleteDrawing` / `GridifySelection` / `Undo` / `Redo` / `Clear` | Editing |
-| `SketchControl.DocumentChanged` / `SelectionChanged` | Change notifications |
-| `SketchTool` | Pen, Select, Line, Spline, Rect, Ellipse, Eraser |
-| `SketchStrokeStyle` | Solid, Dashed, Dotted, DashDot, Stipple |
-| `SketchJson.Serialize` / `Deserialize` | `.sketchjson` persistence |
-| `SketchDocument` | Strokes, selection, grid, undo history |
-
-SketchStudio adds internal `SketchExport.ToSvg` / `ToPng` for clipboard export (white background for opaque PNG).
-
-## Shortcuts
-
-`Ctrl+N/O/S`, `Ctrl+Shift+S`, `Ctrl+Z/Y`, tool keys `P/L/S/R/C/E/V`, `Del` deletes selection.
-
-## Related / dogfood
-
-| App | Notes |
-|-----|-------|
-| [SketchLab](../../../novolis-dogfooding/apps/avalonia/SketchLab) | Lighter dogfood variant; same `SketchControl` + PNG/SVG clipboard |
-| `Novolis.Avalonia.Unit` | `SketchJson` round-trip tests |
+| Resource | Role |
+|----------|------|
+| [SketchLab](../../../novolis-dogfooding/apps/avalonia/SketchLab) | Dogfood twin |
+| [novolis-apps docs](../../docs/README.md) | Install / release / design map |
