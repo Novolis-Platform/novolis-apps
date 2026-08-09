@@ -23,6 +23,7 @@
     <PackageReference Include="Novolis.Avalonia.Cad" />
     <PackageReference Include="Novolis.Avalonia.Cad.Ship" />
     <PackageReference Include="Novolis.Cad.Primitives" />
+    <PackageReference Include="Novolis.Cad.Evaluation" />
     <PackageReference Include="Novolis.Avalonia.Agent" />
     <PackageReference Include="Novolis.Avalonia.Agent.Protocol" />
     <PackageReference Include="Novolis.Avalonia.Raylib" />
