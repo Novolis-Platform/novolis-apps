@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>ShipDesigner</RootNamespace>
+    <AssemblyName>ShipDesigner</AssemblyName>
+    <ApplicationTitle>Ship Designer</ApplicationTitle>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Novolis.Avalonia.Cad" />
+    <PackageReference Include="Novolis.Avalonia.Cad.Ship" />
+    <PackageReference Include="Novolis.Avalonia.Ship" />
+    <PackageReference Include="Novolis.Avalonia.Agent" />
+    <PackageReference Include="Novolis.Avalonia.Agent.Protocol" />
+    <PackageReference Include="Novolis.Avalonia.Studio" />
+    <PackageReference Include="Novolis.Avalonia.Raylib" />
+    <PackageReference Include="Novolis.Cad.Primitives" />
+    <PackageReference Include="Novolis.Ship.Primitives" />
+    <PackageReference Include="Novolis.Ship.Topology" />
+    <PackageReference Include="Novolis.Ship.Validation" />
+    <PackageReference Include="Novolis.Commands.Expressions" />
+    <PackageReference Include="Novolis.Raylib" />
+    <PackageReference Include="Novolis.Raylib.Bindings" />
+    <PackageReference Include="Novolis.Raylib.Runtime" />
+    <PackageReference Include="Novolis.Simulation.View" />
+  </ItemGroup>
+</Project>

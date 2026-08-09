@@ -7,6 +7,7 @@
   <Folder Name="/src/">
     <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
     <Project Path="src/DraftStudio/DraftStudio.csproj" />
+    <Project Path="src/ShipDesigner/ShipDesigner.csproj" />
     <Project Path="src/CadStudio3D/CadStudio3D.csproj" />
     <Project Path="src/SketchStudio/SketchStudio.csproj" />
     <Project Path="src/CoverageStudio/CoverageStudio.csproj" />

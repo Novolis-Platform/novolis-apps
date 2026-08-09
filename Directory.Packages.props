@@ -35,6 +35,10 @@
     <PackageVersion Include="Novolis.Avalonia.Controls.Sketch" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Torrent" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Cad.Ship" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Ship" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Ship.Primitives" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Ship.Topology" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Ship.Validation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Layout" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Live" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Markdown" Version="2026.1.*" />
