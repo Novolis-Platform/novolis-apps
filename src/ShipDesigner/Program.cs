@@ -6,7 +6,8 @@ using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
-using Novolis.Avalonia.Ship;
+using Novolis.Avalonia.Ship.Design;
+using Novolis.Avalonia.Ship.Design.Session;
 
 namespace ShipDesigner;
 
@@ -40,6 +41,11 @@ internal static class Program
                     services.AddSingleton<CadCommandBus>();
                     services.AddSingleton(sp =>
                     {
+                        var settings = sp.GetRequiredService<CadEditorSettings>();
+                        return new ShipDesignSession(settings.DataRoot);
+                    });
+                    services.AddSingleton(sp =>
+                    {
                         var session = sp.GetRequiredService<CadDocumentSession>();
                         var settings = sp.GetRequiredService<CadEditorSettings>();
                         var bus = sp.GetRequiredService<CadCommandBus>();
@@ -57,7 +63,8 @@ internal static class Program
             ApplicationHost.Start();
 
             var cad = ApplicationHost.Services.GetRequiredService<CadSessionService>();
-            ShipChrome.Attach(cad);
+            var design = ApplicationHost.Services.GetRequiredService<ShipDesignSession>();
+            ShipDesignChrome.Attach(cad, design);
             CadSession = CadSessionSurface.AttachAll(cad);
 
             try

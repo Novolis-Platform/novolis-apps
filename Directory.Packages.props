@@ -36,10 +36,13 @@
     <PackageVersion Include="Novolis.Avalonia.Torrent" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Cad.Ship" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Ship" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Ship.Design" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Ship.Primitives" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Ship.Topology" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Ship.Validation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Ship.Structure" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Ship.Design" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Cad.Evaluation" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Layout" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Live" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Markdown" Version="2026.1.*" />
@@ -107,6 +110,7 @@
     <PackageVersion Include="Novolis.Manuscript.IO" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Manuscript.Metrics" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Math.Geometry" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Math.Measure" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Assessment" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Astro.Catalog" Version="2026.1.*" />

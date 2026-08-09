@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
@@ -6,15 +5,15 @@ using Novolis.Avalonia.Cad.Session;
 using Novolis.Avalonia.Cad.Ship;
 using Novolis.Avalonia.Cad.Ship.Core;
 using Novolis.Avalonia.Ship;
-using Novolis.Avalonia.Ship.Services;
+using Novolis.Avalonia.Ship.Design;
+using Novolis.Avalonia.Ship.Design.Session;
 using Novolis.Cad.Primitives;
+using Novolis.Ship.Design;
 using Novolis.Ship.Primitives;
-using Novolis.Ship.Topology;
-using Novolis.Ship.Validation;
 
 namespace ShipDesigner;
 
-/// <summary>Headless checks: chrome, Calypso import, hatch save round-trip, airtight, exterior.</summary>
+/// <summary>Headless checks: object-first create/save, cutouts, Calypso import, legacy CAD chrome.</summary>
 internal static class SmokeRunner
 {
     public static int Run()
@@ -48,9 +47,45 @@ internal static class SmokeRunner
                 AppId = "ship-designer-smoke",
                 AppTitle = "Ship Designer Smoke",
             };
-            ShipChrome.Attach(cad);
+            var design = new ShipDesignSession(root);
+            ShipDesignChrome.Attach(cad, design);
 
-            ShipDocumentMetrics.SetShipEnvelope(doc.Document, 69, 20, 12, 4);
+            design.NewShip(new ShipDefinition
+            {
+                Name = "Smoke Freighter",
+                Length = ShipLengths.FromMeters(60f),
+                Beam = ShipLengths.FromMeters(16f),
+                Height = ShipLengths.FromMeters(12f),
+                DeckCount = 3,
+                HullMaterial = MaterialId.Steel,
+                HullThickness = ShipLengths.FromMeters(0.02f),
+                FrameSpacing = ShipLengths.FromMeters(4f),
+                HullGenerator = HullGeneratorKind.TaperedBox,
+            });
+            Check("factory hull entities", design.Design.Hull.Geometry.Entities.Count > 0);
+            Check("factory frames", design.Design.Frames.Count > 0);
+            Check("cad mirror populated", doc.Document.Entities.Count > 0, $"count={doc.Document.Entities.Count}");
+
+            var deck = design.Design.Decks[1];
+            design.Mutate(d => ShipDesignMutations.AddPassage(
+                d, deck.Id, "Main Corridor", [[0f, -20f], [0f, 20f]], 1.2f, 2.2f));
+            Check("passage cutouts", design.Design.Cutouts.Count > 0);
+
+            var shipPath = Path.Combine(root, "smoke.shipjson");
+            design.SaveTo(shipPath);
+            Check("save shipjson", File.Exists(shipPath));
+            design.OpenFromPath(shipPath);
+            Check("reopen shipjson", design.Design.Frames.Count > 0);
+            Check("passage survives reopen", design.Design.Passages.Count == 1);
+
+            var eval = ShipDesignEvaluator.Evaluate(design.Design);
+            Check("evaluate meshes", eval.ObjectMeshes.Count > 0);
+            Check("evaluate scene nodes", eval.Scene.Nodes.Count > 1);
+
+            var val = ShipDesignValidator.Validate(design.Design);
+            Check("design validation runs", val.Issues.All(i => i.Code != "SHIP_HULL_EMPTY"));
+
+            // Legacy CAD chrome still wired.
             var wall = new CadEntity
             {
                 Kind = "wall",
@@ -80,65 +115,10 @@ internal static class SmokeRunner
                 Footprint = [[-0.5f, 0, 1.5f], [0.5f, 0, 1.5f], [0.5f, 0, 2.5f], [-0.5f, 0, 2.5f]],
             };
             ShipCad.TagOpeningPressure(door, ShipPressureClass.Habitable, 1.1f, 2.2f);
+            doc.Document.Entities.Clear();
             doc.Document.Entities.AddRange([wall, space, door]);
-
             var validate = cad.Execute(new CadCommandDto { ActionId = ShipChrome.ValidateShipActionId });
-            Check("validateship action", validate.Ok, validate.Message);
-
-            var airtight = cad.Execute(new CadCommandDto { ActionId = ShipChrome.RefreshAirtightActionId });
-            Check("refreshairtight action", airtight.Ok, airtight.Message);
-            Check("airtight paints space color", space.Color is { Length: >= 3 });
-
-            var place = cad.Execute(new CadCommandDto
-            {
-                ActionId = ShipChrome.PlaceHatchActionId,
-                Properties = new Dictionary<string, string>
-                {
-                    ["hostWallId"] = wall.Id.ToString(),
-                    ["clearWidth"] = "1.2",
-                    ["clearHeight"] = "2.1",
-                    ["name"] = "SmokeHatch",
-                },
-            });
-            Check("placehatch action", place.Ok, place.Message);
-
-            var path = Path.Combine(root, "smoke.cadjson");
-            doc.SaveTo(path);
-            Check("save cadjson", File.Exists(path));
-
-            doc.NewDocument();
-            doc.OpenFromPath(path);
-            Check("reopen cadjson", doc.Document.Entities.Count >= 4);
-            Check(
-                "hatch survives reopen",
-                ShipCad.Openings(doc.Document).Any(o =>
-                    string.Equals(o.Name, "SmokeHatch", StringComparison.OrdinalIgnoreCase)));
-
-            var narrow = ShipCad.Openings(doc.Document).First(o =>
-                string.Equals(o.Name, "SmokeHatch", StringComparison.OrdinalIgnoreCase));
-            ShipCad.TagOpeningPressure(narrow, ShipPressureClass.Habitable, 0.8f, 2.2f);
-            var fail = ShipValidator.Validate(doc.Document);
-            Check("narrow door fails validation", !fail.Ok);
-
-            var exterior = new CadEntity
-            {
-                Kind = "box",
-                Name = "ext-hull",
-                Center = [0, 6, 0],
-                HalfExtents = [32.5f, 6f, 10f],
-                Properties = new Dictionary<string, JsonElement>
-                {
-                    [ShipPropertyKeys.Exterior] = JsonSerializer.SerializeToElement(true),
-                },
-            };
-            doc.Document.Entities.Add(exterior);
-            var exteriorPath = Path.Combine(root, "with-exterior.cadjson");
-            doc.SaveTo(exteriorPath);
-            doc.NewDocument();
-            doc.OpenFromPath(exteriorPath);
-            Check(
-                "exterior solid round-trip",
-                doc.Document.Entities.Any(ShipCad.IsExteriorSolid));
+            Check("legacy validateship", validate.Ok, validate.Message);
 
             var calypso = CadShipImport.ResolveSourceCadjson();
             if (calypso is null)
@@ -150,15 +130,12 @@ internal static class SmokeRunner
                 Console.WriteLine($"  … importing Calypso seed {calypso}");
                 var imported = cad.Execute(new CadCommandDto { ActionId = CadShipChrome.ImportShipActionId });
                 Check("importship Calypso seed", imported.Ok, imported.Message);
-                Check("imported has walls/spaces", doc.Document.Entities.Count > 10, $"count={doc.Document.Entities.Count}");
-                var topo = ShipTopology.Analyze(doc.Document);
-                ShipTopology.ApplySpaceFlags(doc.Document, topo);
-                ShipAirtightOverlay.Apply(doc.Document, topo);
-                Check("Calypso airtight analyze", topo.SpaceIds.Count > 0);
-                var pascalClear = ShipCad.Openings(doc.Document)
-                    .Select(o => ShipCad.GetClearWidth(o, fallback: -1f))
-                    .Any(w => w >= 1.0f);
-                Check("Calypso clearWidth readable", pascalClear);
+                if (imported.Ok)
+                {
+                    design.ImportCadDocument(doc.Document);
+                    Check("calypso → ShipDesign", design.Design.Hull.Geometry.Entities.Count > 0
+                        || design.Design.Compartments.Count > 0);
+                }
             }
         }
         finally

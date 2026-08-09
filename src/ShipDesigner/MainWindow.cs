@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Novolis.Avalonia.Cad.Commands;
@@ -10,8 +9,9 @@ using Novolis.Avalonia.Cad.Session;
 using Novolis.Avalonia.Cad.Ship;
 using Novolis.Avalonia.Cad.Ui;
 using Novolis.Avalonia.Ship;
-using Novolis.Avalonia.Ship.Ui;
-using Novolis.Ship.Primitives;
+using Novolis.Avalonia.Ship.Design;
+using Novolis.Avalonia.Ship.Design.Session;
+using Novolis.Ship.Design;
 
 namespace ShipDesigner;
 
@@ -24,14 +24,14 @@ internal sealed class MainWindow : Window
     private readonly CadCommandDispatcher _dispatcher;
     private readonly CadToolController _tools;
     private readonly CadModelRenderer _modelRenderer;
+    private readonly ShipDesignSession _design;
     private CadEditorSurface _editor = null!;
     private TextBlock _status = null!;
-    private TextBlock _inspector = null!;
-    private int _deck;
 
-    public MainWindow(CadSessionService cad)
+    public MainWindow(CadSessionService cad, ShipDesignSession design)
     {
         _cad = cad;
+        _design = design;
         _session = cad.Document;
         _settings = cad.Settings;
         _bus = cad.Bus;
@@ -48,13 +48,9 @@ internal sealed class MainWindow : Window
         _cad.ExportRoot = Path.Combine(_settings.DataRoot, "exports");
         _cad.FitHandler = () => _modelRenderer.Fit();
         _cad.ActionResult += OnActionResult;
-        _session.Changed += RefreshInspector;
 
         if (_session.Document.Entities.Count == 0)
-            _session.NewDocument();
-
-        ShipDocumentMetrics.SetShipEnvelope(_session.Document, 69f, 20f, 12f, 4f);
-        RefreshInspector();
+            _design.NewShip(ShipDesignSession.DefaultDefinition("New Ship"));
     }
 
     private Control BuildLayout()
@@ -62,30 +58,27 @@ internal sealed class MainWindow : Window
         _editor = new CadEditorSurface(_session, _settings, _bus, _dispatcher, _tools, _modelRenderer);
         _status = new TextBlock
         {
-            Text = "Ready",
+            Text = "PLAN",
             Margin = new Thickness(8, 4),
             Foreground = Brushes.LightGray,
-        };
-        _inspector = new TextBlock
-        {
-            FontFamily = new FontFamily("Consolas,Courier New,monospace"),
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(8),
         };
 
         var menu = new Menu();
         var file = new MenuItem { Header = "_File" };
-        file.Items.Add(MenuCmd("New", () =>
+        file.Items.Add(MenuCmd("New Ship…", () =>
         {
-            _session.NewDocument();
-            ShipDocumentMetrics.SetShipEnvelope(_session.Document, 69, 20, 12, 4);
-            RefreshInspector();
+            _design.NewShip(ShipDesignSession.DefaultDefinition("New Ship"));
+            _status.Text = "Created new ship structure";
         }));
-        file.Items.Add(MenuCmd("Open…", OnOpen));
-        file.Items.Add(MenuCmd("Save", () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Save })));
-        file.Items.Add(MenuCmd("Save As…", OnSaveAs));
+        file.Items.Add(MenuCmd("Open .shipjson…", OnOpenShip));
+        file.Items.Add(MenuCmd("Save .shipjson", () =>
+        {
+            _design.Save();
+            _status.Text = $"Saved {_design.Path}";
+        }));
+        file.Items.Add(MenuCmd("Save As .shipjson…", OnSaveShipAs));
         file.Items.Add(new Separator());
+        file.Items.Add(MenuCmd("Export .cadjson…", OnExportCad));
         file.Items.Add(MenuCmd("Import Calypso seed…", OnImportShip));
         file.Items.Add(new Separator());
         file.Items.Add(MenuCmd("Exit", Close));
@@ -94,64 +87,16 @@ internal sealed class MainWindow : Window
             () => _cad.Execute(new CadCommandDto { ActionId = ShipChrome.ValidateShipActionId })));
         ship.Items.Add(MenuCmd("Refresh airtight",
             () => _cad.Execute(new CadCommandDto { ActionId = ShipChrome.RefreshAirtightActionId })));
-        ship.Items.Add(MenuCmd("Place hatch on selected wall", OnPlaceHatch));
+        ship.Items.Add(MenuCmd("Evaluate scene", OnEvaluateScene));
         menu.Items.Add(file);
         menu.Items.Add(ship);
 
-        var shipStrip = ShipChrome.CreateToolStrip(
-            _cad,
-            deck =>
-            {
-                _deck = deck;
-                _settings.Settings.DrawElevation = deck * ShipDocumentMetrics.GetDeckSpacingMeters(_session.Document);
-                RefreshInspector();
-            },
-            () => _deck);
-
-        var workspaceBar = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            Margin = new Thickness(8, 4),
-        };
-        workspaceBar.Children.Add(Ws("GA", "General Arrangement", isolate: true));
-        workspaceBar.Children.Add(Ws("Pressure", "Pressure & Hatches", isolate: true));
-        workspaceBar.Children.Add(Ws("Hull", "Hull & Exterior", isolate: false));
-        workspaceBar.Children.Add(Ws("Preview", "Preview", isolate: false));
-
-        var right = new ScrollViewer
-        {
-            Width = 320,
-            Content = _inspector,
-            Background = new SolidColorBrush(Color.Parse("#1a1c20")),
-        };
-
-        var body = new DockPanel();
+        var shell = ShipDesignChrome.CreateShell(_cad, _design, _editor, _status);
+        var root = new DockPanel();
         DockPanel.SetDock(menu, Dock.Top);
-        DockPanel.SetDock(shipStrip, Dock.Top);
-        DockPanel.SetDock(workspaceBar, Dock.Top);
-        DockPanel.SetDock(_status, Dock.Bottom);
-        DockPanel.SetDock(right, Dock.Right);
-        body.Children.Add(menu);
-        body.Children.Add(shipStrip);
-        body.Children.Add(workspaceBar);
-        body.Children.Add(_status);
-        body.Children.Add(right);
-        body.Children.Add(_editor);
-        return body;
-    }
-
-    private Button Ws(string label, string title, bool isolate)
-    {
-        var btn = new Button { Content = label, Padding = new Thickness(10, 4) };
-        btn.Click += (_, _) =>
-        {
-            Title = $"Ship Designer — {title}";
-            _status.Text = title;
-            _settings.Settings.IsolateLevel = isolate;
-            RefreshInspector();
-        };
-        return btn;
+        root.Children.Add(menu);
+        root.Children.Add(shell);
+        return root;
     }
 
     private static MenuItem MenuCmd(string header, Action action)
@@ -161,14 +106,15 @@ internal sealed class MainWindow : Window
         return item;
     }
 
-    private async void OnOpen()
+    private async void OnOpenShip()
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open ship .cadjson",
+            Title = "Open ship .shipjson",
             AllowMultiple = false,
             FileTypeFilter =
             [
+                new FilePickerFileType("Ship JSON") { Patterns = ["*.shipjson"] },
                 new FilePickerFileType("Cad JSON") { Patterns = ["*.cadjson"] },
             ],
         });
@@ -177,15 +123,42 @@ internal sealed class MainWindow : Window
         var path = files[0].TryGetLocalPath();
         if (path is null)
             return;
-        _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Open, Path = path });
-        RefreshInspector();
+
+        if (path.EndsWith(".cadjson", StringComparison.OrdinalIgnoreCase))
+        {
+            _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Open, Path = path });
+            _design.ImportCadDocument(_session.Document);
+            _status.Text = $"Imported CAD → design {path}";
+            return;
+        }
+
+        _design.OpenFromPath(path);
+        _status.Text = $"Opened {path}";
     }
 
-    private async void OnSaveAs()
+    private async void OnSaveShipAs()
     {
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "Save ship .cadjson",
+            Title = "Save ship .shipjson",
+            DefaultExtension = "shipjson",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("Ship JSON") { Patterns = ["*.shipjson"] },
+            ],
+        });
+        var path = file?.TryGetLocalPath();
+        if (path is null)
+            return;
+        _design.SaveTo(path);
+        _status.Text = $"Saved {path}";
+    }
+
+    private async void OnExportCad()
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export flat .cadjson",
             DefaultExtension = "cadjson",
             FileTypeChoices =
             [
@@ -196,43 +169,27 @@ internal sealed class MainWindow : Window
         if (path is null)
             return;
         _session.SaveTo(path);
-        _status.Text = $"Saved {path}";
+        _status.Text = $"Exported CAD {path}";
     }
 
     private void OnImportShip()
     {
         var result = _cad.Execute(new CadCommandDto { ActionId = CadShipChrome.ImportShipActionId });
-        _status.Text = result.Message ?? (result.Ok ? "Imported" : "Import failed");
-        RefreshInspector();
+        if (result.Ok)
+            _design.ImportCadDocument(_session.Document);
+        _status.Text = result.Message ?? (result.Ok ? "Imported → ShipDesign" : "Import failed");
     }
 
-    private void OnPlaceHatch()
+    private void OnEvaluateScene()
     {
-        var wall = _session.SelectedEntity;
-        if (wall is null || !string.Equals(wall.Kind, "wall", StringComparison.OrdinalIgnoreCase))
-        {
-            _status.Text = "Select a wall, then Place hatch.";
-            return;
-        }
-
-        var result = _cad.Execute(new CadCommandDto
-        {
-            ActionId = ShipChrome.PlaceHatchActionId,
-            Properties = new Dictionary<string, string>
-            {
-                ["hostWallId"] = wall.Id.ToString(),
-                ["clearWidth"] = "1.1",
-                ["clearHeight"] = "2.2",
-                ["name"] = "Hatch",
-            },
-        });
-        _status.Text = result.Message ?? (result.Ok ? "Hatch placed" : "Place hatch failed");
-        RefreshInspector();
+        var eval = ShipDesignEvaluator.Evaluate(_design.Design);
+        var outDir = Path.Combine(_settings.DataRoot, "exports");
+        Directory.CreateDirectory(outDir);
+        var path = Path.Combine(outDir, "ship-present.nov3djson");
+        Novolis._3D.SceneSerializer.Save(eval.Scene, path);
+        _status.Text = $"PRESENT scene: {eval.ObjectMeshes.Count} meshes → {path}";
     }
 
     private void OnActionResult(CadActionResultEventDto e) =>
         _status.Text = string.IsNullOrWhiteSpace(e.Message) ? e.ActionId : e.Message;
-
-    private void RefreshInspector() =>
-        _inspector.Text = ShipInspectorText.Format(_cad);
 }
