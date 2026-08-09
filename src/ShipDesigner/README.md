@@ -8,3 +8,5 @@ dotnet run --project d:\novolis\novolis-apps\src\ShipDesigner\ShipDesigner.cspro
 ```
 
 Data root: `%LocalAppData%\Novolis\Ship Designer`
+
+Calypso seed (after generate): `%LocalAppData%\Novolis\CalypsoCad\generated\calypso.cadjson` via **File → Import Calypso seed…**. Author exterior solids here; Calypso regenerate preserves `properties.exterior` / `ext-*` / `nacelle-*`.

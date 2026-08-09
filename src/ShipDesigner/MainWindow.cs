@@ -94,6 +94,7 @@ internal sealed class MainWindow : Window
             () => _cad.Execute(new CadCommandDto { ActionId = ShipChrome.ValidateShipActionId })));
         ship.Items.Add(MenuCmd("Refresh airtight",
             () => _cad.Execute(new CadCommandDto { ActionId = ShipChrome.RefreshAirtightActionId })));
+        ship.Items.Add(MenuCmd("Place hatch on selected wall", OnPlaceHatch));
         menu.Items.Add(file);
         menu.Items.Add(ship);
 
@@ -202,6 +203,30 @@ internal sealed class MainWindow : Window
     {
         var result = _cad.Execute(new CadCommandDto { ActionId = CadShipChrome.ImportShipActionId });
         _status.Text = result.Message ?? (result.Ok ? "Imported" : "Import failed");
+        RefreshInspector();
+    }
+
+    private void OnPlaceHatch()
+    {
+        var wall = _session.SelectedEntity;
+        if (wall is null || !string.Equals(wall.Kind, "wall", StringComparison.OrdinalIgnoreCase))
+        {
+            _status.Text = "Select a wall, then Place hatch.";
+            return;
+        }
+
+        var result = _cad.Execute(new CadCommandDto
+        {
+            ActionId = ShipChrome.PlaceHatchActionId,
+            Properties = new Dictionary<string, string>
+            {
+                ["hostWallId"] = wall.Id.ToString(),
+                ["clearWidth"] = "1.1",
+                ["clearHeight"] = "2.2",
+                ["name"] = "Hatch",
+            },
+        });
+        _status.Text = result.Message ?? (result.Ok ? "Hatch placed" : "Place hatch failed");
         RefreshInspector();
     }
 

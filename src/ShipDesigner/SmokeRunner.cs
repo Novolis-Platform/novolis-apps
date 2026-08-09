@@ -1,15 +1,20 @@
+using System.Text.Json;
 using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
+using Novolis.Avalonia.Cad.Ship;
+using Novolis.Avalonia.Cad.Ship.Core;
 using Novolis.Avalonia.Ship;
+using Novolis.Avalonia.Ship.Services;
+using Novolis.Cad.Primitives;
 using Novolis.Ship.Primitives;
 using Novolis.Ship.Topology;
 using Novolis.Ship.Validation;
 
 namespace ShipDesigner;
 
-/// <summary>Headless checks: attach chrome, validate fixture, import path resolve.</summary>
+/// <summary>Headless checks: chrome, Calypso import, hatch save round-trip, airtight, exterior.</summary>
 internal static class SmokeRunner
 {
     public static int Run()
@@ -46,7 +51,7 @@ internal static class SmokeRunner
             ShipChrome.Attach(cad);
 
             ShipDocumentMetrics.SetShipEnvelope(doc.Document, 65, 20, 12, 4);
-            var wall = new Novolis.Cad.Primitives.CadEntity
+            var wall = new CadEntity
             {
                 Kind = "wall",
                 Name = "W",
@@ -56,7 +61,7 @@ internal static class SmokeRunner
                 Height = 2.4f,
                 Thickness = 0.15f,
             };
-            var space = new Novolis.Cad.Primitives.CadEntity
+            var space = new CadEntity
             {
                 Kind = "space",
                 Name = "Hold",
@@ -64,7 +69,7 @@ internal static class SmokeRunner
                 Height = 2.4f,
                 Points = [[-2, 0, 0], [2, 0, 0], [2, 0, 4], [-2, 0, 4]],
             };
-            var door = new Novolis.Cad.Primitives.CadEntity
+            var door = new CadEntity
             {
                 Kind = "opening",
                 Name = "Door",
@@ -82,9 +87,20 @@ internal static class SmokeRunner
 
             var airtight = cad.Execute(new CadCommandDto { ActionId = ShipChrome.RefreshAirtightActionId });
             Check("refreshairtight action", airtight.Ok, airtight.Message);
+            Check("airtight paints space color", space.Color is { Length: >= 3 });
 
-            var topo = ShipTopology.Analyze(doc.Document);
-            Check("topology ran", topo.SpaceIds.Count == 1);
+            var place = cad.Execute(new CadCommandDto
+            {
+                ActionId = ShipChrome.PlaceHatchActionId,
+                Properties = new Dictionary<string, string>
+                {
+                    ["hostWallId"] = wall.Id.ToString(),
+                    ["clearWidth"] = "1.2",
+                    ["clearHeight"] = "2.1",
+                    ["name"] = "SmokeHatch",
+                },
+            });
+            Check("placehatch action", place.Ok, place.Message);
 
             var path = Path.Combine(root, "smoke.cadjson");
             doc.SaveTo(path);
@@ -92,12 +108,58 @@ internal static class SmokeRunner
 
             doc.NewDocument();
             doc.OpenFromPath(path);
-            Check("reopen cadjson", doc.Document.Entities.Count >= 3);
+            Check("reopen cadjson", doc.Document.Entities.Count >= 4);
+            Check(
+                "hatch survives reopen",
+                ShipCad.Openings(doc.Document).Any(o =>
+                    string.Equals(o.Name, "SmokeHatch", StringComparison.OrdinalIgnoreCase)));
 
-            var narrow = ShipCad.Openings(doc.Document).First();
+            var narrow = ShipCad.Openings(doc.Document).First(o =>
+                string.Equals(o.Name, "SmokeHatch", StringComparison.OrdinalIgnoreCase));
             ShipCad.TagOpeningPressure(narrow, ShipPressureClass.Habitable, 0.8f, 2.2f);
             var fail = ShipValidator.Validate(doc.Document);
             Check("narrow door fails validation", !fail.Ok);
+
+            var exterior = new CadEntity
+            {
+                Kind = "box",
+                Name = "ext-hull",
+                Center = [0, 6, 0],
+                HalfExtents = [32.5f, 6f, 10f],
+                Properties = new Dictionary<string, JsonElement>
+                {
+                    [ShipPropertyKeys.Exterior] = JsonSerializer.SerializeToElement(true),
+                },
+            };
+            doc.Document.Entities.Add(exterior);
+            var exteriorPath = Path.Combine(root, "with-exterior.cadjson");
+            doc.SaveTo(exteriorPath);
+            doc.NewDocument();
+            doc.OpenFromPath(exteriorPath);
+            Check(
+                "exterior solid round-trip",
+                doc.Document.Entities.Any(ShipCad.IsExteriorSolid));
+
+            var calypso = CadShipImport.ResolveSourceCadjson();
+            if (calypso is null)
+            {
+                Console.WriteLine("  SKIP Calypso seed (no %LocalAppData%\\Novolis\\*\\generated\\*.cadjson)");
+            }
+            else
+            {
+                Console.WriteLine($"  … importing Calypso seed {calypso}");
+                var imported = cad.Execute(new CadCommandDto { ActionId = CadShipChrome.ImportShipActionId });
+                Check("importship Calypso seed", imported.Ok, imported.Message);
+                Check("imported has walls/spaces", doc.Document.Entities.Count > 10, $"count={doc.Document.Entities.Count}");
+                var topo = ShipTopology.Analyze(doc.Document);
+                ShipTopology.ApplySpaceFlags(doc.Document, topo);
+                ShipAirtightOverlay.Apply(doc.Document, topo);
+                Check("Calypso airtight analyze", topo.SpaceIds.Count > 0);
+                var pascalClear = ShipCad.Openings(doc.Document)
+                    .Select(o => ShipCad.GetClearWidth(o, fallback: -1f))
+                    .Any(w => w >= 1.0f);
+                Check("Calypso clearWidth readable", pascalClear);
+            }
         }
         finally
         {
