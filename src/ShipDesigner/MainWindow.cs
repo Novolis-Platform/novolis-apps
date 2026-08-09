@@ -10,6 +10,7 @@ using Novolis.Avalonia.Cad.Ship;
 using Novolis.Avalonia.Cad.Ui;
 using Novolis.Avalonia.Ship;
 using Novolis.Avalonia.Ship.Design;
+using Novolis.Avalonia.Ship.Design.Services;
 using Novolis.Avalonia.Ship.Design.Session;
 using Novolis.Ship.Design;
 
@@ -182,12 +183,11 @@ internal sealed class MainWindow : Window
 
     private void OnEvaluateScene()
     {
-        var eval = ShipDesignEvaluator.Evaluate(_design.Design);
         var outDir = Path.Combine(_settings.DataRoot, "exports");
         Directory.CreateDirectory(outDir);
         var path = Path.Combine(outDir, "ship-present.nov3djson");
-        Novolis._3D.SceneSerializer.Save(eval.Scene, path);
-        _status.Text = $"PRESENT scene: {eval.ObjectMeshes.Count} meshes → {path}";
+        var eval = ShipDesignEvaluator.Evaluate(_design.Design, path);
+        _status.Text = $"PRESENT scene: {eval.ObjectCount} objects, {eval.CutoutCount} cutouts → {path}";
     }
 
     private void OnActionResult(CadActionResultEventDto e) =>

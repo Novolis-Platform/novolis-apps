@@ -21,8 +21,6 @@
     <PackageReference Include="Novolis.Avalonia.Studio" />
     <PackageReference Include="Novolis.Avalonia.Raylib" />
     <PackageReference Include="Novolis.Cad.Primitives" />
-    <PackageReference Include="Novolis.Cad.Evaluation" />
-    <PackageReference Include="Novolis.3D.Scene" />
     <PackageReference Include="Novolis.Ship.Primitives" />
     <PackageReference Include="Novolis.Ship.Topology" />
     <PackageReference Include="Novolis.Ship.Validation" />

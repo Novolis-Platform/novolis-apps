@@ -6,6 +6,7 @@ using Novolis.Avalonia.Cad.Ship;
 using Novolis.Avalonia.Cad.Ship.Core;
 using Novolis.Avalonia.Ship;
 using Novolis.Avalonia.Ship.Design;
+using Novolis.Avalonia.Ship.Design.Services;
 using Novolis.Avalonia.Ship.Design.Session;
 using Novolis.Cad.Primitives;
 using Novolis.Ship.Design;
@@ -78,9 +79,10 @@ internal static class SmokeRunner
             Check("reopen shipjson", design.Design.Frames.Count > 0);
             Check("passage survives reopen", design.Design.Passages.Count == 1);
 
-            var eval = ShipDesignEvaluator.Evaluate(design.Design);
-            Check("evaluate meshes", eval.ObjectMeshes.Count > 0);
-            Check("evaluate scene nodes", eval.Scene.Nodes.Count > 1);
+            var scenePath = Path.Combine(root, "present.nov3djson");
+            var eval = ShipDesignEvaluator.Evaluate(design.Design, scenePath);
+            Check("evaluate objects", eval.ObjectCount > 0);
+            Check("evaluate scene file", File.Exists(scenePath));
 
             var val = ShipDesignValidator.Validate(design.Design);
             Check("design validation runs", val.Issues.All(i => i.Code != "SHIP_HULL_EMPTY"));
