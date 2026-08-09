@@ -53,7 +53,7 @@ internal sealed class MainWindow : Window
         if (_session.Document.Entities.Count == 0)
             _session.NewDocument();
 
-        ShipDocumentMetrics.SetShipEnvelope(_session.Document, 65f, 20f, 12f, 4f);
+        ShipDocumentMetrics.SetShipEnvelope(_session.Document, 69f, 20f, 12f, 4f);
         RefreshInspector();
     }
 
@@ -79,7 +79,7 @@ internal sealed class MainWindow : Window
         file.Items.Add(MenuCmd("New", () =>
         {
             _session.NewDocument();
-            ShipDocumentMetrics.SetShipEnvelope(_session.Document, 65, 20, 12, 4);
+            ShipDocumentMetrics.SetShipEnvelope(_session.Document, 69, 20, 12, 4);
             RefreshInspector();
         }));
         file.Items.Add(MenuCmd("Open…", OnOpen));

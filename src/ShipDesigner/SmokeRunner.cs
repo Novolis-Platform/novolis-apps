@@ -50,7 +50,7 @@ internal static class SmokeRunner
             };
             ShipChrome.Attach(cad);
 
-            ShipDocumentMetrics.SetShipEnvelope(doc.Document, 65, 20, 12, 4);
+            ShipDocumentMetrics.SetShipEnvelope(doc.Document, 69, 20, 12, 4);
             var wall = new CadEntity
             {
                 Kind = "wall",
