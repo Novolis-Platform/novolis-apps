@@ -1,4 +1,5 @@
 using Novolis.Avalonia.Cad.Services;
+using Novolis.Cad.Evaluation;
 using Novolis.Cad.Primitives;
 
 namespace DraftStudio.Unit;
