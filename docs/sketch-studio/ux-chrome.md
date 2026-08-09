@@ -32,7 +32,7 @@ Eleven tool toggles (exclusive) including **paint bucket**, plus Complete and Cl
 
 ## Options and colors
 
-Snap / Meetup / Grid / Fill, grid size, stroke width, and an expanded palette (opaque + alpha + transparent).
+Snap / Meetup / Grid / Fill, grid size, stroke width, **13 opaque swatches**, and **Custom…** (hex / RGBA popup for `#RRGGBB` / `#AARRGGBB`).
 
 ## Layers and actions (row 3)
 

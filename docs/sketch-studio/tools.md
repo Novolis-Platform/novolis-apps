@@ -15,7 +15,7 @@ All tools live on `SketchControl` (`SketchTool`). The host toolbar buttons and l
 | Text | `T` | Click to place a label; edit in place. |
 | Text box | `X` | Drag a bordered box; edit text inside. |
 | Eraser | `E` | Click or drag over strokes to erase them. |
-| Paint bucket | `K` | Click a shape to apply the current fill color (`#RRGGBB` or `#AARRGGBB`). Closes open polylines with ≥3 points. |
+| Paint bucket | `K` | Fill a **closed** shape under the cursor, or **flood-fill** an enclosed pocket between strokes (does not auto-close open freehand into a blob). |
 | Select | `V` | Click select; **Shift** multi-select / marquee. Move, resize, rotate. **Ctrl+A** selects all (canvas focus). |
 
 ## Complete / close chrome
@@ -30,7 +30,8 @@ While a drawing tool is active, new strokes use:
 - Width slider (0.25–16)
 - Style toggles: Solid, Dashed, Dotted, Dash-dot, Stipple
 - **Fill** checkbox — new closed shapes get the current color as fill
-- **Paint bucket** — apply fill to an existing shape under the cursor
+- **Paint bucket** — recolor a closed shape, or flood an enclosed empty region bounded by strokes
+- **Colors** — 13 opaque swatches + **Custom…** (hex / RGBA, including alpha)
 
 Persisted on each element in `.sketchjson` (`strokeColor`, `strokeWidth`, `strokeStyle`, `fillColor`, `closed`). See [Sketch JSON](sketchjson.md).
 

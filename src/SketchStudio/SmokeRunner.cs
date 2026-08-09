@@ -118,7 +118,7 @@ internal static class SmokeRunner
         var loaded = SketchJson.Deserialize(json);
         Check("json version", loaded.Version >= 3);
         Check("json layers", loaded.Layers.Count >= 2);
-        Check("json element count", loaded.Elements.Count == 4);
+        Check("json element count", loaded.Elements.Count == doc.Elements.Count);
         var text = loaded.Elements.FirstOrDefault(e => e.Id == "t1");
         Check("json text kind", text?.Kind == SketchElementKind.Text && text.Text == "Smoke");
         Check("json text font", text is { FontSize: 18 });

@@ -79,6 +79,7 @@ internal sealed class MainWindow : Window
             SnapEnabled = true,
             MeetupEnabled = true,
             StrokeColor = "#1e1e1e",
+            FillColor = "#1e1e1e",
             StrokeWidth = 2
         };
         _sketch.DocumentChanged += OnSketchDocumentChanged;
@@ -636,10 +637,228 @@ internal sealed class MainWindow : Window
     void SetStrokeColor(string hex)
     {
         _sketch.StrokeColor = hex;
-        if (_sketch.FillEnabled)
-            _sketch.FillColor = hex;
+        _sketch.FillColor = hex;
         _colorPreview.Background = BrushFromHex(hex);
         RefreshStatus();
+    }
+
+    async Task ShowCustomColorAsync()
+    {
+        var current = string.IsNullOrWhiteSpace(_sketch.StrokeColor) ? "#1e1e1e" : _sketch.StrokeColor;
+        if (!TryParseColorComponents(current, out var a, out var r, out var g, out var b))
+        {
+            a = 255;
+            r = 30;
+            g = 30;
+            b = 30;
+        }
+
+        var preview = new Border
+        {
+            Width = 48,
+            Height = 48,
+            CornerRadius = new CornerRadius(6),
+            BorderBrush = Brushes.Gray,
+            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Color.FromArgb(a, r, g, b))
+        };
+
+        var hexBox = new TextBox
+        {
+            Text = FormatHex(a, r, g, b),
+            FontFamily = new FontFamily("Consolas, Cascadia Mono, Courier New, monospace"),
+            MinWidth = 140,
+            PlaceholderText = "#RRGGBB or #AARRGGBB"
+        };
+
+        TextBlock MkLabel(byte value) => new()
+        {
+            Text = value.ToString(),
+            Width = 32,
+            FontFamily = new FontFamily("Consolas, Cascadia Mono, Courier New, monospace"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        Slider MkSlider(byte value) => new()
+        {
+            Minimum = 0,
+            Maximum = 255,
+            Value = value,
+            Width = 180,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var rSlider = MkSlider(r);
+        var gSlider = MkSlider(g);
+        var bSlider = MkSlider(b);
+        var aSlider = MkSlider(a);
+        var rLabel = MkLabel(r);
+        var gLabel = MkLabel(g);
+        var bLabel = MkLabel(b);
+        var aLabel = MkLabel(a);
+
+        void SyncFromSliders()
+        {
+            r = (byte)Math.Clamp((int)Math.Round(rSlider.Value), 0, 255);
+            g = (byte)Math.Clamp((int)Math.Round(gSlider.Value), 0, 255);
+            b = (byte)Math.Clamp((int)Math.Round(bSlider.Value), 0, 255);
+            a = (byte)Math.Clamp((int)Math.Round(aSlider.Value), 0, 255);
+            rLabel.Text = r.ToString();
+            gLabel.Text = g.ToString();
+            bLabel.Text = b.ToString();
+            aLabel.Text = a.ToString();
+            preview.Background = new SolidColorBrush(Color.FromArgb(a, r, g, b));
+            if (hexBox.Tag is not true)
+                hexBox.Text = FormatHex(a, r, g, b);
+        }
+
+        void SyncFromHex()
+        {
+            if (!TryParseColorComponents(hexBox.Text?.Trim() ?? "", out var pa, out var pr, out var pg, out var pb))
+                return;
+            a = pa;
+            r = pr;
+            g = pg;
+            b = pb;
+            hexBox.Tag = true;
+            rSlider.Value = r;
+            gSlider.Value = g;
+            bSlider.Value = b;
+            aSlider.Value = a;
+            hexBox.Tag = false;
+            SyncFromSliders();
+        }
+
+        rSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) SyncFromSliders(); };
+        gSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) SyncFromSliders(); };
+        bSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) SyncFromSliders(); };
+        aSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) SyncFromSliders(); };
+        hexBox.LostFocus += (_, _) => SyncFromHex();
+        hexBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter)
+            {
+                SyncFromHex();
+                e.Handled = true;
+            }
+        };
+
+        StackPanel Row(string name, Slider slider, TextBlock value) => new()
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children =
+            {
+                new TextBlock { Text = name, Width = 16, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.75 },
+                slider,
+                value
+            }
+        };
+
+        var body = new StackPanel
+        {
+            Spacing = 10,
+            Margin = new Thickness(16),
+            Children =
+            {
+                new TextBlock { Text = "Custom color", FontSize = 16, FontWeight = FontWeight.SemiBold },
+                new TextBlock
+                {
+                    Text = "Hex (#RRGGBB / #AARRGGBB) and channel sliders. Alpha 0 = transparent fill/stroke.",
+                    Opacity = 0.7,
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 320
+                },
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 12,
+                    Children =
+                    {
+                        preview,
+                        new StackPanel
+                        {
+                            Spacing = 6,
+                            Children =
+                            {
+                                new TextBlock { Text = "Hex", Opacity = 0.75, FontSize = 12 },
+                                hexBox
+                            }
+                        }
+                    }
+                },
+                Row("R", rSlider, rLabel),
+                Row("G", gSlider, gLabel),
+                Row("B", bSlider, bLabel),
+                Row("A", aSlider, aLabel)
+            }
+        };
+
+        var cancel = new Button { Content = "Cancel", Width = 88, IsCancel = true };
+        var apply = new Button { Content = "Apply", Width = 88, IsDefault = true };
+        var footer = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = 8,
+            Margin = new Thickness(16),
+            Children = { cancel, apply }
+        };
+        DockPanel.SetDock(footer, Dock.Bottom);
+
+        var dlg = new Window
+        {
+            Title = "Custom color",
+            Width = 380,
+            Height = 420,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Content = new DockPanel
+            {
+                LastChildFill = true,
+                Children = { footer, body }
+            }
+        };
+
+        string? chosen = null;
+        cancel.Click += (_, _) => dlg.Close();
+        apply.Click += (_, _) =>
+        {
+            SyncFromHex();
+            chosen = FormatHex(a, r, g, b);
+            dlg.Close();
+        };
+
+        await dlg.ShowDialog(this);
+        if (chosen is not null)
+        {
+            SetStrokeColor(chosen);
+            SetStatus($"Color {chosen}");
+        }
+    }
+
+    static string FormatHex(byte a, byte r, byte g, byte b) =>
+        a == 255 ? $"#{r:X2}{g:X2}{b:X2}" : $"#{a:X2}{r:X2}{g:X2}{b:X2}";
+
+    static bool TryParseColorComponents(string text, out byte a, out byte r, out byte g, out byte b)
+    {
+        a = 255;
+        r = g = b = 0;
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+        try
+        {
+            var c = Color.Parse(text.Trim());
+            a = c.A;
+            r = c.R;
+            g = c.G;
+            b = c.B;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     void SelectTool(SketchTool tool)
