@@ -47,11 +47,9 @@ internal sealed class MainWindow : Window
         Content = BuildLayout();
         _cad.Editor = _editor;
         _cad.ExportRoot = Path.Combine(_settings.DataRoot, "exports");
-        _cad.FitHandler = () => _modelRenderer.Fit();
+        _cad.FitHandler = () => _editor.Fit();
         _cad.ActionResult += OnActionResult;
-
-        if (_session.Document.Entities.Count == 0)
-            _design.NewShip(ShipDesignSession.DefaultDefinition("New Ship"));
+        // Clean slate: no factory ship / Calypso seed until Create ship or File → New Ship.
     }
 
     private Control BuildLayout()
@@ -69,7 +67,13 @@ internal sealed class MainWindow : Window
         file.Items.Add(MenuCmd("New Ship…", () =>
         {
             _design.NewShip(ShipDesignSession.DefaultDefinition("New Ship"));
-            _status.Text = "Created new ship structure";
+            _status.Text = "Created New Ship — use PLAN tools to place compartments, passages, …";
+            _editor.Fit();
+        }));
+        file.Items.Add(MenuCmd("Clear to blank…", () =>
+        {
+            _design.ClearToBlank();
+            _status.Text = "Clean slate — Create ship panel or File → New Ship";
         }));
         file.Items.Add(MenuCmd("Open .shipjson…", OnOpenShip));
         file.Items.Add(MenuCmd("Save .shipjson", () =>

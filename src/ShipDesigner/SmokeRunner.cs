@@ -51,6 +51,7 @@ internal static class SmokeRunner
             };
             var design = new ShipDesignSession(root);
             ShipDesignChrome.Attach(cad, design);
+            Check("clean slate start", !design.HasShip && doc.Document.Entities.Count == 0);
 
             design.NewShip(new ShipDefinition
             {
@@ -78,10 +79,25 @@ internal static class SmokeRunner
             Check("analysis mass", design.Analysis.TotalMassKg > 1000f);
             Check("analysis categories", design.Analysis.Categories.Count == 6);
 
+            Check("has ship after create", design.HasShip);
             var deck = design.Design.Decks[1];
             design.Mutate(d => ShipDesignMutations.AddPassage(
                 d, deck.Id, "Main Corridor", [[0f, -20f], [0f, 20f]], 1.2f, 2.2f));
             Check("passage cutouts", design.Design.Cutouts.Count > 0);
+            design.Mutate(d => ShipDesignMutations.AddCompartment(
+                d, deck.Id, "Cargo Hold", [[-6f, -8f], [6f, -8f], [6f, 8f], [-6f, 8f]]));
+            design.Mutate(d => ShipDesignMutations.AddBulkhead(
+                d, deck.Id, "BH-Extra", [[-8f, 4f], [8f, 4f]], 0.08f, 3.2f));
+            design.Mutate(d => ShipDesignMutations.AddEquipment(
+                d, "Pump", [2f, 4f, 1f], [0.6f, 0.6f, 0.8f], 250f));
+            Check("compartment created", design.Design.Compartments.Count >= 1);
+            Check("bulkhead created", design.Design.Bulkheads.Count >= 4);
+            Check("equipment created", design.Design.Equipment.Count >= 1);
+
+            design.ClearToBlank();
+            Check("clear to blank", !design.HasShip && doc.Document.Entities.Count == 0);
+            design.NewShip(ShipDesignSession.DefaultDefinition("Smoke Freighter"));
+            deck = design.Design.Decks[1];
 
             for (var i = 0; i < 8; i++)
             {
