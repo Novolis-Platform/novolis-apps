@@ -48,9 +48,12 @@ internal sealed class MainWindow : Window
         Content = BuildLayout();
         _cad.Editor = _editor;
         _cad.ExportRoot = Path.Combine(_settings.DataRoot, "exports");
-        _cad.FitHandler = () => _editor.Fit();
+        _cad.FitHandler = () =>
+        {
+            if (_design.Workspace == ShipWorkspaceKind.Model)
+                _editor.Fit();
+        };
         _cad.ActionResult += OnActionResult;
-        // Clean slate: no factory ship / Calypso seed until Create ship or File → New Ship.
         _editor.SetWorkspace(CadWorkspace.Cad);
     }
 
@@ -69,8 +72,7 @@ internal sealed class MainWindow : Window
         file.Items.Add(MenuCmd("New Ship…", () =>
         {
             _design.NewShip(ShipDesignSession.DefaultDefinition("New Ship"));
-            _status.Text = "Created New Ship — use PLAN tools to place compartments, passages, …";
-            _editor.Fit();
+            _status.Text = "Created New Ship — draw Wall / Room on the deck plan";
         }));
         file.Items.Add(MenuCmd("Clear to blank…", () =>
         {

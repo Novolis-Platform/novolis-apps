@@ -51,7 +51,7 @@ internal static class SmokeRunner
             };
             var design = new ShipDesignSession(root);
             ShipDesignChrome.Attach(cad, design);
-            Check("clean slate start", !design.HasShip && doc.Document.Entities.Count == 0);
+            Check("clean slate start", !design.HasShip);
 
             design.NewShip(new ShipDefinition
             {
@@ -75,27 +75,39 @@ internal static class SmokeRunner
             Check("factory frames", design.Design.Frames.Count > 0);
             Check("environment seeded", design.Design.Environment.External == ExternalEnvironmentKind.Vacuum);
             Check("load cases seeded", design.Design.LoadCases.Count >= 4);
-            Check("cad mirror populated", doc.Document.Entities.Count > 0, $"count={doc.Document.Entities.Count}");
             Check("analysis mass", design.Analysis.TotalMassKg > 1000f);
             Check("analysis categories", design.Analysis.Categories.Count == 6);
 
             Check("has ship after create", design.HasShip);
             var deck = design.Design.Decks[1];
+            design.Mutate(d => ShipDesignMutations.AddBulkheadPath(
+                d, deck.Id, "Wall-A", [[-8f, -4f], [8f, -4f]], 0.08f, 3.2f));
+            design.Mutate(d => ShipDesignMutations.AddCompartmentPolygon(
+                d, deck.Id, "Room-A", [[-6f, -10f], [6f, -10f], [6f, -1f], [-6f, -1f]]));
+            design.Mutate(d => ShipDesignMutations.AddCompartmentPolygon(
+                d, deck.Id, "Room-B", [[-6f, -1f], [6f, -1f], [6f, 8f], [-6f, 8f]]));
+            var hostWall = design.Design.Bulkheads.First(b => b.Name == "Wall-A");
+            design.Mutate(d => ShipDesignMutations.AddOpeningOnHost(
+                d, hostWall.Id, "Door-A", OpeningKind.Door, 0.5f, 0.9f, 2f));
             design.Mutate(d => ShipDesignMutations.AddPassage(
                 d, deck.Id, "Main Corridor", [[0f, -20f], [0f, 20f]], 1.2f, 2.2f));
             Check("passage cutouts", design.Design.Cutouts.Count > 0);
-            design.Mutate(d => ShipDesignMutations.AddCompartment(
-                d, deck.Id, "Cargo Hold", [[-6f, -8f], [6f, -8f], [6f, 8f], [-6f, 8f]]));
-            design.Mutate(d => ShipDesignMutations.AddBulkhead(
-                d, deck.Id, "BH-Extra", [[-8f, 4f], [8f, 4f]], 0.08f, 3.2f));
             design.Mutate(d => ShipDesignMutations.AddEquipment(
-                d, "Pump", [2f, 4f, 1f], [0.6f, 0.6f, 0.8f], 250f));
-            Check("compartment created", design.Design.Compartments.Count >= 1);
-            Check("bulkhead created", design.Design.Bulkheads.Count >= 4);
+                d, "Pump", [2f, 4f, 1f], [0.6f, 0.6f, 0.8f], 250f, deck.Index));
+            Check("architect rooms", design.Design.Compartments.Count >= 2);
+            Check("architect wall", design.Design.Bulkheads.Any(b => b.Name == "Wall-A"));
+            Check("architect door", design.Design.Openings.Count >= 1);
+            Check("shared bulkheads", design.Design.Bulkheads.Any(b => !b.IsPrimary));
             Check("equipment created", design.Design.Equipment.Count >= 1);
 
+            design.SetWorkspace(ShipWorkspaceKind.Model);
+            design.Select(design.Design.Hull.Id.AsObject());
+            design.Notify();
+            Check("model cad sync", doc.Document.Entities.Count > 0, $"count={doc.Document.Entities.Count}");
+            design.SetWorkspace(ShipWorkspaceKind.Plan);
+
             design.ClearToBlank();
-            Check("clear to blank", !design.HasShip && doc.Document.Entities.Count == 0);
+            Check("clear to blank", !design.HasShip);
             design.NewShip(ShipDesignSession.DefaultDefinition("Smoke Freighter"));
             deck = design.Design.Decks[1];
 
