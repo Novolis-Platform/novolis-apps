@@ -187,7 +187,8 @@ internal sealed class MainWindow : Window
         Directory.CreateDirectory(outDir);
         var path = Path.Combine(outDir, "ship-present.nov3djson");
         var eval = ShipDesignEvaluator.Evaluate(_design.Design, path);
-        _status.Text = $"PRESENT scene: {eval.ObjectCount} objects, {eval.CutoutCount} cutouts → {path}";
+        _status.Text =
+            $"PRESENT: {eval.MeshNodeCount} meshes from {eval.ObjectCount} objects, {eval.CutoutCount} cutouts → {path}";
     }
 
     private void OnActionResult(CadActionResultEventDto e) =>

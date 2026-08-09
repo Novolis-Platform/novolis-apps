@@ -14,7 +14,7 @@ public sealed class EntityBoundsTests
         DraftTestHarness.DispatchOk(dispatcher, "Line(-10,0,10,0)");
         var (center, radius) = EntityBounds.Compute(session.Document);
         await Assert.That(radius).IsGreaterThanOrEqualTo(10f);
-        await Assert.That(Math.Abs(center.X)).IsLessThan(0.1f);
+        await Assert.That(System.Math.Abs(center.X)).IsLessThan(0.1f);
     }
 
     [Test]
