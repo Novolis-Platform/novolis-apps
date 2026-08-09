@@ -1,14 +1,16 @@
 using System.Security.Cryptography;
 using System.Text;
 using Novolis.Audio.Voice.EdgeTts;
-using Novolis.Manuscript.Export.Audio;
 using Novolis.Avalonia.Mobile;
+using Novolis.Manuscript.Export.Audio;
 
 namespace BooksMobile.Services;
 
-/// <summary>Speaks one chapter via Edge TTS (Ava), with on-disk cache so unchanged text is not re-synthesized.</summary>
+/// <summary>Speaks one document via Edge TTS (Ava), with on-disk cache, paragraph chunks, and prefetch.</summary>
 public sealed class ChapterSpeechService : IDisposable
 {
+    public const int MobileMaxChunkChars = 700;
+
     readonly ISynthesizer _synthesizer;
     readonly IAudioPlayer _player;
     readonly string _cacheDir;
@@ -25,15 +27,31 @@ public sealed class ChapterSpeechService : IDisposable
         ArgumentNullException.ThrowIfNull(paths);
         _cacheDir = Path.Combine(paths.RootDirectory, "tts-cache");
         Directory.CreateDirectory(_cacheDir);
-        Voice = VoiceSettings.FromProfile(EdgeVoiceProfiles.Narrator);
+
+        var profile = EdgeVoiceProfiles.Narrator;
+        Voice = new VoiceSettings
+        {
+            Voice = profile.Voice,
+            Rate = profile.Rate,
+            Pitch = profile.Pitch,
+            Volume = profile.Volume,
+            SceneBreakMs = profile.SceneBreakMs,
+            PauseMs = profile.PauseMs,
+            MaxChunkChars = MobileMaxChunkChars,
+            Pronunciation = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+        };
     }
 
-    /// <summary>Fixed narrator profile (Ava −4%).</summary>
+    /// <summary>Fixed narrator profile (Ava −4%) with mobile paragraph-sized chunks.</summary>
     public VoiceSettings Voice { get; }
 
     public bool IsSpeaking { get; private set; }
 
+    /// <summary>Raised when speaking state changes (may be off the UI thread).</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Raised when the first audio segment begins playing.</summary>
+    public event EventHandler? PlaybackStarted;
 
     public async Task SpeakChapterAsync(string markdown, CancellationToken cancellationToken = default)
     {
@@ -58,6 +76,15 @@ public sealed class ChapterSpeechService : IDisposable
         {
             var plan = SpeechPlanner.Create(markdown, Voice.ToSpeechOptions(), speakTitle: true);
             var voiceKey = EdgeVoiceCatalog.ToShortName(Voice.Voice);
+            var textSegments = plan.Segments
+                .Where(s => s.Kind == SpeechSegmentKind.Text && !string.IsNullOrWhiteSpace(s.Text))
+                .Select(s => s.Text!)
+                .ToList();
+
+            Task<(byte[] Mp3, bool FromCache)>? prefetch = null;
+            var textIndex = 0;
+            var startedPlayback = false;
+
             foreach (var segment in plan.Segments)
             {
                 linked.ThrowIfCancellationRequested();
@@ -71,10 +98,39 @@ public sealed class ChapterSpeechService : IDisposable
                 if (string.IsNullOrWhiteSpace(segment.Text))
                     continue;
 
-                var (mp3, _) = await GetOrSynthesizeAsync(segment.Text, voiceKey, linked)
-                    .ConfigureAwait(false);
+                var current = prefetch ?? GetOrSynthesizeAsync(segment.Text, voiceKey, linked);
+                prefetch = null;
+                textIndex++;
+                if (textIndex < textSegments.Count)
+                {
+                    var nextText = textSegments[textIndex];
+                    prefetch = GetOrSynthesizeAsync(nextText, voiceKey, linked);
+                }
+
+                var (mp3, _) = await current.ConfigureAwait(false);
                 linked.ThrowIfCancellationRequested();
-                await _player.PlayAsync(mp3, linked).ConfigureAwait(false);
+                if (mp3.Length == 0)
+                    continue;
+                if (!startedPlayback)
+                {
+                    startedPlayback = true;
+                    PlaybackStarted?.Invoke(this, EventArgs.Empty);
+                }
+
+                // Play on whatever context the platform player requires; do not
+                // cancel the whole chapter if one segment fails to decode.
+                try
+                {
+                    await _player.PlayAsync(mp3, linked).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch
+                {
+                    // Skip bad segment; continue with the rest of the document.
+                }
             }
         }
         finally
@@ -85,6 +141,28 @@ public sealed class ChapterSpeechService : IDisposable
         }
     }
 
+    /// <summary>Synthesizes the full document to a single MP3 (concatenated Edge segments).</summary>
+    public async Task<byte[]> SynthesizeDocumentMp3Async(
+        string markdown,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+        var plan = SpeechPlanner.Create(markdown, Voice.ToSpeechOptions(), speakTitle: true);
+        var voiceKey = EdgeVoiceCatalog.ToShortName(Voice.Voice);
+        using var ms = new MemoryStream();
+        foreach (var segment in plan.Segments)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (segment.Kind != SpeechSegmentKind.Text || string.IsNullOrWhiteSpace(segment.Text))
+                continue;
+            var (mp3, _) = await GetOrSynthesizeAsync(segment.Text, voiceKey, cancellationToken)
+                .ConfigureAwait(false);
+            await ms.WriteAsync(mp3, cancellationToken).ConfigureAwait(false);
+        }
+
+        return ms.ToArray();
+    }
+
     /// <summary>Returns whether cached audio exists for this exact markdown (Ava narrator).</summary>
     public bool HasCachedAudio(string markdown)
     {
@@ -92,15 +170,17 @@ public sealed class ChapterSpeechService : IDisposable
             return false;
         var plan = SpeechPlanner.Create(markdown, Voice.ToSpeechOptions(), speakTitle: true);
         var voiceKey = EdgeVoiceCatalog.ToShortName(Voice.Voice);
+        var any = false;
         foreach (var segment in plan.Segments)
         {
             if (segment.Kind != SpeechSegmentKind.Text || string.IsNullOrWhiteSpace(segment.Text))
                 continue;
+            any = true;
             if (!File.Exists(CachePath(segment.Text, voiceKey)))
                 return false;
         }
 
-        return plan.Segments.Any(s => s.Kind == SpeechSegmentKind.Text && !string.IsNullOrWhiteSpace(s.Text));
+        return any;
     }
 
     public void Stop()

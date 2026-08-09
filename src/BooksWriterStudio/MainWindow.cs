@@ -73,14 +73,17 @@ internal sealed class MainWindow : Window
     readonly TextBox _voiceRate = new() { PlaceholderText = "-4" };
     readonly TextBox _voicePitch = new() { PlaceholderText = "0" };
     readonly TextBox _voiceVolume = new() { PlaceholderText = "0" };
+    readonly ReadAnythingPane _readAnything = new();
 
     StudioFeedback _feedback = null!;
     AuthoringWorkspace _workspace = null!;
     Border _contextHost = null!;
+    DockPanel _editorDock = null!;
     VoiceSettings _voiceSettings = new();
     ManuscriptPrintSettings _printSettings = new();
     DispatcherTimer? _autosaveTimer;
     bool _focusMode;
+    bool _readAnythingMode;
     bool _suppressEditorSync;
     bool _suppressChapterSelection;
     bool _suppressCatalogSelection;
@@ -120,6 +123,9 @@ internal sealed class MainWindow : Window
         _voiceCombo.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(EdgeVoiceEntry.DisplayName));
         _voiceProfileCombo.ItemsSource = EdgeVoiceProfiles.All.ToList();
         _voiceProfileCombo.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(EdgeVoiceProfile.DisplayName));
+
+        _readAnything.CloseRequested += (_, _) => SetReadAnythingMode(false);
+        _readAnything.SpeakRequested += (_, _) => OnSpeakReadAnything();
     }
 
     Control BuildLayout()
@@ -138,6 +144,7 @@ internal sealed class MainWindow : Window
         topInner.Children.Add(Button("Speak", OnSpeakSelection, "Ctrl+Shift+Space"));
         topInner.Children.Add(Button("Stop", OnStopSpeech));
         topInner.Children.Add(Button("Spell", OnCheckSpelling));
+        topInner.Children.Add(Button("Read anything", OnToggleReadAnything, "Ctrl+Shift+R"));
         topInner.Children.Add(new Border
         {
             Width = 1,
@@ -151,8 +158,8 @@ internal sealed class MainWindow : Window
 
         BuildContextTabs();
 
-        var editorDock = new DockPanel();
-        editorDock.Children.Add(_editor);
+        _editorDock = new DockPanel();
+        _editorDock.Children.Add(_editor);
 
         var navTitle = new TextBlock { Text = "Chapters", FontWeight = FontWeight.Bold, Margin = new Thickness(8, 8, 8, 4) };
         var navDock = new DockPanel();
@@ -187,7 +194,7 @@ internal sealed class MainWindow : Window
             NavWidth = _settings.Settings.NavColumnWidth,
             ContextWidth = _settings.Settings.ContextColumnWidth,
             Nav = navBorder,
-            Primary = editorDock,
+            Primary = _editorDock,
             Context = _contextHost,
             TopBar = _topBar,
             StatusBar = flashStatus,
@@ -410,9 +417,23 @@ internal sealed class MainWindow : Window
 
     void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && _readAnythingMode)
+        {
+            SetReadAnythingMode(false);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.F11)
         {
             ToggleFocusMode();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control | KeyModifiers.Shift) && e.Key == Key.R)
+        {
+            OnToggleReadAnything(null!, null!);
             e.Handled = true;
             return;
         }
@@ -433,7 +454,10 @@ internal sealed class MainWindow : Window
 
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control | KeyModifiers.Shift) && e.Key == Key.Space)
         {
-            OnSpeakSelection(null!, null!);
+            if (_readAnythingMode)
+                OnSpeakReadAnything();
+            else
+                OnSpeakSelection(null!, null!);
             e.Handled = true;
         }
     }
@@ -1413,6 +1437,12 @@ internal sealed class MainWindow : Window
 
     async void OnSpeakSelection(object? sender, RoutedEventArgs e)
     {
+        if (_readAnythingMode)
+        {
+            OnSpeakReadAnything();
+            return;
+        }
+
         var selection = EditorSelectionHelper.GetSelectedText(_editor);
         if (string.IsNullOrWhiteSpace(selection))
         {
@@ -1428,6 +1458,50 @@ internal sealed class MainWindow : Window
         catch (Exception ex)
         {
             _feedback.FlashError(ex.Message);
+        }
+    }
+
+    async void OnSpeakReadAnything()
+    {
+        if (!_readAnything.HasDocument)
+        {
+            _feedback.FlashWarning("Paste or open text to speak.");
+            return;
+        }
+
+        try
+        {
+            await _speechPreview.PreviewAsync(_readAnything.DocumentText, _voiceSettings);
+            _feedback.Flash("Speaking read-anything document…");
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+        }
+    }
+
+    void OnToggleReadAnything(object? sender, RoutedEventArgs e) =>
+        SetReadAnythingMode(!_readAnythingMode);
+
+    void SetReadAnythingMode(bool enabled)
+    {
+        if (_readAnythingMode == enabled)
+            return;
+
+        _readAnythingMode = enabled;
+        if (enabled)
+        {
+            _workspace.Primary = _readAnything;
+            _workspace.Context = null;
+            _readAnything.Focus();
+            _feedback.Flash("Read anything — open a file, paste, or Esc to leave");
+        }
+        else
+        {
+            _workspace.Primary = _editorDock;
+            if (!_focusMode)
+                _workspace.Context = _contextHost;
+            _feedback.Flash("Back to writing");
         }
     }
 
@@ -1620,6 +1694,9 @@ internal sealed class MainWindow : Window
 
     void ToggleFocusMode()
     {
+        if (_readAnythingMode)
+            return;
+
         _focusMode = !_focusMode;
         if (_focusMode)
         {

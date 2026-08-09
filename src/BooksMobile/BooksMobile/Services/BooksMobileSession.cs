@@ -4,7 +4,7 @@ using Novolis.Manuscript;
 
 namespace BooksMobile.Services;
 
-/// <summary>Session: auth, mirror, catalog, open chapter.</summary>
+/// <summary>Session: auth, mirror, catalog, open chapter / selection.</summary>
 public sealed class BooksMobileSession
 {
     readonly ISecureTokenStore _tokens;
@@ -38,6 +38,10 @@ public sealed class BooksMobileSession
     public string WorkspaceRoot => _localWorkspace ?? _paths.WorkspaceDirectory;
 
     public bool IsLocalWorkspace => !string.IsNullOrWhiteSpace(_localWorkspace);
+
+    public WorkspaceMode Mode => _options.Mode;
+
+    public bool IsReviewMode => _options.Mode == WorkspaceMode.Review;
 
     public string? Status { get; private set; }
 
@@ -92,7 +96,7 @@ public sealed class BooksMobileSession
 
         BindMirror(token);
         IsSignedIn = true;
-        Status = "Signed in (restored token).";
+        Status = $"Signed in · {_options.RepoName}";
         TryOpenWorkspace();
         NotifyChanged();
         return true;
@@ -138,7 +142,7 @@ public sealed class BooksMobileSession
         BindMirror(token);
         IsSignedIn = true;
         UserCode = null;
-        Status = "Signed in.";
+        Status = $"Signed in · {_options.RepoName}";
         TryOpenWorkspace();
         NotifyChanged();
     }
@@ -162,6 +166,54 @@ public sealed class BooksMobileSession
         NotifyChanged();
     }
 
+    /// <summary>Switches Books (NMP) vs Review (MkDocs) remotes and pulls.</summary>
+    public async Task SwitchModeAsync(WorkspaceMode mode, CancellationToken cancellationToken = default)
+    {
+        if (_options.Mode == mode && _mirror is not null)
+        {
+            Status = $"Already on {_options.RepoName}.";
+            NotifyChanged();
+            return;
+        }
+
+        _options.ApplyMode(mode);
+        _openFilePath = null;
+        _openRelativePath = null;
+        _workspace = null;
+
+        if (IsLocalWorkspace)
+        {
+            Status = $"Local mode — switch remotes only applies to GitHub. Still at {WorkspaceRoot}.";
+            TryOpenWorkspace();
+            NotifyChanged();
+            return;
+        }
+
+        if (!IsSignedIn)
+        {
+            Status = mode == WorkspaceMode.Review
+                ? "Review mode selected — sign in, then Pull."
+                : "Books mode selected — sign in, then Pull.";
+            NotifyChanged();
+            return;
+        }
+
+        var token = await _tokens.GetAsync(SecureTokenKeys.GitHubOAuthAccessToken, cancellationToken)
+            .ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            IsSignedIn = false;
+            Status = "GitHub session missing — sign in again.";
+            NotifyChanged();
+            return;
+        }
+
+        BindMirror(token);
+        Status = $"Switched to {_options.RepoName} — pulling…";
+        NotifyChanged();
+        await PullAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task PullAsync(CancellationToken cancellationToken = default)
     {
         if (IsLocalWorkspace)
@@ -174,7 +226,7 @@ public sealed class BooksMobileSession
         }
 
         EnsureMirror();
-        Status = "Pulling…";
+        Status = $"Pulling {_options.RepoName}…";
         NotifyChanged();
         var result = await _mirror!.PullAsync(cancellationToken).ConfigureAwait(false);
         if (result.RequiresReauthentication)
@@ -189,7 +241,9 @@ public sealed class BooksMobileSession
         NotifyChanged();
     }
 
-    public async Task SaveCommitPushAsync(CancellationToken cancellationToken = default)
+    public async Task SaveCommitPushAsync(
+        string? message = null,
+        CancellationToken cancellationToken = default)
     {
         if (IsLocalWorkspace)
         {
@@ -205,7 +259,7 @@ public sealed class BooksMobileSession
 
         Status = "Save/Commit/Push…";
         NotifyChanged();
-        var result = await _mirror!.SaveCommitPushAsync(cancellationToken: cancellationToken)
+        var result = await _mirror!.SaveCommitPushAsync(message, cancellationToken)
             .ConfigureAwait(false);
         if (result.RequiresReauthentication)
         {
@@ -215,6 +269,17 @@ public sealed class BooksMobileSession
 
         Status = result.Message;
         NotifyChanged();
+    }
+
+    public void NoteDirtyPaths(IEnumerable<string> relativePaths)
+    {
+        if (_mirror is null)
+            return;
+        foreach (var rel in relativePaths)
+        {
+            if (!string.IsNullOrWhiteSpace(rel))
+                _mirror.NoteDirty(rel.Replace('\\', '/'));
+        }
     }
 
     async Task RequireReauthenticationAsync(string? message, CancellationToken cancellationToken)
@@ -250,9 +315,11 @@ public sealed class BooksMobileSession
             _mirror?.NoteDirty(_openRelativePath);
     }
 
-    public IReadOnlyList<SeriesInfo> LoadSeries() => WorkspaceCatalog.LoadSeries(WorkspaceRoot);
+    public IReadOnlyList<SeriesInfo> LoadSeries() =>
+        WorkspaceCatalog.LoadSeries(WorkspaceRoot, reviewMode: IsReviewMode);
 
-    public IReadOnlyList<BookInfo> LoadStandaloneBooks() => WorkspaceCatalog.LoadBooks(WorkspaceRoot);
+    public IReadOnlyList<BookInfo> LoadStandaloneBooks() =>
+        WorkspaceCatalog.LoadBooks(WorkspaceRoot, reviewMode: IsReviewMode);
 
     void BindMirror(string token)
     {

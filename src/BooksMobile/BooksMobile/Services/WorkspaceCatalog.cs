@@ -3,33 +3,43 @@ using Novolis.Manuscript;
 namespace BooksMobile.Services;
 
 /// <summary>
-/// Loads a browseable book catalog from either Manuscript <c>content/</c> layout
-/// or a MkDocs-style <c>docs/</c> tree (articles / dossiers / series).
+/// Loads a browseable catalog from NMP (<c>manuscript.yaml</c> + <c>src/</c>)
+/// or a MkDocs-style Review <c>docs/</c> tree (articles / dossiers / series).
 /// </summary>
 public static class WorkspaceCatalog
 {
-    public static IReadOnlyList<SeriesInfo> LoadSeries(string workspaceRoot)
+    public static IReadOnlyList<SeriesInfo> LoadSeries(string workspaceRoot, bool reviewMode = false)
     {
+        if (reviewMode)
+            return [];
+
         if (ManuscriptWorkspace.TryOpen(workspaceRoot, out var ws) && ws is not null)
             return ws.Catalog.Load(ws.ContentRoot);
         return [];
     }
 
-    public static IReadOnlyList<BookInfo> LoadBooks(string workspaceRoot)
+    public static IReadOnlyList<BookInfo> LoadBooks(string workspaceRoot, bool reviewMode = false)
     {
-        if (ManuscriptWorkspace.TryOpen(workspaceRoot, out var ws) && ws is not null)
+        if (!reviewMode
+            && ManuscriptWorkspace.TryOpen(workspaceRoot, out var ws)
+            && ws is not null)
             return ws.Catalog.LoadStandaloneBooks(ws.ContentRoot);
 
+        return LoadReviewDocs(workspaceRoot);
+    }
+
+    static IReadOnlyList<BookInfo> LoadReviewDocs(string workspaceRoot)
+    {
         var docs = Path.Combine(workspaceRoot, "docs");
         if (!Directory.Exists(docs))
             docs = workspaceRoot;
 
         var books = new List<BookInfo>();
-        AddFolderBook(books, docs, "articles", "Selections", "Republished selections");
-        AddFolderBook(books, docs, "dossiers", "Dossiers", "Curated reading packets");
-        AddFolderBook(books, docs, "series", "Series", "Continuing reader tracks");
+        // Review MkDocs archive — not NMP books; titles make that clear in the library.
+        AddFolderBook(books, docs, "articles", "Selections", "Review archive · docs/articles (not NMP books)");
+        AddFolderBook(books, docs, "dossiers", "Dossiers", "Review dossiers · docs/dossiers");
+        AddFolderBook(books, docs, "series", "Series tracks", "Review series · docs/series");
 
-        // Top-level editorial pages as their own short book.
         var rootPages = Directory.Exists(docs)
             ? Directory.GetFiles(docs, "*.md", SearchOption.TopDirectoryOnly)
             : [];
@@ -37,8 +47,8 @@ public static class WorkspaceCatalog
         {
             books.Add(MakeBook(
                 "editorial",
-                "Editorial",
-                "Front matter and house pages",
+                "Editorial pages",
+                "Review house pages under docs/",
                 docs,
                 rootPages));
         }

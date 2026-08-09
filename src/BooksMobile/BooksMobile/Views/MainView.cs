@@ -22,6 +22,8 @@ public sealed class MainView : UserControl
         Library,
         Book,
         Chapter,
+        ReadAnything,
+        PasteSelection,
     }
 
     enum ChapterMode
@@ -32,6 +34,7 @@ public sealed class MainView : UserControl
 
     readonly BooksMobileSession _session;
     readonly ChapterSpeechService _speech;
+    readonly ReviewSelectionImporter _importer;
     readonly IScreenWakeLock _wakeLock;
     readonly AuthoringWorkspace _workspace;
     readonly Control _authPanel;
@@ -52,6 +55,8 @@ public sealed class MainView : UserControl
     readonly TextBlock _chapterMeta = BooksTheme.Muted(string.Empty, 12);
     readonly Border _editorHost;
     readonly MarkdownPreviewPane _preview;
+    readonly ReadAnythingView _readAnything = new();
+    readonly PasteSelectionView _pasteSelection = new();
     readonly DispatcherTimer _autoSaveTimer;
 
     MarkdownSourceEditor? _editor;
@@ -65,13 +70,20 @@ public sealed class MainView : UserControl
     string? _lastClipboardCode;
     string? _chapterTitle;
     ChapterInfo? _openChapter;
+    string? _speechMarkdownSource;
+    string? _speechMarkdownCache;
     bool _suppressDirty;
     bool _busy;
 
-    public MainView(BooksMobileSession session, ChapterSpeechService speech, IScreenWakeLock wakeLock)
+    public MainView(
+        BooksMobileSession session,
+        ChapterSpeechService speech,
+        ReviewSelectionImporter importer,
+        IScreenWakeLock wakeLock)
     {
         _session = session;
         _speech = speech;
+        _importer = importer;
         _wakeLock = wakeLock;
         Background = BooksPalette.WindowBrush;
         Focusable = true;
@@ -183,6 +195,13 @@ public sealed class MainView : UserControl
 
         _session.Changed += (_, _) => Dispatcher.UIThread.Post(OnSessionChanged);
         _speech.Changed += (_, _) => Dispatcher.UIThread.Post(OnSpeechChanged);
+        _speech.PlaybackStarted += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            if (_speech.IsSpeaking)
+                SetStatus("Speaking…");
+        });
+        _readAnything.ListenRequested += async (_, _) => await OnReadAnythingListenAsync();
+        _pasteSelection.ImportRequested += async (_, _) => await RunUi(ImportSelectionAsync);
 
         AttachedToVisualTree += async (_, _) =>
         {
@@ -271,6 +290,8 @@ public sealed class MainView : UserControl
         var push = new MenuItem { Header = "Save / Commit / Push" };
         var undo = new MenuItem { Header = "Undo pending changes" };
         var read = new MenuItem { Header = "Toggle reading mode" };
+        var readAnything = new MenuItem { Header = "Read anything" };
+        var pasteSelection = new MenuItem { Header = "Paste selection…" };
         var library = new MenuItem { Header = "Library" };
         var signOut = new MenuItem { Header = "Sign out" };
         pull.Click += async (_, _) => await RunUi(PullAsync);
@@ -281,11 +302,26 @@ public sealed class MainView : UserControl
             if (_screen == Screen.Chapter)
                 ToggleChapterMode();
         };
+        readAnything.Click += (_, _) => ShowReadAnything();
+        pasteSelection.Click += (_, _) =>
+        {
+            if (!_session.IsReviewMode)
+            {
+                SetStatus("Switch to Review mode to paste a selection.");
+                return;
+            }
+
+            ShowPasteSelection();
+        };
         library.Click += (_, _) => ShowLibrary();
         signOut.Click += async (_, _) => await RunUi(SignOutAsync);
         return new MenuFlyout
         {
-            Items = { pull, push, undo, read, new Separator(), library, signOut },
+            Items =
+            {
+                pull, push, undo, read, readAnything, pasteSelection,
+                new Separator(), library, signOut,
+            },
         };
     }
 
@@ -297,6 +333,8 @@ public sealed class MainView : UserControl
             ReleaseWake();
         RefreshChrome();
         UpdateChapterActions();
+        if (_screen == Screen.ReadAnything)
+            RefreshReadAnythingListen();
     }
 
     void EnsureWake()
@@ -381,6 +419,27 @@ public sealed class MainView : UserControl
         RenderCurrentScreen();
     }
 
+    void ShowReadAnything()
+    {
+        FlushEditorToDisk();
+        _speech.Stop();
+        ReleaseWake();
+        _screen = Screen.ReadAnything;
+        RenderCurrentScreen();
+        SetStatus("Scratch reader — not part of your library / protocol tree.");
+        RefreshReadAnythingListen();
+    }
+
+    void ShowPasteSelection()
+    {
+        FlushEditorToDisk();
+        _speech.Stop();
+        ReleaseWake();
+        _screen = Screen.PasteSelection;
+        RenderCurrentScreen();
+        _pasteSelection.SetStatus("Paste a template-valid selection, then Import + audio + push.");
+    }
+
     void ShowBook(BookInfo book, string? seriesTitle)
     {
         FlushEditorToDisk();
@@ -420,17 +479,39 @@ public sealed class MainView : UserControl
             _baselineText = text;
             _chapterTitle = chapter.Title;
             _openChapter = chapter;
+            _speechMarkdownSource = null;
+            _speechMarkdownCache = null;
             _screen = Screen.Chapter;
             ReplaceEditor(text);
             ApplyChapterMode();
             RenderCurrentScreen();
-            SetStatus($"{(_chapterMode == ChapterMode.Read ? "Reading" : "Editing")} · {chapter.Title}");
+            var unit = _session.IsReviewMode ? "selection" : "chapter";
+            SetStatus($"{(_chapterMode == ChapterMode.Read ? "Reading" : "Editing")} {unit} · {chapter.Title}");
             if (_chapterMode == ChapterMode.Edit)
                 Dispatcher.UIThread.Post(FocusEditorInput, DispatcherPriority.Input);
         }
         catch (Exception ex)
         {
-            SetStatus($"Could not open chapter: {ex.Message}");
+            SetStatus($"Could not open: {ex.Message}");
+        }
+    }
+
+    string PrepareSpeechMarkdown(string markdown)
+    {
+        if (!_session.IsReviewMode)
+            return markdown;
+        if (_speechMarkdownSource == markdown && _speechMarkdownCache is not null)
+            return _speechMarkdownCache;
+        try
+        {
+            _speechMarkdownCache = ReviewSpeechText.ToSpeechMarkdown(markdown);
+            _speechMarkdownSource = markdown;
+            return _speechMarkdownCache;
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Speech prep failed: {ex.Message}");
+            return markdown;
         }
     }
 
@@ -487,7 +568,19 @@ public sealed class MainView : UserControl
 
     void SyncPreviewFromEditor()
     {
-        _preview.Markdown = _editor?.Text ?? string.Empty;
+        try
+        {
+            var text = _editor?.Text ?? string.Empty;
+            // Review masthead HTML / !!! admonitions have crashed HtmlPanel on Android.
+            if (_session.IsReviewMode)
+                text = ReviewSpeechText.ToPreviewMarkdown(text);
+            _preview.Markdown = text;
+        }
+        catch (Exception ex)
+        {
+            _preview.Markdown = $"*(Preview failed: {ex.Message})*";
+            SetStatus($"Preview failed: {ex.Message}");
+        }
     }
 
     void ReplaceEditor(string text)
@@ -604,6 +697,8 @@ public sealed class MainView : UserControl
                 SetStatus(_openBook is null ? "Library" : _openBook.Title);
                 break;
             case Screen.Book:
+            case Screen.ReadAnything:
+            case Screen.PasteSelection:
                 ShowLibrary();
                 break;
             default:
@@ -637,6 +732,17 @@ public sealed class MainView : UserControl
                 _workspace.Primary = _chapterHost;
                 _workspace.ShowRegion(AuthoringRegion.Primary);
                 break;
+            case Screen.ReadAnything:
+                _workspace.TopBar = _chrome;
+                _workspace.Primary = _readAnything;
+                _workspace.ShowRegion(AuthoringRegion.Primary);
+                RefreshReadAnythingListen();
+                break;
+            case Screen.PasteSelection:
+                _workspace.TopBar = _chrome;
+                _workspace.Primary = _pasteSelection;
+                _workspace.ShowRegion(AuthoringRegion.Primary);
+                break;
             default:
                 _workspace.TopBar = _chrome;
                 _workspace.Nav = new TextBlock { Text = string.Empty };
@@ -650,7 +756,8 @@ public sealed class MainView : UserControl
 
     void RefreshChrome()
     {
-        _backButton.IsVisible = _screen is Screen.Book or Screen.Chapter;
+        _backButton.IsVisible = _screen is Screen.Book or Screen.Chapter or Screen.ReadAnything
+            or Screen.PasteSelection;
         _backButton.IsEnabled = true;
         _menuButton.IsVisible = true;
         _menuButton.IsEnabled = true;
@@ -658,14 +765,19 @@ public sealed class MainView : UserControl
         var mode = _screen == Screen.Chapter
             ? (_chapterMode == ChapterMode.Read ? " · read" : " · edit")
             : string.Empty;
+        var unit = _session.IsReviewMode ? "Selection" : "Chapter";
         _chromeTitle.Text = _screen switch
         {
-            Screen.Library => "Library",
-            Screen.Book => _openBook?.Title ?? "Book",
-            Screen.Chapter => $"{_chapterTitle ?? "Chapter"}{mode}{dirty}",
+            Screen.Library => _session.IsReviewMode ? "Review" : "Books · NMP/1",
+            Screen.Book => _openBook?.Title ?? (_session.IsReviewMode ? "Archive" : "Book"),
+            Screen.Chapter => $"{_chapterTitle ?? unit}{mode}{dirty}",
+            Screen.ReadAnything => "Read anything",
+            Screen.PasteSelection => "Paste selection",
             _ => "Books",
         };
         UpdateChapterActions();
+        if (_screen == Screen.ReadAnything)
+            RefreshReadAnythingListen();
     }
 
     Control BuildLibraryPage()
@@ -674,19 +786,30 @@ public sealed class MainView : UserControl
         var standalone = _session.LoadStandaloneBooks();
         var list = new StackPanel { Spacing = 4, Margin = new Thickness(16) };
 
+        list.Children.Add(BuildWorkspaceSwitcher());
+
+        if (_session.IsReviewMode)
+        {
+            list.Children.Add(BooksTheme.BrandTitle("Galactic Confederation Review", 22));
+            list.Children.Add(BooksTheme.Muted(
+                "MkDocs docs/ selections — not manuscript books. Structure is the Review archive, not NMP/1."));
+        }
+        else
+        {
+            list.Children.Add(BooksTheme.BrandTitle("Books · NMP/1", 22));
+            list.Children.Add(BooksTheme.Muted(
+                "Novolis Manuscript Protocol — Fiction / NonFiction folders under manuscript.yaml + src/. Series and books are directories."));
+        }
+
         if (series.Count == 0 && standalone.Count == 0)
         {
-            list.Children.Add(BooksTheme.BrandTitle("Your books", 24));
             list.Children.Add(BooksTheme.Muted(
-                "Nothing synced yet. Use Menu → Pull from GitHub to download your library."));
+                "Nothing synced yet. Use Menu → Pull from GitHub to download."));
             var pull = BooksTheme.Button("Pull from GitHub", BooksButtonKind.Primary);
             pull.Click += async (_, _) => await RunUi(PullAsync);
             list.Children.Add(pull);
             return new ScrollViewer { Content = list };
         }
-
-        list.Children.Add(BooksTheme.BrandTitle("Your books", 24));
-        list.Children.Add(BooksTheme.Muted("Pick a book — read, edit, or listen on the go."));
 
         foreach (var s in series)
         {
@@ -697,12 +820,51 @@ public sealed class MainView : UserControl
 
         if (standalone.Count > 0)
         {
-            list.Children.Add(BooksTheme.Muted("Collections", 12));
+            list.Children.Add(BooksTheme.Muted(
+                _session.IsReviewMode ? "Archive collections" : "Standalone books / collections",
+                12));
             foreach (var book in standalone)
                 list.Children.Add(MakeBookCard(book, null));
         }
 
-        return new ScrollViewer { Content = list, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        return new ScrollViewer
+        {
+            Content = list,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+        };
+    }
+
+    Control BuildWorkspaceSwitcher()
+    {
+        var booksBtn = BooksTheme.Button("Books (NMP)", BooksButtonKind.Secondary);
+        var reviewBtn = BooksTheme.Button("Review", BooksButtonKind.Secondary);
+        if (_session.Mode == WorkspaceMode.Books)
+            BooksTheme.StyleButton(booksBtn, BooksButtonKind.Primary);
+        else
+            BooksTheme.StyleButton(reviewBtn, BooksButtonKind.Primary);
+
+        booksBtn.HorizontalAlignment = HorizontalAlignment.Left;
+        reviewBtn.HorizontalAlignment = HorizontalAlignment.Left;
+        booksBtn.MinWidth = 0;
+        reviewBtn.MinWidth = 0;
+        booksBtn.Click += async (_, _) => await RunUi(async () =>
+        {
+            await _session.SwitchModeAsync(WorkspaceMode.Books);
+            ShowLibrary();
+        });
+        reviewBtn.Click += async (_, _) => await RunUi(async () =>
+        {
+            await _session.SwitchModeAsync(WorkspaceMode.Review);
+            ShowLibrary();
+        });
+
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Thickness(0, 0, 0, 12),
+            Children = { booksBtn, reviewBtn },
+        };
     }
 
     Control MakeBookCard(BookInfo book, string? seriesTitle)
@@ -710,8 +872,9 @@ public sealed class MainView : UserControl
         var title = BooksTheme.Body(book.Title, 17);
         title.FontFamily = BooksPalette.DisplayFont;
         title.FontWeight = FontWeight.SemiBold;
+        var unit = _session.IsReviewMode ? "selection" : "chapter";
         var meta = BooksTheme.Muted(
-            $"{book.Chapters.Count} chapter{(book.Chapters.Count == 1 ? "" : "s")}"
+            $"{book.Chapters.Count} {unit}{(book.Chapters.Count == 1 ? "" : "s")}"
             + (string.IsNullOrWhiteSpace(book.Author) ? "" : $" · {book.Author}"));
         var stack = new StackPanel { Spacing = 4, Children = { title, meta } };
         if (!string.IsNullOrWhiteSpace(book.Subtitle))
@@ -745,12 +908,16 @@ public sealed class MainView : UserControl
             list.Children.Add(BooksTheme.Muted(_openSeriesTitle!));
         if (!string.IsNullOrWhiteSpace(_openBook.Subtitle))
             list.Children.Add(BooksTheme.Muted(_openBook.Subtitle!));
-        list.Children.Add(BooksTheme.Muted("Chapters — opens in reading mode; tap Edit to change text.", 13));
+        list.Children.Add(BooksTheme.Muted(
+            _session.IsReviewMode
+                ? "Selections — opens in reading mode; tap Edit to change text."
+                : "Chapters — opens in reading mode; tap Edit to change text.",
+            13));
 
         foreach (var ch in _openBook.Chapters)
         {
             var label = BooksTheme.Body(ch.Title, 16);
-            var kind = BooksTheme.Muted(ch.Kind.ToString(), 11);
+            var kind = BooksTheme.Muted(_session.IsReviewMode ? "Selection" : ch.Kind.ToString(), 11);
             var row = new StackPanel { Spacing = 2, Children = { label, kind } };
             var btn = new Button
             {
@@ -782,7 +949,7 @@ public sealed class MainView : UserControl
             _listenButton.Content = "Stop";
         else
         {
-            var text = _editor?.Text ?? string.Empty;
+            var text = PrepareSpeechMarkdown(_editor?.Text ?? string.Empty);
             _listenButton.Content = _speech.HasCachedAudio(text) ? "Listen ✓" : "Listen";
         }
 
@@ -816,6 +983,12 @@ public sealed class MainView : UserControl
 
     async Task OnListenClickAsync()
     {
+        if (_screen == Screen.ReadAnything)
+        {
+            await OnReadAnythingListenAsync();
+            return;
+        }
+
         if (_speech.IsSpeaking)
         {
             _speech.Stop();
@@ -829,15 +1002,15 @@ public sealed class MainView : UserControl
 
         try
         {
-            var text = _editor?.Text ?? string.Empty;
+            var text = PrepareSpeechMarkdown(_editor?.Text ?? string.Empty);
             var cached = _speech.HasCachedAudio(text);
             SetStatus(cached
                 ? "Playing cached audio (Ava)…"
-                : "Synthesizing with Edge TTS (Ava)…");
+                : "Synthesizing first paragraph…");
             EnsureWake();
             UpdateChapterActions();
             await _speech.SpeakChapterAsync(text);
-            SetStatus(cached ? "Finished (from cache)." : "Finished chapter.");
+            SetStatus(cached ? "Finished (from cache)." : "Finished.");
         }
         catch (OperationCanceledException)
         {
@@ -855,6 +1028,95 @@ public sealed class MainView : UserControl
             if (_chapterMode == ChapterMode.Edit)
                 Dispatcher.UIThread.Post(FocusEditorInput, DispatcherPriority.Input);
         }
+    }
+
+    async Task OnReadAnythingListenAsync()
+    {
+        if (_speech.IsSpeaking)
+        {
+            _speech.Stop();
+            ReleaseWake();
+            SetStatus("Stopped.");
+            RefreshReadAnythingListen();
+            return;
+        }
+
+        if (!_readAnything.HasDocument)
+        {
+            SetStatus("Paste or open text to listen.");
+            return;
+        }
+
+        try
+        {
+            var text = _readAnything.DocumentText;
+            var cached = _speech.HasCachedAudio(text);
+            SetStatus(cached
+                ? "Playing cached audio (Ava)…"
+                : "Synthesizing first paragraph…");
+            EnsureWake();
+            RefreshReadAnythingListen();
+            await _speech.SpeakChapterAsync(text);
+            SetStatus(cached ? "Finished (from cache)." : "Finished reading.");
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Stopped.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus(ex.Message);
+        }
+        finally
+        {
+            ReleaseWake();
+            RefreshReadAnythingListen();
+            RefreshChrome();
+        }
+    }
+
+    void RefreshReadAnythingListen()
+    {
+        _readAnything.SetListening(
+            _speech.IsSpeaking,
+            _readAnything.HasDocument && _speech.HasCachedAudio(_readAnything.DocumentText));
+    }
+
+    async Task ImportSelectionAsync()
+    {
+        if (!_session.IsReviewMode)
+        {
+            SetStatus("Switch to Review mode first.");
+            return;
+        }
+
+        var pasted = _pasteSelection.PastedText;
+        var (ok, message, _) = ReviewSelectionImporter.Validate(pasted);
+        if (!ok)
+        {
+            _pasteSelection.SetStatus(message);
+            SetStatus(message);
+            return;
+        }
+
+        _pasteSelection.SetStatus("Importing selection + synthesizing audio…");
+        SetStatus("Importing selection + synthesizing audio…");
+        var result = await _importer.ImportAsync(_session.WorkspaceRoot, pasted);
+        if (!result.Ok)
+        {
+            _pasteSelection.SetStatus(result.Message);
+            SetStatus(result.Message);
+            return;
+        }
+
+        if (result.DirtyPaths is { Count: > 0 })
+            _session.NoteDirtyPaths(result.DirtyPaths);
+
+        _pasteSelection.SetStatus($"{result.Message} Pushing…");
+        await _session.SaveCommitPushAsync($"Release selection: {result.Slug}.");
+        _pasteSelection.SetStatus(_session.Status ?? result.Message);
+        SetStatus(_session.Status ?? result.Message);
+        ShowLibrary();
     }
 
     void SetStatus(string? text)

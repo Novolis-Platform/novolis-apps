@@ -1,3 +1,4 @@
+using BooksMobile.Services;
 using Novolis.Avalonia.Mobile;
 
 namespace BooksMobile;
@@ -6,8 +7,16 @@ namespace BooksMobile;
 public sealed class BooksMobileOptions
 {
     public const string DefaultOwner = "frankhaugen";
-    public const string DefaultRepo = "books";
-    public const string DefaultContentPrefix = "src/";
+    public const string BooksRepo = "books";
+    public const string ReviewRepo = "galactic-confederation-review";
+    public const string BooksContentPrefix = "src/";
+    public const string ReviewContentPrefix = "docs/";
+
+    /// <summary>Legacy alias for <see cref="BooksRepo"/>.</summary>
+    public const string DefaultRepo = BooksRepo;
+
+    /// <summary>Legacy alias for <see cref="BooksContentPrefix"/>.</summary>
+    public const string DefaultContentPrefix = BooksContentPrefix;
 
     /// <summary>
     /// Public OAuth App client id (Device Flow). Not a secret — safe to ship in the app.
@@ -21,11 +30,23 @@ public sealed class BooksMobileOptions
     public BooksMobileOptions()
     {
         RepoOwner = EnvOr("BOOKSMOBILE_REPO_OWNER", DefaultOwner);
-        RepoName = EnvOr("BOOKSMOBILE_REPO_NAME", DefaultRepo);
-        ContentPrefix = EnvOr("BOOKSMOBILE_CONTENT_PREFIX", DefaultContentPrefix);
-        if (!ContentPrefix.EndsWith('/'))
-            ContentPrefix += "/";
         LocalWorkspace = Environment.GetEnvironmentVariable("BOOKSMOBILE_LOCAL_WORKSPACE")?.Trim();
+
+        var envRepo = Environment.GetEnvironmentVariable("BOOKSMOBILE_REPO_NAME")?.Trim();
+        var envPrefix = Environment.GetEnvironmentVariable("BOOKSMOBILE_CONTENT_PREFIX")?.Trim();
+        if (!string.IsNullOrWhiteSpace(envRepo) || !string.IsNullOrWhiteSpace(envPrefix))
+        {
+            RepoName = string.IsNullOrWhiteSpace(envRepo) ? BooksRepo : envRepo;
+            ContentPrefix = NormalizePrefix(string.IsNullOrWhiteSpace(envPrefix) ? BooksContentPrefix : envPrefix);
+            Mode = string.Equals(RepoName, ReviewRepo, StringComparison.OrdinalIgnoreCase)
+                ? WorkspaceMode.Review
+                : WorkspaceMode.Books;
+        }
+        else
+        {
+            Mode = WorkspaceMode.Books;
+            ApplyMode(WorkspaceMode.Books);
+        }
     }
 
     /// <summary>GitHub OAuth App client id (public). Re-reads env/files each get.</summary>
@@ -37,10 +58,13 @@ public sealed class BooksMobileOptions
 
     public string RepoOwner { get; set; }
 
-    public string RepoName { get; set; }
+    public string RepoName { get; set; } = BooksRepo;
 
-    /// <summary>Sparse mirror path prefix (<c>src/</c> for NMP/1, or a custom prefix).</summary>
-    public string ContentPrefix { get; set; }
+    /// <summary>Sparse mirror path prefix (<c>src/</c> for NMP/1, or <c>docs/</c> for Review).</summary>
+    public string ContentPrefix { get; set; } = BooksContentPrefix;
+
+    /// <summary>Active workspace mode (Books NMP vs Review MkDocs).</summary>
+    public WorkspaceMode Mode { get; private set; }
 
     /// <summary>
     /// Optional absolute path to a local git checkout (desktop testing).
@@ -48,9 +72,50 @@ public sealed class BooksMobileOptions
     /// </summary>
     public string? LocalWorkspace { get; set; }
 
-    /// <summary>Binds app-data paths so client id can be read from <c>{Root}/github-client-id.txt</c>.</summary>
-    public void BindAppDataPaths(IAppDataPaths paths) =>
+    /// <summary>Binds app-data paths so client id and mode can be read from disk.</summary>
+    public void BindAppDataPaths(IAppDataPaths paths)
+    {
         _appDataPaths = paths ?? throw new ArgumentNullException(nameof(paths));
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BOOKSMOBILE_REPO_NAME")))
+            return;
+
+        var modePath = ModeFilePath(paths);
+        if (File.Exists(modePath)
+            && Enum.TryParse<WorkspaceMode>(File.ReadAllText(modePath).Trim(), ignoreCase: true, out var mode))
+        {
+            ApplyMode(mode);
+        }
+    }
+
+    /// <summary>Switches Books vs Review remotes and persists the choice.</summary>
+    public void ApplyMode(WorkspaceMode mode)
+    {
+        Mode = mode;
+        if (mode == WorkspaceMode.Review)
+        {
+            RepoName = ReviewRepo;
+            ContentPrefix = ReviewContentPrefix;
+        }
+        else
+        {
+            RepoName = BooksRepo;
+            ContentPrefix = BooksContentPrefix;
+        }
+
+        ContentPrefix = NormalizePrefix(ContentPrefix);
+        if (_appDataPaths is not null)
+        {
+            try
+            {
+                Directory.CreateDirectory(_appDataPaths.RootDirectory);
+                File.WriteAllText(ModeFilePath(_appDataPaths), mode.ToString());
+            }
+            catch
+            {
+                // Persistence is best-effort.
+            }
+        }
+    }
 
     string ResolveClientId(IAppDataPaths? paths)
     {
@@ -82,6 +147,17 @@ public sealed class BooksMobileOptions
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (!string.IsNullOrWhiteSpace(local))
             yield return Path.Combine(local, "Novolis", "BooksMobile", "github-client-id.txt");
+    }
+
+    static string ModeFilePath(IAppDataPaths paths) =>
+        Path.Combine(paths.RootDirectory, "workspace-mode.txt");
+
+    static string NormalizePrefix(string prefix)
+    {
+        var p = prefix.Replace('\\', '/').Trim();
+        if (!p.EndsWith('/'))
+            p += "/";
+        return p;
     }
 
     static string EnvOr(string name, string fallback)

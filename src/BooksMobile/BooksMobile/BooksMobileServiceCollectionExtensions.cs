@@ -15,6 +15,7 @@ public static class BooksMobileServiceCollectionExtensions
         services.AddSingleton<EdgeTtsSynthesizer>();
         services.AddSingleton<ISynthesizer>(sp => sp.GetRequiredService<EdgeTtsSynthesizer>());
         services.AddSingleton<ChapterSpeechService>();
+        services.AddSingleton<ReviewSelectionImporter>();
         services.AddTransient<MainView>();
         return services;
     }
