@@ -6,6 +6,7 @@ using Novolis.Avalonia.Cad.Ship;
 using Novolis.Avalonia.Cad.Ship.Core;
 using Novolis.Avalonia.Ship;
 using Novolis.Avalonia.Ship.Design;
+using Novolis.Avalonia.Ship.Design.Plan;
 using Novolis.Avalonia.Ship.Design.Services;
 using Novolis.Avalonia.Ship.Design.Session;
 using Novolis.Cad.Primitives;
@@ -98,6 +99,22 @@ internal static class SmokeRunner
             Check("architect wall", design.Design.Bulkheads.Any(b => b.Name == "Wall-A"));
             Check("architect door", design.Design.Openings.Count >= 1);
             Check("shared bulkheads", design.Design.Bulkheads.Any(b => !b.IsPrimary));
+            design.SetOrthoLocked(true);
+            var ortho = ShipPlanConstraintResolver.Resolve(
+                3.2f, 0.4f, 0f, 0f, design, deck.Id,
+                altFree: false, shiftOrtho: false, ctrlAngle: false, objectSnapTolM: 0.4f);
+            Check("ortho lock constrains", MathF.Abs(ortho.Z) < 0.05f && ortho.Kind == ShipPlanConstraintSnapKind.Ortho);
+            design.SetOrthoLocked(false);
+            design.SetAngleLockEnabled(true);
+            var ang = ShipPlanConstraintResolver.Resolve(
+                10f, 0.2f, 0f, 0f, design, deck.Id,
+                altFree: false, shiftOrtho: false, ctrlAngle: false, objectSnapTolM: 0.4f);
+            Check("angle15 lock", MathF.Abs(ang.Z) < 0.2f);
+            design.SetAngleLockEnabled(false);
+            var free = ShipPlanConstraintResolver.Resolve(
+                3.17f, 1.11f, null, null, design, deck.Id,
+                altFree: true, shiftOrtho: false, ctrlAngle: false, objectSnapTolM: 0.4f);
+            Check("alt free bypass", free.Kind == ShipPlanConstraintSnapKind.Free);
             Check("equipment created", design.Design.Equipment.Count >= 1);
 
             design.SetWorkspace(ShipWorkspaceKind.Model);
