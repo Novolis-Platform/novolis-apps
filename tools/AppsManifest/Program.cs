@@ -354,67 +354,75 @@ internal static class Program
             changedFiles = File.ReadAllLines(changedFilesArg).Where(l => !string.IsNullOrWhiteSpace(l));
 
         var fullCoverage = forceAll || coverage.Equals("full", StringComparison.OrdinalIgnoreCase);
+        var plan = CreateCiMatrix(doc, changedFiles.ToList(), forceAll, fullCoverage);
+        Console.WriteLine(JsonSerializer.Serialize(plan, CompactJsonOptions));
+        return 0;
+    }
+
+    internal static CiMatrixPlan CreateCiMatrix(
+        AppsManifestDocument doc,
+        IReadOnlyList<string> changedFiles,
+        bool forceAll,
+        bool fullCoverage)
+    {
         var selected = SelectAffectedApps(doc, changedFiles.ToList(), forceAll, fullCoverage);
         var linux = selected
             .Where(app => app.Validation.LinuxCi)
-            .Select(app => new
+            .Select(app => new CiLinuxRow
             {
-                key = app.Key,
-                choice = app.Choice,
-                solution = GetLinuxSolutionPath(app.Solution),
-                stack = app.Stack,
-                run_tests = app.Validation.RunTests && app.Projects.Tests.Count > 0,
-                test_projects = string.Join(';', app.Projects.Tests),
+                Key = app.Key,
+                Choice = app.Choice,
+                Solution = GetLinuxSolutionPath(app.Solution),
+                Stack = app.Stack,
+                RunTests = app.Validation.RunTests && app.Projects.Tests.Count > 0,
+                TestProjects = string.Join(';', app.Projects.Tests),
             })
             .ToList();
         var android = selected
             .Where(app => app.Validation.AndroidCompile)
-            .Select(app => new
+            .Select(app => new CiAndroidRow
             {
-                key = app.Key,
-                choice = app.Choice,
-                project = app.Android?.Project ?? app.Projects.Android ?? app.Projects.Maui ?? "",
-                stack = app.Stack,
-                is_maui = app.Stack.Equals("maui", StringComparison.OrdinalIgnoreCase),
+                Key = app.Key,
+                Choice = app.Choice,
+                Project = app.Android?.Project ?? app.Projects.Android ?? app.Projects.Maui ?? "",
+                Stack = app.Stack,
+                IsMaui = app.Stack.Equals("maui", StringComparison.OrdinalIgnoreCase),
             })
             .ToList();
         var windows = selected
             .Where(app => app.Validation.WindowsCi)
-            .Select(app => new
+            .Select(app => new CiWindowsRow
             {
-                key = app.Key,
-                choice = app.Choice,
-                project = app.Projects.PublishWindows ?? "",
-                stack = app.Stack,
-                install_windows_workload = app.Validation.WindowsWorkload,
+                Key = app.Key,
+                Choice = app.Choice,
+                Project = app.Projects.PublishWindows ?? "",
+                Stack = app.Stack,
+                InstallWindowsWorkload = app.Validation.WindowsWorkload,
             })
             .ToList();
         var rowCount = linux.Count + android.Count + windows.Count;
-        var summary = new
-        {
-            coverage = fullCoverage ? "full" : "fast",
-            selected_apps = selected.Count,
-            linux_rows = linux.Count,
-            android_rows = android.Count,
-            windows_rows = windows.Count,
-            estimated_checkouts = 1 + rowCount,
-            estimated_workload_installs = android.Count + windows.Count(row => row.install_windows_workload),
-        };
 
-        var payload = new
+        return new CiMatrixPlan
         {
-            linux,
-            android,
-            windows,
-            summary,
-            any = rowCount > 0,
-            skip_build = rowCount == 0,
+            Linux = linux,
+            Android = android,
+            Windows = windows,
+            Summary = new CiMatrixSummary
+            {
+                Coverage = fullCoverage ? "full" : "fast",
+                SelectedApps = selected.Count,
+                LinuxRows = linux.Count,
+                AndroidRows = android.Count,
+                WindowsRows = windows.Count,
+                EstimatedCheckouts = 1 + rowCount,
+                EstimatedWorkloadInstalls = android.Count + windows.Count(row => row.InstallWindowsWorkload),
+            },
+            Any = rowCount > 0,
+            SkipBuild = rowCount == 0,
         };
-        Console.WriteLine(JsonSerializer.Serialize(payload, CompactJsonOptions));
-        return 0;
     }
 
-    private static List<AppEntry> SelectAffectedApps(
+    internal static List<AppEntry> SelectAffectedApps(
         AppsManifestDocument doc,
         List<string> changedFiles,
         bool forceAll,

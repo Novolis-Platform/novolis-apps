@@ -11,4 +11,20 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Ensure generated solutions are committed (no dirty drift when run in CI after generate).
-Write-Host 'Apps manifest + solutions OK.'
+$generated = @(
+    Join-Path $RepoRoot 'Novolis.Apps.slnx'
+    Get-ChildItem -Path $RepoRoot -Recurse -Filter '*.slnx' -File |
+        ForEach-Object { $_.FullName }
+)
+$relative = $generated |
+    Sort-Object -Unique |
+    ForEach-Object {
+        [IO.Path]::GetRelativePath($RepoRoot, $_).Replace('\', '/')
+    }
+$dirty = @(git -C $RepoRoot status --short -- $relative)
+if ($dirty.Count -gt 0) {
+    $dirty | Write-Error
+    throw 'Generated solution drift detected. Commit the generated .slnx files.'
+}
+
+Write-Host 'Apps manifest + generated solutions OK.'
