@@ -37,6 +37,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      windows_matrix: ${{ steps.matrix.outputs.windows_matrix }}
+      android_matrix: ${{ steps.matrix.outputs.android_matrix }}
       package_version: ${{ steps.ver.outputs.package-version }}
       assembly_version: ${{ steps.ver.outputs.assembly-version }}
       file_version: ${{ steps.ver.outputs.file-version }}
@@ -58,12 +60,17 @@ jobs:
           fi
           dotnet run --project tools/AppsManifest/AppsManifest.csproj --no-launch-profile -- \
             "${args[@]}" > /tmp/release-matrix.json
-          echo "matrix=$(jq -c '.include' /tmp/release-matrix.json)" >> "$GITHUB_OUTPUT"
+          matrix=$(jq -c '.include' /tmp/release-matrix.json)
+          windows_matrix=$(jq -c '[.include[] | select(.channel == "windows-inno")]' /tmp/release-matrix.json)
+          android_matrix=$(jq -c '[.include[] | select(.channel == "android-apk")]' /tmp/release-matrix.json)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "windows_matrix=$windows_matrix" >> "$GITHUB_OUTPUT"
+          echo "android_matrix=$android_matrix" >> "$GITHUB_OUTPUT"
           cat /tmp/release-matrix.json
 
   windows-inno:
     needs: plan
-    if: contains(needs.plan.outputs.matrix, '"channel":"windows-inno"')
+    if: needs.plan.outputs.windows_matrix != '[]'
     runs-on: windows-latest
     permissions:
       contents: write
@@ -71,7 +78,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.plan.outputs.matrix) }}
+        include: ${{ fromJson(needs.plan.outputs.windows_matrix) }}
     steps:
       - name: Skip non-windows channel
         if: matrix.channel != 'windows-inno'
@@ -136,7 +143,7 @@ jobs:
 
   android-apk:
     needs: plan
-    if: contains(needs.plan.outputs.matrix, '"channel":"android-apk"')
+    if: needs.plan.outputs.android_matrix != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -144,7 +151,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.plan.outputs.matrix) }}
+        include: ${{ fromJson(needs.plan.outputs.android_matrix) }}
     steps:
       - name: Skip non-android channel
         if: matrix.channel != 'android-apk'
