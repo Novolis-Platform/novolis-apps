@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>SpaceFleetSurveyTeam.Desktop</RootNamespace>
-    <AssemblyName>SpaceFleetSurveyTeam</AssemblyName>
+    <AssemblyName>SpaceFleetSurveyTeam.Desktop</AssemblyName>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
