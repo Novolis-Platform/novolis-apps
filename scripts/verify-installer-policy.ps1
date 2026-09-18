@@ -17,7 +17,7 @@ if (Test-Path -LiteralPath $generator) {
     foreach ($needle in @(
         'PrivilegesRequired=lowest',
         'UsePreviousAppDir=yes',
-        'AllowDowngrades=no',
+        'AllowDowngrade=no',
         'CloseApplications=yes',
         '{localappdata}}\\Programs\\',
         'Flags: unchecked'

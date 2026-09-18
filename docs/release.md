@@ -18,7 +18,7 @@ Undeclared channels fail before workloads install. There is **no Linux release a
 - Self-contained `win-x64` publish
 - Per-user Inno (`PrivilegesRequired=lowest`) under `%LocalAppData%\Programs\Novolis\…`
 - Portable zip + SHA-256
-- Stable `AppId`, `AllowDowngrades=no`, multi-exe close filters where needed (Live Studio)
+- Stable `AppId`, `AllowDowngrade=no`, multi-exe close filters where needed (Live Studio)
 
 ### android-apk
 
