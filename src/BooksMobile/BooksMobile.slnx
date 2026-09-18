@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/BooksMobile.Android/">
+    <Project Path="BooksMobile.Android/BooksMobile.Android.csproj" />
+  </Folder>
+  <Folder Name="/BooksMobile.Desktop/">
+    <Project Path="BooksMobile.Desktop/BooksMobile.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/BooksMobile/">
+    <Project Path="BooksMobile/BooksMobile.csproj" />
+  </Folder>
+</Solution>

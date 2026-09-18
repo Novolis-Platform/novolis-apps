@@ -6,7 +6,8 @@
     <Nullable>enable</Nullable>
     <ApplicationId>com.novolis.booksmobile</ApplicationId>
     <ApplicationDisplayVersion>0.2.0</ApplicationDisplayVersion>
-    <ApplicationVersion>2</ApplicationVersion>
+    <ApplicationVersion Condition="'$(NovolisAndroidVersionCode)' != ''">$(NovolisAndroidVersionCode)</ApplicationVersion>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">2</ApplicationVersion>
     <RootNamespace>BooksMobile.Android</RootNamespace>
     <AssemblyName>BooksMobile.Android</AssemblyName>
     <AndroidPackageFormat>apk</AndroidPackageFormat>

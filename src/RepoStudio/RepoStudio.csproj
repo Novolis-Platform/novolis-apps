@@ -15,5 +15,9 @@
     <PackageReference Include="Novolis.Avalonia.Git" />
     <PackageReference Include="Novolis.Avalonia.Studio" />
     <PackageReference Include="Novolis.IO.Git" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 </Project>

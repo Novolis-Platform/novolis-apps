@@ -1,8 +1,7 @@
 #Requires -Version 7.0
-# Publish novolis-apps projects (win-x64) with optional Inno Setup installers.
+# Publish novolis-apps windows-inno products from build/apps.json.
 param(
-    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
-    [ValidateSet('BooksWriterStudio', 'DraftStudio', 'CadStudio3D', 'SketchStudio', 'SinsOfACapitalismTycoon', 'LiveStudio', 'BooksMobile', 'ReadAloud', 'All')]
+    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
     [string]$App = 'All',
     [int]$BuildNumber = 0,
     [switch]$SkipInstaller
@@ -28,15 +27,16 @@ $packageVersion = "$platform.$BuildNumber"
 $assemblyVersion = "$year.$major.0.0"
 $fileVersion = $packageVersion
 
-$catalog = Get-NovolisAppCatalog
+$catalog = @(Get-NovolisAppCatalog -RepoRoot $RepoRoot)
 $selected = if ($App -eq 'All') {
     $catalog
 }
 else {
-    @($catalog | Where-Object { $_.Choice -eq $App })
+    @($catalog | Where-Object { $_.Choice -eq $App -or $_.Key -eq $App })
 }
 if ($selected.Count -eq 0) {
-    throw "Unknown app selection: $App"
+    $choices = ($catalog | ForEach-Object { $_.Choice }) -join ', '
+    throw "Unknown app selection: $App. Known windows-inno apps: $choices"
 }
 
 $published = [System.Collections.Generic.List[object]]::new()

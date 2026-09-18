@@ -6,7 +6,8 @@
     <Nullable>enable</Nullable>
     <ApplicationId>com.novolis.spacefleetsurveyteam</ApplicationId>
     <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
-    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationVersion Condition="'$(NovolisAndroidVersionCode)' != ''">$(NovolisAndroidVersionCode)</ApplicationVersion>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
     <RootNamespace>SpaceFleetSurveyTeam.Android</RootNamespace>
     <AssemblyName>SpaceFleetSurveyTeam.Android</AssemblyName>
     <AndroidPackageFormat>apk</AndroidPackageFormat>

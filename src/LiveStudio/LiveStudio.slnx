@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/host/">
+    <Project Path="host/LiveStudio.Host.csproj" />
+  </Folder>
+  <Folder Name="/launcher/">
+    <Project Path="launcher/LiveStudio.Launcher.csproj" />
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="shared/LiveStudio.Shared.csproj" />
+  </Folder>
+  <Folder Name="/studio/">
+    <Project Path="studio/LiveStudio.csproj" />
+  </Folder>
+</Solution>

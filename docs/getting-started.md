@@ -2,140 +2,57 @@
 
 ## Prerequisites
 
-- .NET SDK 10.0.100+ (`global.json`)
-- GitHub CLI for GPR restore (`configure-gpr-user-nuget.ps1`)
-- Desktop environment for Avalonia
+- .NET SDK from `global.json` (10.x)
+- GitHub Packages auth: `pwsh -File d:\novolis\novolis-governance\scripts\configure-gpr-user-nuget.ps1`
+- Optional: Android / MAUI workloads for mobile heads; Inno Setup 6 for local installer compile
 
-## Build
+## Restore and build one app
 
 ```powershell
-cd novolis-apps
-..\novolis-governance\scripts\configure-gpr-user-nuget.ps1
-dotnet restore
-dotnet build --no-restore
+dotnet restore d:\novolis\novolis-apps\src\ReadAloud\ReadAloud.slnx
+dotnet build d:\novolis\novolis-apps\src\ReadAloud\ReadAloud.slnx -c Release
+dotnet test d:\novolis\novolis-apps\tests\ReadAloud.Unit\ReadAloud.Unit.csproj -c Release --no-build
 ```
 
-## Install (Windows)
-
-Download only from official [GitHub Releases](https://github.com/Novolis-Platform/novolis-apps/releases) (`Novolis-Platform/novolis-apps`):
-
-| Asset | Use |
-|-------|-----|
-| `BooksWriterStudioSetup-*-win-x64.exe` | **Books Writer Studio installer** |
-| `BooksMobileSetup-*-win-x64.exe` | **Books Mobile installer** — `%LOCALAPPDATA%\Programs\Novolis\Books Mobile` |
-| `BooksMobile-*-win-x64.zip` | Books Mobile portable |
-| `ReadAloudSetup-*-win-x64.exe` | **Read Aloud installer** — `%LOCALAPPDATA%\Programs\Novolis\Read Aloud` |
-| `ReadAloud-*-win-x64.zip` | Read Aloud portable |
-| `DraftStudioSetup-*-win-x64.exe` | **Draft Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Draft Studio` |
-| `DraftStudio-*-win-x64.zip` | Draft Studio portable |
-| `SketchStudioSetup-*-win-x64.exe` | **Sketch Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Sketch Studio` |
-| `SketchStudio-*-win-x64.zip` | Sketch Studio portable |
-| `SinsOfACapitalismTycoonSetup-*-win-x64.exe` | **Sins of a Capitalism Tycoon installer** |
-| `LiveStudioSetup-*-win-x64.exe` | **Live Studio installer** |
-| `SHA256SUMS.txt` | SHA-256 hashes for all zip and setup exe files on each release |
-
-### Verify downloads
-
-Before running the installer, verify the SHA-256 hash:
+Desktop run:
 
 ```powershell
-Get-FileHash .\DraftStudioSetup-*-win-x64.exe -Algorithm SHA256
-# Compare with the matching line in SHA256SUMS.txt from the same release
+dotnet run --project d:\novolis\novolis-apps\src\ReadAloud\ReadAloud.Desktop\ReadAloud.Desktop.csproj
 ```
 
-### SmartScreen (unsigned installer)
-
-Installers are not yet Authenticode-signed. Windows SmartScreen may show **"Windows protected your PC"** on first download. This is expected until code signing is added. To proceed: **More info** → **Run anyway**. Only install builds downloaded from the official releases page above.
-
-New releases are created explicitly from the **Release** workflow after merge validation succeeds.
-
-Build installer locally (requires Inno Setup 6 for the setup exe):
+Android (local):
 
 ```powershell
-pwsh -File scripts/build-installer.ps1 -App All
-# Single app:
-pwsh -File scripts/build-installer.ps1 -App DraftStudio
-# Skip Inno compile (publish + zip only):
-pwsh -File scripts/build-installer.ps1 -App All -SkipInstaller
-```
-
-## Draft Studio
-
-```powershell
-dotnet run --project src/DraftStudio
-# Headless pipeline check (DSL → .cadjson → .cadphys.json):
-dotnet run --project src/DraftStudio -- --smoke
-```
-
-Command-driven CAD-light: type `Line(0,0,2,0)`, `Circle(0,0,5)`, `Spline(0,0,1,1,2,0)`, `Box(1,1,1)` in the command bar, or use **Line / Circle / Rect / Spline** tools (same commands). Toggle **Draft** (XZ plan canvas) and **Model** (Raylib orbit). **Export Phys** writes `draft.cadphys.json`.
-
-- Workspace: `%LocalAppData%\Novolis\Draft Studio\default-workspace\draft.cadjson`
-- Formats: [cadjson.md](../../novolis-governance/docs/cadjson.md)
-- Shortcuts: `Ctrl+S` save, `Ctrl+Z` / `Ctrl+Y` undo/redo, `Del` delete, `F` fit, `Esc` cancel tool, `Enter` finish spline
-
-## Books Writer Studio
-
-```powershell
-dotnet run --project src/BooksWriterStudio
-```
-
-## Read Aloud
-
-Paste or open text, listen with Edge TTS, or save an MP3. Windows ships on GitHub Releases; Android APK is local deploy only.
-
-```powershell
-pwsh -File d:\novolis\novolis-apps\scripts\run-readaloud-desktop.ps1
 pwsh -File d:\novolis\novolis-apps\scripts\deploy-readaloud-android.ps1
 ```
 
-## Sketch Studio
+## Merglyph (MAUI)
 
 ```powershell
-dotnet run --project d:\novolis\novolis-apps\src\SketchStudio
-dotnet run --project d:\novolis\novolis-apps\src\SketchStudio -- --smoke
+dotnet workload install maui-android
+dotnet restore d:\novolis\novolis-apps\src\Merglyph\Merglyph.slnx
+# Android
+dotnet build d:\novolis\novolis-apps\src\Merglyph\Merglyph\Merglyph.csproj -f net10.0-android -p:NovolisMauiTargetFrameworks=net10.0-android
+# Windows local only (not a Ship channel)
+dotnet build d:\novolis\novolis-apps\src\Merglyph\Merglyph\Merglyph.csproj -f net10.0-windows10.0.19041.0 -p:NovolisMauiTargetFrameworks=net10.0-windows10.0.19041.0
 ```
 
-Freehand sketch studio (`SketchControl`) with full toolbar chrome. Hover tips + **F1** shortcuts.
-
-**App docs (interconnected):** [`docs/sketch-studio/README.md`](sketch-studio/README.md)
-
-| Guide | Topic |
-|-------|--------|
-| [getting-started](sketch-studio/getting-started.md) | Install, run, first five minutes |
-| [tools](sketch-studio/tools.md) | Drawing tools |
-| [shortcuts](sketch-studio/shortcuts.md) | Keys + tooltips |
-| [documents](sketch-studio/documents.md) | `.sketchjson`, MRU, dirty close |
-| [export](sketch-studio/export.md) | PNG / SVG |
-| [architecture](sketch-studio/architecture.md) | Host vs Controls.Sketch |
-
-Wire format: [`sketchjson.md`](../../novolis-governance/docs/sketchjson.md)  
-Installer / portable: `SketchStudioSetup-*-win-x64.exe` / `SketchStudio-*-win-x64.zip` → `%LOCALAPPDATA%\Programs\Novolis\Sketch Studio`.
-
-## Sins of a Capitalism Tycoon
+Optional Windows file-association registration for local debug:
 
 ```powershell
-dotnet run --project src/SinsOfACapitalismTycoon -- --mode headless
-dotnet run --project src/SinsOfACapitalismTycoon -- --mode avalonia
+$env:MERGLYPH_REGISTER_FILE_ASSOCIATIONS = '1'
+# cleanup:
+$env:MERGLYPH_UNREGISTER_FILE_ASSOCIATIONS = '1'
 ```
 
-## Capitalist Simulator
+## Manifest maintenance
 
 ```powershell
-dotnet run --project d:\novolis\novolis-apps\src\CapitalistSimulator -p:NovolisUseProjectReferences=true -- --mode avalonia
+pwsh -File d:\novolis\novolis-apps\scripts\verify-apps-manifest.ps1
+pwsh -File d:\novolis\novolis-apps\scripts\verify-installer-policy.ps1
+pwsh -File d:\novolis\novolis-apps\scripts\verify-android-policy.ps1
 ```
 
-Starts with a **stocked Corner Market** in Metropolis and a coach card. Press **Advance month**, watch cash / P&L, then follow the coach.
+## Aggregate solution
 
-Headless smoke (same starter store):
-
-```powershell
-dotnet run --project d:\novolis\novolis-apps\src\CapitalistSimulator -p:NovolisUseProjectReferences=true -- --mode headless --days 36
-```
-
-Full first-session walkthrough: [`src/CapitalistSimulator/docs/gameplay.md`](../src/CapitalistSimulator/docs/gameplay.md).
-
-## Live Studio
-
-```powershell
-dotnet run --project src/LiveStudio/studio
-```
+`Novolis.Apps.slnx` excludes Android/MAUI hosts so it restores on Linux. Prefer per-app solutions for day-to-day work.

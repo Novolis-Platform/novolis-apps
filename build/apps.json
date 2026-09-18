@@ -1,0 +1,795 @@
+{
+  "schemaVersion": 1,
+  "manifestVersion": "2026.1.0",
+  "channels": {
+    "windows-inno": {
+      "id": "windows-inno",
+      "runner": "windows-latest",
+      "artifacts": ["installer", "portable-zip", "sha256"],
+      "description": "Per-user Inno Setup installer plus portable zip under LocalAppData\\\\Programs\\\\Novolis"
+    },
+    "android-apk": {
+      "id": "android-apk",
+      "runner": "ubuntu-latest",
+      "artifacts": ["apk", "sha256"],
+      "description": "Signed Android APK with monotonic versionCode"
+    }
+  },
+  "apps": [
+    {
+      "key": "books-writer-studio",
+      "choice": "BooksWriterStudio",
+      "displayName": "Books Writer Studio",
+      "sourceRoot": "src/BooksWriterStudio",
+      "solution": "src/BooksWriterStudio/BooksWriterStudio.slnx",
+      "artifactPrefix": "BooksWriterStudio",
+      "stack": "avalonia-desktop",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/BooksWriterStudio/BooksWriterStudio.csproj",
+        "linuxCi": ["src/BooksWriterStudio/BooksWriterStudio.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": ["src/BooksWriterStudio/BooksWriterStudio.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/BooksWriterStudio/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "BooksWriterStudio.exe",
+        "appId": "Novolis.BooksWriterStudio",
+        "installDir": "Novolis\\Books Writer Studio",
+        "groupName": "Books Writer Studio",
+        "setupBase": "BooksWriterStudioSetup",
+        "scriptFile": "books-writer-studio.iss",
+        "closeApplicationsFilter": "BooksWriterStudio.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\books-writer-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\books-writer-studio\\cache",
+        "credentialsNamespace": "Novolis.BooksWriterStudio",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "draft-studio",
+      "choice": "DraftStudio",
+      "displayName": "Draft Studio",
+      "sourceRoot": "src/DraftStudio",
+      "solution": "src/DraftStudio/DraftStudio.slnx",
+      "artifactPrefix": "DraftStudio",
+      "stack": "avalonia-desktop",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/DraftStudio/DraftStudio.csproj",
+        "linuxCi": ["src/DraftStudio/DraftStudio.csproj", "tests/DraftStudio.Unit/DraftStudio.Unit.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": ["tests/DraftStudio.Unit/DraftStudio.Unit.csproj"],
+        "all": ["src/DraftStudio/DraftStudio.csproj", "tests/DraftStudio.Unit/DraftStudio.Unit.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/DraftStudio/**", "tests/DraftStudio.Unit/**"],
+        "runTests": true,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "DraftStudio.exe",
+        "appId": "Novolis.DraftStudio",
+        "installDir": "Novolis\\Draft Studio",
+        "groupName": "Draft Studio",
+        "setupBase": "DraftStudioSetup",
+        "scriptFile": "draft-studio.iss",
+        "closeApplicationsFilter": "DraftStudio.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\draft-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\draft-studio\\cache",
+        "credentialsNamespace": "Novolis.DraftStudio",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "cad-studio-3d",
+      "choice": "CadStudio3D",
+      "displayName": "Novolis CAD Studio 3D",
+      "sourceRoot": "src/CadStudio3D",
+      "solution": "src/CadStudio3D/CadStudio3D.slnx",
+      "artifactPrefix": "CadStudio3D",
+      "stack": "avalonia-desktop",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/CadStudio3D/CadStudio3D.csproj",
+        "linuxCi": ["src/CadStudio3D/CadStudio3D.csproj", "tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": ["tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj"],
+        "all": ["src/CadStudio3D/CadStudio3D.csproj", "tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/CadStudio3D/**", "tests/CadStudio3D.Unit/**"],
+        "runTests": true,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "CadStudio3D.exe",
+        "appId": "Novolis.CadStudio3D",
+        "installDir": "Novolis\\CAD Studio 3D",
+        "groupName": "Novolis CAD Studio 3D",
+        "setupBase": "CadStudio3DSetup",
+        "scriptFile": "cad-studio-3d.iss",
+        "closeApplicationsFilter": "CadStudio3D.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\cad-studio-3d",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\cad-studio-3d\\cache",
+        "credentialsNamespace": "Novolis.CadStudio3D",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "sketch-studio",
+      "choice": "SketchStudio",
+      "displayName": "Sketch Studio",
+      "sourceRoot": "src/SketchStudio",
+      "solution": "src/SketchStudio/SketchStudio.slnx",
+      "artifactPrefix": "SketchStudio",
+      "stack": "avalonia-desktop",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/SketchStudio/SketchStudio.csproj",
+        "linuxCi": ["src/SketchStudio/SketchStudio.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": ["src/SketchStudio/SketchStudio.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/SketchStudio/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "SketchStudio.exe",
+        "appId": "Novolis.SketchStudio",
+        "installDir": "Novolis\\Sketch Studio",
+        "groupName": "Sketch Studio",
+        "setupBase": "SketchStudioSetup",
+        "scriptFile": "sketch-studio.iss",
+        "closeApplicationsFilter": "SketchStudio.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\sketch-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\sketch-studio\\cache",
+        "credentialsNamespace": "Novolis.SketchStudio",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "sins-of-a-capitalism-tycoon",
+      "choice": "SinsOfACapitalismTycoon",
+      "displayName": "Sins of a Capitalism Tycoon",
+      "sourceRoot": "src/SinsOfACapitalismTycoon",
+      "solution": "src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.slnx",
+      "artifactPrefix": "SinsOfACapitalismTycoon",
+      "stack": "avalonia-desktop",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj",
+        "linuxCi": ["src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj", "tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": ["tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj"],
+        "all": ["src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj", "tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/SinsOfACapitalismTycoon/**", "tests/SinsOfACapitalismTycoon.Unit/**"],
+        "runTests": true,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "SinsOfACapitalismTycoon.exe",
+        "appId": "Novolis.SinsOfACapitalismTycoon",
+        "installDir": "Novolis\\Sins of a Capitalism Tycoon",
+        "groupName": "Sins of a Capitalism Tycoon",
+        "setupBase": "SinsOfACapitalismTycoonSetup",
+        "scriptFile": "sins-of-a-capitalism-tycoon.iss",
+        "closeApplicationsFilter": "SinsOfACapitalismTycoon.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\sins-of-a-capitalism-tycoon",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\sins-of-a-capitalism-tycoon\\cache",
+        "credentialsNamespace": "Novolis.SinsOfACapitalismTycoon",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "live-studio",
+      "choice": "LiveStudio",
+      "displayName": "Live Studio",
+      "sourceRoot": "src/LiveStudio",
+      "solution": "src/LiveStudio/LiveStudio.slnx",
+      "artifactPrefix": "LiveStudio",
+      "stack": "avalonia-desktop",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/LiveStudio/studio/LiveStudio.csproj",
+        "linuxCi": [
+          "src/LiveStudio/shared/LiveStudio.Shared.csproj",
+          "src/LiveStudio/launcher/LiveStudio.Launcher.csproj",
+          "src/LiveStudio/studio/LiveStudio.csproj",
+          "src/LiveStudio/host/LiveStudio.Host.csproj"
+        ],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": [
+          "src/LiveStudio/shared/LiveStudio.Shared.csproj",
+          "src/LiveStudio/launcher/LiveStudio.Launcher.csproj",
+          "src/LiveStudio/studio/LiveStudio.csproj",
+          "src/LiveStudio/host/LiveStudio.Host.csproj"
+        ]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/LiveStudio/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "Novolis.Audio.Live.Studio.exe",
+        "appId": "Novolis.Audio.Live.Studio",
+        "installDir": "Novolis\\Live Studio",
+        "groupName": "Live Studio",
+        "setupBase": "LiveStudioSetup",
+        "scriptFile": "live-studio.iss",
+        "closeApplicationsFilter": "Novolis.Audio.Live.Studio.exe;Novolis.Audio.Live.Host.exe;Novolis.Audio.Live.Launcher.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\live-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\live-studio\\cache",
+        "credentialsNamespace": "Novolis.Audio.Live.Studio",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "books-mobile",
+      "choice": "BooksMobile",
+      "displayName": "Books Mobile",
+      "sourceRoot": "src/BooksMobile",
+      "solution": "src/BooksMobile/BooksMobile.slnx",
+      "artifactPrefix": "BooksMobile",
+      "stack": "avalonia-mobile",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj",
+        "linuxCi": [
+          "src/BooksMobile/BooksMobile/BooksMobile.csproj",
+          "src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj"
+        ],
+        "android": "src/BooksMobile/BooksMobile.Android/BooksMobile.Android.csproj",
+        "maui": null,
+        "tests": [],
+        "all": [
+          "src/BooksMobile/BooksMobile/BooksMobile.csproj",
+          "src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj",
+          "src/BooksMobile/BooksMobile.Android/BooksMobile.Android.csproj"
+        ]
+      },
+      "local": ["windows", "linux", "android"],
+      "ship": ["windows-inno", "android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/BooksMobile/**"],
+        "runTests": false,
+        "androidCompile": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia", "android"]
+      },
+      "windows": {
+        "exeName": "BooksMobile.exe",
+        "appId": "Novolis.BooksMobile",
+        "installDir": "Novolis\\Books Mobile",
+        "groupName": "Books Mobile",
+        "setupBase": "BooksMobileSetup",
+        "scriptFile": "books-mobile.iss",
+        "closeApplicationsFilter": "BooksMobile.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": {
+        "project": "src/BooksMobile/BooksMobile.Android/BooksMobile.Android.csproj",
+        "applicationId": "com.novolis.booksmobile",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "BOOKSMOBILE_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": ["android.permission.INTERNET"],
+        "networkPolicy": "github-api"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\books-mobile",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\books-mobile\\cache",
+        "credentialsNamespace": "Novolis.BooksMobile",
+        "networkDestinations": ["api.github.com"],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "read-aloud",
+      "choice": "ReadAloud",
+      "displayName": "Read Aloud",
+      "sourceRoot": "src/ReadAloud",
+      "solution": "src/ReadAloud/ReadAloud.slnx",
+      "artifactPrefix": "ReadAloud",
+      "stack": "avalonia-mobile",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj",
+        "linuxCi": [
+          "src/ReadAloud/ReadAloud/ReadAloud.csproj",
+          "src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj",
+          "tests/ReadAloud.Unit/ReadAloud.Unit.csproj"
+        ],
+        "android": "src/ReadAloud/ReadAloud.Android/ReadAloud.Android.csproj",
+        "maui": null,
+        "tests": ["tests/ReadAloud.Unit/ReadAloud.Unit.csproj"],
+        "all": [
+          "src/ReadAloud/ReadAloud/ReadAloud.csproj",
+          "src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj",
+          "src/ReadAloud/ReadAloud.Android/ReadAloud.Android.csproj",
+          "tests/ReadAloud.Unit/ReadAloud.Unit.csproj"
+        ]
+      },
+      "local": ["windows", "linux", "android"],
+      "ship": ["windows-inno", "android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/ReadAloud/**", "tests/ReadAloud.Unit/**"],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia", "android"]
+      },
+      "windows": {
+        "exeName": "ReadAloud.exe",
+        "appId": "Novolis.ReadAloud",
+        "installDir": "Novolis\\Read Aloud",
+        "groupName": "Read Aloud",
+        "setupBase": "ReadAloudSetup",
+        "scriptFile": "read-aloud.iss",
+        "closeApplicationsFilter": "ReadAloud.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": {
+        "project": "src/ReadAloud/ReadAloud.Android/ReadAloud.Android.csproj",
+        "applicationId": "com.novolis.readaloud",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "READALOUD_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": ["android.permission.INTERNET"],
+        "networkPolicy": "tts-and-optional-network"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\read-aloud",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\read-aloud\\cache",
+        "credentialsNamespace": "Novolis.ReadAloud",
+        "networkDestinations": ["speech.platform.bing.com"],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "coverage-studio",
+      "choice": "CoverageStudio",
+      "displayName": "Coverage Studio",
+      "sourceRoot": "src/CoverageStudio",
+      "solution": "src/CoverageStudio/CoverageStudio.slnx",
+      "artifactPrefix": "CoverageStudio",
+      "stack": "avalonia-desktop",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/CoverageStudio/CoverageStudio.csproj",
+        "linuxCi": ["src/CoverageStudio/CoverageStudio.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": ["src/CoverageStudio/CoverageStudio.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/CoverageStudio/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "CoverageStudio.exe",
+        "appId": "Novolis.CoverageStudio",
+        "installDir": "Novolis\\Coverage Studio",
+        "groupName": "Coverage Studio",
+        "setupBase": "CoverageStudioSetup",
+        "scriptFile": "coverage-studio.iss",
+        "closeApplicationsFilter": "CoverageStudio.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\coverage-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\coverage-studio\\cache",
+        "credentialsNamespace": "Novolis.CoverageStudio",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "capitalist-simulator",
+      "choice": "CapitalistSimulator",
+      "displayName": "Capitalist Simulator",
+      "sourceRoot": "src/CapitalistSimulator",
+      "solution": "src/CapitalistSimulator/CapitalistSimulator.slnx",
+      "artifactPrefix": "CapitalistSimulator",
+      "stack": "avalonia-desktop",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/CapitalistSimulator/CapitalistSimulator.csproj",
+        "linuxCi": ["src/CapitalistSimulator/CapitalistSimulator.csproj", "tests/CapitalistSimulator.Unit/CapitalistSimulator.Unit.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": ["tests/CapitalistSimulator.Unit/CapitalistSimulator.Unit.csproj"],
+        "all": ["src/CapitalistSimulator/CapitalistSimulator.csproj", "tests/CapitalistSimulator.Unit/CapitalistSimulator.Unit.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/CapitalistSimulator/**", "tests/CapitalistSimulator.Unit/**"],
+        "runTests": true,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "CapitalistSimulator.exe",
+        "appId": "Novolis.CapitalistSimulator",
+        "installDir": "Novolis\\Capitalist Simulator",
+        "groupName": "Capitalist Simulator",
+        "setupBase": "CapitalistSimulatorSetup",
+        "scriptFile": "capitalist-simulator.iss",
+        "closeApplicationsFilter": "CapitalistSimulator.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\capitalist-simulator",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\capitalist-simulator\\cache",
+        "credentialsNamespace": "Novolis.CapitalistSimulator",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "geopolity",
+      "choice": "GeoPolity",
+      "displayName": "GeoPolity",
+      "sourceRoot": "src/GeoPolity",
+      "solution": "src/GeoPolity/GeoPolity.slnx",
+      "artifactPrefix": "GeoPolity",
+      "stack": "avalonia-desktop",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/GeoPolity/GeoPolity.csproj",
+        "linuxCi": ["src/GeoPolity/GeoPolity.csproj", "tests/GeoPolity.Unit/GeoPolity.Unit.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": ["tests/GeoPolity.Unit/GeoPolity.Unit.csproj"],
+        "all": ["src/GeoPolity/GeoPolity.csproj", "tests/GeoPolity.Unit/GeoPolity.Unit.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/GeoPolity/**", "tests/GeoPolity.Unit/**"],
+        "runTests": true,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "GeoPolity.exe",
+        "appId": "Novolis.GeoPolity",
+        "installDir": "Novolis\\GeoPolity",
+        "groupName": "GeoPolity",
+        "setupBase": "GeoPolitySetup",
+        "scriptFile": "geopolity.iss",
+        "closeApplicationsFilter": "GeoPolity.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\geopolity",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\geopolity\\cache",
+        "credentialsNamespace": "Novolis.GeoPolity",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "repo-studio",
+      "choice": "RepoStudio",
+      "displayName": "Repo Studio",
+      "sourceRoot": "src/RepoStudio",
+      "solution": "src/RepoStudio/RepoStudio.slnx",
+      "artifactPrefix": "RepoStudio",
+      "stack": "avalonia-desktop",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/RepoStudio/RepoStudio.csproj",
+        "linuxCi": ["src/RepoStudio/RepoStudio.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": ["src/RepoStudio/RepoStudio.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/RepoStudio/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "RepoStudio.exe",
+        "appId": "Novolis.RepoStudio",
+        "installDir": "Novolis\\Repo Studio",
+        "groupName": "Repo Studio",
+        "setupBase": "RepoStudioSetup",
+        "scriptFile": "repo-studio.iss",
+        "closeApplicationsFilter": "RepoStudio.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\repo-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\repo-studio\\cache",
+        "credentialsNamespace": "Novolis.RepoStudio",
+        "networkDestinations": ["api.github.com"],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "ship-designer",
+      "choice": "ShipDesigner",
+      "displayName": "Ship Designer",
+      "sourceRoot": "src/ShipDesigner",
+      "solution": "src/ShipDesigner/ShipDesigner.slnx",
+      "artifactPrefix": "ShipDesigner",
+      "stack": "avalonia-desktop",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/ShipDesigner/ShipDesigner.csproj",
+        "linuxCi": ["src/ShipDesigner/ShipDesigner.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": ["src/ShipDesigner/ShipDesigner.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/ShipDesigner/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "ShipDesigner.exe",
+        "appId": "Novolis.ShipDesigner",
+        "installDir": "Novolis\\Ship Designer",
+        "groupName": "Ship Designer",
+        "setupBase": "ShipDesignerSetup",
+        "scriptFile": "ship-designer.iss",
+        "closeApplicationsFilter": "ShipDesigner.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\ship-designer",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\ship-designer\\cache",
+        "credentialsNamespace": "Novolis.ShipDesigner",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "space-fleet-survey-team",
+      "choice": "SpaceFleetSurveyTeam",
+      "displayName": "Space Fleet: Survey Team",
+      "sourceRoot": "src/SpaceFleetSurveyTeam",
+      "solution": "src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.slnx",
+      "artifactPrefix": "SpaceFleetSurveyTeam",
+      "stack": "avalonia-mobile",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.Desktop/SpaceFleetSurveyTeam.Desktop.csproj",
+        "linuxCi": [
+          "src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.csproj",
+          "src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.Desktop/SpaceFleetSurveyTeam.Desktop.csproj"
+        ],
+        "android": "src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.Android/SpaceFleetSurveyTeam.Android.csproj",
+        "maui": null,
+        "tests": [],
+        "all": [
+          "src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.csproj",
+          "src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.Desktop/SpaceFleetSurveyTeam.Desktop.csproj",
+          "src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.Android/SpaceFleetSurveyTeam.Android.csproj"
+        ]
+      },
+      "local": ["windows", "linux", "android"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/SpaceFleetSurveyTeam/**"],
+        "runTests": false,
+        "androidCompile": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia", "android"]
+      },
+      "windows": {
+        "exeName": "SpaceFleetSurveyTeam.exe",
+        "appId": "Novolis.SpaceFleetSurveyTeam",
+        "installDir": "Novolis\\Space Fleet Survey Team",
+        "groupName": "Space Fleet: Survey Team",
+        "setupBase": "SpaceFleetSurveyTeamSetup",
+        "scriptFile": "space-fleet-survey-team.iss",
+        "closeApplicationsFilter": "SpaceFleetSurveyTeam.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": {
+        "project": "src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.Android/SpaceFleetSurveyTeam.Android.csproj",
+        "applicationId": "com.novolis.spacefleetsurveyteam",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "SPACEFLEET_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [],
+        "networkPolicy": "none"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\space-fleet-survey-team",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\space-fleet-survey-team\\cache",
+        "credentialsNamespace": "Novolis.SpaceFleetSurveyTeam",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "merglyph",
+      "choice": "Merglyph",
+      "displayName": "Merglyph",
+      "sourceRoot": "src/Merglyph",
+      "solution": "src/Merglyph/Merglyph.slnx",
+      "artifactPrefix": "Merglyph",
+      "stack": "maui",
+      "status": "public",
+      "projects": {
+        "publishWindows": null,
+        "linuxCi": [
+          "src/Merglyph/Merglyph.Core/Merglyph.Core.csproj",
+          "tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj",
+          "tests/Merglyph.UiTests/Merglyph.UiTests.csproj"
+        ],
+        "android": "src/Merglyph/Merglyph/Merglyph.csproj",
+        "maui": "src/Merglyph/Merglyph/Merglyph.csproj",
+        "tests": ["tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj"],
+        "all": [
+          "src/Merglyph/Merglyph.Core/Merglyph.Core.csproj",
+          "src/Merglyph/Merglyph/Merglyph.csproj",
+          "tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj",
+          "tests/Merglyph.UiTests/Merglyph.UiTests.csproj"
+        ]
+      },
+      "local": ["windows", "android"],
+      "ship": ["android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/Merglyph/**", "tests/Merglyph.Core.Tests/**", "tests/Merglyph.UiTests/**"],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["maui", "android"]
+      },
+      "windows": null,
+      "android": {
+        "project": "src/Merglyph/Merglyph/Merglyph.csproj",
+        "applicationId": "dev.novolis.merglyph",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "MERGLYPH_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [],
+        "networkPolicy": "none",
+        "signingContinuityNote": "Prior standalone Merglyph releases may have used an ephemeral CI keystore. First migrated APK may require reinstall until ANDROID_KEYSTORE_* secrets are permanent."
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\merglyph",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\merglyph\\cache",
+        "credentialsNamespace": "Novolis.Merglyph",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    }
+  ]
+}

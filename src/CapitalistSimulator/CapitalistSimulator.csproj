@@ -22,6 +22,10 @@
     <PackageReference Include="Novolis.Storage.Abstractions" />
     <PackageReference Include="Novolis.Storage.Json" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Data\*.json" />

@@ -32,5 +32,9 @@
     <PackageReference Include="Novolis.Raylib.Bindings" />
     <PackageReference Include="Novolis.Raylib.Runtime" />
     <PackageReference Include="Novolis.Simulation.View" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 </Project>

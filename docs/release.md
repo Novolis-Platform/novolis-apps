@@ -1,45 +1,38 @@
 # Release
 
-`novolis-apps` does not publish NuGet packages. Releases are application binaries distributed via GitHub Releases (installers, portable zips, checksums).
+## Model
 
-## Versioning
+1. Push/PR validates only affected apps from `build/apps.json` (no installers, no APKs).
+2. Operators run **Release** (`workflow_dispatch`) with:
+   - `app`: choice name / key, or explicit `All`
+   - `channel`: optional `windows-inno` or `android-apk` (must be in that app's `ship` list)
+3. Artifacts land on a GitHub Release tagged `vYEAR.MAJOR.MINOR.BUILD` with `SHA256SUMS.txt`.
+4. `scripts/prune-github-releases.ps1` keeps the newest 5 releases.
 
-Version `YEAR.MAJOR.MINOR.BUILD` comes from `build/version.json` plus the GitHub Actions `run_number` (via `read-version` in the Release workflow).
+Undeclared channels fail before workloads install. There is **no Linux release artifact** in phase one.
 
-## CI and release assets
+## Channels
 
-Every merge to `main` runs Linux CI only; docs-only / markdown pushes are ignored. To publish binaries, run the **Release** workflow explicitly and select **All** or a single app. The Windows job then publishes the selected apps from [`Get-NovolisAppCatalog`](../scripts/Publish-NovolisApp.ps1).
+### windows-inno
 
-| Asset | Pattern |
-|-------|---------|
-| Books Writer Studio installer / zip | `BooksWriterStudioSetup-{version}-win-x64.exe` / `BooksWriterStudio-{version}-win-x64.zip` |
-| Books Mobile installer / zip | `BooksMobileSetup-{version}-win-x64.exe` / `BooksMobile-{version}-win-x64.zip` |
-| Read Aloud installer / zip | `ReadAloudSetup-{version}-win-x64.exe` / `ReadAloud-{version}-win-x64.zip` |
-| Draft Studio installer / zip | `DraftStudioSetup-{version}-win-x64.exe` / `DraftStudio-{version}-win-x64.zip` |
-| Sketch Studio installer / zip | `SketchStudioSetup-{version}-win-x64.exe` / `SketchStudio-{version}-win-x64.zip` |
-| Sins of a Capitalism Tycoon installer / zip | `SinsOfACapitalismTycoonSetup-{version}-win-x64.exe` / `SinsOfACapitalismTycoon-{version}-win-x64.zip` |
-| Live Studio installer / zip | `LiveStudioSetup-{version}-win-x64.exe` / `Novolis.Audio.Live.Studio-{version}-win-x64.zip` |
-| Checksums | `SHA256SUMS.txt` |
+- Self-contained `win-x64` publish
+- Per-user Inno (`PrivilegesRequired=lowest`) under `%LocalAppData%\Programs\Novolis\…`
+- Portable zip + SHA-256
+- Stable `AppId`, `AllowDowngrades=no`, multi-exe close filters where needed (Live Studio)
 
-Android APKs for Books Mobile and Read Aloud are **not** release assets — local deploy only.
+### android-apk
 
-Inno Setup scripts are generated via `Novolis.Avalonia.Packaging.Inno` (`NovolisGenerateInnoScript` MSBuild target):
+- Signed APK only for apps with `android-apk` in `ship`
+- Persistent `ANDROID_KEYSTORE_*` secrets required (adhoc keys are rejected on release)
+- Monotonic `versionCode` via `NovolisAndroidVersionCode` / `Get-NovolisAndroidVersionCode`
 
-- **Per-user** install (`PrivilegesRequired=lowest`, `%LocalAppData%\Programs\Novolis\…`) — no admin
-- **Publisher** display name `Novolis`; canonical URL [github.com/Novolis-Platform](https://github.com/Novolis-Platform)
-- **MIT** license wizard page from repo-root `LICENSE`
-- **Brand icon** from repo-root `icon.ico` (`SetupIconFile` + exe `ApplicationIcon`)
-- Version resource: Company/Product/Copyright/Description under the Novolis brand
-
-After each successful release, CI keeps the newest **5** GitHub Releases (`scripts/prune-github-releases.ps1`).
-
-## Dependency order
-
-When apps depend on new `Novolis.Avalonia.*` or `Novolis.Rendering.*` APIs, merge and publish upstream repos first, wait for GitHub Packages, then merge **novolis-apps**. Consumers use floating `2026.1.*` versions from GPR only (no local feeds).
-
-Manual republish:
+## Local publish
 
 ```powershell
-pwsh -File scripts/build-installer.ps1 -App All
-# or: BooksWriterStudio | BooksMobile | ReadAloud | DraftStudio | SketchStudio | SinsOfACapitalismTycoon | LiveStudio
+pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio -BuildNumber 1
 ```
+
+## Signing notes
+
+- Books Mobile / Read Aloud / Merglyph Android releases require org secrets.
+- Merglyph’s pre-migration standalone releases may have used an ephemeral CI keystore; the first migrated APK may require reinstall until the persistent key is confirmed. See `src/Merglyph/PRIVACY.md`.

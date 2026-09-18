@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <strong>Desktop products on NuGet only</strong><br/>
-  Production Avalonia apps and installers composed entirely from Novolis packages.
+  <strong>Product hosts on NuGet only</strong><br/>
+  Production Avalonia and MAUI apps composed from Novolis packages, with per-app solutions and explicit Ship channels.
 </p>
 
 <p align="center">
@@ -35,62 +35,75 @@
 <!-- novolis-marketing:end -->
 # novolis-apps
 
-Production desktop applications built exclusively from **NuGet packages** (`PackageReference` to `Novolis.*` on GitHub Packages). No in-repo shared libraries — each app under `src/` is a complete project.
+Production applications built exclusively from **NuGet packages** (`PackageReference` to `Novolis.*` on GitHub Packages). Authoritative catalog: [`build/apps.json`](build/apps.json). Every `src/` tree declares at least one **Ship** channel — there is no empty-Ship / “internal only” holding state.
 
-## Quick start
+## Quick start (one app)
 
 ```powershell
-git clone https://github.com/Novolis-Platform/novolis-apps.git
-cd novolis-apps
-..\novolis-governance\scripts\configure-gpr-user-nuget.ps1
-dotnet restore
-dotnet build --no-restore
-dotnet run --project src/DraftStudio
+pwsh -File d:\novolis\novolis-governance\scripts\configure-gpr-user-nuget.ps1
+dotnet restore d:\novolis\novolis-apps\src\DraftStudio\DraftStudio.slnx
+dotnet build d:\novolis\novolis-apps\src\DraftStudio\DraftStudio.slnx --no-restore
+dotnet run --project d:\novolis\novolis-apps\src\DraftStudio\DraftStudio.csproj
 ```
+
+Regenerate solutions after editing the manifest:
+
+```powershell
+dotnet run --project d:\novolis\novolis-apps\tools\AppsManifest\AppsManifest.csproj -- generate-solutions --repo d:\novolis\novolis-apps
+```
+
+`Novolis.Apps.slnx` is a Linux-safe aggregate for local discovery only — not the default CI/release graph.
+
+## Local versus Ship
+
+| | Meaning |
+|---|---|
+| **Local** | Platforms you can restore/build/debug (may include Linux or Windows MAUI without shipping them) |
+| **Ship** | Release channels that produce artifacts (`windows-inno`, `android-apk`) |
+
+Phase one does **not** ship Linux installers. Linux remains a local/PR capability where the stack supports it.
 
 ## Releases
 
-Merges to `main` run Linux build/test validation only. Run the **Release** workflow explicitly to publish a [GitHub Release](https://github.com/Novolis-Platform/novolis-apps/releases) with portable zips, Inno installers, and `SHA256SUMS.txt` for all catalog apps or a selected app.
+PR/merge CI validates **changed apps only** (scoped solutions + tests; Android compile when declared). Packaging is **manual** via the **Release** workflow: pick an app (or explicit `All`) and optional channel override.
 
-| App | Installer | Portable zip |
-|-----|-----------|--------------|
-| Books Writer Studio | `BooksWriterStudioSetup-{version}-win-x64.exe` | `BooksWriterStudio-{version}-win-x64.zip` |
-| Books Mobile | `BooksMobileSetup-{version}-win-x64.exe` | `BooksMobile-{version}-win-x64.zip` |
-| Read Aloud | `ReadAloudSetup-{version}-win-x64.exe` | `ReadAloud-{version}-win-x64.zip` |
-| Draft Studio | `DraftStudioSetup-{version}-win-x64.exe` | `DraftStudio-{version}-win-x64.zip` |
-| Novolis CAD Studio 3D | `CadStudio3DSetup-{version}-win-x64.exe` | `CadStudio3D-{version}-win-x64.zip` |
-| Sketch Studio | `SketchStudioSetup-{version}-win-x64.exe` | `SketchStudio-{version}-win-x64.zip` |
-| Sins of a Capitalism Tycoon | `SinsOfACapitalismTycoonSetup-{version}-win-x64.exe` | `SinsOfACapitalismTycoon-{version}-win-x64.zip` |
-| Live Studio | `LiveStudioSetup-{version}-win-x64.exe` | `Novolis.Audio.Live.Studio-{version}-win-x64.zip` |
+| Channel | Artifacts |
+|---------|-----------|
+| `windows-inno` | Per-user Inno under `%LocalAppData%\Programs\Novolis\…` + portable zip + SHA-256 |
+| `android-apk` | Signed APK + SHA-256 (persistent keystore required) |
 
-Version format: `YEAR.MAJOR.MINOR.BUILD` from `build/version.json` plus CI build number (e.g. `2026.1.0.42`).
-
-Manual republish: run the **Release** workflow from Actions (All or one app), or locally:
+Version format: `YEAR.MAJOR.MINOR.BUILD` from `build/version.json` plus workflow run number.
 
 ```powershell
-pwsh -File scripts/build-installer.ps1 -App All
+pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio
 ```
 
-## Apps
+## Apps (from manifest)
 
-| App | Path | Description |
-|-----|------|-------------|
-| Books Writer Studio | `src/BooksWriterStudio` | Three-column book authoring: chapter nav, markdown editor, metadata/publish/SCM |
-| Books Mobile | `src/BooksMobile` | Avalonia Android + Windows markdown editor for `frankhaugen/books` (Windows released; APK local only) |
-| Read Aloud | `src/ReadAloud` | Paste/open text, listen with Edge TTS, save MP3 (Windows released; APK local only) |
-| Space Fleet: Survey Team | `src/SpaceFleetSurveyTeam` | Mobile field-instrument survey game (local deploy only — not released) |
-| Draft Studio | `src/DraftStudio` | Command-driven 2D/3D CAD-light (`.cadjson` + phys export) |
-| Novolis CAD Studio 3D | `src/CadStudio3D` | Full 2D/3D CAD + scene staging, materials, lit render; dual Cad/Scene agent surfaces |
-| Sketch Studio | `src/SketchStudio` | Freehand sketch studio — [docs/sketch-studio/](docs/sketch-studio/README.md) |
-| Coverage Studio | `src/CoverageStudio` | Org coverage / CRAP / test runner across `novolis-*` (local tooling — not released) |
-| Sins of a Capitalism Tycoon | `src/SinsOfACapitalismTycoon` | Headless/Avalonia BM economy sim (`Novolis.Economy.Core`) |
-| Capitalist Simulator | `src/CapitalistSimulator` | Capitalism 2 homage firm/unit firm sim (local only — not released) |
-| GeoPolity | `src/GeoPolity` | Full-world geopolitics session host (Avalonia / Spectre / headless; local only — not released) |
-| Live Studio | `src/LiveStudio` | Avalonia demo for Novolis Audio Live (host + launcher + studio; DSL editor + visuals) |
+| App | Stack | Ship | Local |
+|-----|-------|------|-------|
+| Books Writer Studio | avalonia-desktop | windows-inno | windows, linux |
+| Draft Studio | avalonia-desktop | windows-inno | windows, linux |
+| Novolis CAD Studio 3D | avalonia-desktop | windows-inno | windows, linux |
+| Sketch Studio | avalonia-desktop | windows-inno | windows, linux |
+| Sins of a Capitalism Tycoon | avalonia-desktop | windows-inno | windows, linux |
+| Live Studio | avalonia-desktop | windows-inno | windows, linux |
+| Books Mobile | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
+| Read Aloud | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
+| Coverage Studio | avalonia-desktop | windows-inno | windows, linux |
+| Capitalist Simulator | avalonia-desktop | windows-inno | windows, linux |
+| GeoPolity | avalonia-desktop | windows-inno | windows, linux |
+| Repo Studio | avalonia-desktop | windows-inno | windows, linux |
+| Ship Designer | avalonia-desktop | windows-inno | windows, linux |
+| Space Fleet: Survey Team | avalonia-mobile | windows-inno | windows, linux, android |
+| Merglyph | maui | android-apk | windows, android |
+
+List programmatically: `dotnet run --project d:\novolis\novolis-apps\tools\AppsManifest\AppsManifest.csproj -- list`
 
 ## Related
 
 - [docs/design.md](docs/design.md)
 - [docs/release.md](docs/release.md)
+- [docs/getting-started.md](docs/getting-started.md)
+- [installer-data-lifecycle](https://github.com/Novolis-Platform/novolis-governance/blob/main/docs/installer-data-lifecycle.md)
 - [nuget-only-policy](https://github.com/Novolis-Platform/novolis-governance/blob/main/docs/nuget-only-policy.md)
-

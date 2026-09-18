@@ -6,7 +6,8 @@
     <Nullable>enable</Nullable>
     <ApplicationId>com.novolis.readaloud</ApplicationId>
     <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
-    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationVersion Condition="'$(NovolisAndroidVersionCode)' != ''">$(NovolisAndroidVersionCode)</ApplicationVersion>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
     <RootNamespace>ReadAloud.Android</RootNamespace>
     <AssemblyName>ReadAloud.Android</AssemblyName>
     <AndroidPackageFormat>apk</AndroidPackageFormat>

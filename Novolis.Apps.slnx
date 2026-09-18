@@ -3,46 +3,39 @@
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />
     <File Path="nuget.config" />
+    <File Path="build/apps.json" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
-    <Project Path="src/DraftStudio/DraftStudio.csproj" />
-    <Project Path="src/ShipDesigner/ShipDesigner.csproj" />
-    <Project Path="src/CadStudio3D/CadStudio3D.csproj" />
-    <Project Path="src/SketchStudio/SketchStudio.csproj" />
-    <Project Path="src/CoverageStudio/CoverageStudio.csproj" />
-    <Project Path="src/RepoStudio/RepoStudio.csproj" />
-    <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
-    <Project Path="src/CapitalistSimulator/CapitalistSimulator.csproj" />
-    <Project Path="src/GeoPolity/GeoPolity.csproj" />
-  </Folder>
-  <Folder Name="/src/BooksMobile/">
-    <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
     <Project Path="src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj" />
-    <!-- Android needs the android workload; build that project directly on Windows/macOS. -->
-  </Folder>
-  <Folder Name="/src/ReadAloud/">
-    <Project Path="src/ReadAloud/ReadAloud/ReadAloud.csproj" />
+    <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
+    <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
+    <Project Path="src/CadStudio3D/CadStudio3D.csproj" />
+    <Project Path="src/CapitalistSimulator/CapitalistSimulator.csproj" />
+    <Project Path="src/CoverageStudio/CoverageStudio.csproj" />
+    <Project Path="src/DraftStudio/DraftStudio.csproj" />
+    <Project Path="src/GeoPolity/GeoPolity.csproj" />
+    <Project Path="src/LiveStudio/host/LiveStudio.Host.csproj" />
+    <Project Path="src/LiveStudio/launcher/LiveStudio.Launcher.csproj" />
+    <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
+    <Project Path="src/LiveStudio/studio/LiveStudio.csproj" />
+    <Project Path="src/Merglyph/Merglyph.Core/Merglyph.Core.csproj" />
     <Project Path="src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj" />
-    <!-- Android needs the android workload; build that project directly on Windows/macOS. -->
-  </Folder>
-  <Folder Name="/src/SpaceFleetSurveyTeam/">
-    <Project Path="src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.csproj" />
+    <Project Path="src/ReadAloud/ReadAloud/ReadAloud.csproj" />
+    <Project Path="src/RepoStudio/RepoStudio.csproj" />
+    <Project Path="src/ShipDesigner/ShipDesigner.csproj" />
+    <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
+    <Project Path="src/SketchStudio/SketchStudio.csproj" />
     <Project Path="src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.Desktop/SpaceFleetSurveyTeam.Desktop.csproj" />
-    <!-- Android needs the android workload; build that project directly on Windows/macOS. -->
+    <Project Path="src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
     <Project Path="tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj" />
-    <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
     <Project Path="tests/CapitalistSimulator.Unit/CapitalistSimulator.Unit.csproj" />
+    <Project Path="tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
     <Project Path="tests/GeoPolity.Unit/GeoPolity.Unit.csproj" />
+    <Project Path="tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
+    <Project Path="tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />
     <Project Path="tests/ReadAloud.Unit/ReadAloud.Unit.csproj" />
-  </Folder>
-  <Folder Name="/src/LiveStudio/">
-    <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
-    <Project Path="src/LiveStudio/launcher/LiveStudio.Launcher.csproj" />
-    <Project Path="src/LiveStudio/studio/LiveStudio.csproj" />
-    <Project Path="src/LiveStudio/host/LiveStudio.Host.csproj" />
+    <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
   </Folder>
 </Solution>

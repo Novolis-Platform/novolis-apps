@@ -29,5 +29,9 @@
     <PackageReference Include="Novolis.Geopolitics.Scenarios" />
     <PackageReference Include="Novolis.Geopolitics.Simulation" />
     <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 </Project>

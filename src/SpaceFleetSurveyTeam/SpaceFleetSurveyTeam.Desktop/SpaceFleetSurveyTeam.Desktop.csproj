@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>SpaceFleetSurveyTeam.Desktop</RootNamespace>
-    <AssemblyName>SpaceFleetSurveyTeam.Desktop</AssemblyName>
+    <AssemblyName>SpaceFleetSurveyTeam</AssemblyName>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
@@ -13,5 +13,9 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Novolis.Avalonia.Mobile.Desktop" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 </Project>

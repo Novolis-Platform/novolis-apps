@@ -1,105 +1,77 @@
 #Requires -Version 7.0
-# Shared publish + zip + Inno script generation for novolis-apps WinExe/Exe projects.
+# Shared publish + zip + Inno script generation for novolis-apps. Catalog: build/apps.json.
+
+function Get-NovolisMsBuildPropertyArgs {
+    param([Parameter(Mandatory)][hashtable]$Properties)
+    foreach ($entry in $Properties.GetEnumerator()) {
+        $val = [string]$entry.Value
+        if ($val -match '[;"]' -or $val.Contains(' ')) {
+            "-p:$($entry.Key)=`"$($val.Replace('"','\"'))`""
+        }
+        else {
+            "-p:$($entry.Key)=$val"
+        }
+    }
+}
+
+function Get-NovolisAppsManifestPath {
+    param([Parameter(Mandatory)][string]$RepoRoot)
+    Join-Path $RepoRoot 'build/apps.json'
+}
+
+function Get-NovolisAppsManifest {
+    param([Parameter(Mandatory)][string]$RepoRoot)
+    $path = Get-NovolisAppsManifestPath -RepoRoot $RepoRoot
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw "App manifest not found: $path"
+    }
+    Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+}
 
 function Get-NovolisAppCatalog {
-    @(
+    param([string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path)
+
+    $manifest = Get-NovolisAppsManifest -RepoRoot $RepoRoot
+    foreach ($app in $manifest.apps) {
+        if (-not ($app.ship -contains 'windows-inno')) { continue }
+        if (-not $app.windows) { throw "App $($app.key) ships windows-inno without windows metadata." }
         [pscustomobject]@{
-            Key           = 'books-writer-studio'
-            Choice        = 'BooksWriterStudio'
-            Project       = 'src/BooksWriterStudio/BooksWriterStudio.csproj'
-            DisplayName   = 'Books Writer Studio'
-            AppId         = 'Novolis.BooksWriterStudio'
-            ExeName       = 'BooksWriterStudio.exe'
-            GroupName     = 'Books Writer Studio'
-            InstallDir    = 'Novolis\Books Writer Studio'
-            SetupBase     = 'BooksWriterStudioSetup'
-            ScriptFile    = 'books-writer-studio.iss'
+            Key                        = $app.key
+            Choice                     = $app.choice
+            Project                    = $app.projects.publishWindows
+            DisplayName                = $app.displayName
+            AppId                      = $app.windows.appId
+            ExeName                    = $app.windows.exeName
+            GroupName                  = $app.windows.groupName
+            InstallDir                 = $app.windows.installDir
+            SetupBase                  = $app.windows.setupBase
+            ScriptFile                 = $app.windows.scriptFile
+            CloseApplicationsFilter    = $app.windows.closeApplicationsFilter
+            Ship                       = @($app.ship)
+            Stack                      = $app.stack
         }
+    }
+}
+
+function Get-NovolisAndroidAppCatalog {
+    param([string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path)
+
+    $manifest = Get-NovolisAppsManifest -RepoRoot $RepoRoot
+    foreach ($app in $manifest.apps) {
+        if (-not ($app.ship -contains 'android-apk')) { continue }
+        if (-not $app.android) { throw "App $($app.key) ships android-apk without android metadata." }
         [pscustomobject]@{
-            Key           = 'draft-studio'
-            Choice        = 'DraftStudio'
-            Project       = 'src/DraftStudio/DraftStudio.csproj'
-            DisplayName   = 'Draft Studio'
-            AppId         = 'Novolis.DraftStudio'
-            ExeName       = 'DraftStudio.exe'
-            GroupName     = 'Draft Studio'
-            InstallDir    = 'Novolis\Draft Studio'
-            SetupBase     = 'DraftStudioSetup'
-            ScriptFile    = 'draft-studio.iss'
+            Key               = $app.key
+            Choice            = $app.choice
+            Project           = $app.android.project
+            DisplayName       = $app.displayName
+            ApplicationId     = $app.android.applicationId
+            ArtifactPrefix    = $app.artifactPrefix
+            SigningSecretKey  = $app.android.signingSecretKey
+            Stack             = $app.stack
+            IsMaui            = ($app.stack -eq 'maui')
         }
-        [pscustomobject]@{
-            Key           = 'cad-studio-3d'
-            Choice        = 'CadStudio3D'
-            Project       = 'src/CadStudio3D/CadStudio3D.csproj'
-            DisplayName   = 'Novolis CAD Studio 3D'
-            AppId         = 'Novolis.CadStudio3D'
-            ExeName       = 'CadStudio3D.exe'
-            GroupName     = 'Novolis CAD Studio 3D'
-            InstallDir    = 'Novolis\CAD Studio 3D'
-            SetupBase     = 'CadStudio3DSetup'
-            ScriptFile    = 'cad-studio-3d.iss'
-        }
-        [pscustomobject]@{
-            Key           = 'sketch-studio'
-            Choice        = 'SketchStudio'
-            Project       = 'src/SketchStudio/SketchStudio.csproj'
-            DisplayName   = 'Sketch Studio'
-            AppId         = 'Novolis.SketchStudio'
-            ExeName       = 'SketchStudio.exe'
-            GroupName     = 'Sketch Studio'
-            InstallDir    = 'Novolis\Sketch Studio'
-            SetupBase     = 'SketchStudioSetup'
-            ScriptFile    = 'sketch-studio.iss'
-        }
-        [pscustomobject]@{
-            Key           = 'sins-of-a-capitalism-tycoon'
-            Choice        = 'SinsOfACapitalismTycoon'
-            Project       = 'src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj'
-            DisplayName   = 'Sins of a Capitalism Tycoon'
-            AppId         = 'Novolis.SinsOfACapitalismTycoon'
-            ExeName       = 'SinsOfACapitalismTycoon.exe'
-            GroupName     = 'Sins of a Capitalism Tycoon'
-            InstallDir    = 'Novolis\Sins of a Capitalism Tycoon'
-            SetupBase     = 'SinsOfACapitalismTycoonSetup'
-            ScriptFile    = 'sins-of-a-capitalism-tycoon.iss'
-        }
-        [pscustomobject]@{
-            Key           = 'live-studio'
-            Choice        = 'LiveStudio'
-            Project       = 'src/LiveStudio/studio/LiveStudio.csproj'
-            DisplayName   = 'Live Studio'
-            AppId         = 'Novolis.Audio.Live.Studio'
-            ExeName       = 'Novolis.Audio.Live.Studio.exe'
-            GroupName     = 'Live Studio'
-            InstallDir    = 'Novolis\Live Studio'
-            SetupBase     = 'LiveStudioSetup'
-            ScriptFile    = 'live-studio.iss'
-        }
-        [pscustomobject]@{
-            Key           = 'books-mobile'
-            Choice        = 'BooksMobile'
-            Project       = 'src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj'
-            DisplayName   = 'Books Mobile'
-            AppId         = 'Novolis.BooksMobile'
-            ExeName       = 'BooksMobile.exe'
-            GroupName     = 'Books Mobile'
-            InstallDir    = 'Novolis\Books Mobile'
-            SetupBase     = 'BooksMobileSetup'
-            ScriptFile    = 'books-mobile.iss'
-        }
-        [pscustomobject]@{
-            Key           = 'read-aloud'
-            Choice        = 'ReadAloud'
-            Project       = 'src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj'
-            DisplayName   = 'Read Aloud'
-            AppId         = 'Novolis.ReadAloud'
-            ExeName       = 'ReadAloud.exe'
-            GroupName     = 'Read Aloud'
-            InstallDir    = 'Novolis\Read Aloud'
-            SetupBase     = 'ReadAloudSetup'
-            ScriptFile    = 'read-aloud.iss'
-        }
-    )
+    }
 }
 
 function Publish-NovolisApp {
@@ -145,7 +117,6 @@ function Publish-NovolisApp {
     & dotnet restore $appProject -r win-x64 @cfgArgs @versionArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Restore failed with exit code $LASTEXITCODE." }
 
-    # Live Studio bundles host + launcher after publish; restore them so nested Publish finds assets.
     if ($AppKey -eq 'live-studio') {
         foreach ($extra in @(
             'src/LiveStudio/host/LiveStudio.Host.csproj',
@@ -167,8 +138,7 @@ function Publish-NovolisApp {
     if ($LASTEXITCODE -ne 0) { throw "Publish failed with exit code $LASTEXITCODE." }
 
     $exeBase = [System.IO.Path]::GetFileNameWithoutExtension($appProject)
-    # Prefer AssemblyName-driven exe when present in publish output (e.g. Live Studio).
-    $catalog = Get-NovolisAppCatalog | Where-Object { $_.Key -eq $AppKey } | Select-Object -First 1
+    $catalog = Get-NovolisAppCatalog -RepoRoot $RepoRoot | Where-Object { $_.Key -eq $AppKey } | Select-Object -First 1
     if ($catalog -and (Test-Path (Join-Path $publishDir $catalog.ExeName))) {
         $zipStem = [System.IO.Path]::GetFileNameWithoutExtension($catalog.ExeName)
     }
@@ -197,7 +167,7 @@ function Publish-NovolisApp {
     $inno = Get-NovolisAppInnoProfile -AppKey $AppKey -PackageVersion $PackageVersion -PublishDir $publishDir -InstallerDir $installerDir -RepoRoot $RepoRoot
     & dotnet msbuild $appProject `
         -t:NovolisGenerateInnoScript `
-        @($inno.MsBuildArgs.GetEnumerator() | ForEach-Object { "-p:$($_.Key)=$($_.Value)" }) | Out-Host
+        @(Get-NovolisMsBuildPropertyArgs -Properties $inno.MsBuildArgs) | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Generating the Inno script failed with exit code $LASTEXITCODE." }
 
     $iscc = @(
@@ -233,7 +203,7 @@ function Get-NovolisAppInnoProfile {
         [Parameter(Mandatory)][string]$RepoRoot
     )
 
-    $app = Get-NovolisAppCatalog | Where-Object { $_.Key -eq $AppKey } | Select-Object -First 1
+    $app = Get-NovolisAppCatalog -RepoRoot $RepoRoot | Where-Object { $_.Key -eq $AppKey } | Select-Object -First 1
     if (-not $app) { throw "Unknown app key: $AppKey" }
 
     $script = Join-Path $InstallerDir $app.ScriptFile
@@ -242,23 +212,24 @@ function Get-NovolisAppInnoProfile {
     $icon = Join-Path $RepoRoot 'icon.ico'
 
     $msbuild = @{
-        NovolisInnoAppName                = $app.DisplayName
-        NovolisInnoAppVersion             = $PackageVersion
-        NovolisInnoPublishDir             = $PublishDir
-        NovolisInnoAppExeName             = $app.ExeName
-        NovolisInnoOutputDir              = $InstallerDir
-        NovolisInnoAppId                  = $app.AppId
-        NovolisInnoDefaultGroupName       = $app.GroupName
-        NovolisInnoOutputBaseFilename     = $setupBase
-        NovolisInnoInstallDirName         = $app.InstallDir
-        NovolisInnoScriptPath             = $script
-        NovolisInnoAppPublisher           = 'Novolis'
-        NovolisInnoAppPublisherURL        = 'https://github.com/Novolis-Platform'
-        NovolisInnoAppCopyright           = 'Copyright (c) Novolis'
-        NovolisInnoVersionInfoCompany     = 'Novolis'
-        NovolisInnoVersionInfoDescription = "$($app.DisplayName) - Novolis"
-        NovolisInnoAppSupportURL          = 'https://github.com/Novolis-Platform/novolis-apps/issues'
-        NovolisInnoAppUpdatesURL          = 'https://github.com/Novolis-Platform/novolis-apps/releases'
+        NovolisInnoAppName                   = $app.DisplayName
+        NovolisInnoAppVersion                = $PackageVersion
+        NovolisInnoPublishDir                = $PublishDir
+        NovolisInnoAppExeName                = $app.ExeName
+        NovolisInnoOutputDir                 = $InstallerDir
+        NovolisInnoAppId                     = $app.AppId
+        NovolisInnoDefaultGroupName          = $app.GroupName
+        NovolisInnoOutputBaseFilename        = $setupBase
+        NovolisInnoInstallDirName            = $app.InstallDir
+        NovolisInnoScriptPath                = $script
+        NovolisInnoAppPublisher              = 'Novolis'
+        NovolisInnoAppPublisherURL           = 'https://github.com/Novolis-Platform'
+        NovolisInnoAppCopyright              = 'Copyright (c) Novolis'
+        NovolisInnoVersionInfoCompany        = 'Novolis'
+        NovolisInnoVersionInfoDescription    = "$($app.DisplayName) - Novolis"
+        NovolisInnoAppSupportURL             = 'https://github.com/Novolis-Platform/novolis-apps/issues'
+        NovolisInnoAppUpdatesURL             = 'https://github.com/Novolis-Platform/novolis-apps/releases'
+        NovolisInnoCloseApplicationsFilter   = $app.CloseApplicationsFilter
     }
     if (Test-Path -LiteralPath $license) {
         $msbuild['NovolisInnoLicenseFile'] = $license
@@ -271,5 +242,100 @@ function Get-NovolisAppInnoProfile {
         ScriptPath    = $script
         InstallerPath = Join-Path $InstallerDir "$setupBase.exe"
         MsBuildArgs   = $msbuild
+    }
+}
+
+function Get-NovolisAndroidVersionCode {
+    param(
+        [Parameter(Mandatory)][string]$PackageVersion,
+        [int]$RunNumber = 0
+    )
+    # YEAR.MAJOR.MINOR.BUILD → monotonic int; prefer run number as BUILD when present.
+    $parts = $PackageVersion.Split('.')
+    if ($parts.Length -lt 3) { throw "PackageVersion '$PackageVersion' is not YEAR.MAJOR.MINOR[.BUILD]." }
+    $year = [int]$parts[0]
+    $major = [int]$parts[1]
+    $minor = [int]$parts[2]
+    $build = if ($parts.Length -ge 4) { [int]$parts[3] } else { $RunNumber }
+    if ($RunNumber -gt $build) { $build = $RunNumber }
+    # Fits comfortably under Android's 2100000000 limit for CalVer through 2099.
+    return ($year * 1000000) + ($major * 10000) + ($minor * 100) + ($build % 100)
+}
+
+function Publish-NovolisAndroidApk {
+    param(
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [Parameter(Mandatory)][string]$AppKey,
+        [Parameter(Mandatory)][string]$PackageVersion,
+        [int]$RunNumber = 0,
+        [string]$KeystorePath,
+        [string]$KeyAlias,
+        [string]$KeystorePassword,
+        [string]$KeyPassword
+    )
+
+    $ErrorActionPreference = 'Stop'
+    $app = Get-NovolisAndroidAppCatalog -RepoRoot $RepoRoot | Where-Object { $_.Key -eq $AppKey } | Select-Object -First 1
+    if (-not $app) { throw "Unknown android-apk app key: $AppKey" }
+
+    $project = Join-Path $RepoRoot $app.Project
+    $stagingDir = Join-Path $RepoRoot "artifacts/$AppKey/android"
+    New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
+
+    $versionCode = Get-NovolisAndroidVersionCode -PackageVersion $PackageVersion -RunNumber $RunNumber
+    $cfgArgs = @()
+    $nugetConfig = Join-Path $RepoRoot 'nuget.config'
+    if (Test-Path $nugetConfig) { $cfgArgs = @('--configfile', $nugetConfig) }
+
+    $publishArgs = @(
+        $project
+        '-f', 'net10.0-android'
+        '-c', 'Release'
+        '-p:AndroidPackageFormats=apk'
+        "-p:ApplicationDisplayVersion=$PackageVersion"
+        "-p:ApplicationVersion=$versionCode"
+        "-p:NovolisAndroidVersionCode=$versionCode"
+        "-p:PackageVersion=$PackageVersion"
+    )
+    if ($app.IsMaui) {
+        $publishArgs += '-p:NovolisMauiTargetFrameworks=net10.0-android'
+    }
+    if ($KeystorePath -and $KeyAlias -and $KeystorePassword -and $KeyPassword) {
+        $publishArgs += @(
+            '-p:AndroidKeyStore=true'
+            "-p:AndroidSigningKeyStore=$KeystorePath"
+            "-p:AndroidSigningKeyAlias=$KeyAlias"
+            "-p:AndroidSigningStorePass=$KeystorePassword"
+            "-p:AndroidSigningKeyPass=$KeyPassword"
+        )
+    }
+    else {
+        Write-Warning "No persistent Android signing key for $AppKey. APK will be unsigned or adhoc — not upgrade-safe."
+    }
+
+    Write-Host "Publishing Android APK for $AppKey (versionCode=$versionCode)..."
+    & dotnet publish @publishArgs @cfgArgs | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Android publish failed with exit code $LASTEXITCODE." }
+
+    $apk = Get-ChildItem -Path (Join-Path $RepoRoot (Split-Path $app.Project -Parent)) -Recurse -Filter '*-Signed.apk' |
+        Where-Object { $_.FullName -match '[\\/]bin[\\/]Release[\\/]' } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if (-not $apk) {
+        $apk = Get-ChildItem -Path (Join-Path $RepoRoot (Split-Path $app.Project -Parent)) -Recurse -Filter '*.apk' |
+            Where-Object { $_.FullName -match '[\\/]bin[\\/]Release[\\/]' -and $_.Name -notmatch 'unsigned' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
+    if (-not $apk) { throw "No APK produced for $AppKey." }
+
+    $dest = Join-Path $stagingDir "$($app.ArtifactPrefix)-$PackageVersion-android.apk"
+    Copy-Item -LiteralPath $apk.FullName -Destination $dest -Force
+    Write-Host "APK: $dest"
+    return [pscustomobject]@{
+        AppKey      = $AppKey
+        ApkPath     = $dest
+        ApkName     = Split-Path $dest -Leaf
+        VersionCode = $versionCode
     }
 }

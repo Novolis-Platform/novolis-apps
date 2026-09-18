@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="CadStudio3D.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/Merglyph.Core/">
+    <Project Path="Merglyph.Core/Merglyph.Core.csproj" />
+  </Folder>
+  <Folder Name="/Merglyph/">
+    <Project Path="Merglyph/Merglyph.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
+    <Project Path="../../tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />
+  </Folder>
+</Solution>

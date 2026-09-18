@@ -1,86 +1,29 @@
-# Design
+# Design — app platform
 
-## Purpose
+## Source of truth
 
-`novolis-apps` hosts shipped desktop applications that consume published Novolis packages from GitHub Packages. Each app under `src/` is self-contained.
+[`build/apps.json`](../build/apps.json) owns app identity, per-app solutions, Local vs Ship, projects, Windows/Android metadata, data roots, and release flags.
 
-## Non-goals
+```text
+apps.json → per-app .slnx + Novolis.Apps.slnx (aggregate)
+         → changed-app PR/merge matrices
+         → selected-app/channel release matrix
+         → Publish-NovolisApp.ps1 / Publish-NovolisAndroidApk
+```
 
-- Publishing NuGet packages from this repository
-- In-repo shared libraries or cross-app `ProjectReference`
-- Cross-repo `ProjectReference` into sibling `novolis-*` clones
+Tooling: `tools/AppsManifest` (`validate`, `generate-solutions`, `ci-matrix`, `release-matrix`, `list`).
 
-## Books Writer Studio
+## Boundaries
 
-WinExe for three-column book authoring (chapter nav, markdown editor, metadata/publish/SCM).
+| Boundary | Rule |
+|----------|------|
+| Repository | One product repo (`novolis-apps`) |
+| Solution | One `.slnx` per app (tests included); aggregate is convenience only |
+| Platform | Reusable channels (`windows-inno`, `android-apk`) selected per app |
+| Product | Permissions, storage, credentials, and privacy inventory per app |
 
-- Path: `src/BooksWriterStudio/`
+Android and MAUI hosts are excluded from the Linux aggregate and from default Linux CI legs. Merglyph never runs a Windows MAUI workload in PR/release.
 
-## Read Aloud
+## Stack isolation
 
-Avalonia Android + Windows scratch reader: paste or open text, listen with Edge TTS (Ava), or save an MP3. Windows installer catalog; Android APK local-only (same hybrid as Books Mobile).
-
-- Path: `src/ReadAloud/`
-
-## Draft Studio
-
-WinExe for command-driven 2D/3D CAD-light drafting (LibreCAD/AutoCAD-light): typed DSL (`Line(0,0,1,0)`), mouse tools that emit the same commands, plan-view canvas, Raylib model view, `.cadjson` persistence, and optional `.cadphys.json` export.
-
-- Path: `src/DraftStudio/`
-- Data: `%LocalAppData%\Novolis\Draft Studio\default-workspace\draft.cadjson`
-- Formats: [`cadjson.md`](../../novolis-governance/docs/cadjson.md)
-- Consumes `Novolis.Avalonia.Studio` (`StudioCommandBar`), `Novolis.Commands.Expressions`, `Novolis.Math.Geometry`, `Novolis.Avalonia.Raylib` from GitHub Packages (NuGet-only)
-
-## Sketch Studio
-
-WinExe freehand / whiteboard studio on `SketchControl`.
-
-**Drawing:** pen, line, spline, box, circle, speech bubble, text, text box, eraser, select (rotate grip, Shift multi-select).  
-**Options:** grid / snap / meetup / fill / stroke styles / Gridify.  
-**Composition:** fuse / ungroup, paste image, undo/redo.  
-**Documents:** New/Open/Save/Save As `.sketchjson`; last path + MRU under `%LocalAppData%\Novolis\Sketch Studio\`.  
-**Export:** Copy / Save As PNG (opaque) and SVG.  
-**Discoverability:** hover tooltips; **F1** shortcut reference.
-
-- Path: `src/SketchStudio/`
-- **Docs:** [`docs/sketch-studio/`](sketch-studio/README.md) (getting started, tools, shortcuts, architecture, …)
-- Format: [`sketchjson.md`](../../novolis-governance/docs/sketchjson.md)
-- Smoke: `dotnet run --project src/SketchStudio -- --smoke`
-- Consumes `Novolis.Avalonia.Controls`, `Novolis.Avalonia.Controls.Sketch` from GitHub Packages (NuGet-only)
-
-## Sins of a Capitalism Tycoon
-
-Exe with dual shell for the bounded-minimum economy package:
-
-- Path: `src/SinsOfACapitalismTycoon/`
-- `--mode headless` — period loop + console report (agent entrypoint)
-- `--mode avalonia` — same report in a desktop window
-- Consumes `Novolis.Economy.Core` from GitHub Packages (NuGet-only)
-
-## Capitalist Simulator
-
-Exe dual-shell Capitalism 2 homage (app-local firm/unit/linkage sim + Avalonia UI). Not in the release installer catalog yet.
-
-- Path: `src/CapitalistSimulator/`
-- `--mode headless` — month ticks + Spectre report
-- `--mode avalonia` — city map / firm interior bridge
-- Consumes `Novolis.Avalonia.Studio`, `.Briefing`, `.Controls`, `Novolis.Storage.Json` (NuGet-only)
-
-## Live Studio
-
-Avalonia demo for Novolis Audio Live (DSL editor + visuals), with bundled host and launcher.
-
-- Path: `src/LiveStudio/studio/`
-
-## Package sources
-
-| Source | URL |
-|--------|-----|
-| GitHub Packages | `Novolis.Avalonia.Studio` and other `Novolis.*` |
-| nuget.org | Avalonia, YamlDotNet |
-
-## Related
-
-- [getting-started.md](getting-started.md)
-- [release.md](release.md)
-- [apps-repos.md](../../novolis-governance/docs/apps-repos.md)
+MAUI apps (`Novolis.Maui.*` packages) and Avalonia apps coexist in the same repo via path-filtered / changed-app matrices. They do not share solution graphs that force both workloads onto every runner.
