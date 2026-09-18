@@ -127,7 +127,7 @@ jobs:
             Where-Object { $_.ZipPath } |
             Select-Object -Last 1
           if (-not $item) { throw "Publish failed for ${{ matrix.key }}" }
-          $paths = @($item.ZipPath)
+          $paths = @()
           if ($item.InstallerPath) { $paths += $item.InstallerPath }
           "assets<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           $paths | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -137,8 +137,6 @@ jobs:
         with:
           name: windows-${{ matrix.key }}
           path: |
-            artifacts/${{ matrix.key }}/*.zip
-            artifacts/${{ matrix.key }}/app/${{ matrix.exe_name }}
             artifacts/${{ matrix.key }}/installer/*.exe
           if-no-files-found: error
 

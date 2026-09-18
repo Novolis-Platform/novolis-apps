@@ -69,7 +69,7 @@ PR/merge CI validates **changed apps only** (scoped solutions + tests; Android c
 
 | Channel | Artifacts |
 |---------|-----------|
-| `windows-inno` | Per-user Inno under `%LocalAppData%\Programs\Novolis\…` + one primary app `.exe` + portable zip + installer `.exe` + SHA-256 |
+| `windows-inno` | Per-user Inno under `%LocalAppData%\Programs\Novolis\…` + one installer `.exe` per app + SHA-256 |
 | `android-apk` | Signed APK + SHA-256 (persistent keystore required) |
 
 Version format: `YEAR.MAJOR.MINOR.BUILD` from `build/version.json` plus workflow run number.
