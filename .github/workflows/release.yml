@@ -137,8 +137,9 @@ jobs:
         with:
           name: windows-${{ matrix.key }}
           path: |
-            artifacts/${{ matrix.key }}/**/*.zip
-            artifacts/${{ matrix.key }}/**/*.exe
+            artifacts/${{ matrix.key }}/*.zip
+            artifacts/${{ matrix.key }}/app/${{ matrix.exe_name }}
+            artifacts/${{ matrix.key }}/installer/*.exe
           if-no-files-found: error
 
   android-apk:
