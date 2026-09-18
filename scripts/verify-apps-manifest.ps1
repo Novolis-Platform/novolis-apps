@@ -21,10 +21,12 @@ $relative = $generated |
     ForEach-Object {
         [IO.Path]::GetRelativePath($RepoRoot, $_).Replace('\', '/')
     }
-$dirty = @(git -C $RepoRoot status --short -- $relative)
-if ($dirty.Count -gt 0) {
-    $dirty | Write-Error
-    throw 'Generated solution drift detected. Commit the generated .slnx files.'
+if ($env:CI -eq 'true' -or $env:GITHUB_ACTIONS -eq 'true' -or $env:TF_BUILD -eq 'true') {
+    $dirty = @(git -C $RepoRoot status --short -- $relative)
+    if ($dirty.Count -gt 0) {
+        $dirty | Write-Error
+        throw 'Generated solution drift detected. Commit the generated .slnx files.'
+    }
 }
 
 Write-Host 'Apps manifest + generated solutions OK.'

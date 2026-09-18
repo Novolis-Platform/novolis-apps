@@ -31,6 +31,12 @@ jobs:
       - uses: Novolis-Platform/novolis-workflows/actions/setup-dotnet@main
         with:
           dotnet-version: 10.0.x
+      - name: Validate apps manifest and generated solutions
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/verify-apps-manifest.ps1 -RepoRoot "$env:GITHUB_WORKSPACE"
+      - name: Test AppsManifest planner
+        shell: bash
+        run: dotnet test tests/AppsManifest.Unit/AppsManifest.Unit.csproj -c Release
       - name: Resolve changed-app matrix
         id: matrix
         shell: bash

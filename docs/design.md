@@ -5,13 +5,16 @@
 [`build/apps.json`](../build/apps.json) owns app identity, per-app solutions, Local vs Ship, projects, Windows/Android metadata, data roots, and release flags.
 
 ```text
-apps.json → per-app .slnx + Novolis.Apps.slnx (aggregate)
-         → changed-app PR/merge matrices
+apps.json → per-app .slnx + per-app Linux CI .slnx + Novolis.Apps.slnx
+         → coverage-aware Linux / Android / Windows validation rows
          → selected-app/channel release matrix
          → Publish-NovolisApp.ps1 / Publish-NovolisAndroidApk
 ```
 
 Tooling: `tools/AppsManifest` (`validate`, `generate-solutions`, `ci-matrix`, `release-matrix`, `list`).
+`ci-matrix` emits separate platform arrays. Fast coverage selects affected apps
+or one representative per stack for root-policy changes; full coverage is
+explicit (`--all` or `--coverage full`).
 
 ## Boundaries
 
@@ -22,8 +25,13 @@ Tooling: `tools/AppsManifest` (`validate`, `generate-solutions`, `ci-matrix`, `r
 | Platform | Reusable channels (`windows-inno`, `android-apk`) selected per app |
 | Product | Permissions, storage, credentials, and privacy inventory per app |
 
-Android and MAUI hosts are excluded from the Linux aggregate and from default Linux CI legs. Merglyph never runs a Windows MAUI workload in PR/release.
+Android and MAUI hosts are excluded from per-app Linux CI solutions. Android
+rows build only declared Android heads, and Windows rows exist only when an app
+explicitly opts into Windows validation. Release/signing remains separate from
+merge validation.
 
 ## Stack isolation
 
-MAUI apps (`Novolis.Maui.*` packages) and Avalonia apps coexist in the same repo via path-filtered / changed-app matrices. They do not share solution graphs that force both workloads onto every runner.
+MAUI apps (`Novolis.Maui.*` packages) and Avalonia apps coexist in the same
+repo via coverage-aware, platform-filtered matrices. They do not share Linux
+solution graphs that force Android or MAUI workloads onto every runner.
