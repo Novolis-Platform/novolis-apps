@@ -5,7 +5,7 @@
 1. Push/PR validates only affected apps from `build/apps.json` (no installers, no APKs).
 2. Operators run **Release** (`workflow_dispatch`) with:
    - `app`: a fixed dropdown of catalog apps, or `All`
-   - `channel`: a fixed dropdown of `All`, `windows-inno`, or `android-apk` (must be in that app's `ship` list)
+   - `channel`: a fixed dropdown of `All`, `windows-inno`, or `android-apk`; with `All` apps selected, a specific channel filters to apps declaring it
 3. Artifacts land on a GitHub Release tagged `vYEAR.MAJOR.MINOR.BUILD` with `SHA256SUMS.txt`.
 4. `scripts/prune-github-releases.ps1` keeps the newest 5 releases.
 

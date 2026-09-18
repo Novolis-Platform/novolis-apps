@@ -495,8 +495,9 @@ internal static class Program
         var doc = Load(manifestPath);
         var appChoice = GetOption(args, "--app") ?? "All";
         var channelOverride = GetOption(args, "--channel");
+        var allAppsSelected = string.Equals(appChoice, "All", StringComparison.OrdinalIgnoreCase);
 
-        IEnumerable<AppEntry> apps = string.Equals(appChoice, "All", StringComparison.OrdinalIgnoreCase)
+        IEnumerable<AppEntry> apps = allAppsSelected
             ? doc.Apps
             : doc.Apps.Where(a => a.Choice.Equals(appChoice, StringComparison.OrdinalIgnoreCase)
                                   || a.Key.Equals(appChoice, StringComparison.OrdinalIgnoreCase));
@@ -512,7 +513,13 @@ internal static class Program
             if (!string.IsNullOrWhiteSpace(channelOverride))
             {
                 if (!channels.Contains(channelOverride, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (allAppsSelected)
+                        continue;
+
                     throw new InvalidOperationException($"Channel '{channelOverride}' is not declared in ship for '{app.Key}'.");
+                }
+
                 channels = [channelOverride];
             }
 

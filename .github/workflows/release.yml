@@ -24,7 +24,7 @@ on:
           - SpaceFleetSurveyTeam
           - Merglyph
       channel:
-        description: Channel override; All uses every channel declared for the selected app.
+        description: Channel override; All uses declared channels, or filters All apps to this channel.
         type: choice
         default: All
         options:
