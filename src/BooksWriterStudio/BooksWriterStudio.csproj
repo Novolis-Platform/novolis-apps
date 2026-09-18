@@ -20,7 +20,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Novolis.Avalonia.Studio" />
-    <PackageReference Include="Novolis.Audio.Voice.EdgeTts" />
+    <PackageReference Include="Novolis.Audio.Voice.AzureSpeech" />
     <PackageReference Include="Novolis.IO.Git" />
     <PackageReference Include="Novolis.IO.Paths" />
     <PackageReference Include="Novolis.IO.Recovery" />

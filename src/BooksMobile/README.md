@@ -92,7 +92,8 @@ Consumes GitHub Packages `2026.1.*`:
 | `Novolis.Avalonia.Markdown` | Editor + preview |
 | `Novolis.IO.GitHub` | Device-flow auth, sparse clone, commit/push |
 | `Novolis.Manuscript` | NMP/1 / catalog workspace façade |
-| `Novolis.Audio.Voice.EdgeTts` | Chapter speech |
+| `Novolis.Avalonia.Speech` | Device voice and optional user-owned Azure Speech |
+| `Novolis.Audio.Voice.Platform.Android` / `.Windows` | Local device voice playback |
 
 ## Local development (ProjectReference mode)
 

@@ -28,8 +28,8 @@ internal static class Program
                     services.AddSingleton<WriterSettingsStore>();
                     services.AddSingleton<WriterSession>();
                     services.AddSingleton<SpellService>();
-                    services.AddSingleton<EdgeTtsSynthesizer>();
-                    services.AddSingleton<ISynthesizer>(sp => sp.GetRequiredService<EdgeTtsSynthesizer>());
+                    services.AddSingleton<AzureSpeechSynthesizer>();
+                    services.AddSingleton<ISynthesizer>(sp => sp.GetRequiredService<AzureSpeechSynthesizer>());
                     services.AddSingleton<NaudioMp3Player>();
                     services.AddSingleton<IAudioPlayer>(sp => sp.GetRequiredService<NaudioMp3Player>());
                     services.AddSingleton<SpeechPreview>();
@@ -47,7 +47,6 @@ internal static class Program
             {
                 ApplicationHost.StopAsync().GetAwaiter().GetResult();
                 ApplicationHost.Services.GetService<NaudioMp3Player>()?.Dispose();
-                ApplicationHost.Services.GetService<EdgeTtsSynthesizer>()?.Dispose();
             }
         }
         catch (Exception ex)

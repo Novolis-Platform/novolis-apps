@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Android;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Novolis.Audio.Voice.Platform.Android;
 using Novolis.Avalonia.Diagnostics;
 using Novolis.Avalonia.Mobile.Android;
 using Novolis.Logging.Diagnostics;
@@ -43,6 +44,7 @@ public class MainApplication : AvaloniaAndroidApplication<App>
                 services.AddNovolisMobileAndroidDiagnostics(_diagnostics);
                 services.AddSingleton<AndroidMp3Player>();
                 services.AddSingleton<IAudioPlayer>(sp => sp.GetRequiredService<AndroidMp3Player>());
+                services.AddNovolisVoiceAndroid();
                 services.AddSingleton<IScreenWakeLock, AndroidScreenWakeLock>();
                 services.AddReadAloudCore();
             })

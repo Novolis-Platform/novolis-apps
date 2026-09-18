@@ -1,7 +1,7 @@
 using BooksMobile.Services;
 using BooksMobile.Views;
 using Microsoft.Extensions.DependencyInjection;
-using Novolis.Manuscript.Export.Audio;
+using Novolis.Avalonia.Speech;
 
 namespace BooksMobile;
 
@@ -12,8 +12,7 @@ public static class BooksMobileServiceCollectionExtensions
     {
         services.AddSingleton<BooksMobileOptions>();
         services.AddSingleton<BooksMobileSession>();
-        services.AddSingleton<EdgeTtsSynthesizer>();
-        services.AddSingleton<ISynthesizer>(sp => sp.GetRequiredService<EdgeTtsSynthesizer>());
+        services.AddNovolisSpeech();
         services.AddSingleton<ChapterSpeechService>();
         services.AddSingleton<ReviewSelectionImporter>();
         services.AddTransient<MainView>();

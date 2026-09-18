@@ -1,59 +1,58 @@
 using System.Security.Cryptography;
 using System.Text;
-using Novolis.Audio.Voice.EdgeTts;
+using Novolis.Audio.Voice.AzureSpeech;
 using Novolis.Avalonia.Mobile;
+using Novolis.Avalonia.Speech;
 using Novolis.Manuscript.Export.Audio;
 
 namespace BooksMobile.Services;
 
-/// <summary>Speaks one document via Edge TTS (Ava), with on-disk cache, paragraph chunks, and prefetch.</summary>
+/// <summary>Reads chapters with local device speech or configured Azure Speech.</summary>
 public sealed class ChapterSpeechService : IDisposable
 {
     public const int MobileMaxChunkChars = 700;
 
-    readonly ISynthesizer _synthesizer;
+    readonly SpeechFront _front;
     readonly IAudioPlayer _player;
     readonly string _cacheDir;
     readonly object _gate = new();
     CancellationTokenSource? _cts;
 
     public ChapterSpeechService(
-        ISynthesizer synthesizer,
+        SpeechFront front,
         IAudioPlayer player,
         IAppDataPaths paths)
     {
-        _synthesizer = synthesizer ?? throw new ArgumentNullException(nameof(synthesizer));
+        _front = front ?? throw new ArgumentNullException(nameof(front));
         _player = player ?? throw new ArgumentNullException(nameof(player));
         ArgumentNullException.ThrowIfNull(paths);
         _cacheDir = Path.Combine(paths.RootDirectory, "tts-cache");
         Directory.CreateDirectory(_cacheDir);
 
-        var profile = EdgeVoiceProfiles.Narrator;
         Voice = new VoiceSettings
         {
-            Voice = profile.Voice,
-            Rate = profile.Rate,
-            Pitch = profile.Pitch,
-            Volume = profile.Volume,
-            SceneBreakMs = profile.SceneBreakMs,
-            PauseMs = profile.PauseMs,
+            Voice = "en-US-AvaMultilingualNeural",
+            RatePercent = -4,
+            PitchHertz = 0,
+            VolumePercent = 0,
+            SceneBreakMs = 1200,
+            PauseMs = 500,
             MaxChunkChars = MobileMaxChunkChars,
             Pronunciation = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
         };
     }
 
-    /// <summary>Fixed narrator profile (Ava −4%) with mobile paragraph-sized chunks.</summary>
+    /// <summary>Default Azure voice settings used when Azure is configured.</summary>
     public VoiceSettings Voice { get; }
 
     public bool IsSpeaking { get; private set; }
 
-    /// <summary>Raised when speaking state changes (may be off the UI thread).</summary>
     public event EventHandler? Changed;
-
-    /// <summary>Raised when the first audio segment begins playing.</summary>
     public event EventHandler? PlaybackStarted;
 
-    public async Task SpeakChapterAsync(string markdown, CancellationToken cancellationToken = default)
+    public async Task SpeakChapterAsync(
+        string markdown,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(markdown);
         if (string.IsNullOrWhiteSpace(markdown))
@@ -75,16 +74,7 @@ public sealed class ChapterSpeechService : IDisposable
         try
         {
             var plan = SpeechPlanner.Create(markdown, Voice.ToSpeechOptions(), speakTitle: true);
-            var voiceKey = EdgeVoiceCatalog.ToShortName(Voice.Voice);
-            var textSegments = plan.Segments
-                .Where(s => s.Kind == SpeechSegmentKind.Text && !string.IsNullOrWhiteSpace(s.Text))
-                .Select(s => s.Text!)
-                .ToList();
-
-            Task<(byte[] Mp3, bool FromCache)>? prefetch = null;
-            var textIndex = 0;
-            var startedPlayback = false;
-
+            var provider = _front.Provider;
             foreach (var segment in plan.Segments)
             {
                 linked.ThrowIfCancellationRequested();
@@ -98,27 +88,21 @@ public sealed class ChapterSpeechService : IDisposable
                 if (string.IsNullOrWhiteSpace(segment.Text))
                     continue;
 
-                var current = prefetch ?? GetOrSynthesizeAsync(segment.Text, voiceKey, linked);
-                prefetch = null;
-                textIndex++;
-                if (textIndex < textSegments.Count)
+                if (provider == SpeechProvider.DeviceVoice)
                 {
-                    var nextText = textSegments[textIndex];
-                    prefetch = GetOrSynthesizeAsync(nextText, voiceKey, linked);
+                    PlaybackStarted?.Invoke(this, EventArgs.Empty);
+                    await _front.ReadAsync(
+                        segment.Text,
+                        static (_, _) => Task.CompletedTask,
+                        BuildAzureOptions(),
+                        linked).ConfigureAwait(false);
+                    continue;
                 }
 
-                var (mp3, _) = await current.ConfigureAwait(false);
-                linked.ThrowIfCancellationRequested();
+                var mp3 = await GetOrSynthesizeAsync(segment.Text, linked).ConfigureAwait(false);
                 if (mp3.Length == 0)
                     continue;
-                if (!startedPlayback)
-                {
-                    startedPlayback = true;
-                    PlaybackStarted?.Invoke(this, EventArgs.Empty);
-                }
-
-                // Play on whatever context the platform player requires; do not
-                // cancel the whole chapter if one segment fails to decode.
+                PlaybackStarted?.Invoke(this, EventArgs.Empty);
                 try
                 {
                     await _player.PlayAsync(mp3, linked).ConfigureAwait(false);
@@ -129,7 +113,7 @@ public sealed class ChapterSpeechService : IDisposable
                 }
                 catch
                 {
-                    // Skip bad segment; continue with the rest of the document.
+                    // Skip a bad segment while continuing the chapter.
                 }
             }
         }
@@ -141,42 +125,43 @@ public sealed class ChapterSpeechService : IDisposable
         }
     }
 
-    /// <summary>Synthesizes the full document to a single MP3 (concatenated Edge segments).</summary>
+    /// <summary>Synthesizes one chapter to MP3 through the configured Azure resource.</summary>
     public async Task<byte[]> SynthesizeDocumentMp3Async(
         string markdown,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(markdown);
+        if (!_front.IsAzureConfigured)
+            throw new SpeechCapabilityException(
+                "MP3 export requires Azure Speech setup. Device voice does not create files.");
+
         var plan = SpeechPlanner.Create(markdown, Voice.ToSpeechOptions(), speakTitle: true);
-        var voiceKey = EdgeVoiceCatalog.ToShortName(Voice.Voice);
-        using var ms = new MemoryStream();
+        using var output = new MemoryStream();
         foreach (var segment in plan.Segments)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (segment.Kind != SpeechSegmentKind.Text || string.IsNullOrWhiteSpace(segment.Text))
                 continue;
-            var (mp3, _) = await GetOrSynthesizeAsync(segment.Text, voiceKey, cancellationToken)
-                .ConfigureAwait(false);
-            await ms.WriteAsync(mp3, cancellationToken).ConfigureAwait(false);
+            var mp3 = await GetOrSynthesizeAsync(segment.Text, cancellationToken).ConfigureAwait(false);
+            await output.WriteAsync(mp3, cancellationToken).ConfigureAwait(false);
         }
 
-        return ms.ToArray();
+        return output.ToArray();
     }
 
-    /// <summary>Returns whether cached audio exists for this exact markdown (Ava narrator).</summary>
     public bool HasCachedAudio(string markdown)
     {
-        if (string.IsNullOrWhiteSpace(markdown))
+        if (string.IsNullOrWhiteSpace(markdown) || !_front.IsAzureConfigured)
             return false;
+
         var plan = SpeechPlanner.Create(markdown, Voice.ToSpeechOptions(), speakTitle: true);
-        var voiceKey = EdgeVoiceCatalog.ToShortName(Voice.Voice);
         var any = false;
         foreach (var segment in plan.Segments)
         {
             if (segment.Kind != SpeechSegmentKind.Text || string.IsNullOrWhiteSpace(segment.Text))
                 continue;
             any = true;
-            if (!File.Exists(CachePath(segment.Text, voiceKey)))
+            if (!File.Exists(CachePath(segment.Text)))
                 return false;
         }
 
@@ -197,20 +182,20 @@ public sealed class ChapterSpeechService : IDisposable
 
     public void Dispose() => Stop();
 
-    async Task<(byte[] Mp3, bool FromCache)> GetOrSynthesizeAsync(
-        string text,
-        string voiceKey,
-        CancellationToken cancellationToken)
+    async Task<byte[]> GetOrSynthesizeAsync(string text, CancellationToken cancellationToken)
     {
-        var path = CachePath(text, voiceKey);
+        var path = CachePath(text);
         if (File.Exists(path))
         {
             var cached = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
             if (cached.Length > 0)
-                return (cached, true);
+                return cached;
         }
 
-        var mp3 = await _synthesizer.SynthesizeToMp3Async(text, Voice, cancellationToken)
+        var mp3 = await _front.CreateMp3Async(
+                text,
+                BuildAzureOptions(),
+                cancellationToken)
             .ConfigureAwait(false);
         try
         {
@@ -221,12 +206,28 @@ public sealed class ChapterSpeechService : IDisposable
             // Cache write is best-effort.
         }
 
-        return (mp3, false);
+        return mp3;
     }
 
-    string CachePath(string text, string voiceKey)
+    AzureSpeechSynthesisOptions BuildAzureOptions() => new()
     {
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(voiceKey + "\n" + text)))
+        VoiceName = Voice.Voice,
+        Locale = _front.AzureConfiguration?.Locale ?? "en-US",
+        RatePercent = Voice.RatePercent,
+        PitchHertz = Voice.PitchHertz,
+        VolumePercent = Voice.VolumePercent,
+    };
+
+    string CachePath(string text)
+    {
+        var key = string.Join(
+            "\n",
+            Voice.Voice,
+            Voice.RatePercent,
+            Voice.PitchHertz,
+            Voice.VolumePercent,
+            text);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))
             .ToLowerInvariant();
         return Path.Combine(_cacheDir, hash + ".mp3");
     }

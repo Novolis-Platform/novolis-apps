@@ -49,7 +49,10 @@
     <PackageVersion Include="Novolis.Avalonia.Layout" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Live" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Markdown" Version="2026.1.*" />
-    <PackageVersion Include="Novolis.Audio.Voice.EdgeTts" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Audio.Voice.AzureSpeech" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Audio.Voice.Platform.Android" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Audio.Voice.Platform.Windows" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Speech" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Paths" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Watching" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.StarMap" Version="2026.1.*" />

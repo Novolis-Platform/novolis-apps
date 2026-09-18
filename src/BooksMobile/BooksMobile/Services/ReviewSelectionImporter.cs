@@ -354,7 +354,7 @@ public sealed class ReviewSelectionImporter
         articles[slug] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["status"] = "generated",
-            ["backend"] = "edge-tts",
+            ["backend"] = "azure-speech",
             ["updated"] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
             ["output"] = $"assets/audio/{slug}.mp3",
         };

@@ -229,7 +229,7 @@ public sealed class MainView : UserControl
                 BooksTheme.Muted(
                     _session.IsLocalWorkspace
                         ? $"Local bridge mode · {_session.WorkspaceRoot}"
-                        : "Your manuscript library on the go — pull, edit or read a chapter, listen with Edge TTS, then save & push."),
+                        : "Your manuscript library on the go — pull, edit or read a chapter with device voice, then save & push."),
                 _signIn,
                 _userCode,
                 _copyCode,

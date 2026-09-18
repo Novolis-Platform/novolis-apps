@@ -8,7 +8,8 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Novolis.Audio.Voice.EdgeTts" />
+    <PackageReference Include="Novolis.Audio.Voice.AzureSpeech" />
+    <PackageReference Include="Novolis.Avalonia.Speech" />
     <PackageReference Include="Novolis.Avalonia.Diagnostics" />
     <PackageReference Include="Novolis.Avalonia.Mobile" />
     <PackageReference Include="Novolis.Manuscript.Export.Audio" />

@@ -7,7 +7,7 @@ using Path = System.IO.Path;
 
 namespace ReadAloud.Android;
 
-/// <summary>Plays Edge TTS MP3 bytes via Android <see cref="MediaPlayer"/> on the main looper.</summary>
+/// <summary>Plays Azure Speech MP3 bytes via Android <see cref="MediaPlayer"/> on the main looper.</summary>
 public sealed class AndroidMp3Player : IAudioPlayer, IDisposable
 {
     readonly object _gate = new();

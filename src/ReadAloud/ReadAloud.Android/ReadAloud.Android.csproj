@@ -18,6 +18,8 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Android" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Novolis.Audio.Voice.Platform.Android" />
+    <PackageReference Include="Novolis.Avalonia.Speech" />
     <PackageReference Include="Novolis.Avalonia.Mobile.Android" />
     <PackageReference Include="Novolis.Logging.Diagnostics" />
     <PackageReference Include="Novolis.Manuscript.Export.Audio" />

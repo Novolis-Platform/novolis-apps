@@ -12,7 +12,6 @@ using AvaloniaEdit;
 using BooksWriterStudio.Services;
 using BooksWriterStudio.Ui;
 using Microsoft.Extensions.DependencyInjection;
-using Novolis.Audio.Voice.EdgeTts;
 using Novolis.Manuscript.Export.Audio;
 using Novolis.Avalonia.Controls;
 using Novolis.Avalonia.Layout;
@@ -68,8 +67,7 @@ internal sealed class MainWindow : Window
     readonly TextBox _printPageHeight = new();
     readonly TextBox _printBodySize = new();
     readonly CheckBox _printIncludeCover = new() { Content = "Include cover" };
-    readonly ComboBox _voiceCombo = new() { MinWidth = 180 };
-    readonly ComboBox _voiceProfileCombo = new() { MinWidth = 160 };
+    readonly ComboBox _voiceCombo = new() { MinWidth = 220, IsEditable = true };
     readonly TextBox _voiceRate = new() { PlaceholderText = "-4" };
     readonly TextBox _voicePitch = new() { PlaceholderText = "0" };
     readonly TextBox _voiceVolume = new() { PlaceholderText = "0" };
@@ -87,7 +85,6 @@ internal sealed class MainWindow : Window
     bool _suppressEditorSync;
     bool _suppressChapterSelection;
     bool _suppressCatalogSelection;
-    bool _suppressVoiceUi;
     bool _handlingExternalChange;
 
     public MainWindow(
@@ -114,15 +111,17 @@ internal sealed class MainWindow : Window
         _seriesCombo.SelectionChanged += (_, _) => OnSeriesChanged();
         _bookCombo.SelectionChanged += (_, _) => OnBookChanged();
         _chapterList.SelectionChanged += (_, _) => OnChapterSelectionChanged();
-        _voiceProfileCombo.SelectionChanged += (_, _) => OnVoiceProfileChanged();
         _metadataPane.ApplyRequested += (_, meta) => ApplyMetadata(meta);
         _jobs.Changed += () => Dispatcher.UIThread.Post(RefreshJobPanel);
         _session.FileWatcher.FileChanged += OnExternalFileChanged;
 
-        _voiceCombo.ItemsSource = EdgeVoiceCatalog.All.ToList();
-        _voiceCombo.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(EdgeVoiceEntry.DisplayName));
-        _voiceProfileCombo.ItemsSource = EdgeVoiceProfiles.All.ToList();
-        _voiceProfileCombo.DisplayMemberBinding = new Avalonia.Data.Binding(nameof(EdgeVoiceProfile.DisplayName));
+        _voiceCombo.ItemsSource = new[]
+        {
+            "en-US-AvaMultilingualNeural",
+            "en-US-AndrewMultilingualNeural",
+            "en-US-BrianMultilingualNeural",
+            "en-GB-SoniaNeural",
+        };
 
         _readAnything.CloseRequested += (_, _) => SetReadAnythingMode(false);
         _readAnything.SpeakRequested += (_, _) => OnSpeakReadAnything();
@@ -320,7 +319,6 @@ internal sealed class MainWindow : Window
             Children =
             {
                 new TextBlock { Text = "Voice", FontWeight = FontWeight.SemiBold },
-                Labeled("Profile", _voiceProfileCombo),
                 Labeled("Voice", _voiceCombo),
                 Labeled("Rate (%)", _voiceRate),
                 Labeled("Pitch (Hz)", _voicePitch),
@@ -1208,7 +1206,16 @@ internal sealed class MainWindow : Window
             .Select(c => new AudiobookChapterInput(c.Id, c.Title, c.FilePath))
             .ToList();
 
-        var synthesizer = Program.ApplicationHost.Services.GetRequiredService<EdgeTtsSynthesizer>();
+        AzureSpeechSynthesizer synthesizer;
+        try
+        {
+            synthesizer = Program.ApplicationHost.Services.GetRequiredService<AzureSpeechSynthesizer>();
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+            return;
+        }
         var pipeline = new AudiobookPipeline(synthesizer);
         var options = new AudiobookOptions
         {
@@ -1345,53 +1352,17 @@ internal sealed class MainWindow : Window
 
         _voiceSettings = File.Exists(_session.VoiceMapPath)
             ? VoiceMapStore.Load(_session.VoiceMapPath)
-            : VoiceSettings.FromProfile(EdgeVoiceProfiles.Narrator);
+            : new VoiceSettings();
 
         ApplyVoiceSettingsToUi(_voiceSettings);
     }
 
     void ApplyVoiceSettingsToUi(VoiceSettings settings)
     {
-        _suppressVoiceUi = true;
-        try
-        {
-            EdgeVoiceEntry voiceEntry;
-            try
-            {
-                voiceEntry = EdgeVoiceCatalog.Get(settings.Voice);
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                voiceEntry = EdgeVoiceCatalog.Get(EdgeVoice.EnUsAva);
-            }
-
-            // SelectedItem must match an ItemsSource entry for ComboBox display.
-            _voiceCombo.SelectedItem = EdgeVoiceCatalog.All.First(v => v.Voice == voiceEntry.Voice);
-            _voiceRate.Text = settings.Rate.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            _voicePitch.Text = settings.Pitch.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            _voiceVolume.Text = settings.Volume.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-
-            var profile = EdgeVoiceProfiles.All.FirstOrDefault(p =>
-                p.Voice == settings.Voice
-                && p.Rate.Value == settings.Rate.Value
-                && p.Pitch.Value == settings.Pitch.Value
-                && p.Volume.Value == settings.Volume.Value);
-            _voiceProfileCombo.SelectedItem = profile;
-        }
-        finally
-        {
-            _suppressVoiceUi = false;
-        }
-    }
-
-    void OnVoiceProfileChanged()
-    {
-        if (_suppressVoiceUi)
-            return;
-        if (_voiceProfileCombo.SelectedItem is not EdgeVoiceProfile profile)
-            return;
-
-        ApplyVoiceSettingsToUi(VoiceSettings.FromProfile(profile, _voiceSettings.Pronunciation));
+        _voiceCombo.SelectedItem = settings.Voice;
+        _voiceRate.Text = settings.RatePercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _voicePitch.Text = settings.PitchHertz.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _voiceVolume.Text = settings.VolumePercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     void OnSavePrintSettings(object? sender, RoutedEventArgs e)
@@ -1409,23 +1380,24 @@ internal sealed class MainWindow : Window
 
     void OnSaveVoiceSettings(object? sender, RoutedEventArgs e)
     {
-        var voice = _voiceCombo.SelectedItem is EdgeVoiceEntry entry
-            ? entry.Voice
+        var voice = _voiceCombo.SelectedItem is string selectedVoice &&
+                    !string.IsNullOrWhiteSpace(selectedVoice)
+            ? selectedVoice
             : _voiceSettings.Voice;
 
-        if (!ProsodyPercent.TryParse(_voiceRate.Text, out var rate))
-            rate = _voiceSettings.Rate;
-        if (!ProsodyHertz.TryParse(_voicePitch.Text, out var pitch))
-            pitch = _voiceSettings.Pitch;
-        if (!ProsodyPercent.TryParse(_voiceVolume.Text, out var volume))
-            volume = _voiceSettings.Volume;
+        if (!int.TryParse(_voiceRate.Text, out var rate))
+            rate = _voiceSettings.RatePercent;
+        if (!int.TryParse(_voicePitch.Text, out var pitch))
+            pitch = _voiceSettings.PitchHertz;
+        if (!int.TryParse(_voiceVolume.Text, out var volume))
+            volume = _voiceSettings.VolumePercent;
 
         _voiceSettings = new VoiceSettings
         {
             Voice = voice,
-            Rate = rate,
-            Pitch = pitch,
-            Volume = volume,
+            RatePercent = rate,
+            PitchHertz = pitch,
+            VolumePercent = volume,
             SceneBreakMs = _voiceSettings.SceneBreakMs,
             PauseMs = _voiceSettings.PauseMs,
             MaxChunkChars = _voiceSettings.MaxChunkChars,

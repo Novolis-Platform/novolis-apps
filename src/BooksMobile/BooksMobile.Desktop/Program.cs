@@ -3,6 +3,8 @@ using Avalonia;
 using BooksMobile;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Novolis.Audio.Voice.Platform;
+using Novolis.Audio.Voice.Platform.Windows;
 using Novolis.Manuscript.Export.Audio;
 using Novolis.Avalonia.Mobile.Desktop;
 
@@ -20,6 +22,7 @@ internal static class Program
                 services.AddNovolisMobileDesktop("BooksMobile");
                 services.AddSingleton<NaudioMp3Player>();
                 services.AddSingleton<IAudioPlayer>(sp => sp.GetRequiredService<NaudioMp3Player>());
+                services.AddNovolisVoiceWindows(new PlatformSpeechOptions { Locale = "en-US" });
                 services.AddSingleton<IScreenWakeLock, NullScreenWakeLock>();
                 services.AddBooksMobileCore();
             })

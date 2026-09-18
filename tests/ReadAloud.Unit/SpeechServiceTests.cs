@@ -1,4 +1,6 @@
+using Novolis.Audio.Voice;
 using Novolis.Avalonia.Mobile;
+using Novolis.Avalonia.Speech;
 using Novolis.Manuscript.Export.Audio;
 using ReadAloud.Services;
 
@@ -11,46 +13,35 @@ public sealed class SpeechServiceTests
     {
         using var harness = Harness.Create();
         await harness.Speech.SpeakAsync("   ");
-        await Assert.That(harness.Player.PlayCount).IsEqualTo(0);
+        await Assert.That(harness.Voice.Spoken).IsNull();
         await Assert.That(harness.Speech.HasCachedAudio("   ")).IsFalse();
     }
 
     [Test]
-    public async Task Speak_synthesizes_once_then_replays_from_cache()
+    public async Task Device_provider_reads_without_mp3_playback()
     {
         using var harness = Harness.Create();
-        const string text = "Hello from Read Aloud.";
-        await harness.Speech.SpeakAsync(text);
-        await Assert.That(harness.Synth.Calls).IsEqualTo(1);
-        await Assert.That(harness.Player.PlayCount).IsEqualTo(1);
-        await Assert.That(harness.Speech.HasCachedAudio(text)).IsTrue();
+        await harness.Speech.SpeakAsync("Hello from Read Aloud.");
 
-        harness.Speech.Stop();
-        await harness.Speech.SpeakAsync(text);
-        await Assert.That(harness.Synth.Calls).IsEqualTo(1);
-        await Assert.That(harness.Player.PlayCount).IsEqualTo(2);
+        await Assert.That(harness.Voice.Spoken).IsEqualTo("Hello from Read Aloud.");
+        await Assert.That(harness.Player.PlayCount).IsEqualTo(0);
+        await Assert.That(harness.Speech.Provider).IsEqualTo(SpeechProvider.DeviceVoice);
     }
 
     [Test]
-    public async Task Synthesize_document_concatenates_cached_segments()
+    public async Task Device_provider_reports_mp3_capability_as_unavailable()
     {
         using var harness = Harness.Create();
-        const string text = "First paragraph.\n\nSecond paragraph.";
-        var mp3 = await harness.Speech.SynthesizeDocumentMp3Async(text);
-        await Assert.That(mp3.Length).IsGreaterThan(0);
-        await Assert.That(harness.Synth.Calls).IsGreaterThanOrEqualTo(2);
-        await Assert.That(harness.Speech.HasCachedAudio(text)).IsTrue();
-        var firstCalls = harness.Synth.Calls;
 
-        var again = await harness.Speech.SynthesizeDocumentMp3Async(text);
-        await Assert.That(Convert.ToHexString(again)).IsEqualTo(Convert.ToHexString(mp3));
-        await Assert.That(harness.Synth.Calls).IsEqualTo(firstCalls);
+        await Assert.That(async () =>
+                await harness.Speech.SynthesizeDocumentMp3Async("text"))
+            .ThrowsExactly<SpeechCapabilityException>();
     }
 
     sealed class Harness : IDisposable
     {
         public required SpeechService Speech { get; init; }
-        public required FakeSynthesizer Synth { get; init; }
+        public required CapturingVoice Voice { get; init; }
         public required FakePlayer Player { get; init; }
         public required string Root { get; init; }
 
@@ -58,13 +49,14 @@ public sealed class SpeechServiceTests
         {
             var root = Path.Combine(Path.GetTempPath(), "readaloud-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
-            var synth = new FakeSynthesizer();
+            var voice = new CapturingVoice();
             var player = new FakePlayer();
-            var speech = new SpeechService(synth, player, new TempPaths(root));
+            var front = new SpeechFront(voice, new MemoryTokenStore());
+            var speech = new SpeechService(front, player, new TempPaths(root));
             return new Harness
             {
                 Speech = speech,
-                Synth = synth,
+                Voice = voice,
                 Player = player,
                 Root = root,
             };
@@ -92,28 +84,40 @@ public sealed class SpeechServiceTests
         public string WorkspaceDirectory => Path.Combine(root, "workspace");
     }
 
-    sealed class FakeSynthesizer : ISynthesizer
+    sealed class CapturingVoice : IVoiceService
     {
-        public int Calls { get; private set; }
+        public string? Spoken { get; private set; }
 
-        public Task<byte[]> SynthesizeToMp3Async(
-            string text,
-            VoiceSettings settings,
-            CancellationToken cancellationToken = default)
+        public Task SpeakAsync(string text, CancellationToken cancellationToken = default)
         {
-            Calls++;
-            var payload = System.Text.Encoding.UTF8.GetBytes("mp3:" + text);
-            return Task.FromResult(payload);
+            Spoken = text;
+            return Task.CompletedTask;
         }
 
-        public async Task SaveMp3Async(
+        public Task WriteToFileAsync(
             string text,
-            string path,
-            VoiceSettings settings,
-            CancellationToken cancellationToken = default)
+            FileInfo destination,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    sealed class MemoryTokenStore : ISecureTokenStore
+    {
+        readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
+
+        public Task<string?> GetAsync(string key, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_values.GetValueOrDefault(key));
+
+        public Task SetAsync(string key, string value, CancellationToken cancellationToken = default)
         {
-            var bytes = await SynthesizeToMp3Async(text, settings, cancellationToken);
-            await File.WriteAllBytesAsync(path, bytes, cancellationToken);
+            _values[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            _values.Remove(key);
+            return Task.CompletedTask;
         }
     }
 

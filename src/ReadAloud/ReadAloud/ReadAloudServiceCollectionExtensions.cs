@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using Novolis.Manuscript.Export.Audio;
+using Novolis.Avalonia.Speech;
 using ReadAloud.Services;
 using ReadAloud.Views;
 
@@ -10,8 +10,7 @@ public static class ReadAloudServiceCollectionExtensions
 {
     public static IServiceCollection AddReadAloudCore(this IServiceCollection services)
     {
-        services.AddSingleton<EdgeTtsSynthesizer>();
-        services.AddSingleton<ISynthesizer>(sp => sp.GetRequiredService<EdgeTtsSynthesizer>());
+        services.AddNovolisSpeech();
         services.AddSingleton<SpeechService>();
         services.AddTransient<MainView>();
         return services;
