@@ -87,6 +87,18 @@ function Get-NovolisAppCatalog {
             SetupBase     = 'BooksMobileSetup'
             ScriptFile    = 'books-mobile.iss'
         }
+        [pscustomobject]@{
+            Key           = 'read-aloud'
+            Choice        = 'ReadAloud'
+            Project       = 'src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj'
+            DisplayName   = 'Read Aloud'
+            AppId         = 'Novolis.ReadAloud'
+            ExeName       = 'ReadAloud.exe'
+            GroupName     = 'Read Aloud'
+            InstallDir    = 'Novolis\Read Aloud'
+            SetupBase     = 'ReadAloudSetup'
+            ScriptFile    = 'read-aloud.iss'
+        }
     )
 }
 

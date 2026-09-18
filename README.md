@@ -56,6 +56,7 @@ Every successful merge to `main` (non-doc paths) publishes a [GitHub Release](ht
 |-----|-----------|--------------|
 | Books Writer Studio | `BooksWriterStudioSetup-{version}-win-x64.exe` | `BooksWriterStudio-{version}-win-x64.zip` |
 | Books Mobile | `BooksMobileSetup-{version}-win-x64.exe` | `BooksMobile-{version}-win-x64.zip` |
+| Read Aloud | `ReadAloudSetup-{version}-win-x64.exe` | `ReadAloud-{version}-win-x64.zip` |
 | Draft Studio | `DraftStudioSetup-{version}-win-x64.exe` | `DraftStudio-{version}-win-x64.zip` |
 | Novolis CAD Studio 3D | `CadStudio3DSetup-{version}-win-x64.exe` | `CadStudio3D-{version}-win-x64.zip` |
 | Sketch Studio | `SketchStudioSetup-{version}-win-x64.exe` | `SketchStudio-{version}-win-x64.zip` |
@@ -76,6 +77,7 @@ pwsh -File scripts/build-installer.ps1 -App All
 |-----|------|-------------|
 | Books Writer Studio | `src/BooksWriterStudio` | Three-column book authoring: chapter nav, markdown editor, metadata/publish/SCM |
 | Books Mobile | `src/BooksMobile` | Avalonia Android + Windows markdown editor for `frankhaugen/books` (Windows released; APK local only) |
+| Read Aloud | `src/ReadAloud` | Paste/open text, listen with Edge TTS, save MP3 (Windows released; APK local only) |
 | Space Fleet: Survey Team | `src/SpaceFleetSurveyTeam` | Mobile field-instrument survey game (local deploy only — not released) |
 | Draft Studio | `src/DraftStudio` | Command-driven 2D/3D CAD-light (`.cadjson` + phys export) |
 | Novolis CAD Studio 3D | `src/CadStudio3D` | Full 2D/3D CAD + scene staging, materials, lit render; dual Cad/Scene agent surfaces |

@@ -24,6 +24,8 @@ Download only from official [GitHub Releases](https://github.com/Novolis-Platfor
 | `BooksWriterStudioSetup-*-win-x64.exe` | **Books Writer Studio installer** |
 | `BooksMobileSetup-*-win-x64.exe` | **Books Mobile installer** — `%LOCALAPPDATA%\Programs\Novolis\Books Mobile` |
 | `BooksMobile-*-win-x64.zip` | Books Mobile portable |
+| `ReadAloudSetup-*-win-x64.exe` | **Read Aloud installer** — `%LOCALAPPDATA%\Programs\Novolis\Read Aloud` |
+| `ReadAloud-*-win-x64.zip` | Read Aloud portable |
 | `DraftStudioSetup-*-win-x64.exe` | **Draft Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Draft Studio` |
 | `DraftStudio-*-win-x64.zip` | Draft Studio portable |
 | `SketchStudioSetup-*-win-x64.exe` | **Sketch Studio installer** — `%LOCALAPPDATA%\Programs\Novolis\Sketch Studio` |
@@ -75,6 +77,15 @@ Command-driven CAD-light: type `Line(0,0,2,0)`, `Circle(0,0,5)`, `Spline(0,0,1,1
 
 ```powershell
 dotnet run --project src/BooksWriterStudio
+```
+
+## Read Aloud
+
+Paste or open text, listen with Edge TTS, or save an MP3. Windows ships on GitHub Releases; Android APK is local deploy only.
+
+```powershell
+pwsh -File d:\novolis\novolis-apps\scripts\run-readaloud-desktop.ps1
+pwsh -File d:\novolis\novolis-apps\scripts\deploy-readaloud-android.ps1
 ```
 
 ## Sketch Studio

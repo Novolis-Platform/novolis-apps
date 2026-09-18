@@ -16,6 +16,12 @@ WinExe for three-column book authoring (chapter nav, markdown editor, metadata/p
 
 - Path: `src/BooksWriterStudio/`
 
+## Read Aloud
+
+Avalonia Android + Windows scratch reader: paste or open text, listen with Edge TTS (Ava), or save an MP3. Windows installer catalog; Android APK local-only (same hybrid as Books Mobile).
+
+- Path: `src/ReadAloud/`
+
 ## Draft Studio
 
 WinExe for command-driven 2D/3D CAD-light drafting (LibreCAD/AutoCAD-light): typed DSL (`Line(0,0,1,0)`), mouse tools that emit the same commands, plan-view canvas, Raylib model view, `.cadjson` persistence, and optional `.cadphys.json` export.

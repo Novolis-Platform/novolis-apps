@@ -21,6 +21,11 @@
     <Project Path="src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj" />
     <!-- Android needs the android workload; build that project directly on Windows/macOS. -->
   </Folder>
+  <Folder Name="/src/ReadAloud/">
+    <Project Path="src/ReadAloud/ReadAloud/ReadAloud.csproj" />
+    <Project Path="src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj" />
+    <!-- Android needs the android workload; build that project directly on Windows/macOS. -->
+  </Folder>
   <Folder Name="/src/SpaceFleetSurveyTeam/">
     <Project Path="src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.csproj" />
     <Project Path="src/SpaceFleetSurveyTeam/SpaceFleetSurveyTeam.Desktop/SpaceFleetSurveyTeam.Desktop.csproj" />
@@ -32,6 +37,7 @@
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
     <Project Path="tests/CapitalistSimulator.Unit/CapitalistSimulator.Unit.csproj" />
     <Project Path="tests/GeoPolity.Unit/GeoPolity.Unit.csproj" />
+    <Project Path="tests/ReadAloud.Unit/ReadAloud.Unit.csproj" />
   </Folder>
   <Folder Name="/src/LiveStudio/">
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
