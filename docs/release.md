@@ -4,11 +4,11 @@
 
 ## Versioning
 
-Version `YEAR.MAJOR.MINOR.BUILD` comes from `build/version.json` plus the GitHub Actions `run_number` (via `read-version` in the Merge workflow).
+Version `YEAR.MAJOR.MINOR.BUILD` comes from `build/version.json` plus the GitHub Actions `run_number` (via `read-version` in the Release workflow).
 
 ## CI and release assets
 
-Every merge to `main` that touches release-impacting paths runs Linux CI first, then a Windows job publishes **all** apps from [`Get-NovolisAppCatalog`](../scripts/Publish-NovolisApp.ps1). Docs-only / markdown pushes are ignored; test-only or non-release paths skip the Windows job.
+Every merge to `main` runs Linux CI only; docs-only / markdown pushes are ignored. To publish binaries, run the **Release** workflow explicitly and select **All** or a single app. The Windows job then publishes the selected apps from [`Get-NovolisAppCatalog`](../scripts/Publish-NovolisApp.ps1).
 
 | Asset | Pattern |
 |-------|---------|

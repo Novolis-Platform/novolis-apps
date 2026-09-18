@@ -47,7 +47,7 @@ Get-FileHash .\DraftStudioSetup-*-win-x64.exe -Algorithm SHA256
 
 Installers are not yet Authenticode-signed. Windows SmartScreen may show **"Windows protected your PC"** on first download. This is expected until code signing is added. To proceed: **More info** → **Run anyway**. Only install builds downloaded from the official releases page above.
 
-New releases are created automatically when changes merge to `main` (see Merge workflow).
+New releases are created explicitly from the **Release** workflow after merge validation succeeds.
 
 Build installer locally (requires Inno Setup 6 for the setup exe):
 

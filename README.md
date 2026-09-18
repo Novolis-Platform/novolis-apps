@@ -50,7 +50,7 @@ dotnet run --project src/DraftStudio
 
 ## Releases
 
-Every successful merge to `main` (non-doc paths) publishes a [GitHub Release](https://github.com/Novolis-Platform/novolis-apps/releases) with portable zips + Inno installers for **every** catalog app, plus `SHA256SUMS.txt`.
+Merges to `main` run Linux build/test validation only. Run the **Release** workflow explicitly to publish a [GitHub Release](https://github.com/Novolis-Platform/novolis-apps/releases) with portable zips, Inno installers, and `SHA256SUMS.txt` for all catalog apps or a selected app.
 
 | App | Installer | Portable zip |
 |-----|-----------|--------------|
