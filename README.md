@@ -65,7 +65,7 @@ Phase one does **not** ship Linux installers. Linux remains a local/PR capabilit
 
 ## Releases
 
-PR/merge CI validates **changed apps only** (scoped solutions + tests; Android compile when declared). Packaging is **manual** via the **Release** workflow: pick an app (or explicit `All`) and optional channel override.
+PR/merge CI validates **changed apps only** (scoped solutions + tests; Android compile when declared). Packaging is **manual** via the **Release** workflow: select an app and channel from fixed dropdowns.
 
 | Channel | Artifacts |
 |---------|-----------|

@@ -4,12 +4,33 @@ on:
     inputs:
       app:
         description: App to release (All expands each app's declared ship channels)
-        type: string
+        type: choice
         default: DraftStudio
+        options:
+          - All
+          - BooksWriterStudio
+          - DraftStudio
+          - CadStudio3D
+          - SketchStudio
+          - SinsOfACapitalismTycoon
+          - LiveStudio
+          - BooksMobile
+          - ReadAloud
+          - CoverageStudio
+          - CapitalistSimulator
+          - GeoPolity
+          - RepoStudio
+          - ShipDesigner
+          - SpaceFleetSurveyTeam
+          - Merglyph
       channel:
-        description: Optional channel override (windows-inno | android-apk). Empty = all ship channels for the app.
-        type: string
-        default: ''
+        description: Channel override; All uses every channel declared for the selected app.
+        type: choice
+        default: All
+        options:
+          - All
+          - windows-inno
+          - android-apk
 
 jobs:
   plan:
@@ -32,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           args=(release-matrix --repo "$GITHUB_WORKSPACE" --app "${{ inputs.app }}")
-          if [ -n "${{ inputs.channel }}" ]; then
+          if [ "${{ inputs.channel }}" != "All" ]; then
             args+=(--channel "${{ inputs.channel }}")
           fi
           dotnet run --project tools/AppsManifest/AppsManifest.csproj --no-launch-profile -- \
