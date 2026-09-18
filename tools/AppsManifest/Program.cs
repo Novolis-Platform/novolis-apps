@@ -58,7 +58,7 @@ internal static class Program
         return 2;
     }
 
-    private static AppsManifestDocument Load(string manifestPath)
+    internal static AppsManifestDocument Load(string manifestPath)
     {
         if (!File.Exists(manifestPath))
             throw new FileNotFoundException($"Manifest not found: {manifestPath}");
@@ -578,6 +578,108 @@ internal static class Program
 
     private static bool HasFlag(string[] args, string name) =>
         args.Any(a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
+}
+
+internal sealed class CiMatrixPlan
+{
+    [JsonPropertyName("linux")]
+    public List<CiLinuxRow> Linux { get; set; } = [];
+
+    [JsonPropertyName("android")]
+    public List<CiAndroidRow> Android { get; set; } = [];
+
+    [JsonPropertyName("windows")]
+    public List<CiWindowsRow> Windows { get; set; } = [];
+
+    [JsonPropertyName("summary")]
+    public CiMatrixSummary Summary { get; set; } = new();
+
+    [JsonPropertyName("any")]
+    public bool Any { get; set; }
+
+    [JsonPropertyName("skip_build")]
+    public bool SkipBuild { get; set; }
+}
+
+internal sealed class CiLinuxRow
+{
+    [JsonPropertyName("key")]
+    public string Key { get; set; } = "";
+
+    [JsonPropertyName("choice")]
+    public string Choice { get; set; } = "";
+
+    [JsonPropertyName("solution")]
+    public string Solution { get; set; } = "";
+
+    [JsonPropertyName("stack")]
+    public string Stack { get; set; } = "";
+
+    [JsonPropertyName("run_tests")]
+    public bool RunTests { get; set; }
+
+    [JsonPropertyName("test_projects")]
+    public string TestProjects { get; set; } = "";
+}
+
+internal sealed class CiAndroidRow
+{
+    [JsonPropertyName("key")]
+    public string Key { get; set; } = "";
+
+    [JsonPropertyName("choice")]
+    public string Choice { get; set; } = "";
+
+    [JsonPropertyName("project")]
+    public string Project { get; set; } = "";
+
+    [JsonPropertyName("stack")]
+    public string Stack { get; set; } = "";
+
+    [JsonPropertyName("is_maui")]
+    public bool IsMaui { get; set; }
+}
+
+internal sealed class CiWindowsRow
+{
+    [JsonPropertyName("key")]
+    public string Key { get; set; } = "";
+
+    [JsonPropertyName("choice")]
+    public string Choice { get; set; } = "";
+
+    [JsonPropertyName("project")]
+    public string Project { get; set; } = "";
+
+    [JsonPropertyName("stack")]
+    public string Stack { get; set; } = "";
+
+    [JsonPropertyName("install_windows_workload")]
+    public bool InstallWindowsWorkload { get; set; }
+}
+
+internal sealed class CiMatrixSummary
+{
+    [JsonPropertyName("coverage")]
+    public string Coverage { get; set; } = "";
+
+    [JsonPropertyName("selected_apps")]
+    public int SelectedApps { get; set; }
+
+    [JsonPropertyName("linux_rows")]
+    public int LinuxRows { get; set; }
+
+    [JsonPropertyName("android_rows")]
+    public int AndroidRows { get; set; }
+
+    [JsonPropertyName("windows_rows")]
+    public int WindowsRows { get; set; }
+
+    [JsonPropertyName("estimated_checkouts")]
+    public int EstimatedCheckouts { get; set; }
+
+    [JsonPropertyName("estimated_workload_installs")]
+    public int EstimatedWorkloadInstalls { get; set; }
 }
 
 internal sealed class AppsManifestDocument
