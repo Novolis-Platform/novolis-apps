@@ -84,7 +84,6 @@ $script = Get-Content -LiteralPath $inno.ScriptPath -Raw
 foreach ($needle in @(
     'PrivilegesRequired=lowest',
     'UsePreviousAppDir=yes',
-    'AllowDowngrade=no',
     "AppId=$($catalog.AppId)",
     '{localappdata}\Programs\',
     'Flags: unchecked',
