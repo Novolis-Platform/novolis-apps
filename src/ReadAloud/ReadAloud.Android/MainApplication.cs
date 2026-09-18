@@ -4,7 +4,9 @@ using Avalonia;
 using Avalonia.Android;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Novolis.Avalonia.Diagnostics;
 using Novolis.Avalonia.Mobile.Android;
+using Novolis.Logging.Diagnostics;
 using Novolis.Manuscript.Export.Audio;
 using ReadAloud;
 
@@ -14,6 +16,7 @@ namespace ReadAloud.Android;
 public class MainApplication : AvaloniaAndroidApplication<App>
 {
     IHost? _host;
+    DiagnosticJournal? _diagnostics;
 
     protected MainApplication(nint javaReference, JniHandleOwnership transfer)
         : base(javaReference, transfer)
@@ -22,10 +25,22 @@ public class MainApplication : AvaloniaAndroidApplication<App>
 
     public override void OnCreate()
     {
+        var filesDirectory = global::Android.App.Application.Context?.FilesDir?.AbsolutePath
+            ?? throw new InvalidOperationException("Android application files directory is unavailable.");
+        _diagnostics = new DiagnosticJournal(new DiagnosticJournalOptions
+        {
+            DirectoryPath = Path.Combine(filesDirectory, "diagnostics"),
+            ApplicationName = "ReadAloud",
+        });
+        AvaloniaDiagnostics.InstallEarly(_diagnostics);
+        AndroidDiagnostics.InstallEarly(_diagnostics);
+
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
             {
+                services.AddDiagnosticFileLogging(_diagnostics);
                 services.AddNovolisMobileAndroid("ReadAloud");
+                services.AddNovolisMobileAndroidDiagnostics(_diagnostics);
                 services.AddSingleton<AndroidMp3Player>();
                 services.AddSingleton<IAudioPlayer>(sp => sp.GetRequiredService<AndroidMp3Player>());
                 services.AddSingleton<IScreenWakeLock, AndroidScreenWakeLock>();
@@ -40,5 +55,7 @@ public class MainApplication : AvaloniaAndroidApplication<App>
 
     protected override AppBuilder CustomizeAppBuilder(AppBuilder builder) =>
         base.CustomizeAppBuilder(builder)
-            .LogToTrace();
+            .LogToTrace()
+            .UseNovolisDiagnostics(_diagnostics
+                ?? throw new InvalidOperationException("Diagnostics must be initialized before Avalonia setup."));
 }

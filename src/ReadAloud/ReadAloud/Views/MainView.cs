@@ -4,6 +4,8 @@ using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Microsoft.Extensions.Logging;
+using Novolis.Avalonia.Diagnostics;
 using ReadAloud.Services;
 using ReadAloud.Ui;
 
@@ -14,16 +16,24 @@ public sealed class MainView : DockPanel
 {
     readonly SpeechService _speech;
     readonly IScreenWakeLock _wakeLock;
+    readonly IDiagnosticShare _diagnosticShare;
+    readonly ILogger<MainView> _logger;
     readonly TextBox _textBox;
     readonly Button _listenButton;
     readonly Button _saveButton;
     readonly TextBlock _status;
     IDisposable? _wake;
 
-    public MainView(SpeechService speech, IScreenWakeLock wakeLock)
+    public MainView(
+        SpeechService speech,
+        IScreenWakeLock wakeLock,
+        IDiagnosticShare diagnosticShare,
+        ILogger<MainView> logger)
     {
         _speech = speech ?? throw new ArgumentNullException(nameof(speech));
         _wakeLock = wakeLock ?? throw new ArgumentNullException(nameof(wakeLock));
+        _diagnosticShare = diagnosticShare ?? throw new ArgumentNullException(nameof(diagnosticShare));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         LastChildFill = true;
         Background = ReadAloudPalette.WindowBrush;
@@ -48,6 +58,8 @@ public sealed class MainView : DockPanel
         _listenButton.Click += async (_, _) => await OnListenClickAsync();
         _saveButton = ReadAloudTheme.Button("Save MP3", ReadAloudButtonKind.Secondary);
         _saveButton.Click += async (_, _) => await SaveMp3Async();
+        var diagnosticsBtn = ReadAloudTheme.Button(_diagnosticShare.ActionLabel, ReadAloudButtonKind.Quiet);
+        diagnosticsBtn.Click += async (_, _) => await ShareDiagnosticsAsync();
         var clearBtn = ReadAloudTheme.Button("Clear", ReadAloudButtonKind.Quiet);
         clearBtn.Click += (_, _) => Clear();
 
@@ -55,7 +67,7 @@ public sealed class MainView : DockPanel
         {
             Margin = new Thickness(0, 8, 0, 0),
         };
-        foreach (var btn in new[] { openBtn, pasteBtn, _listenButton, _saveButton, clearBtn })
+        foreach (var btn in new[] { openBtn, pasteBtn, _listenButton, _saveButton, diagnosticsBtn, clearBtn })
         {
             btn.Margin = new Thickness(0, 0, 8, 8);
             actions.Children.Add(btn);
@@ -202,6 +214,7 @@ public sealed class MainView : DockPanel
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Read Aloud listening failed.");
             SetStatus($"Listen failed: {ex.Message}");
         }
         finally
@@ -266,6 +279,7 @@ public sealed class MainView : DockPanel
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Read Aloud MP3 export failed.");
             SetStatus($"Save failed: {ex.Message}");
         }
         finally
@@ -281,6 +295,20 @@ public sealed class MainView : DockPanel
         _listenButton.Content = speaking ? "Stop" : (_speech.HasCachedAudio(DocumentText) ? "Listen ✓" : "Listen");
         ReadAloudTheme.StyleButton(_listenButton, ReadAloudButtonKind.Primary);
         _saveButton.IsEnabled = !speaking;
+    }
+
+    async Task ShareDiagnosticsAsync()
+    {
+        try
+        {
+            await _diagnosticShare.ShareLatestAsync();
+            SetStatus("Diagnostics are ready.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud diagnostics export failed.");
+            SetStatus($"Diagnostics failed: {ex.Message}");
+        }
     }
 
     void SetStatus(string text) => _status.Text = text;

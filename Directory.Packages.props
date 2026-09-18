@@ -21,6 +21,8 @@
     <PackageVersion Include="Novolis.Avalonia.Mobile" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Mobile.Desktop" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Mobile.Android" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Diagnostics" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Logging.Diagnostics" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.GitHub" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Audio.Live" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Audio.Live.Dsl" Version="2026.1.*" />

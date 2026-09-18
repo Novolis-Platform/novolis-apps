@@ -15,6 +15,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Novolis.Manuscript.Export.Audio" />
     <PackageReference Include="Novolis.Avalonia.Mobile.Desktop" />
+    <PackageReference Include="Novolis.Logging.Diagnostics" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
