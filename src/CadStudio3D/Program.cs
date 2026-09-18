@@ -3,7 +3,7 @@ using Avalonia.Win32;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Novolis.Agent.Surface;
-using Novolis.Avalonia._3D.Session;
+using Novolis.Avalonia.ThreeD.Session;
 using Novolis.Avalonia.Agent;
 using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;

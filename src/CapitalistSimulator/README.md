@@ -24,7 +24,7 @@ dotnet run --project d:\novolis\novolis-apps\src\CapitalistSimulator -p:NovolisU
 
 | Package | Role |
 |---------|------|
-| Avalonia / Desktop / Fluent / DataGrid | Desk UI |
+| Avalonia / Desktop / Fluent / DataGrid | UI surface |
 | Novolis.Avalonia.Studio | Status / flash / busy |
 | Novolis.Avalonia.Briefing | News feed |
 | Novolis.Avalonia.Controls | Shared controls |

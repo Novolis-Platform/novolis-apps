@@ -41,7 +41,7 @@ Committed builds use **NuGet-only** (`Novolis.*` `2026.1.*` from GitHub Packages
 | Package | Role |
 |---------|------|
 | `Novolis.Avalonia.Cad` | Plan viewport, command DSL, `.cadjson` session |
-| `Novolis.Avalonia.3D` | Scene editor, mesh/lights/cameras |
+| `Novolis.Avalonia.ThreeD` | Scene editor, mesh/lights/cameras |
 | `Novolis.Cad.SceneBridge` | `exportscene` / `bridgescene` → `.nov3djson` |
 | `Novolis.Avalonia.Studio` | Command bar, workspace chrome, feedback |
 | `Novolis.Avalonia.Agent` | LLM/MCP agent host |

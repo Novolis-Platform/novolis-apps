@@ -22,10 +22,10 @@
     </PackageReference>
     <PackageReference Include="Novolis.Avalonia.Cad" />
     <PackageReference Include="Novolis.Avalonia.Cad.Ship" />
-    <PackageReference Include="Novolis.Avalonia.3D" />
+    <PackageReference Include="Novolis.Avalonia.ThreeD" />
     <PackageReference Include="Novolis.Cad.Primitives" />
     <PackageReference Include="Novolis.Cad.SceneBridge" />
-    <PackageReference Include="Novolis.3D.Scene" />
+    <PackageReference Include="Novolis.ThreeD.Scene" />
     <PackageReference Include="Novolis.Agent.Core" />
     <PackageReference Include="Novolis.Agent.Surface" />
     <PackageReference Include="Novolis.Avalonia.Agent" />

@@ -1,11 +1,11 @@
 using Novolis.Agent.Core;
-using Novolis.Avalonia._3D.Session;
+using Novolis.Avalonia.ThreeD.Session;
 using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
 using Novolis.Cad.SceneBridge;
-using Novolis._3D;
+using Novolis.ThreeD;
 
 namespace CadStudio3D;
 

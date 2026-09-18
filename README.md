@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <strong>Product hosts on NuGet only</strong><br/>
-  Production Avalonia and MAUI apps composed from Novolis packages, with per-app solutions and explicit Ship channels.
+  <strong>Desktop products on NuGet only</strong><br/>
+  Production Avalonia apps and installers composed entirely from Novolis packages.
 </p>
 
 <p align="center">
