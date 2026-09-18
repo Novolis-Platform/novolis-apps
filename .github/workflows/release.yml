@@ -63,7 +63,7 @@ jobs:
 
   windows-inno:
     needs: plan
-    if: contains(toJson(fromJson(needs.plan.outputs.matrix)), '"channel":"windows-inno"')
+    if: contains(needs.plan.outputs.matrix, '"channel":"windows-inno"')
     runs-on: windows-latest
     permissions:
       contents: write
@@ -136,7 +136,7 @@ jobs:
 
   android-apk:
     needs: plan
-    if: contains(toJson(fromJson(needs.plan.outputs.matrix)), '"channel":"android-apk"')
+    if: contains(needs.plan.outputs.matrix, '"channel":"android-apk"')
     runs-on: ubuntu-latest
     permissions:
       contents: write
