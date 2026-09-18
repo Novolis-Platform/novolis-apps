@@ -87,7 +87,7 @@ foreach ($needle in @(
     "AppId=$($catalog.AppId)",
     '{localappdata}\Programs\',
     'Flags: unchecked',
-    "CloseApplicationsFilter=$($catalog.CloseApplicationsFilter)"
+    "CloseApplicationsFilter=`"$($catalog.CloseApplicationsFilter)`""
 )) {
     if ($script -notlike "*$needle*") {
         throw "Generated Inno script missing: $needle"
