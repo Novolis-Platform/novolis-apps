@@ -159,6 +159,13 @@ internal static class Program
             if (solutionDir is null || !Directory.Exists(solutionDir))
                 errors.Add($"Missing solution directory for '{app.Key}': {app.Solution}");
 
+            foreach (var project in app.Projects.LinuxCi.Concat(app.Projects.Tests).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var full = Path.Combine(repoRoot, project.Replace('/', Path.DirectorySeparatorChar));
+                if (!File.Exists(full))
+                    errors.Add($"Missing Linux CI project for '{app.Key}': {project}");
+            }
+
             // Linux CI must not include Android/MAUI heads.
             foreach (var project in app.Projects.LinuxCi)
             {
@@ -172,6 +179,16 @@ internal static class Program
 
             if (app.Validation.AndroidCompile && string.IsNullOrWhiteSpace(app.Projects.Android) && string.IsNullOrWhiteSpace(app.Projects.Maui))
                 errors.Add($"App '{app.Key}' enables androidCompile without an Android/MAUI project.");
+
+            if (app.Validation.WindowsCi && string.IsNullOrWhiteSpace(app.Projects.PublishWindows))
+                errors.Add($"App '{app.Key}' enables windowsCi without a publishWindows project.");
+
+            if (app.Android is not null
+                && !string.IsNullOrWhiteSpace(app.Projects.Android)
+                && !app.Android.Project.Equals(app.Projects.Android, StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"App '{app.Key}' has different Android projects in projects.android and android.project.");
+            }
         }
 
         // Every src/*/ tree must be represented.
@@ -218,6 +235,22 @@ internal static class Program
                 File.WriteAllText(path, slnx, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
                 Console.WriteLine($"Wrote {app.Solution}");
             }
+
+            var linuxSolution = GetLinuxSolutionPath(app.Solution);
+            var linuxPath = Path.Combine(repoRoot, linuxSolution.Replace('/', Path.DirectorySeparatorChar));
+            var linuxDir = Path.GetDirectoryName(linuxPath)!;
+            var linuxProjects = app.Projects.LinuxCi
+                .Concat(app.Projects.Tests)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(p => ToRelativePath(linuxDir, Path.Combine(repoRoot, p.Replace('/', Path.DirectorySeparatorChar))))
+                .ToList();
+            var linuxSlnx = BuildSlnx(linuxProjects, includeSolutionItems: false, solutionItemsRelativeToRepo: false, repoRoot: repoRoot, solutionDir: linuxDir);
+            if (write)
+            {
+                Directory.CreateDirectory(linuxDir);
+                File.WriteAllText(linuxPath, linuxSlnx, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                Console.WriteLine($"Wrote {linuxSolution}");
+            }
         }
 
         // Aggregate convenience solution: Linux-safe (no Android/MAUI hosts).
@@ -249,9 +282,13 @@ internal static class Program
             ? path
             : path + Path.DirectorySeparatorChar;
 
-    private static bool IsMauiHost(AppEntry app, string project) =>
-        !string.IsNullOrWhiteSpace(app.Projects.Maui)
-        && project.Equals(app.Projects.Maui, StringComparison.OrdinalIgnoreCase);
+    private static string GetLinuxSolutionPath(string solution)
+    {
+        var extension = Path.GetExtension(solution);
+        return string.IsNullOrEmpty(extension)
+            ? $"{solution}.Linux.slnx"
+            : $"{solution[..^extension.Length]}.Linux{extension}";
+    }
 
     private static string BuildSlnx(
         IReadOnlyList<string> projects,
@@ -305,37 +342,83 @@ internal static class Program
         var doc = Load(manifestPath);
         var changedFilesArg = GetOption(args, "--changed-files");
         var forceAll = HasFlag(args, "--all");
+        var coverage = GetOption(args, "--coverage") ?? "fast";
+        if (!coverage.Equals("fast", StringComparison.OrdinalIgnoreCase)
+            && !coverage.Equals("full", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("ci-matrix --coverage must be 'fast' or 'full'.");
+        }
+
         IEnumerable<string> changedFiles = [];
         if (!string.IsNullOrWhiteSpace(changedFilesArg) && File.Exists(changedFilesArg))
             changedFiles = File.ReadAllLines(changedFilesArg).Where(l => !string.IsNullOrWhiteSpace(l));
 
-        var selected = SelectAffectedApps(doc, changedFiles.ToList(), forceAll);
-        var matrix = selected.Select(app => new
+        var fullCoverage = forceAll || coverage.Equals("full", StringComparison.OrdinalIgnoreCase);
+        var selected = SelectAffectedApps(doc, changedFiles.ToList(), forceAll, fullCoverage);
+        var linux = selected
+            .Where(app => app.Validation.LinuxCi)
+            .Select(app => new
+            {
+                key = app.Key,
+                choice = app.Choice,
+                solution = GetLinuxSolutionPath(app.Solution),
+                stack = app.Stack,
+                run_tests = app.Validation.RunTests && app.Projects.Tests.Count > 0,
+                test_projects = string.Join(';', app.Projects.Tests),
+            })
+            .ToList();
+        var android = selected
+            .Where(app => app.Validation.AndroidCompile)
+            .Select(app => new
+            {
+                key = app.Key,
+                choice = app.Choice,
+                project = app.Android?.Project ?? app.Projects.Android ?? app.Projects.Maui ?? "",
+                stack = app.Stack,
+                is_maui = app.Stack.Equals("maui", StringComparison.OrdinalIgnoreCase),
+            })
+            .ToList();
+        var windows = selected
+            .Where(app => app.Validation.WindowsCi)
+            .Select(app => new
+            {
+                key = app.Key,
+                choice = app.Choice,
+                project = app.Projects.PublishWindows ?? "",
+                stack = app.Stack,
+                install_windows_workload = app.Validation.WindowsWorkload,
+            })
+            .ToList();
+        var rowCount = linux.Count + android.Count + windows.Count;
+        var summary = new
         {
-            key = app.Key,
-            choice = app.Choice,
-            solution = app.Solution,
-            stack = app.Stack,
-            run_tests = app.Validation.RunTests && app.Projects.Tests.Count > 0,
-            test_projects = string.Join(';', app.Projects.Tests),
-            android_compile = app.Validation.AndroidCompile,
-            android_project = app.Projects.Android ?? app.Projects.Maui ?? "",
-            is_maui = app.Stack.Equals("maui", StringComparison.OrdinalIgnoreCase),
-            windows_workload = app.Validation.WindowsWorkload,
-            linux_ci = app.Validation.LinuxCi,
-        }).ToList();
+            coverage = fullCoverage ? "full" : "fast",
+            selected_apps = selected.Count,
+            linux_rows = linux.Count,
+            android_rows = android.Count,
+            windows_rows = windows.Count,
+            estimated_checkouts = 1 + rowCount,
+            estimated_workload_installs = android.Count + windows.Count(row => row.install_windows_workload),
+        };
 
         var payload = new
         {
-            include = matrix,
-            any = matrix.Count > 0,
-            skip_build = matrix.Count == 0,
+            linux,
+            android,
+            windows,
+            summary,
+            any = rowCount > 0,
+            skip_build = rowCount == 0,
         };
         Console.WriteLine(JsonSerializer.Serialize(payload, CompactJsonOptions));
         return 0;
     }
 
-    private static List<AppEntry> SelectAffectedApps(AppsManifestDocument doc, List<string> changedFiles, bool forceAll)
+    private static List<AppEntry> SelectAffectedApps(
+        AppsManifestDocument doc,
+        List<string> changedFiles,
+        bool forceAll,
+        bool fullCoverage)
     {
         if (forceAll || changedFiles.Count == 0)
             return doc.Apps.ToList();
@@ -363,23 +446,10 @@ internal static class Program
 
         if (rootPolicy)
         {
-            var stacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (normalized.Any(f => f.Equals("Directory.Packages.props", StringComparison.OrdinalIgnoreCase)))
-            {
-                // Fan-out by package pin intent: Avalonia vs MAUI markers in the diff aren't available here;
-                // package pin changes affect all stacks that declare the matching fanOutStacks.
-                stacks.Add("avalonia");
-                stacks.Add("android");
-                stacks.Add("maui");
-            }
-            else
-            {
+            if (fullCoverage)
                 return doc.Apps.ToList();
-            }
 
-            return doc.Apps
-                .Where(a => a.Validation.FanOutStacks.Any(s => stacks.Contains(s)))
-                .ToList();
+            return SelectRepresentativeApps(doc);
         }
 
         var selected = new List<AppEntry>();
@@ -394,6 +464,19 @@ internal static class Program
                     break;
                 }
             }
+        }
+
+        return selected;
+    }
+
+    private static List<AppEntry> SelectRepresentativeApps(AppsManifestDocument doc)
+    {
+        var selected = new List<AppEntry>();
+        var stacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var app in doc.Apps)
+        {
+            if (stacks.Add(app.Stack))
+                selected.Add(app);
         }
 
         return selected;
@@ -540,6 +623,7 @@ internal sealed class ValidationConfig
     public List<string> ChangedPathGlobs { get; set; } = [];
     public bool RunTests { get; set; }
     public bool AndroidCompile { get; set; }
+    public bool WindowsCi { get; set; }
     public bool WindowsWorkload { get; set; }
     public bool LinuxCi { get; set; } = true;
     public List<string> FanOutStacks { get; set; } = [];

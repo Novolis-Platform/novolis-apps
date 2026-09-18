@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/ReadAloud.Desktop/">
+    <Project Path="ReadAloud.Desktop/ReadAloud.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/ReadAloud/">
+    <Project Path="ReadAloud/ReadAloud.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/ReadAloud.Unit/ReadAloud.Unit.csproj" />
+  </Folder>
+</Solution>

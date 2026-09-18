@@ -1,0 +1,142 @@
+name: Apps CI
+
+on:
+  workflow_call:
+    inputs:
+      linux_matrix:
+        description: JSON array of Linux validation rows
+        required: true
+        type: string
+      android_matrix:
+        description: JSON array of Android validation rows
+        required: true
+        type: string
+      windows_matrix:
+        description: JSON array of Windows validation rows
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  linux:
+    if: inputs.linux_matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.linux_matrix) }}
+    concurrency:
+      group: apps-ci-linux-${{ matrix.key }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          gov="../novolis-governance"
+          if [ ! -f "$gov/build/Novolis.Version.targets" ]; then
+            git clone --depth 1 --branch main \
+              "https://github.com/${{ github.repository_owner }}/novolis-governance.git" "$gov"
+          fi
+      - uses: Novolis-Platform/novolis-workflows/actions/setup-dotnet@main
+        with:
+          dotnet-version: 10.0.x
+      - uses: Novolis-Platform/novolis-workflows/actions/authenticate-github-packages@main
+        with:
+          token: ${{ github.token }}
+      - name: Restore and build Linux CI solution
+        shell: bash
+        run: |
+          set -euo pipefail
+          cfg=()
+          if [ -f nuget.config ]; then cfg=(--configfile nuget.config); fi
+          dotnet restore "${{ matrix.solution }}" "${cfg[@]}"
+          dotnet build "${{ matrix.solution }}" --no-restore -c Release "${cfg[@]}"
+      - name: Test scoped projects
+        if: matrix.run_tests == true || matrix.run_tests == 'True'
+        shell: bash
+        run: |
+          set -euo pipefail
+          IFS=';' read -ra projects <<< "${{ matrix.test_projects }}"
+          for project in "${projects[@]}"; do
+            [ -n "$project" ] || continue
+            echo "Testing $project"
+            dotnet test "$project" --no-build -c Release
+          done
+
+  android:
+    if: inputs.android_matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.android_matrix) }}
+    concurrency:
+      group: apps-ci-android-${{ matrix.key }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Novolis-Platform/novolis-workflows/actions/setup-dotnet@main
+        with:
+          dotnet-version: 10.0.x
+      - uses: Novolis-Platform/novolis-workflows/actions/authenticate-github-packages@main
+        with:
+          token: ${{ github.token }}
+      - name: Install Android workload
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.is_maui }}" = "True" ] || [ "${{ matrix.is_maui }}" = "true" ]; then
+            dotnet workload install maui-android
+          else
+            dotnet workload install android
+          fi
+      - name: Build Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.is_maui }}" = "True" ] || [ "${{ matrix.is_maui }}" = "true" ]; then
+            dotnet build "${{ matrix.project }}" -f net10.0-android -c Release \
+              -p:NovolisMauiTargetFrameworks=net10.0-android
+          else
+            dotnet build "${{ matrix.project }}" -c Release
+          fi
+
+  windows:
+    if: inputs.windows_matrix != '[]'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.windows_matrix) }}
+    concurrency:
+      group: apps-ci-windows-${{ matrix.key }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          gov="../novolis-governance"
+          if [ ! -f "$gov/build/Novolis.Version.targets" ]; then
+            git clone --depth 1 --branch main \
+              "https://github.com/${{ github.repository_owner }}/novolis-governance.git" "$gov"
+          fi
+      - uses: Novolis-Platform/novolis-workflows/actions/setup-dotnet@main
+        with:
+          dotnet-version: 10.0.x
+      - uses: Novolis-Platform/novolis-workflows/actions/authenticate-github-packages@main
+        with:
+          token: ${{ github.token }}
+      - name: Install MAUI Windows workload
+        if: matrix.install_windows_workload == true || matrix.install_windows_workload == 'True'
+        shell: pwsh
+        run: dotnet workload install maui-windows
+      - name: Build Windows project
+        shell: pwsh
+        run: dotnet build '${{ matrix.project }}' -c Release

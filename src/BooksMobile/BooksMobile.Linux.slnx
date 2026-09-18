@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/BooksMobile.Desktop/">
+    <Project Path="BooksMobile.Desktop/BooksMobile.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/BooksMobile/">
+    <Project Path="BooksMobile/BooksMobile.csproj" />
+  </Folder>
+</Solution>

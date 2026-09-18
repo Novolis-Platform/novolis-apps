@@ -21,7 +21,9 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
+      linux_matrix: ${{ steps.matrix.outputs.linux_matrix }}
+      android_matrix: ${{ steps.matrix.outputs.android_matrix }}
+      windows_matrix: ${{ steps.matrix.outputs.windows_matrix }}
       skip_build: ${{ steps.matrix.outputs.skip_build }}
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +39,7 @@ jobs:
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             dotnet run --project tools/AppsManifest/AppsManifest.csproj --no-launch-profile -- \
-              ci-matrix --repo "$GITHUB_WORKSPACE" --all > /tmp/matrix.json
+                ci-matrix --repo "$GITHUB_WORKSPACE" --all --coverage full > /tmp/matrix.json
           else
             before="${{ github.event.before }}"
             if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
@@ -47,113 +49,26 @@ jobs:
               git diff --name-only "$before...${{ github.sha }}" > /tmp/changed-files.txt || true
               dotnet run --project tools/AppsManifest/AppsManifest.csproj --no-launch-profile -- \
                 ci-matrix --repo "$GITHUB_WORKSPACE" --changed-files /tmp/changed-files.txt \
+                --coverage fast \
                 > /tmp/matrix.json
             fi
           fi
-          echo "matrix=$(jq -c '.include' /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
+          echo "linux_matrix=$(jq -c '.linux' /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
+          echo "android_matrix=$(jq -c '.android' /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
+          echo "windows_matrix=$(jq -c '.windows' /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
           echo "skip_build=$(jq -r '.skip_build' /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
+          {
+            echo "## App CI plan"
+            jq -r '"Coverage: \(.summary.coverage)\nSelected apps: \(.summary.selected_apps)\nLinux rows: \(.summary.linux_rows)\nAndroid rows: \(.summary.android_rows)\nWindows rows: \(.summary.windows_rows)\nEstimated checkouts: \(.summary.estimated_checkouts)\nEstimated workload installs: \(.summary.estimated_workload_installs)"' /tmp/matrix.json
+          } >> "$GITHUB_STEP_SUMMARY"
           cat /tmp/matrix.json
 
-  build:
+  validate:
     needs: detect
     if: needs.detect.outputs.skip_build != 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.detect.outputs.matrix) }}
-    concurrency:
-      group: apps-merge-build-${{ matrix.key }}-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v4
-      - name: Checkout governance
-        shell: bash
-        run: |
-          set -euo pipefail
-          gov="../novolis-governance"
-          if [ ! -f "$gov/build/Novolis.Version.targets" ]; then
-            git clone --depth 1 --branch main \
-              "https://github.com/${{ github.repository_owner }}/novolis-governance.git" "$gov"
-          fi
-      - uses: Novolis-Platform/novolis-workflows/actions/setup-dotnet@main
-        with:
-          dotnet-version: 10.0.x
-      - uses: Novolis-Platform/novolis-workflows/actions/authenticate-github-packages@main
-        with:
-          token: ${{ github.token }}
-      - name: Install Android workload for Android app solutions
-        if: matrix.android_compile == true || matrix.android_compile == 'True'
-        run: |
-          if [ "${{ matrix.is_maui }}" = "True" ] || [ "${{ matrix.is_maui }}" = "true" ]; then
-            dotnet workload install maui-android
-          else
-            dotnet workload install android
-          fi
-      - name: Restore and build app solution
-        if: matrix.linux_ci == true || matrix.linux_ci == 'True'
-        run: |
-          set -euo pipefail
-          cfg=()
-          if [ -f nuget.config ]; then cfg=(--configfile nuget.config); fi
-          msbuild_props=()
-          if [ "${{ matrix.is_maui }}" = "True" ] || [ "${{ matrix.is_maui }}" = "true" ]; then
-            msbuild_props=(-p:NovolisMauiTargetFrameworks=net10.0-android)
-          fi
-          dotnet restore "${{ matrix.solution }}" "${cfg[@]}" "${msbuild_props[@]}"
-          dotnet build "${{ matrix.solution }}" --no-restore -c Release "${cfg[@]}" "${msbuild_props[@]}"
-      - name: Test scoped projects
-        if: (matrix.run_tests == true || matrix.run_tests == 'True') && matrix.test_projects != ''
-        run: |
-          set -euo pipefail
-          IFS=';' read -ra projects <<< "${{ matrix.test_projects }}"
-          for proj in "${projects[@]}"; do
-            [ -n "$proj" ] || continue
-            echo "Testing $proj"
-            dotnet test "$proj" --no-build -c Release
-          done
-
-  android:
-    needs: detect
-    if: needs.detect.outputs.skip_build != 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.detect.outputs.matrix) }}
-    concurrency:
-      group: apps-merge-android-${{ matrix.key }}-${{ github.ref }}
-      cancel-in-progress: true
-    steps:
-      - name: Skip when Android not required
-        if: matrix.android_compile != true && matrix.android_compile != 'True'
-        run: echo "No Android compile for ${{ matrix.key }}"
-      - uses: actions/checkout@v4
-        if: matrix.android_compile == true || matrix.android_compile == 'True'
-      - uses: Novolis-Platform/novolis-workflows/actions/setup-dotnet@main
-        if: matrix.android_compile == true || matrix.android_compile == 'True'
-        with:
-          dotnet-version: 10.0.x
-      - uses: Novolis-Platform/novolis-workflows/actions/authenticate-github-packages@main
-        if: matrix.android_compile == true || matrix.android_compile == 'True'
-        with:
-          token: ${{ github.token }}
-      - name: Install Android workload
-        if: matrix.android_compile == true || matrix.android_compile == 'True'
-        run: |
-          if [ "${{ matrix.is_maui }}" = "True" ] || [ "${{ matrix.is_maui }}" = "true" ]; then
-            dotnet workload install maui-android
-          else
-            dotnet workload install android
-          fi
-      - name: Compile Android / MAUI Android
-        if: matrix.android_compile == true || matrix.android_compile == 'True'
-        run: |
-          set -euo pipefail
-          project="${{ matrix.android_project }}"
-          if [ "${{ matrix.is_maui }}" = "True" ] || [ "${{ matrix.is_maui }}" = "true" ]; then
-            dotnet build "$project" -f net10.0-android -c Release \
-              -p:NovolisMauiTargetFrameworks=net10.0-android
-          else
-            dotnet build "$project" -c Release
-          fi
+    uses: ./.github/workflows/apps-ci.yml
+    with:
+      linux_matrix: ${{ needs.detect.outputs.linux_matrix }}
+      android_matrix: ${{ needs.detect.outputs.android_matrix }}
+      windows_matrix: ${{ needs.detect.outputs.windows_matrix }}
+    secrets: inherit

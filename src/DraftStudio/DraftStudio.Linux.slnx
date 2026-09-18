@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="DraftStudio.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
+  </Folder>
+</Solution>
