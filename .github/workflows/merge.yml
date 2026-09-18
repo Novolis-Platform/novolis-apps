@@ -82,6 +82,14 @@ jobs:
       - uses: Novolis-Platform/novolis-workflows/actions/authenticate-github-packages@main
         with:
           token: ${{ github.token }}
+      - name: Install Android workload for Android app solutions
+        if: matrix.android_compile == true || matrix.android_compile == 'True'
+        run: |
+          if [ "${{ matrix.is_maui }}" = "True" ] || [ "${{ matrix.is_maui }}" = "true" ]; then
+            dotnet workload install maui-android
+          else
+            dotnet workload install android
+          fi
       - name: Restore and build app solution
         if: matrix.linux_ci == true || matrix.linux_ci == 'True'
         run: |
