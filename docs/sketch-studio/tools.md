@@ -2,21 +2,21 @@
 
 ← [Documentation index](README.md) · [Shortcuts](shortcuts.md) · [Editing](editing.md)
 
-All tools live on `SketchControl` (`SketchTool`). The host toolbar buttons and letter keys select the same enum.
+All tools live on `SketchControl` (`SketchTool`). The host toolbar buttons and **hold Ctrl, press letter** chords select the same enum. Bare letters are never tools.
 
 | Tool | Key | Interaction |
 |------|-----|-------------|
-| Pen | `P` | Drag freehand. Grid snap may apply; **meetup is off** while dragging. |
-| Line | `L` | Click vertices. **Enter** commits open polyline; **Ctrl+Enter** closes (≥3 points) or click start; **Esc** cancels. |
-| Spline | `S` | Click control points; Catmull-Rom tessellation on commit. Same Enter / Ctrl+Enter / Esc as Line. |
-| Box | `R` | Drag an axis-aligned rectangle. |
-| Circle | `C` | Drag an ellipse; hold **Shift** for a true circle. |
-| Speech bubble | `B` | Drag a rounded body with a triangular tail. |
-| Text | `T` | Click to place a label; edit in place. |
-| Text box | `X` | Drag a bordered box; edit text inside. |
-| Eraser | `E` | Click or drag over strokes to erase them. |
-| Paint bucket | `K` | Fill a **closed** shape under the cursor, or **flood-fill** an enclosed pocket between strokes (does not auto-close open freehand into a blob). |
-| Select | `V` | Click select; **Shift** multi-select / marquee. Move, resize, rotate. **Ctrl+A** selects all (canvas focus). |
+| Pen | `Ctrl+P` | Drag freehand. Grid snap may apply; **meetup is off** while dragging. |
+| Line | `Ctrl+L` | Click vertices. **Enter** commits open polyline; **Ctrl+Enter** closes (≥3 points) or click start; **Esc** cancels. |
+| Spline | `Ctrl+U` | Click control points; Catmull-Rom tessellation on commit. Same Enter / Ctrl+Enter / Esc as Line. (`Ctrl+S` is Save.) |
+| Box | `Ctrl+R` | Drag an axis-aligned rectangle. |
+| Circle | `Ctrl+C` | Drag an ellipse; hold **Shift** for a true circle. |
+| Speech bubble | `Ctrl+B` | Drag a rounded body with a triangular tail. |
+| Text | `Ctrl+T` | Click to place a label; edit in place. Typing does not switch tools. |
+| Text box | `Ctrl+X` | Drag a bordered box; edit text inside. |
+| Eraser | `Ctrl+E` | Click or drag over strokes to erase them. |
+| Paint bucket | `Ctrl+K` | Fill a **closed** shape under the cursor, or **flood-fill** an enclosed pocket between strokes (does not auto-close open freehand into a blob). |
+| Select | `Ctrl+M` | Click select; **Shift** multi-select / marquee. Move, resize, rotate. **Ctrl+A** selects all (canvas focus). (`Ctrl+V` pastes an image.) |
 
 ## Complete / close chrome
 

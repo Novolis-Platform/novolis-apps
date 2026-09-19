@@ -42,9 +42,9 @@ Details: [Smoke and release](smoke-and-release.md).
 
 ## First five minutes
 
-1. **Pen (`P`)** — drag freehand. Meetup snap stays off mid-stroke so lines are not yanked to nearby vertices.
-2. **Line (`L`)** — click vertices; **Enter** finishes; **Ctrl+Enter** closes (≥3 points) or click the start vertex; **Esc** cancels.
-3. **Select (`V`)** — move, resize handles, rotate grip above the selection; **Shift** multi-select.
+1. **Pen (`Ctrl+P`)** — drag freehand. Meetup snap stays off mid-stroke so lines are not yanked to nearby vertices.
+2. **Line (`Ctrl+L`)** — click vertices; **Enter** finishes; **Ctrl+Enter** closes (≥3 points) or click the start vertex; **Esc** cancels.
+3. **Select (`Ctrl+M`)** — move, resize handles, rotate grip above the selection; **Shift** multi-select.
 4. **Ctrl+S** — save `.sketchjson`. Use **Copy PNG** or **Save As PNG** for opaque raster export.
 5. **F1** — open the in-app shortcut reference (same tables as [shortcuts](shortcuts.md)).
 

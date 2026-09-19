@@ -18,7 +18,7 @@ When **Fill** is on, new closed shapes use the active color as `fillColor`. Colo
 
 ## Selection transforms
 
-With **Select (`V`)**:
+With **Select (`Ctrl+M`)**:
 
 - Drag the body to move
 - Corner / edge handles resize

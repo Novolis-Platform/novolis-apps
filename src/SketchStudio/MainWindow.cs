@@ -3,10 +3,12 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using Novolis.Avalonia.Agent;
 using Novolis.Avalonia.Agent.Protocol;
 using Novolis.Avalonia.Controls;
@@ -48,6 +50,7 @@ internal sealed class MainWindow : Window
     readonly List<ToggleButton> _toolButtons = [];
     readonly Dictionary<SketchTool, ToggleButton> _toolByKind = new();
     readonly List<ToggleButton> _styleButtons = [];
+    readonly List<Control> _ctrlLetterBadges = [];
     readonly CheckBox _snapBox;
     readonly CheckBox _meetupBox;
     readonly CheckBox _gridBox;
@@ -188,11 +191,11 @@ internal sealed class MainWindow : Window
             Spacing = 4,
             Children =
             {
-                IconButton("fa-solid fa-file", SketchShortcuts.FormatTip("New", "Ctrl+N", "Start a blank sketch; prompts if unsaved."), () => _ = NewAsync(), "sketch.file.new"),
-                IconButton("fa-solid fa-folder-open", SketchShortcuts.FormatTip("Open", "Ctrl+O", "Open a .sketchjson document."), () => _ = OpenAsync(), "sketch.file.open"),
+                IconButton("fa-solid fa-file", SketchShortcuts.FormatTip("New", "Ctrl+N", "Start a blank sketch; prompts if unsaved."), () => _ = NewAsync(), "sketch.file.new", "Ctrl+N"),
+                IconButton("fa-solid fa-folder-open", SketchShortcuts.FormatTip("Open", "Ctrl+O", "Open a .sketchjson document."), () => _ = OpenAsync(), "sketch.file.open", "Ctrl+O"),
                 _recentButton,
-                IconButton("fa-solid fa-floppy-disk", SketchShortcuts.FormatTip("Save", "Ctrl+S", "Write the current .sketchjson path."), () => _ = SaveAsync(), "sketch.file.save"),
-                IconButton("fa-solid fa-file-export", SketchShortcuts.FormatTip("Save As", "Ctrl+Shift+S", "Choose a new .sketchjson path."), () => _ = SaveAsAsync(), "sketch.file.saveAs"),
+                IconButton("fa-solid fa-floppy-disk", SketchShortcuts.FormatTip("Save", "Ctrl+S", "Write the current .sketchjson path."), () => _ = SaveAsync(), "sketch.file.save", "Ctrl+S"),
+                IconButton("fa-solid fa-file-export", SketchShortcuts.FormatTip("Save As", "Ctrl+Shift+S", "Choose a new .sketchjson path."), () => _ = SaveAsAsync(), "sketch.file.saveAs", "Ctrl+Shift+S"),
             }
         };
 
@@ -202,17 +205,17 @@ internal sealed class MainWindow : Window
             Spacing = 4,
             Children =
             {
-                ToolBtn("fa-solid fa-pen", SketchShortcuts.FormatTip("Pen", "P", "Freehand stroke. Meetup is off while dragging."), SketchTool.Pen, selected: true, agentId: "sketch.tool.pen"),
-                ToolBtn("fa-solid fa-slash", SketchShortcuts.FormatTip("Line", "L", "Click vertices. Enter finishes; Ctrl+Enter closes."), SketchTool.Line, agentId: "sketch.tool.line"),
-                ToolBtn("fa-solid fa-bezier-curve", SketchShortcuts.FormatTip("Spline", "S", "Click control points. Enter / Ctrl+Enter like Line."), SketchTool.Spline, agentId: "sketch.tool.spline"),
-                ToolBtn("fa-regular fa-square", SketchShortcuts.FormatTip("Box", "R", "Drag an axis-aligned rectangle."), SketchTool.Rect, agentId: "sketch.tool.rect"),
-                ToolBtn("fa-regular fa-circle", SketchShortcuts.FormatTip("Circle", "C", "Drag ellipse; hold Shift for a circle."), SketchTool.Ellipse, agentId: "sketch.tool.ellipse"),
-                ToolBtn("fa-solid fa-comment", SketchShortcuts.FormatTip("Speech bubble", "B", "Drag a rounded bubble with a tail."), SketchTool.SpeechBubble, agentId: "sketch.tool.speech"),
-                ToolBtn("fa-solid fa-font", SketchShortcuts.FormatTip("Text", "T", "Click to place a text label."), SketchTool.Text, agentId: "sketch.tool.text"),
-                ToolBtn("fa-solid fa-i-cursor", SketchShortcuts.FormatTip("Text box", "X", "Drag a bordered text box."), SketchTool.TextBox, agentId: "sketch.tool.textbox"),
-                ToolBtn("fa-solid fa-eraser", SketchShortcuts.FormatTip("Eraser", "E", "Click or drag over strokes to erase."), SketchTool.Eraser, agentId: "sketch.tool.eraser"),
-                ToolBtn("fa-solid fa-fill-drip", SketchShortcuts.FormatTip("Paint bucket", "K", "Fill a closed shape, or flood an enclosed pocket between strokes."), SketchTool.Fill, agentId: "sketch.tool.fill"),
-                ToolBtn("fa-solid fa-mouse-pointer", SketchShortcuts.FormatTip("Select", "V", "Move, resize, rotate grip; Shift multi-select."), SketchTool.Select, agentId: "sketch.tool.select"),
+                ToolBtn("fa-solid fa-pen", SketchShortcuts.FormatTip("Pen", "Ctrl+P", "Freehand stroke. Meetup is off while dragging."), SketchTool.Pen, selected: true, agentId: "sketch.tool.pen"),
+                ToolBtn("fa-solid fa-slash", SketchShortcuts.FormatTip("Line", "Ctrl+L", "Click vertices. Enter finishes; Ctrl+Enter closes."), SketchTool.Line, agentId: "sketch.tool.line"),
+                ToolBtn("fa-solid fa-bezier-curve", SketchShortcuts.FormatTip("Spline", "Ctrl+U", "Click control points. Enter / Ctrl+Enter like Line."), SketchTool.Spline, agentId: "sketch.tool.spline"),
+                ToolBtn("fa-regular fa-square", SketchShortcuts.FormatTip("Box", "Ctrl+R", "Drag an axis-aligned rectangle."), SketchTool.Rect, agentId: "sketch.tool.rect"),
+                ToolBtn("fa-regular fa-circle", SketchShortcuts.FormatTip("Circle", "Ctrl+C", "Drag ellipse; hold Shift for a circle."), SketchTool.Ellipse, agentId: "sketch.tool.ellipse"),
+                ToolBtn("fa-solid fa-comment", SketchShortcuts.FormatTip("Speech bubble", "Ctrl+B", "Drag a rounded bubble with a tail."), SketchTool.SpeechBubble, agentId: "sketch.tool.speech"),
+                ToolBtn("fa-solid fa-font", SketchShortcuts.FormatTip("Text", "Ctrl+T", "Click to place a text label."), SketchTool.Text, agentId: "sketch.tool.text"),
+                ToolBtn("fa-solid fa-i-cursor", SketchShortcuts.FormatTip("Text box", "Ctrl+X", "Drag a bordered text box."), SketchTool.TextBox, agentId: "sketch.tool.textbox"),
+                ToolBtn("fa-solid fa-eraser", SketchShortcuts.FormatTip("Eraser", "Ctrl+E", "Click or drag over strokes to erase."), SketchTool.Eraser, agentId: "sketch.tool.eraser"),
+                ToolBtn("fa-solid fa-fill-drip", SketchShortcuts.FormatTip("Paint bucket", "Ctrl+K", "Fill a closed shape, or flood an enclosed pocket between strokes."), SketchTool.Fill, agentId: "sketch.tool.fill"),
+                ToolBtn("fa-solid fa-mouse-pointer", SketchShortcuts.FormatTip("Select", "Ctrl+M", "Move, resize, rotate grip; Shift multi-select."), SketchTool.Select, agentId: "sketch.tool.select"),
                 Sep(),
                 IconButton(
                     "fa-solid fa-check",
@@ -231,7 +234,8 @@ internal sealed class MainWindow : Window
                         _sketch.CompleteDrawing(closeShape: true);
                         SetStatus(_sketch.HasInProgressDrawing ? "Need ≥3 points to close." : "Closed.");
                     },
-                    "sketch.action.close"),
+                    "sketch.action.close",
+                    "Ctrl+Enter"),
             }
         };
 
@@ -367,11 +371,13 @@ internal sealed class MainWindow : Window
                 IconButton(
                     "fa-solid fa-object-group",
                     SketchShortcuts.FormatTip("Fuse", "Ctrl+G", "Group ≥2 selected shapes so they transform together."),
-                    () => SetStatus(_sketch.FuseSelection() ? "Fused." : "Select ≥2 shapes to fuse.")),
+                    () => SetStatus(_sketch.FuseSelection() ? "Fused." : "Select ≥2 shapes to fuse."),
+                    shortcut: "Ctrl+G"),
                 IconButton(
                     "fa-solid fa-object-ungroup",
                     SketchShortcuts.FormatTip("Ungroup", "Ctrl+Shift+G", "Clear groupId on the selection."),
-                    () => SetStatus(_sketch.UngroupSelection() ? "Ungrouped." : "Nothing to ungroup.")),
+                    () => SetStatus(_sketch.UngroupSelection() ? "Ungrouped." : "Nothing to ungroup."),
+                    shortcut: "Ctrl+Shift+G"),
                 IconButton(
                     "fa-solid fa-table-cells",
                     SketchShortcuts.FormatTip("Gridify", "—", "Snap selected geometry onto the current grid."),
@@ -380,8 +386,8 @@ internal sealed class MainWindow : Window
                         _sketch.GridifySelection();
                         SetStatus("Gridified.");
                     }),
-                IconButton("fa-solid fa-rotate-left", SketchShortcuts.FormatTip("Undo", "Ctrl+Z", "Undo the last document change."), () => _sketch.Undo()),
-                IconButton("fa-solid fa-rotate-right", SketchShortcuts.FormatTip("Redo", "Ctrl+Y", "Redo."), () => _sketch.Redo()),
+                IconButton("fa-solid fa-rotate-left", SketchShortcuts.FormatTip("Undo", "Ctrl+Z", "Undo the last document change."), () => _sketch.Undo(), shortcut: "Ctrl+Z"),
+                IconButton("fa-solid fa-rotate-right", SketchShortcuts.FormatTip("Redo", "Ctrl+Y", "Redo."), () => _sketch.Redo(), shortcut: "Ctrl+Y"),
                 IconButton(
                     "fa-solid fa-trash",
                     SketchShortcuts.FormatTip("Clear", "—", "Remove every element (undoable)."),
@@ -393,7 +399,8 @@ internal sealed class MainWindow : Window
                 IconButton(
                     "fa-solid fa-paste",
                     SketchShortcuts.FormatTip("Paste image", "Ctrl+V", "Insert a clipboard bitmap at the viewport center."),
-                    () => _ = PasteImageAsync()),
+                    () => _ = PasteImageAsync(),
+                    shortcut: "Ctrl+V"),
             }
         };
 
@@ -485,7 +492,7 @@ internal sealed class MainWindow : Window
 
         var hint = new TextBlock
         {
-            Text = "Hover for tips · F1 shortcuts · K paint-bucket · layers on row 3 · Save PNG/SVG write files · Space+drag pan",
+            Text = "Hover for tips · F1 shortcuts · hold Ctrl to see letters on buttons · layers on row 3 · Save PNG/SVG write files · Space+drag pan",
             Opacity = 0.6,
             FontSize = 11,
             Margin = new Thickness(12, 0, 12, 6),
@@ -527,7 +534,10 @@ internal sealed class MainWindow : Window
         AgentProperties.SetId(_gridBox, "sketch.toggle.grid", AgentRoleNames.CheckBox);
         AgentProperties.SetId(_fillBox, "sketch.toggle.fill", AgentRoleNames.CheckBox);
 
+        AddHandler(InputElement.KeyDownEvent, OnCtrlHintKey, RoutingStrategies.Tunnel);
+        AddHandler(InputElement.KeyUpEvent, OnCtrlHintKey, RoutingStrategies.Tunnel);
         KeyDown += OnKeyDown;
+        Deactivated += (_, _) => SetCtrlChordHints(false);
         Closing += OnClosing;
         Opened += OnOpened;
         RefreshLayerUi();
@@ -875,8 +885,9 @@ internal sealed class MainWindow : Window
         {
             Width = 36,
             Height = 32,
+            ClipToBounds = false,
             IsChecked = selected,
-            Content = new Icon { Value = icon, FontSize = 14 }
+            Content = WithCtrlLetter(new Icon { Value = icon, FontSize = 14 }, SketchShortcuts.ShortcutForTool(tool))
         };
         SketchShortcuts.ApplyTip(btn, tip);
         if (!string.IsNullOrWhiteSpace(agentId))
@@ -933,13 +944,14 @@ internal sealed class MainWindow : Window
         return btn;
     }
 
-    static Button IconButton(string icon, string tip, Action action, string? agentId = null)
+    Button IconButton(string icon, string tip, Action action, string? agentId = null, string? shortcut = null)
     {
         var b = new Button
         {
             Width = 36,
             Height = 32,
-            Content = new Icon { Value = icon, FontSize = 14 },
+            ClipToBounds = false,
+            Content = WithCtrlLetter(new Icon { Value = icon, FontSize = 14 }, shortcut),
             Padding = new Thickness(0)
         };
         SketchShortcuts.ApplyTip(b, tip);
@@ -1320,8 +1332,54 @@ internal sealed class MainWindow : Window
 
     IClipboard? GetClipboard() => TopLevel.GetTopLevel(this)?.Clipboard;
 
+    Control WithCtrlLetter(Control glyph, string? shortcut)
+    {
+        var letter = SketchShortcuts.HoldCtrlLetter(shortcut);
+        if (letter is null)
+            return glyph;
+
+        var badge = new Border
+        {
+            IsVisible = false,
+            IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Background = new SolidColorBrush(Color.FromArgb(235, 32, 32, 32)),
+            CornerRadius = new CornerRadius(2),
+            Padding = new Thickness(letter.Length > 1 ? 1 : 2, 0),
+            Margin = new Thickness(0, 0, 1, 1),
+            Child = new TextBlock
+            {
+                Text = letter,
+                FontSize = letter.Length > 1 ? 8 : 10,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = Brushes.White
+            }
+        };
+        glyph.HorizontalAlignment = HorizontalAlignment.Center;
+        glyph.VerticalAlignment = VerticalAlignment.Center;
+        _ctrlLetterBadges.Add(badge);
+        return new Grid { Children = { glyph, badge } };
+    }
+
+    void SetCtrlChordHints(bool visible)
+    {
+        foreach (var badge in _ctrlLetterBadges)
+            badge.IsVisible = visible;
+    }
+
+    void OnCtrlHintKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.LeftCtrl or Key.RightCtrl))
+            return;
+        SetCtrlChordHints(e.RoutedEvent == InputElement.KeyDownEvent);
+    }
+
     void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (OriginatesFromTextInput(e.Source))
+            return;
+
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 
@@ -1377,60 +1435,29 @@ internal sealed class MainWindow : Window
             }
         }
 
-        if (ctrl || shift)
-            return;
-
-        switch (e.Key)
+        if (SketchShortcuts.MatchTool(e.Key, e.KeyModifiers) is { } tool)
         {
-            case Key.P:
-                SelectTool(SketchTool.Pen);
-                e.Handled = true;
-                break;
-            case Key.L:
-                SelectTool(SketchTool.Line);
-                e.Handled = true;
-                break;
-            case Key.S:
-                SelectTool(SketchTool.Spline);
-                e.Handled = true;
-                break;
-            case Key.R:
-                SelectTool(SketchTool.Rect);
-                e.Handled = true;
-                break;
-            case Key.C:
-                SelectTool(SketchTool.Ellipse);
-                e.Handled = true;
-                break;
-            case Key.B:
-                SelectTool(SketchTool.SpeechBubble);
-                e.Handled = true;
-                break;
-            case Key.T:
-                SelectTool(SketchTool.Text);
-                e.Handled = true;
-                break;
-            case Key.X:
-                SelectTool(SketchTool.TextBox);
-                e.Handled = true;
-                break;
-            case Key.E:
-                SelectTool(SketchTool.Eraser);
-                e.Handled = true;
-                break;
-            case Key.K:
-                SelectTool(SketchTool.Fill);
-                e.Handled = true;
-                break;
-            case Key.V:
-                SelectTool(SketchTool.Select);
-                e.Handled = true;
-                break;
-            case Key.Delete:
-                _sketch.Document?.DeleteSelection();
-                e.Handled = true;
-                break;
+            SelectTool(tool);
+            e.Handled = true;
+            return;
         }
+
+        if (e.Key == Key.Delete && e.KeyModifiers == KeyModifiers.None)
+        {
+            _sketch.Document?.DeleteSelection();
+            e.Handled = true;
+        }
+    }
+
+    static bool OriginatesFromTextInput(object? source)
+    {
+        for (var visual = source as Visual; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (visual is TextBox)
+                return true;
+        }
+
+        return false;
     }
 
     async Task PasteImageAsync()

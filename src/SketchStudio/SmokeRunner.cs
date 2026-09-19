@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Input;
 using Novolis.Avalonia.Controls.Sketch;
 
 namespace SketchStudio;
@@ -23,6 +24,19 @@ internal static class SmokeRunner
         }
 
         Console.WriteLine("Sketch Studio smoke");
+
+        Check("ctrl+P pen", SketchShortcuts.MatchTool(Key.P, KeyModifiers.Control) == SketchTool.Pen);
+        Check("bare P ignored", SketchShortcuts.MatchTool(Key.P, KeyModifiers.None) is null);
+        Check("ctrl+S not spline", SketchShortcuts.MatchTool(Key.S, KeyModifiers.Control) is null);
+        Check("ctrl+V not select", SketchShortcuts.MatchTool(Key.V, KeyModifiers.Control) is null);
+        Check("ctrl+U spline", SketchShortcuts.MatchTool(Key.U, KeyModifiers.Control) == SketchTool.Spline);
+        Check("ctrl+M select", SketchShortcuts.MatchTool(Key.M, KeyModifiers.Control) == SketchTool.Select);
+        Check("alt+P ignored", SketchShortcuts.MatchTool(Key.P, KeyModifiers.Alt) is null);
+        Check("hold letter P", SketchShortcuts.HoldCtrlLetter("Ctrl+P") == "P");
+        Check("hold letter ⇧S", SketchShortcuts.HoldCtrlLetter("Ctrl+Shift+S") == "⇧S");
+        Check("hold letter Enter", SketchShortcuts.HoldCtrlLetter("Ctrl+Enter") == "↵");
+        Check("hold letter skips Enter", SketchShortcuts.HoldCtrlLetter("Enter") is null);
+        Check("hold letter skips dash", SketchShortcuts.HoldCtrlLetter("—") is null);
 
         var doc = new SketchDocument { Version = 2 };
         doc.Grid.Size = 10;

@@ -12,6 +12,10 @@
 
 Source of truth in code: `SketchShortcuts.cs` (File / Tools / Edit / Export / Help rows). Keep this doc aligned when adding chords.
 
+**Chord rule:** letter commands are always **hold Ctrl, then press the letter**. Bare letters are never tools, so typing in a text label, text box, or hex field cannot switch tools. Keys that originate from a `TextBox` are ignored by the window handler (Ctrl+V stays paste-text, not paste-image).
+
+While **Control is held**, every Ctrl-bound toolbar button shows its letter in the corner (`P`, `⇧S`, `↵`, …). Release Control to hide the letters.
+
 ## File
 
 | Action | Keys | Notes |
@@ -27,11 +31,11 @@ Source of truth in code: `SketchShortcuts.cs` (File / Tools / Edit / Export / He
 
 | Action | Keys |
 |--------|------|
-| Pen / Line / Spline / Box / Circle | `P` `L` `S` `R` `C` |
-| Speech bubble / Text / Text box | `B` `T` `X` |
-| Eraser / Paint bucket / Select | `E` `K` `V` |
+| Pen / Line / Spline / Box / Circle | `Ctrl+P` `Ctrl+L` `Ctrl+U` `Ctrl+R` `Ctrl+C` |
+| Speech bubble / Text / Text box | `Ctrl+B` `Ctrl+T` `Ctrl+X` |
+| Eraser / Paint bucket / Select | `Ctrl+E` `Ctrl+K` `Ctrl+M` |
 
-Letter keys are ignored while **Ctrl** or **Shift** is held so they do not clash with file/edit chords.
+Hold **Ctrl**, then press the letter. **Shift**, **Alt**, or **Meta** together with Ctrl does not switch tools. Spline is `Ctrl+U` because `Ctrl+S` is Save; Select is `Ctrl+M` because `Ctrl+V` pastes an image.
 
 ## Edit and canvas
 
@@ -59,7 +63,8 @@ See [Export](export.md).
 ## Focus notes
 
 - Enter / Esc / Space / Ctrl+A need **canvas focus** (`SketchControl`) to fire inside the control.
-- File chords (`Ctrl+N/O/S`, …) and tool letters are handled on the **window** `KeyDown` and work when the window is focused even if the canvas last received pointer input (after a click on the canvas, control keys still reach the window unless the control marks them handled).
+- File chords (`Ctrl+N/O/S`, …) and tool chords (`Ctrl+P`, …) are handled on the **window** `KeyDown` and work when the window is focused even if the canvas last received pointer input (after a click on the canvas, control keys still reach the window unless the control marks them handled). File/edit chords win when they share a letter (`Ctrl+S`, `Ctrl+V`, `Ctrl+G`).
+- Hold **Ctrl** to reveal the letter badge on each bound button (tunneled `KeyDown` / `KeyUp` on the window).
 
 ## See also
 

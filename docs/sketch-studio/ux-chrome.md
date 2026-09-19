@@ -12,7 +12,7 @@
 ├─ Row 3 ─────────────────────────────────────────────────────────┤
 │ Stroke styles │ Layers (+ / eye / lock) │ Edit │ Export files     │
 ├─ Hint strip ────────────────────────────────────────────────────┤
-│ Hover tips · F1 · K bucket · Save PNG/SVG files · …              │
+│ Hover tips · F1 · hold Ctrl for letters · Save PNG/SVG files · …│
 ├─────────────────────────────────────────────────────────────────┤
 │                     SketchControl (canvas)                       │
 ├─ Status bar (bottom) ───────────────────────────────────────────┤
@@ -45,6 +45,10 @@ Docked to the **bottom** of the window (not the toolbar). Default: `{Tool} · {S
 ## Title bar
 
 `Sketch Studio — {file or Untitled}` with trailing `*` when dirty — [Documents](documents.md).
+
+## Hold-Ctrl letters
+
+While Control is down, Ctrl-bound toolbar icons show a corner letter (`N` New, `P` Pen, `⇧S` Save As, `↵` Close, …). The badge is hidden on Control release or when the window deactivates.
 
 ## Tooltip contract
 
