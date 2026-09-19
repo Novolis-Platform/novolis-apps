@@ -1481,7 +1481,7 @@ internal sealed class MainWindow : Window
             using (bitmap)
             {
                 using var ms = new MemoryStream();
-                bitmap.Save(ms);
+                bitmap.Save(ms, PngBitmapEncoderOptions.Default);
                 var placed = _sketch.PasteImage(ms.ToArray(), _sketch.ViewportCenterWorld());
                 SetStatus(placed is null ? "Could not decode clipboard image." : "Pasted image.");
             }
