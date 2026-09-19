@@ -30,7 +30,7 @@ Undeclared channels fail before workloads install. There is **no Linux release a
 
 ## Branding
 
-Every app uses the Novolis mark at the repo root (`icon.png`, `icon.ico`, `logo-icon.svg`). Windows executables and Inno installers pick up `icon.ico` automatically. Avalonia window chrome loads `icon.png`. Android launcher icons come from `brand/android/ic_launcher.png` (MAUI hosts use `MauiIcon` from the same SVG). Regenerate rasters with:
+Every app uses the Novolis mark at the repo root (`icon.png`, `icon.ico`, `logo-icon.svg`). Windows executables and Inno installers pick up `icon.ico` automatically. Avalonia window chrome loads `icon.png`. Avalonia Android launchers use `brand/android/ic_launcher.png`. MAUI hosts (Merglyph) use PNG `MauiIcon` / splash rasters — the gradient SVG is not a valid Android launcher source. Regenerate rasters with:
 
 ```powershell
 dotnet run --project d:\novolis\novolis-apps\tools\BrandAssets\BrandAssets.csproj -- d:\novolis\novolis-apps

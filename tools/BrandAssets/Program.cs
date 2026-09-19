@@ -33,20 +33,28 @@ internal static class Program
         svg.Load(svgPath);
         var picture = svg.Picture ?? throw new InvalidOperationException($"Failed to load SVG: {svgPath}");
 
-        WritePng(picture, Path.Combine(repoRoot, "icon.png"), 512);
-        WritePng(picture, Path.Combine(androidDir, "ic_launcher.png"), 192);
+        WritePng(picture, Path.Combine(repoRoot, "icon.png"), 512, Canvas, 0.10f);
+        WritePng(picture, Path.Combine(androidDir, "ic_launcher.png"), 192, Canvas, 0.10f);
         WriteIco(
             picture,
             Path.Combine(repoRoot, "icon.ico"),
             [16, 24, 32, 48, 64, 128, 256]);
 
+        var merglyphIconDir = Path.Combine(repoRoot, "src", "Merglyph", "Merglyph", "Resources", "AppIcon");
+        var merglyphSplashDir = Path.Combine(repoRoot, "src", "Merglyph", "Merglyph", "Resources", "Splash");
+        Directory.CreateDirectory(merglyphIconDir);
+        Directory.CreateDirectory(merglyphSplashDir);
+        WriteSolidPng(Path.Combine(merglyphIconDir, "appicon.png"), 1024, Canvas);
+        WritePng(picture, Path.Combine(merglyphIconDir, "appiconfg.png"), 1024, SKColors.Transparent, 0.18f);
+        WritePng(picture, Path.Combine(merglyphSplashDir, "splash.png"), 1024, SKColors.Transparent, 0.18f);
+
         Console.WriteLine($"Wrote brand rasters from {svgPath}");
         return 0;
     }
 
-    private static void WritePng(SKPicture picture, string path, int size)
+    private static void WritePng(SKPicture picture, string path, int size, SKColor background, float padFraction)
     {
-        using var bitmap = Render(picture, size);
+        using var bitmap = Render(picture, size, background, padFraction);
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100)
             ?? throw new InvalidOperationException($"PNG encode failed for {path}.");
@@ -54,12 +62,25 @@ internal static class Program
         Console.WriteLine($"  {path} ({size}x{size})");
     }
 
+    private static void WriteSolidPng(string path, int size, SKColor color)
+    {
+        using var bitmap = new SKBitmap(size, size, SKColorType.Rgba8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(color);
+        canvas.Flush();
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100)
+            ?? throw new InvalidOperationException($"PNG encode failed for {path}.");
+        File.WriteAllBytes(path, data.ToArray());
+        Console.WriteLine($"  {path} ({size}x{size} solid)");
+    }
+
     private static void WriteIco(SKPicture picture, string path, int[] sizes)
     {
         var images = new List<byte[]>(sizes.Length);
         foreach (var size in sizes)
         {
-            using var bitmap = Render(picture, size);
+            using var bitmap = Render(picture, size, Canvas, 0.10f);
             using var image = SKImage.FromBitmap(bitmap);
             using var data = image.Encode(SKEncodedImageFormat.Png, 100)
                 ?? throw new InvalidOperationException($"ICO PNG encode failed at {size}.");
@@ -70,14 +91,14 @@ internal static class Program
         Console.WriteLine($"  {path} ({string.Join(',', sizes)})");
     }
 
-    private static SKBitmap Render(SKPicture picture, int size)
+    private static SKBitmap Render(SKPicture picture, int size, SKColor background, float padFraction)
     {
         var bitmap = new SKBitmap(size, size, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(Canvas);
+        canvas.Clear(background);
 
         var bounds = picture.CullRect;
-        var pad = size * 0.10f;
+        var pad = size * padFraction;
         var inner = size - (pad * 2);
         var scale = Math.Min(inner / bounds.Width, inner / bounds.Height);
         var dx = ((size - (bounds.Width * scale)) / 2f) - (bounds.Left * scale);

@@ -4,7 +4,7 @@ Thin MAUI host for offline Markdown viewing via `Novolis.Maui.Markdown`. Product
 
 - **Ship:** Android APK (`android-apk`) via the **Release** workflow (Merglyph + `android-apk`)
 - **Local:** Windows MAUI debug (not an Inno/Ship channel)
-- **Branding:** Novolis mark (`MauiIcon` / splash from `logo-icon.svg`)
+- **Branding:** Novolis mark (`MauiIcon` / splash PNG rasters; SVG gradients are not used as Android launcher source)
 - **Solution:** `src/Merglyph/Merglyph.slnx`
 - **Privacy:** [PRIVACY.md](PRIVACY.md)
 

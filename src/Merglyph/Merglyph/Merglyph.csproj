@@ -31,8 +31,8 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
-    <MauiIcon Include="Resources/AppIcon/appicon.svg" Color="#111827" />
-    <MauiSplashScreen Include="Resources/Splash/splash.svg" Color="#111827" BaseSize="128,128" />
+    <MauiIcon Include="Resources/AppIcon/appicon.png" ForegroundFile="Resources/AppIcon/appiconfg.png" Color="#111827" />
+    <MauiSplashScreen Include="Resources/Splash/splash.png" Color="#111827" BaseSize="256,256" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />

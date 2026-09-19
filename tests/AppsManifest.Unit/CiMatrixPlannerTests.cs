@@ -83,6 +83,9 @@ public sealed class CiMatrixPlannerTests
         await Assert.That(File.Exists(Path.Combine(root, "icon.ico"))).IsTrue();
         await Assert.That(File.Exists(Path.Combine(root, "logo-icon.svg"))).IsTrue();
         await Assert.That(File.Exists(Path.Combine(root, "brand", "android", "ic_launcher.png"))).IsTrue();
+        await Assert.That(File.Exists(Path.Combine(root, "src", "Merglyph", "Merglyph", "Resources", "AppIcon", "appicon.png"))).IsTrue();
+        await Assert.That(File.Exists(Path.Combine(root, "src", "Merglyph", "Merglyph", "Resources", "AppIcon", "appiconfg.png"))).IsTrue();
+        await Assert.That(File.Exists(Path.Combine(root, "src", "Merglyph", "Merglyph", "Resources", "Splash", "splash.png"))).IsTrue();
     }
 
     [Test]
