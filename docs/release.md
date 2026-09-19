@@ -23,9 +23,18 @@ Undeclared channels fail before workloads install. There is **no Linux release a
 
 ### android-apk
 
-- Signed APK only for apps with `android-apk` in `ship`
-- Persistent `ANDROID_KEYSTORE_*` secrets required (adhoc keys are rejected on release)
+- Installable APK for apps with `android-apk` in `ship`
+- Persistent `ANDROID_KEYSTORE_*` secrets are used when present
+- Missing secrets produce an **adhoc-signed** APK for sideload testing (not upgrade-safe)
 - Monotonic `versionCode` via `NovolisAndroidVersionCode` / `Get-NovolisAndroidVersionCode`
+
+## Branding
+
+Every app uses the Novolis mark at the repo root (`icon.png`, `icon.ico`, `logo-icon.svg`). Windows executables and Inno installers pick up `icon.ico` automatically. Avalonia window chrome loads `icon.png`. Android launcher icons come from `brand/android/ic_launcher.png` (MAUI hosts use `MauiIcon` from the same SVG). Regenerate rasters with:
+
+```powershell
+dotnet run --project d:\novolis\novolis-apps\tools\BrandAssets\BrandAssets.csproj -- d:\novolis\novolis-apps
+```
 
 ## Local publish
 
@@ -35,5 +44,6 @@ pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio 
 
 ## Signing notes
 
-- Books Mobile / Read Aloud / Merglyph Android releases require org secrets.
-- Merglyph’s pre-migration standalone releases may have used an ephemeral CI keystore; the first migrated APK may require reinstall until the persistent key is confirmed. See `src/Merglyph/PRIVACY.md`.
+- Persistent `ANDROID_KEYSTORE_*` org secrets are preferred for upgrade-safe APKs.
+- When those secrets are absent, Release still publishes an adhoc-signed APK for sideload testing. Uninstall/reinstall is expected between adhoc builds.
+- See `src/Merglyph/PRIVACY.md` for Merglyph signing continuity.

@@ -36,6 +36,7 @@ internal sealed class App : Application
                 _options.AiAggressiveness,
                 _options.Seed);
             desktop.MainWindow = new MainWindow(world, _options);
+            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(desktop.MainWindow);
         }
         base.OnFrameworkInitializationCompleted();
     }

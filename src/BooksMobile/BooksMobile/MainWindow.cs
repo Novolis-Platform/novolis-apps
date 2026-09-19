@@ -15,12 +15,5 @@ public sealed class MainWindow : Window
         Background = BooksPalette.WindowBrush;
         FontFamily = BooksPalette.BodyFont;
         Foreground = BooksPalette.BodyBrush;
-
-        var iconPath = Path.Combine(AppContext.BaseDirectory, "icon.png");
-        if (File.Exists(iconPath))
-        {
-            using var stream = File.OpenRead(iconPath);
-            Icon = new WindowIcon(stream);
-        }
     }
 }

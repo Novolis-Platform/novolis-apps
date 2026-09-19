@@ -10,6 +10,8 @@ namespace ReadAloud.Android;
     Label = "Read Aloud",
     Theme = "@style/MainTheme",
     MainLauncher = true,
+    Icon = "@mipmap/ic_launcher",
+    RoundIcon = "@mipmap/ic_launcher",
     WindowSoftInputMode = SoftInput.AdjustResize,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
 public class MainActivity : AvaloniaMainActivity

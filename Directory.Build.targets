@@ -1,4 +1,33 @@
 <Project>
   <Import Project="$(MSBuildThisFileDirectory)..\novolis-governance\build\Novolis.Packaging.targets"
           Condition="Exists('$(MSBuildThisFileDirectory)..\novolis-governance\build\Novolis.Packaging.targets')" />
+
+  <PropertyGroup Label="Novolis app branding">
+    <_NovolisTargetPlatform>$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)'))</_NovolisTargetPlatform>
+    <_NovolisProjectText Condition="Exists('$(MSBuildProjectFullPath)')">$([System.IO.File]::ReadAllText('$(MSBuildProjectFullPath)'))</_NovolisProjectText>
+    <NovolisEnableWindowIcon Condition="'$(NovolisEnableWindowIcon)' == '' And '$(IsTestProject)' != 'true' And '$(UseMaui)' != 'true' And '$(_NovolisTargetPlatform)' != 'android' And $(_NovolisProjectText.Contains('Avalonia'))">true</NovolisEnableWindowIcon>
+    <NovolisCopyBrandIcon Condition="'$(NovolisCopyBrandIcon)' == '' And '$(IsTestProject)' != 'true' And '$(UseMaui)' != 'true' And '$(_NovolisTargetPlatform)' != 'android' And ($(_NovolisProjectText.Contains('Avalonia.Desktop')) Or '$(OutputType)' == 'WinExe')">true</NovolisCopyBrandIcon>
+    <NovolisAndroidLauncherIcon Condition="'$(NovolisAndroidLauncherIcon)' == '' And '$(UseMaui)' != 'true' And '$(_NovolisTargetPlatform)' == 'android'">true</NovolisAndroidLauncherIcon>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(NovolisEnableWindowIcon)' == 'true'">
+    <Compile Include="$(MSBuildThisFileDirectory)build\NovolisAppBranding.cs"
+             Link="NovolisAppBranding.cs"
+             Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(NovolisCopyBrandIcon)' == 'true' And Exists('$(MSBuildThisFileDirectory)icon.png')">
+    <Content Include="$(MSBuildThisFileDirectory)icon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>icon.png</Link>
+      <Visible>false</Visible>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(NovolisAndroidLauncherIcon)' == 'true' And Exists('$(MSBuildThisFileDirectory)brand\android\ic_launcher.png')">
+    <AndroidResource Include="$(MSBuildThisFileDirectory)brand\android\ic_launcher.png">
+      <Link>Resources\mipmap-xxxhdpi\ic_launcher.png</Link>
+    </AndroidResource>
+  </ItemGroup>
 </Project>

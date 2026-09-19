@@ -12,7 +12,7 @@
       "id": "android-apk",
       "runner": "ubuntu-latest",
       "artifacts": ["apk", "sha256"],
-      "description": "Signed Android APK with monotonic versionCode"
+      "description": "Installable Android APK with monotonic versionCode. Persistent keystore preferred; adhoc debug signing is allowed for sideload testing."
     }
   },
   "apps": [
@@ -780,7 +780,7 @@
         "usesCleartextTraffic": false,
         "permissionAllowlist": [],
         "networkPolicy": "none",
-        "signingContinuityNote": "Prior standalone Merglyph releases may have used an ephemeral CI keystore. First migrated APK may require reinstall until ANDROID_KEYSTORE_* secrets are permanent."
+        "signingContinuityNote": "Sideload/testing APKs may use an adhoc CI keystore when ANDROID_KEYSTORE_* secrets are absent. In-place upgrades require the same key; uninstall/reinstall is expected between adhoc builds."
       },
       "data": {
         "appDataRoot": "%LOCALAPPDATA%\\Novolis\\merglyph",

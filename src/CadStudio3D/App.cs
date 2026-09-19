@@ -18,6 +18,7 @@ public sealed class App : Application
         {
             var window = Program.ApplicationHost.Services.GetRequiredService<MainWindow>();
             desktop.MainWindow = window;
+            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(window);
             s_agentHost = AgentHost.TryAttachFromEnvironment(window);
         }
 

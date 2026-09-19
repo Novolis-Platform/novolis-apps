@@ -1,0 +1,7 @@
+<Project>
+  <!-- Tool hosts pin their own package versions; do not inherit app CPM. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <CentralPackageFloatingVersionsEnabled>false</CentralPackageFloatingVersionsEnabled>
+  </PropertyGroup>
+</Project>

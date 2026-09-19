@@ -17,6 +17,7 @@ internal sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindow(Program.Runtime.Session);
+            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(desktop.MainWindow);
             desktop.ShutdownRequested += OnShutdownRequested;
         }
 

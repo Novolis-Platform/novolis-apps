@@ -17,7 +17,10 @@ public class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
             desktop.MainWindow = Program.ApplicationHost.Services.GetRequiredService<MainWindow>();
+            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(desktop.MainWindow);
+        }
 
         base.OnFrameworkInitializationCompleted();
     }

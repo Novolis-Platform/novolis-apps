@@ -245,6 +245,70 @@ function Get-NovolisAppInnoProfile {
     }
 }
 
+function Resolve-NovolisKeytool {
+    $cmd = Get-Command keytool -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
+    if ($cmd) { return $cmd }
+
+    if ($env:JAVA_HOME) {
+        foreach ($name in @('keytool.exe', 'keytool')) {
+            $candidate = Join-Path $env:JAVA_HOME "bin/$name"
+            if (Test-Path -LiteralPath $candidate) { return $candidate }
+        }
+    }
+
+    return $null
+}
+
+function New-NovolisAdhocAndroidKeystore {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $keytool = Resolve-NovolisKeytool
+    if (-not $keytool) {
+        throw "keytool not found. Install a JDK 17+ to produce an installable Android APK without ANDROID_KEYSTORE_* secrets."
+    }
+
+    $alias = 'novolis-adhoc'
+    $pass = 'novolis-adhoc-release'
+    $dir = Split-Path -Parent $Path
+    if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+    if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Force }
+
+    & $keytool -genkeypair `
+        -keystore $Path `
+        -alias $alias `
+        -keyalg RSA `
+        -keysize 2048 `
+        -validity 10000 `
+        -storepass $pass `
+        -keypass $pass `
+        -dname 'CN=Novolis Ad Hoc Release,O=Novolis,C=NO'
+    if ($LASTEXITCODE -ne 0) { throw "keytool failed with exit code $LASTEXITCODE." }
+
+    [pscustomobject]@{
+        Path     = $Path
+        Alias    = $alias
+        Password = $pass
+    }
+}
+
+function Find-NovolisPublishedApk {
+    param([Parameter(Mandatory)][string]$RepoRoot)
+
+    $files = @(Get-ChildItem -Path $RepoRoot -Recurse -File -Filter '*-Signed.apk' -ErrorAction SilentlyContinue)
+    if ($files.Count -eq 0) {
+        $files = @(Get-ChildItem -Path $RepoRoot -Recurse -File -Filter '*.apk' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch 'unsigned' })
+    }
+
+    $files |
+        Where-Object {
+            $_.FullName -notmatch '[\\/]obj[\\/]' -and
+            $_.FullName -match '(?i)[\\/]release'
+        } |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+}
+
 function Get-NovolisAndroidVersionCode {
     param(
         [Parameter(Mandatory)][string]$PackageVersion,
@@ -300,33 +364,30 @@ function Publish-NovolisAndroidApk {
     if ($app.IsMaui) {
         $publishArgs += '-p:NovolisMauiTargetFrameworks=net10.0-android'
     }
-    if ($KeystorePath -and $KeyAlias -and $KeystorePassword -and $KeyPassword) {
-        $publishArgs += @(
-            '-p:AndroidKeyStore=true'
-            "-p:AndroidSigningKeyStore=$KeystorePath"
-            "-p:AndroidSigningKeyAlias=$KeyAlias"
-            "-p:AndroidSigningStorePass=$KeystorePassword"
-            "-p:AndroidSigningKeyPass=$KeyPassword"
-        )
+
+    $hasPersistentKey = $KeystorePath -and $KeyAlias -and $KeystorePassword -and $KeyPassword
+    if (-not $hasPersistentKey) {
+        Write-Warning "No persistent Android signing key for $AppKey. Generating an adhoc keystore for sideload testing — not upgrade-safe."
+        $adhoc = New-NovolisAdhocAndroidKeystore -Path (Join-Path ([IO.Path]::GetTempPath()) "novolis-adhoc-$AppKey.keystore")
+        $KeystorePath = $adhoc.Path
+        $KeyAlias = $adhoc.Alias
+        $KeystorePassword = $adhoc.Password
+        $KeyPassword = $adhoc.Password
     }
-    else {
-        Write-Warning "No persistent Android signing key for $AppKey. APK will be unsigned or adhoc — not upgrade-safe."
-    }
+
+    $publishArgs += @(
+        '-p:AndroidKeyStore=true'
+        "-p:AndroidSigningKeyStore=$KeystorePath"
+        "-p:AndroidSigningKeyAlias=$KeyAlias"
+        "-p:AndroidSigningStorePass=$KeystorePassword"
+        "-p:AndroidSigningKeyPass=$KeyPassword"
+    )
 
     Write-Host "Publishing Android APK for $AppKey (versionCode=$versionCode)..."
     & dotnet publish @publishArgs @cfgArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Android publish failed with exit code $LASTEXITCODE." }
 
-    $apk = Get-ChildItem -Path (Join-Path $RepoRoot (Split-Path $app.Project -Parent)) -Recurse -Filter '*-Signed.apk' |
-        Where-Object { $_.FullName -match '[\\/]bin[\\/]Release[\\/]' } |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1
-    if (-not $apk) {
-        $apk = Get-ChildItem -Path (Join-Path $RepoRoot (Split-Path $app.Project -Parent)) -Recurse -Filter '*.apk' |
-            Where-Object { $_.FullName -match '[\\/]bin[\\/]Release[\\/]' -and $_.Name -notmatch 'unsigned' } |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-    }
+    $apk = Find-NovolisPublishedApk -RepoRoot $RepoRoot
     if (-not $apk) { throw "No APK produced for $AppKey." }
 
     $dest = Join-Path $stagingDir "$($app.ArtifactPrefix)-$PackageVersion-android.apk"

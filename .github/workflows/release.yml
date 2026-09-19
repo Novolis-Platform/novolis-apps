@@ -165,6 +165,11 @@ jobs:
         if: matrix.channel == 'android-apk'
         with:
           token: ${{ github.token }}
+      - uses: actions/setup-java@v4
+        if: matrix.channel == 'android-apk'
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Install Android workload
         if: matrix.channel == 'android-apk'
         run: |
@@ -173,7 +178,7 @@ jobs:
           else
             dotnet workload install android
           fi
-      - name: Publish signed APK
+      - name: Publish Android APK
         if: matrix.channel == 'android-apk'
         shell: pwsh
         env:
@@ -188,19 +193,23 @@ jobs:
           . ./scripts/Publish-NovolisApp.ps1
           $keyStore = Join-Path $env:RUNNER_TEMP 'novolis-android.keystore'
           $hasKey = $env:ANDROID_KEYSTORE_BASE64 -and $env:ANDROID_KEY_ALIAS -and $env:ANDROID_KEYSTORE_PASSWORD -and $env:ANDROID_KEY_PASSWORD
-          if (-not $hasKey) {
-            throw "Persistent Android signing secrets are required for android-apk releases of ${{ matrix.key }}."
+          $publishArgs = @{
+            RepoRoot       = $env:GITHUB_WORKSPACE
+            AppKey         = '${{ matrix.key }}'
+            PackageVersion = $env:PACKAGE_VERSION
+            RunNumber      = [int]$env:RUN_NUMBER
           }
-          [IO.File]::WriteAllBytes($keyStore, [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64))
-          $item = Publish-NovolisAndroidApk `
-            -RepoRoot $env:GITHUB_WORKSPACE `
-            -AppKey '${{ matrix.key }}' `
-            -PackageVersion $env:PACKAGE_VERSION `
-            -RunNumber ([int]$env:RUN_NUMBER) `
-            -KeystorePath $keyStore `
-            -KeyAlias $env:ANDROID_KEY_ALIAS `
-            -KeystorePassword $env:ANDROID_KEYSTORE_PASSWORD `
-            -KeyPassword $env:ANDROID_KEY_PASSWORD
+          if ($hasKey) {
+            [IO.File]::WriteAllBytes($keyStore, [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64))
+            $publishArgs.KeystorePath = $keyStore
+            $publishArgs.KeyAlias = $env:ANDROID_KEY_ALIAS
+            $publishArgs.KeystorePassword = $env:ANDROID_KEYSTORE_PASSWORD
+            $publishArgs.KeyPassword = $env:ANDROID_KEY_PASSWORD
+          }
+          else {
+            Write-Warning "ANDROID_KEYSTORE_* secrets are not set. Publishing an adhoc-signed APK for sideload testing of ${{ matrix.key }}."
+          }
+          $item = Publish-NovolisAndroidApk @publishArgs
           if (-not $item) { throw "APK publish failed for ${{ matrix.key }}" }
       - uses: actions/upload-artifact@v4
         if: matrix.channel == 'android-apk'

@@ -69,6 +69,13 @@ foreach ($app in $manifest.apps) {
         $errors.Add("$($app.key): applicationId '$($app.android.applicationId)' not found in project file")
     }
 
+    if ($app.stack -ne 'maui') {
+        $icon = $xml.SelectSingleNode('//application/@android:icon', $ns)?.Value
+        if (-not $icon) {
+            $errors.Add("$($app.key): AndroidManifest application is missing android:icon")
+        }
+    }
+
     if ($app.android.versionCodeStrategy -eq 'release-run' -and $csproj -match '<ApplicationVersion>\s*1\s*</ApplicationVersion>' -and $csproj -notmatch 'NovolisAndroidVersionCode') {
         $errors.Add("$($app.key): static ApplicationVersion=1 without NovolisAndroidVersionCode override path")
     }

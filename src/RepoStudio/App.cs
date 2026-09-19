@@ -16,7 +16,10 @@ public sealed class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
             desktop.MainWindow = new MainWindow();
+            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(desktop.MainWindow);
+        }
         base.OnFrameworkInitializationCompleted();
     }
 }

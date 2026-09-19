@@ -26,6 +26,7 @@ public sealed class App : Application
             {
                 Content = mainView,
             };
+            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(desktop.MainWindow);
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
         {

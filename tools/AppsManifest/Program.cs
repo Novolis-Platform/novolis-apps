@@ -90,6 +90,13 @@ internal static class Program
         if (doc.SchemaVersion < 1)
             errors.Add("schemaVersion must be >= 1.");
 
+        var iconPng = Path.Combine(repoRoot, "icon.png");
+        var iconIco = Path.Combine(repoRoot, "icon.ico");
+        if (!File.Exists(iconPng))
+            errors.Add("Missing repo-root icon.png (Novolis brand mark for executables and installers).");
+        if (!File.Exists(iconIco))
+            errors.Add("Missing repo-root icon.ico (Novolis brand mark for Windows ApplicationIcon).");
+
         var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var appIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var applicationIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

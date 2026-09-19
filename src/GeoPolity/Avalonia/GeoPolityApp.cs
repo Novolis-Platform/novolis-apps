@@ -25,6 +25,7 @@ public sealed class GeoPolityApp : Application
             var session = Session ?? throw new InvalidOperationException("GeoPolity session not configured.");
             var window = new MainWindow(session);
             desktop.MainWindow = window;
+            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(window);
             UiAgent = AgentHost.Attach(window, "novolis-avalonia-agent-geopolity");
         }
 

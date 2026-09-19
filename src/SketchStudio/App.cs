@@ -26,6 +26,7 @@ public class App : Application
         {
             var window = Program.ApplicationHost.Services.GetRequiredService<MainWindow>();
             desktop.MainWindow = window;
+            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(window);
             CrashGuard.InstallAvalonia(Dispatcher.UIThread);
             if (AgentHost.IsEnabledByEnvironment())
                 s_agentHost = AgentHost.Attach(window, AgentEndpoint);

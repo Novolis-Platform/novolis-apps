@@ -30,7 +30,7 @@ Offline Markdown viewer host. No accounts, telemetry, or cloud sync.
 
 ## Signing continuity
 
-Standalone Merglyph releases before the move into `novolis-apps` may have used an ephemeral CI keystore. Do not expect in-place APK upgrades from those builds until persistent `ANDROID_KEYSTORE_*` secrets are confirmed. First migrated APK may require uninstall/reinstall.
+Release produces an installable APK even without persistent `ANDROID_KEYSTORE_*` secrets (adhoc CI keystore). In-place upgrades need the same key; uninstall/reinstall is expected between adhoc builds and versus standalone Merglyph releases from before the move into `novolis-apps`.
 
 ## Network destinations
 

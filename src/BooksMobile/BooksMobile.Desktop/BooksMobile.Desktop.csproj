@@ -9,13 +9,8 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
-  <ItemGroup>
+    <ItemGroup>
     <ProjectReference Include="..\BooksMobile\BooksMobile.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="icon.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
