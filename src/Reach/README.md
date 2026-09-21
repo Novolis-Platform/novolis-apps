@@ -33,6 +33,11 @@ dotnet run --project d:\novolis\novolis-apps\src\Reach\Reach.Host.Windows.Consol
 dotnet run --project d:\novolis\novolis-apps\src\Reach\Reach.Client.Windows\Reach.Client.Windows.csproj -p:NovolisUseProjectReferences=true
 ```
 
+Windows, Linux, and Android clients are day-one Reach clients. The release
+catalog produces a Windows installer, a self-contained Linux tarball, and an
+Android APK; the Windows installer also contains the Service, Session, and
+Console host components.
+
 Reach's protocol is product-private. Generic framing, datagrams, discovery,
 Tailscale binding, Windows capabilities, and video codecs live in their
 respective Novolis libraries and do not contain Reach types.

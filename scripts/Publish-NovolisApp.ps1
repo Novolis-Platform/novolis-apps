@@ -75,6 +75,25 @@ function Get-NovolisAndroidAppCatalog {
     }
 }
 
+function Get-NovolisLinuxAppCatalog {
+    param([string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path)
+
+    $manifest = Get-NovolisAppsManifest -RepoRoot $RepoRoot
+    foreach ($app in $manifest.apps) {
+        if (-not ($app.ship -contains 'linux-tar')) { continue }
+        if (-not $app.linux) { throw "App $($app.key) ships linux-tar without Linux metadata." }
+        [pscustomobject]@{
+            Key          = $app.key
+            Choice       = $app.choice
+            Project      = $app.linux.project
+            ExeName      = $app.linux.exeName
+            DisplayName  = $app.displayName
+            ArtifactPrefix = $app.artifactPrefix
+            Stack        = $app.stack
+        }
+    }
+}
+
 function Publish-NovolisApp {
     param(
         [Parameter(Mandatory)]
@@ -209,6 +228,74 @@ function Publish-NovolisApp {
     $result.InstallerName = Split-Path $inno.InstallerPath -Leaf
     Write-Host "Installer: $($inno.InstallerPath)"
     return [pscustomobject]$result
+}
+
+function Publish-NovolisLinuxApp {
+    param(
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [Parameter(Mandatory)][string]$AppKey,
+        [Parameter(Mandatory)][string]$ProjectRelativePath,
+        [Parameter(Mandatory)][string]$PackageVersion,
+        [Parameter(Mandatory)][string]$AssemblyVersion,
+        [Parameter(Mandatory)][string]$FileVersion
+    )
+
+    $ErrorActionPreference = 'Stop'
+    $app = Get-NovolisLinuxAppCatalog -RepoRoot $RepoRoot |
+        Where-Object { $_.Key -eq $AppKey } |
+        Select-Object -First 1
+    if (-not $app) { throw "Unknown linux-tar app key: $AppKey" }
+
+    $project = Join-Path $RepoRoot $ProjectRelativePath
+    $stagingDir = Join-Path $RepoRoot "artifacts/$AppKey/linux"
+    $publishDir = Join-Path $stagingDir 'app'
+    New-Item -ItemType Directory -Force -Path $publishDir | Out-Null
+
+    $versionArgs = @(
+        "-p:PackageVersion=$PackageVersion"
+        "-p:AssemblyVersion=$AssemblyVersion"
+        "-p:FileVersion=$FileVersion"
+        "-p:InformationalVersion=$PackageVersion"
+    )
+    $cfgArgs = @()
+    $nugetConfig = Join-Path $RepoRoot 'nuget.config'
+    if (Test-Path $nugetConfig) {
+        $cfgArgs = @('--configfile', $nugetConfig)
+    }
+
+    Write-Host "Publishing $AppKey $PackageVersion (linux-x64)..."
+    & dotnet restore $project -r linux-x64 @cfgArgs @versionArgs | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Restore failed with exit code $LASTEXITCODE." }
+
+    & dotnet publish $project `
+        -c Release `
+        -r linux-x64 `
+        --self-contained true `
+        --no-restore `
+        -o $publishDir `
+        @versionArgs | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Publish failed with exit code $LASTEXITCODE." }
+
+    $executable = Join-Path $publishDir $app.ExeName
+    if (-not (Test-Path -LiteralPath $executable)) {
+        throw "Expected Linux executable not found: $executable"
+    }
+
+    $tarName = "$($app.ArtifactPrefix)-$PackageVersion-linux-x64.tar.gz"
+    $tarPath = Join-Path $stagingDir $tarName
+    if (Test-Path -LiteralPath $tarPath) {
+        Remove-Item -LiteralPath $tarPath -Force
+    }
+
+    & tar -C $publishDir -czf $tarPath .
+    if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE." }
+    Write-Host "Linux tarball: $tarPath"
+
+    [pscustomobject]@{
+        AppKey = $AppKey
+        TarPath = $tarPath
+        TarName = $tarName
+    }
 }
 
 function Get-NovolisAppInnoProfile {

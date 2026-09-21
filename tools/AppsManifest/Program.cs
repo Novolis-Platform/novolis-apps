@@ -132,6 +132,12 @@ internal static class Program
                     errors.Add($"App '{app.Key}' ships android-apk but has no android metadata.");
             }
 
+            if (app.Ship?.Contains("linux-tar", StringComparer.OrdinalIgnoreCase) == true)
+            {
+                if (app.Linux is null || string.IsNullOrWhiteSpace(app.Linux.Project))
+                    errors.Add($"App '{app.Key}' ships linux-tar but has no Linux metadata.");
+            }
+
             if (app.Windows is not null)
             {
                 if (string.IsNullOrWhiteSpace(app.Windows.AppId) || !appIds.Add(app.Windows.AppId))
@@ -539,6 +545,7 @@ internal static class Program
                     channel,
                     stack = app.Stack,
                     publish_windows = app.Projects.PublishWindows,
+                    publish_linux = app.Linux?.Project,
                     android_project = app.Android?.Project ?? app.Projects.Android ?? app.Projects.Maui,
                     application_id = app.Android?.ApplicationId,
                     artifact_prefix = app.ArtifactPrefix,
@@ -549,6 +556,7 @@ internal static class Program
                     setup_base = app.Windows?.SetupBase,
                     script_file = app.Windows?.ScriptFile,
                     close_applications_filter = app.Windows?.CloseApplicationsFilter,
+                    linux_exe_name = app.Linux?.ExeName,
                     display_name = app.DisplayName,
                 });
             }
@@ -728,6 +736,7 @@ internal sealed class AppEntry
     public ValidationConfig Validation { get; set; } = new();
     public WindowsConfig? Windows { get; set; }
     public AndroidConfig? Android { get; set; }
+    public LinuxConfig? Linux { get; set; }
     public DataConfig? Data { get; set; }
     public ReleaseConfig? Release { get; set; }
 }
@@ -776,6 +785,12 @@ internal sealed class AndroidConfig
     public List<string> PermissionAllowlist { get; set; } = [];
     public string NetworkPolicy { get; set; } = "none";
     public string? SigningContinuityNote { get; set; }
+}
+
+internal sealed class LinuxConfig
+{
+    public string Project { get; set; } = "";
+    public string ExeName { get; set; } = "";
 }
 
 internal sealed class DataConfig

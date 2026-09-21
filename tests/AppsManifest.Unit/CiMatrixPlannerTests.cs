@@ -99,6 +99,18 @@ public sealed class CiMatrixPlannerTests
     }
 
     [Test]
+    public async Task ReachShipsAllDayOneClientChannels()
+    {
+        var reach = LoadManifest().Apps.Single(app => app.Key == "reach");
+
+        await Assert.That(reach.Ship.Contains("windows-inno")).IsTrue();
+        await Assert.That(reach.Ship.Contains("linux-tar")).IsTrue();
+        await Assert.That(reach.Ship.Contains("android-apk")).IsTrue();
+        await Assert.That(reach.Linux?.Project)
+            .IsEqualTo("src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj");
+    }
+
+    [Test]
     public async Task WindowsRowsRequireExplicitWindowsValidation()
     {
         var document = new AppsManifestDocument

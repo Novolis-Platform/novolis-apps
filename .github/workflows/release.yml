@@ -24,6 +24,7 @@ on:
           - ShipDesigner
           - SpaceFleetSurveyTeam
           - Merglyph
+          - Reach
       channel:
         description: Channel override; All uses declared channels, or filters All apps to this channel.
         type: choice
@@ -31,6 +32,7 @@ on:
         options:
           - All
           - windows-inno
+          - linux-tar
           - android-apk
 
 jobs:
@@ -39,6 +41,7 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       windows_matrix: ${{ steps.matrix.outputs.windows_matrix }}
+      linux_matrix: ${{ steps.matrix.outputs.linux_matrix }}
       android_matrix: ${{ steps.matrix.outputs.android_matrix }}
       package_version: ${{ steps.ver.outputs.package-version }}
       assembly_version: ${{ steps.ver.outputs.assembly-version }}
@@ -63,9 +66,11 @@ jobs:
             "${args[@]}" > /tmp/release-matrix.json
           matrix=$(jq -c '.include' /tmp/release-matrix.json)
           windows_matrix=$(jq -c '[.include[] | select(.channel == "windows-inno")]' /tmp/release-matrix.json)
+          linux_matrix=$(jq -c '[.include[] | select(.channel == "linux-tar")]' /tmp/release-matrix.json)
           android_matrix=$(jq -c '[.include[] | select(.channel == "android-apk")]' /tmp/release-matrix.json)
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "windows_matrix=$windows_matrix" >> "$GITHUB_OUTPUT"
+          echo "linux_matrix=$linux_matrix" >> "$GITHUB_OUTPUT"
           echo "android_matrix=$android_matrix" >> "$GITHUB_OUTPUT"
           cat /tmp/release-matrix.json
 
@@ -139,6 +144,53 @@ jobs:
           name: windows-${{ matrix.key }}
           path: |
             artifacts/${{ matrix.key }}/installer/*.exe
+          if-no-files-found: error
+
+  linux-tar:
+    needs: plan
+    if: needs.plan.outputs.linux_matrix != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.linux_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        if: matrix.channel == 'linux-tar'
+      - uses: Novolis-Platform/novolis-workflows/actions/setup-dotnet@main
+        if: matrix.channel == 'linux-tar'
+        with:
+          dotnet-version: 10.0.x
+      - uses: Novolis-Platform/novolis-workflows/actions/authenticate-github-packages@main
+        if: matrix.channel == 'linux-tar'
+        with:
+          token: ${{ github.token }}
+      - name: Publish linux-tar
+        if: matrix.channel == 'linux-tar'
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.plan.outputs.package_version }}
+          ASSEMBLY_VERSION: ${{ needs.plan.outputs.assembly_version }}
+          FILE_VERSION: ${{ needs.plan.outputs.file_version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          . ./scripts/Publish-NovolisApp.ps1
+          $item = Publish-NovolisLinuxApp `
+            -RepoRoot $env:GITHUB_WORKSPACE `
+            -AppKey '${{ matrix.key }}' `
+            -ProjectRelativePath '${{ matrix.publish_linux }}' `
+            -PackageVersion $env:PACKAGE_VERSION `
+            -AssemblyVersion $env:ASSEMBLY_VERSION `
+            -FileVersion $env:FILE_VERSION
+          if (-not $item) { throw "Linux publish failed for ${{ matrix.key }}" }
+      - uses: actions/upload-artifact@v4
+        if: matrix.channel == 'linux-tar'
+        with:
+          name: linux-${{ matrix.key }}
+          path: artifacts/${{ matrix.key }}/linux/*.tar.gz
           if-no-files-found: error
 
   android-apk:
@@ -220,8 +272,8 @@ jobs:
           if-no-files-found: error
 
   publish-release:
-    needs: [plan, windows-inno, android-apk]
-    if: always() && (needs.windows-inno.result == 'success' || needs.windows-inno.result == 'skipped') && (needs.android-apk.result == 'success' || needs.android-apk.result == 'skipped') && (needs.windows-inno.result == 'success' || needs.android-apk.result == 'success')
+    needs: [plan, windows-inno, linux-tar, android-apk]
+    if: always() && (needs.windows-inno.result == 'success' || needs.windows-inno.result == 'skipped') && (needs.linux-tar.result == 'success' || needs.linux-tar.result == 'skipped') && (needs.android-apk.result == 'success' || needs.android-apk.result == 'skipped') && (needs.windows-inno.result == 'success' || needs.linux-tar.result == 'success' || needs.android-apk.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -236,7 +288,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/release
-          find artifacts/download -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.apk' \) -print0 |
+          find artifacts/download -type f \( -name '*.zip' -o -name '*.exe' -o -name '*.apk' -o -name '*.tar.gz' \) -print0 |
             while IFS= read -r -d '' f; do
               cp "$f" artifacts/release/
             done
@@ -254,7 +306,7 @@ jobs:
           tag="${{ steps.assets.outputs.tag }}"
           gh release create "$tag" artifacts/release/* \
             --title "$tag" \
-            --notes "Selected-app release from build/apps.json (channels declared per app). No Linux artifacts in phase one." \
+            --notes "Selected-app release from build/apps.json (channels declared per app)." \
             --latest
       - name: Prune older releases
         env:

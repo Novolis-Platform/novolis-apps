@@ -13,6 +13,12 @@
       "runner": "ubuntu-latest",
       "artifacts": ["apk", "sha256"],
       "description": "Installable Android APK with monotonic versionCode. Persistent keystore preferred; adhoc debug signing is allowed for sideload testing."
+    },
+    "linux-tar": {
+      "id": "linux-tar",
+      "runner": "ubuntu-latest",
+      "artifacts": ["tar.gz", "sha256"],
+      "description": "Self-contained Linux client tarball for direct installation."
     }
   },
   "apps": [
@@ -767,7 +773,7 @@
         ]
       },
       "local": ["windows", "linux", "android"],
-      "ship": ["windows-inno", "android-apk"],
+      "ship": ["windows-inno", "linux-tar", "android-apk"],
       "validation": {
         "changedPathGlobs": ["src/Reach/**", "tests/Reach.Unit/**"],
         "runTests": true,
@@ -801,6 +807,10 @@
         "usesCleartextTraffic": false,
         "permissionAllowlist": ["android.permission.INTERNET"],
         "networkPolicy": "tailscale-only"
+      },
+      "linux": {
+        "project": "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",
+        "exeName": "Novolis.Reach.Client.Linux"
       },
       "data": {
         "appDataRoot": "%LOCALAPPDATA%\\Novolis\\reach",
