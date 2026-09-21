@@ -735,6 +735,72 @@
       "release": { "githubRelease": true, "checksums": true }
     },
     {
+      "key": "cursor-remote",
+      "choice": "CursorRemote",
+      "displayName": "Cursor Remote",
+      "sourceRoot": "src/CursorRemote",
+      "solution": "src/CursorRemote/CursorRemote.slnx",
+      "artifactPrefix": "CursorRemote",
+      "stack": "avalonia-mobile",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/CursorRemote/CursorRemote.Desktop/CursorRemote.Desktop.csproj",
+        "linuxCi": [
+          "src/CursorRemote/CursorRemote/CursorRemote.csproj",
+          "tests/CursorRemote.Unit/CursorRemote.Unit.csproj"
+        ],
+        "android": "src/CursorRemote/CursorRemote.Android/CursorRemote.Android.csproj",
+        "maui": null,
+        "tests": ["tests/CursorRemote.Unit/CursorRemote.Unit.csproj"],
+        "all": [
+          "src/CursorRemote/CursorRemote/CursorRemote.csproj",
+          "src/CursorRemote/CursorRemote.Desktop/CursorRemote.Desktop.csproj",
+          "src/CursorRemote/CursorRemote.Android/CursorRemote.Android.csproj",
+          "tests/CursorRemote.Unit/CursorRemote.Unit.csproj"
+        ]
+      },
+      "local": ["windows", "android"],
+      "ship": ["windows-inno", "android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/CursorRemote/**", "tests/CursorRemote.Unit/**"],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsCi": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia", "android"]
+      },
+      "windows": {
+        "exeName": "CursorRemote.exe",
+        "appId": "Novolis.CursorRemote",
+        "installDir": "Novolis\\Cursor Remote",
+        "groupName": "Cursor Remote",
+        "setupBase": "CursorRemoteSetup",
+        "scriptFile": "cursor-remote.iss",
+        "closeApplicationsFilter": "CursorRemote.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": {
+        "project": "src/CursorRemote/CursorRemote.Android/CursorRemote.Android.csproj",
+        "applicationId": "com.novolis.cursorremote",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "CURSORREMOTE_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": true,
+        "permissionAllowlist": ["android.permission.INTERNET"],
+        "networkPolicy": "tailscale-only",
+        "signingContinuityNote": "Sideload/testing APKs may use an adhoc CI keystore when CURSORREMOTE_ANDROID secrets are absent. In-place upgrades require the same key; uninstall/reinstall is expected between adhoc builds."
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\cursor-remote",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\cursor-remote\\cache",
+        "credentialsNamespace": "Novolis.CursorRemote",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
       "key": "merglyph",
       "choice": "Merglyph",
       "displayName": "Merglyph",
