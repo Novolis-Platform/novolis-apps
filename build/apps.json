@@ -742,7 +742,7 @@
       "solution": "src/CursorRemote/CursorRemote.slnx",
       "artifactPrefix": "CursorRemote",
       "stack": "avalonia-mobile",
-      "status": "internal",
+      "status": "public",
       "projects": {
         "publishWindows": "src/CursorRemote/CursorRemote.Desktop/CursorRemote.Desktop.csproj",
         "linuxCi": [

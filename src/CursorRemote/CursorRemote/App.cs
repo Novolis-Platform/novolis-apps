@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using CursorRemote.Services;
 using CursorRemote.Ui;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,6 +29,8 @@ public sealed class App : Application
                 Content = remoteView,
             };
             Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(desktop.MainWindow);
+            Services.GetService<IHostDesktopChrome>()?.AttachMainWindow(desktop.MainWindow);
+            Services.GetService<HostActivityLog>()?.Info("Host window ready.");
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
         {

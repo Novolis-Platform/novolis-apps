@@ -30,7 +30,7 @@ internal static class WindowsScreenCapture
         return new CaptureRegion(primary.Left, primary.Top, primary.Width, primary.Height);
     }
 
-    public static RemoteScreenFrame Capture(int maxWidth = 1600)
+    public static RemoteScreenFrame Capture(int maxWidth = 3200, long jpegQuality = 85)
     {
         var region = ResolveRegion();
         CurrentRegion = region;
@@ -67,16 +67,22 @@ internal static class WindowsScreenCapture
             output = new Bitmap(maxWidth, height, PixelFormat.Format32bppPArgb);
             ownsOutput = true;
             using var graphics = Graphics.FromImage(output);
+            graphics.CompositingQuality =
+                System.Drawing.Drawing2D.CompositingQuality.HighQuality;
             graphics.InterpolationMode =
                 System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            graphics.SmoothingMode =
+                System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+            graphics.PixelOffsetMode =
+                System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
             graphics.DrawImage(bitmap, new Rectangle(0, 0, output.Width, output.Height));
         }
 
         try
         {
             using var stream = new MemoryStream();
-            output.Save(stream, ImageFormat.Png);
-            // Width/Height are logical capture pixels for click mapping, not PNG size.
+            SaveJpeg(output, stream, jpegQuality);
+            // Width/Height are logical capture pixels for click mapping, not image bytes size.
             return new RemoteScreenFrame(
                 stream.ToArray(),
                 region.Width,
@@ -89,6 +95,15 @@ internal static class WindowsScreenCapture
             if (ownsOutput)
                 output.Dispose();
         }
+    }
+
+    private static void SaveJpeg(Bitmap bitmap, Stream stream, long quality)
+    {
+        var encoder = ImageCodecInfo.GetImageEncoders()
+            .First(codec => codec.FormatID == ImageFormat.Jpeg.Guid);
+        using var parameters = new EncoderParameters(1);
+        parameters.Param[0] = new EncoderParameter(Encoder.Quality, Math.Clamp(quality, 40, 95));
+        bitmap.Save(stream, encoder, parameters);
     }
 
     private static bool IsSameRegion(CaptureRegion region, IntPtr hwnd)

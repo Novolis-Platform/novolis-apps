@@ -19,6 +19,10 @@ internal static class Program
             .ConfigureServices(services =>
             {
                 services.AddNovolisMobileDesktop("CursorRemote");
+                services.AddSingleton<HostActivityLog>();
+                services.AddSingleton<HostShellOptions>();
+                services.AddSingleton<HostTrayController>();
+                services.AddSingleton<IHostDesktopChrome>(sp => sp.GetRequiredService<HostTrayController>());
                 services.AddSingleton<CursorRemoteHost>();
                 services.AddHostedService(sp => sp.GetRequiredService<CursorRemoteHost>());
                 services.AddSingleton<IRemoteControlSession, DesktopRemoteControlSession>();
@@ -34,6 +38,7 @@ internal static class Program
         }
         finally
         {
+            host.Services.GetService<HostTrayController>()?.Dispose();
             host.StopAsync().GetAwaiter().GetResult();
         }
     }

@@ -27,7 +27,6 @@ public sealed class DesktopRemoteControlSession : IRemoteControlSession
 
     public Task ConnectAsync(
         string endpoint,
-        string token,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("The Windows instance is the remote host.");
 

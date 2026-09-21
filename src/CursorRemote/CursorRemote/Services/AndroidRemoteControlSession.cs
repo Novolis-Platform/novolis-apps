@@ -25,11 +25,9 @@ public sealed class AndroidRemoteControlSession : IRemoteControlSession
 
     public async Task ConnectAsync(
         string endpoint,
-        string token,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
-        ArgumentException.ThrowIfNullOrWhiteSpace(token);
 
         var normalized = endpoint.Trim();
         if (!normalized.Contains("://", StringComparison.Ordinal))
@@ -52,10 +50,24 @@ public sealed class AndroidRemoteControlSession : IRemoteControlSession
             BaseAddress = baseUri,
             Timeout = TimeSpan.FromSeconds(15),
         };
-        http.DefaultRequestHeaders.Add(RemoteProtocol.TokenHeader, token.Trim());
 
         try
         {
+            using var helloResponse = await http.GetAsync(
+                "api/v1/hello",
+                cancellationToken).ConfigureAwait(false);
+            helloResponse.EnsureSuccessStatusCode();
+            var hello = await DeserializeAsync<RemoteHelloDto>(
+                helloResponse,
+                cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(hello.AppId, RemoteProtocol.AppId, StringComparison.Ordinal))
+                throw new InvalidOperationException("That host is not Cursor Remote.");
+            if (!RemoteProtocol.IsCompatible(hello.ProtocolVersion))
+            {
+                throw new InvalidOperationException(
+                    $"Incompatible protocol {hello.ProtocolVersion} (need {RemoteProtocol.Version} line).");
+            }
+
             using var response = await http.GetAsync(
                 "api/v1/status",
                 cancellationToken).ConfigureAwait(false);
@@ -68,9 +80,9 @@ public sealed class AndroidRemoteControlSession : IRemoteControlSession
             _status = status;
             Connection = new RemoteConnectionInfo(
                 baseUri.GetLeftPart(UriPartial.Authority),
-                token.Trim(),
                 baseUri.Host,
-                status.ProtocolVersion);
+                status.ProtocolVersion,
+                status.HostName);
             Status = $"Connected to {status.HostName}.";
             RaiseChanged();
         }

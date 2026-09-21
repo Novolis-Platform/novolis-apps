@@ -7,11 +7,11 @@ public sealed class MainWindow : Window
 {
     public MainWindow()
     {
-        Title = "Cursor Remote";
-        Width = 1080;
-        Height = 760;
+        Title = ProductBrand.Name;
+        Width = 980;
+        Height = 860;
         MinWidth = 720;
-        MinHeight = 540;
+        MinHeight = 640;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = RemotePalette.WindowBrush;
         FontFamily = RemotePalette.BodyFont;

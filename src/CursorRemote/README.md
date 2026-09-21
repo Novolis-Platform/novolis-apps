@@ -1,23 +1,18 @@
 # Cursor Remote
 
-Cursor Remote is a personal Android controller for the Cursor window running on
-the Windows PC. The phone talks only to the Windows host over Tailscale
-(`:18790` + pairing token). The host captures the live unlocked console
-(Cursor window when available, otherwise the primary monitor) and injects
-input there.
+Phone console for the **Cursor** IDE on your unlocked Windows PC — Tailscale LAN
+discovery, no port/token pairing. The host captures the Cursor window (or primary
+monitor) and injects input; the Flip finds matching `CursorRemote` hosts and
+connects when the protocol aligns.
 
-Provides:
+## What it is
 
-- screen snapshots of the Cursor window / primary monitor;
-- pinch-zoom and pan on the phone view;
-- tap-to-click input;
-- text and common key input;
-- a Cursor focus command (maximizes the window);
-- per-run token pairing.
+| Surface | Role |
+| --- | --- |
+| Windows host | Listens on Tailscale `:18790`, UDP discovery `:18791`, activity log + tray |
+| Android controller | Scan → tap host → pinch/pan screen, tap, type, focus Cursor |
 
-The Windows host binds only to IPv4 Tailscale addresses. It does not open a
-public relay or send screen data through a Novolis service. The Windows session
-must remain unlocked because this is direct screen and input control.
+Not RDP. Not a Cursor agent API. Direct console capture/input on an unlocked session.
 
 ## Run the Windows host
 
@@ -25,29 +20,24 @@ must remain unlocked because this is direct screen and input control.
 dotnet run --project d:\novolis\novolis-apps\src\CursorRemote\CursorRemote.Desktop\CursorRemote.Desktop.csproj -p:NovolisUseProjectReferences=true
 ```
 
-The host displays its Tailscale endpoint and a token. Enter both in the Android
-controller.
+Close/minimize goes to the tray by default. **Export log** writes a `.log` file.
 
-If Windows Firewall blocks the port, allow TCP 18790 only from the Tailscale
-range:
+Firewall (Tailscale range):
 
 ```powershell
-New-NetFirewallRule -DisplayName "Cursor Remote (Tailscale)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 18790 -Profile Any -RemoteAddress 100.64.0.0/10
+New-NetFirewallRule -DisplayName "Cursor Remote HTTP (Tailscale)" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 18790 -Profile Any -RemoteAddress 100.64.0.0/10
+New-NetFirewallRule -DisplayName "Cursor Remote Discovery (Tailscale)" -Direction Inbound -Action Allow -Protocol UDP -LocalPort 18791 -Profile Any -RemoteAddress 100.64.0.0/10
 ```
 
 ## Build and install Android
 
 ```powershell
 dotnet build d:\novolis\novolis-apps\src\CursorRemote\CursorRemote.Android\CursorRemote.Android.csproj -c Release -p:NovolisUseProjectReferences=true
-adb install -r <path-to-CursorRemote.Android.apk>
+adb install -r d:\novolis\novolis-apps\artifacts\bin\CursorRemote.Android\release\com.novolis.cursorremote-Signed.apk
 ```
 
-The Android client permits cleartext HTTP because the endpoint is intended to
-be reachable only through Tailscale. The pairing token is still required for
-every API request.
+## GitHub release
 
-## Boundary
-
-This controls the visible Cursor window on the unlocked console; it is not an
-RDP session, not a Cursor agent-session API, and does not attach to the current
-chat conversation.
+Catalog key `cursor-remote` ships `windows-inno` + `android-apk`. On
+`novolis-apps` → Actions → **Release**, choose **All** / **All** (or
+**CursorRemote** / **All**) to publish installer + APK to the GitHub Release.

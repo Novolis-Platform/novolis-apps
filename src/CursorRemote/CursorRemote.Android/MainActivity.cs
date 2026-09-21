@@ -1,6 +1,5 @@
 using Android.App;
 using Android.Content.PM;
-using Android.OS;
 using Android.Views;
 using Avalonia.Android;
 
@@ -13,7 +12,6 @@ namespace CursorRemote.Android;
     WindowSoftInputMode = SoftInput.AdjustResize,
     ConfigurationChanges = ConfigChanges.Orientation
         | ConfigChanges.ScreenSize
-        | ConfigChanges.UiMode)]
-public sealed class MainActivity : AvaloniaMainActivity
-{
-}
+        | ConfigChanges.UiMode,
+    Exported = true)]
+public sealed class MainActivity : AvaloniaMainActivity;

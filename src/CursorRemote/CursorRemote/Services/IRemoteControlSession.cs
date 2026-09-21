@@ -18,7 +18,6 @@ public interface IRemoteControlSession
 
     Task ConnectAsync(
         string endpoint,
-        string token,
         CancellationToken cancellationToken = default);
 
     Task RefreshAsync(CancellationToken cancellationToken = default);

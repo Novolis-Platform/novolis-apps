@@ -26,6 +26,8 @@ public class MainApplication : AvaloniaAndroidApplication<App>
             .ConfigureServices(services =>
             {
                 services.AddNovolisMobileAndroid("CursorRemote");
+                services.AddSingleton<HostActivityLog>();
+                services.AddSingleton<HostShellOptions>();
                 services.AddSingleton<IRemoteControlSession, AndroidRemoteControlSession>();
                 services.AddSingleton<RemoteView>();
             })
