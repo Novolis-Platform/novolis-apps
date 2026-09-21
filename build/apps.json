@@ -735,6 +735,83 @@
       "release": { "githubRelease": true, "checksums": true }
     },
     {
+      "key": "reach",
+      "choice": "Reach",
+      "displayName": "Novolis Reach",
+      "sourceRoot": "src/Reach",
+      "solution": "src/Reach/Reach.slnx",
+      "artifactPrefix": "Reach",
+      "stack": "avalonia-mobile",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/Reach/Reach.Client.Windows/Reach.Client.Windows.csproj",
+        "linuxCi": [
+          "src/Reach/Reach.Protocol/Reach.Protocol.csproj",
+          "src/Reach/Reach.Client/Reach.Client.csproj",
+          "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",
+          "tests/Reach.Unit/Reach.Unit.csproj"
+        ],
+        "android": "src/Reach/Reach.Client.Android/Reach.Client.Android.csproj",
+        "maui": null,
+        "tests": ["tests/Reach.Unit/Reach.Unit.csproj"],
+        "all": [
+          "src/Reach/Reach.Protocol/Reach.Protocol.csproj",
+          "src/Reach/Reach.Client/Reach.Client.csproj",
+          "src/Reach/Reach.Client.Windows/Reach.Client.Windows.csproj",
+          "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",
+          "src/Reach/Reach.Client.Android/Reach.Client.Android.csproj",
+          "src/Reach/Reach.Host.Windows.Service/Reach.Host.Windows.Service.csproj",
+          "src/Reach/Reach.Host.Windows.Session/Reach.Host.Windows.Session.csproj",
+          "src/Reach/Reach.Host.Windows.Console/Reach.Host.Windows.Console.csproj",
+          "tests/Reach.Unit/Reach.Unit.csproj"
+        ]
+      },
+      "local": ["windows", "linux", "android"],
+      "ship": ["windows-inno", "android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/Reach/**", "tests/Reach.Unit/**"],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsCi": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia", "android"]
+      },
+      "windows": {
+        "exeName": "Novolis.Reach.Client.Windows.exe",
+        "additionalProjects": [
+          "src/Reach/Reach.Host.Windows.Service/Reach.Host.Windows.Service.csproj",
+          "src/Reach/Reach.Host.Windows.Session/Reach.Host.Windows.Session.csproj",
+          "src/Reach/Reach.Host.Windows.Console/Reach.Host.Windows.Console.csproj"
+        ],
+        "appId": "Novolis.Reach",
+        "installDir": "Novolis\\Reach",
+        "groupName": "Novolis Reach",
+        "setupBase": "ReachSetup",
+        "scriptFile": "reach.iss",
+        "closeApplicationsFilter": "Novolis.Reach.Client.Windows.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": {
+        "project": "src/Reach/Reach.Client.Android/Reach.Client.Android.csproj",
+        "applicationId": "com.novolis.reach",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "REACH_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": ["android.permission.INTERNET"],
+        "networkPolicy": "tailscale-only"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\reach",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\reach\\cache",
+        "credentialsNamespace": "Novolis.Reach",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
       "key": "cursor-remote",
       "choice": "CursorRemote",
       "displayName": "Cursor Remote",

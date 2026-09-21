@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Novolis.Reach.Host.Windows.Session</RootNamespace>
+    <AssemblyName>Novolis.Reach.Host.Windows.Session</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Novolis.Transports.Framing" />
+    <PackageReference Include="Novolis.Transports.LocalIpc" />
+    <PackageReference Include="Novolis.Video.Abstractions" />
+    <PackageReference Include="Novolis.Video.Capture.Windows" />
+    <PackageReference Include="Novolis.Video.Codecs.H264" />
+    <PackageReference Include="Novolis.Windows.Audio" />
+    <PackageReference Include="Novolis.Windows.Clipboard" />
+    <PackageReference Include="Novolis.Windows.Display" />
+    <PackageReference Include="Novolis.Windows.Input" />
+  </ItemGroup>
+</Project>

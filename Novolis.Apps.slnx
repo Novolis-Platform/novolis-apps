@@ -20,6 +20,9 @@
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
     <Project Path="src/LiveStudio/studio/LiveStudio.csproj" />
     <Project Path="src/Merglyph/Merglyph.Core/Merglyph.Core.csproj" />
+    <Project Path="src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj" />
+    <Project Path="src/Reach/Reach.Client/Reach.Client.csproj" />
+    <Project Path="src/Reach/Reach.Protocol/Reach.Protocol.csproj" />
     <Project Path="src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj" />
     <Project Path="src/ReadAloud/ReadAloud/ReadAloud.csproj" />
     <Project Path="src/RepoStudio/RepoStudio.csproj" />
@@ -37,6 +40,7 @@
     <Project Path="tests/GeoPolity.Unit/GeoPolity.Unit.csproj" />
     <Project Path="tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
     <Project Path="tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />
+    <Project Path="tests/Reach.Unit/Reach.Unit.csproj" />
     <Project Path="tests/ReadAloud.Unit/ReadAloud.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
   </Folder>

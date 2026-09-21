@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>Novolis.Reach.Client.Windows</RootNamespace>
+    <AssemblyName>Novolis.Reach.Client.Windows</AssemblyName>
+    <ApplicationTitle>Novolis Reach</ApplicationTitle>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Reach.Client\Reach.Client.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Novolis.Avalonia.Mobile.Desktop" />
+    <PackageReference Include="Novolis.Video.Abstractions" />
+    <PackageReference Include="Novolis.Video.Codecs.H264" />
+    <PackageReference Include="NAudio" />
+  </ItemGroup>
+</Project>

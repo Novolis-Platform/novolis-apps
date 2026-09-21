@@ -47,6 +47,7 @@ function Get-NovolisAppCatalog {
             SetupBase                  = $app.windows.setupBase
             ScriptFile                 = $app.windows.scriptFile
             CloseApplicationsFilter    = $app.windows.closeApplicationsFilter
+            AdditionalProjects         = @($app.windows.additionalProjects)
             Ship                       = @($app.ship)
             Stack                      = $app.stack
         }
@@ -137,8 +138,24 @@ function Publish-NovolisApp {
         @versionArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Publish failed with exit code $LASTEXITCODE." }
 
-    $exeBase = [System.IO.Path]::GetFileNameWithoutExtension($appProject)
     $catalog = Get-NovolisAppCatalog -RepoRoot $RepoRoot | Where-Object { $_.Key -eq $AppKey } | Select-Object -First 1
+    foreach ($extraProjectRelativePath in @($catalog.AdditionalProjects)) {
+        if ([string]::IsNullOrWhiteSpace($extraProjectRelativePath)) { continue }
+        $extraProject = Join-Path $RepoRoot $extraProjectRelativePath
+        Write-Host "Publishing $AppKey host component $extraProjectRelativePath..."
+        & dotnet restore $extraProject -r win-x64 @cfgArgs @versionArgs | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Restore failed for $extraProjectRelativePath." }
+        & dotnet publish $extraProject `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            --no-restore `
+            -o $publishDir `
+            @versionArgs | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Publish failed for $extraProjectRelativePath." }
+    }
+
+    $exeBase = [System.IO.Path]::GetFileNameWithoutExtension($appProject)
     if ($catalog -and (Test-Path (Join-Path $publishDir $catalog.ExeName))) {
         $zipStem = [System.IO.Path]::GetFileNameWithoutExtension($catalog.ExeName)
     }

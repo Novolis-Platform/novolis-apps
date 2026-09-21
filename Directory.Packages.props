@@ -12,6 +12,8 @@
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.2" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.2" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
+    <PackageVersion Include="NAudio" Version="2.3.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     <PackageVersion Include="MessagePack" Version="3.1.9" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
@@ -32,6 +34,19 @@
     <PackageVersion Include="Novolis.Audio.MusicTheory" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Audio.Patterns" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.LocalIpc" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Framing" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Datagrams" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Discovery" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Tailscale" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Video.Abstractions" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Video.Capture.Windows" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Video.Codecs.H264" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Video" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Windows.Sessions" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Windows.Input" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Windows.Clipboard" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Windows.Display" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Windows.Audio" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Briefing" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Controls" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Controls.Sketch" Version="2026.1.*" />

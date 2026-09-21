@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/Reach.Client.Linux/">
+    <Project Path="Reach.Client.Linux/Reach.Client.Linux.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Client/">
+    <Project Path="Reach.Client/Reach.Client.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Protocol/">
+    <Project Path="Reach.Protocol/Reach.Protocol.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/Reach.Unit/Reach.Unit.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,29 @@
+<Solution>
+  <Folder Name="/Reach.Client.Android/">
+    <Project Path="Reach.Client.Android/Reach.Client.Android.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Client.Linux/">
+    <Project Path="Reach.Client.Linux/Reach.Client.Linux.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Client.Windows/">
+    <Project Path="Reach.Client.Windows/Reach.Client.Windows.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Client/">
+    <Project Path="Reach.Client/Reach.Client.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Host.Windows.Console/">
+    <Project Path="Reach.Host.Windows.Console/Reach.Host.Windows.Console.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Host.Windows.Service/">
+    <Project Path="Reach.Host.Windows.Service/Reach.Host.Windows.Service.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Host.Windows.Session/">
+    <Project Path="Reach.Host.Windows.Session/Reach.Host.Windows.Session.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Protocol/">
+    <Project Path="Reach.Protocol/Reach.Protocol.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/Reach.Unit/Reach.Unit.csproj" />
+  </Folder>
+</Solution>
