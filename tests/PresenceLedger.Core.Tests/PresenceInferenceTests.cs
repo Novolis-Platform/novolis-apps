@@ -62,6 +62,22 @@ public sealed class PresenceInferenceTests
     }
 
     [Test]
+    public async Task Sustained_departure_records_the_first_credible_outside_observation()
+    {
+        var location = WifiLocation();
+        var state = ArrivedState(location);
+
+        state = Apply(location, state, Outside(300)).State;
+        state = Apply(location, state, Outside(360)).State;
+        var result = Apply(location, state, Outside(480));
+
+        await Assert.That(result.Event).IsNotNull();
+        await Assert.That(result.Event!.Transition).IsEqualTo(PresenceTransition.Left);
+        await Assert.That(result.Event.At).IsEqualTo(Morning.AddSeconds(300));
+        await Assert.That(result.State.State).IsEqualTo(PresenceState.Absent);
+    }
+
+    [Test]
     public async Task Candidate_can_continue_after_state_is_reloaded()
     {
         var location = WifiLocation();
