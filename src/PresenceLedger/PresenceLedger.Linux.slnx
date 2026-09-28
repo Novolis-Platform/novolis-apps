@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/PresenceLedger.App/">
+    <Project Path="PresenceLedger.App/PresenceLedger.App.csproj" />
+  </Folder>
+  <Folder Name="/PresenceLedger.Core/">
+    <Project Path="PresenceLedger.Core/PresenceLedger.Core.csproj" />
+  </Folder>
+  <Folder Name="/PresenceLedger.Storage/">
+    <Project Path="PresenceLedger.Storage/PresenceLedger.Storage.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj" />
+    <Project Path="../../tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj" />
+  </Folder>
+</Solution>

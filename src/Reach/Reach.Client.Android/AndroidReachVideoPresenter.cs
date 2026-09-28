@@ -1,4 +1,5 @@
 using Android.Media;
+using Android.Util;
 using System.Threading.Channels;
 using Novolis.Reach.Client;
 using Novolis.Reach.Protocol;
@@ -9,7 +10,8 @@ namespace Novolis.Reach.Client.Android;
 /// <summary>Decodes Reach H.264 frames with the Android platform decoder.</summary>
 public sealed class AndroidReachVideoPresenter :
     IReachVideoPresenter,
-    IReachKeyFrameRequester
+    IReachKeyFrameRequester,
+    IReachVideoStreamResetter
 {
     private const int FlexibleYuv420ColorFormat = unchecked((int)0x7F420888);
     private readonly Channel<ReachVideoFrame> _frames =
@@ -25,8 +27,13 @@ public sealed class AndroidReachVideoPresenter :
     private MediaCodec? _codec;
     private int _width;
     private int _height;
-    private int _needsKeyFrame;
+    private readonly ReachVideoStreamGate _streamGate = new();
+    private int _resetRequested;
+    private int _keyFrameRequestSent;
     private int _disposeStarted;
+    private int _decodedFramesLogged;
+    private int _receivedFramesLogged;
+    private int _rejectedFramesLogged;
 
     /// <summary>Creates the Android decoder and starts its latest-frame worker.</summary>
     public AndroidReachVideoPresenter()
@@ -41,11 +48,33 @@ public sealed class AndroidReachVideoPresenter :
     public event Action? KeyFrameRequested;
 
     /// <inheritdoc />
+    public void ResetStream()
+    {
+        if (Volatile.Read(ref _disposeStarted) != 0)
+            return;
+
+        _streamGate.RequireKeyFrame();
+        Interlocked.Exchange(ref _resetRequested, 1);
+        Interlocked.Exchange(ref _keyFrameRequestSent, 0);
+        while (_frames.Reader.TryRead(out _))
+        {
+        }
+    }
+
+    /// <inheritdoc />
     public void Present(ReachVideoFrame frame)
     {
         if (Volatile.Read(ref _disposeStarted) != 0
             || !string.Equals(frame.Codec, "H264", StringComparison.OrdinalIgnoreCase))
             return;
+
+        if (Interlocked.Increment(ref _receivedFramesLogged) <= 12)
+        {
+            Log.Info(
+                "Novolis.Reach",
+                $"Received H.264 frame {frame.Sequence}, key={frame.IsKeyFrame}, "
+                + $"{frame.Width}x{frame.Height}, bytes={frame.AccessUnit.Length}.");
+        }
 
         if (_frames.Writer.TryWrite(frame))
             return;
@@ -54,14 +83,9 @@ public sealed class AndroidReachVideoPresenter :
         // queue of stale desktop frames. Drop the oldest access unit and ask
         // the host for a fresh intra frame so the decoder can catch up cleanly.
         _frames.Reader.TryRead(out _);
-        if (Interlocked.Exchange(ref _needsKeyFrame, 1) == 0)
-            KeyFrameRequested?.Invoke();
-        if (!_frames.Writer.TryWrite(frame))
-        {
-            return;
-        }
-
+        _streamGate.RequireKeyFrame();
         RequestKeyFrame();
+        _frames.Writer.TryWrite(frame);
     }
 
     /// <inheritdoc />
@@ -91,16 +115,23 @@ public sealed class AndroidReachVideoPresenter :
         {
             await foreach (var frame in _frames.Reader.ReadAllAsync(cancellationToken))
             {
-                if (Volatile.Read(ref _needsKeyFrame) != 0
-                    && !frame.IsKeyFrame)
+                if (Interlocked.Exchange(ref _resetRequested, 0) != 0)
+                    ResetDecoder();
+
+                if (!_streamGate.TryAccept(frame, out var generation))
                 {
+                    if (Interlocked.Increment(ref _rejectedFramesLogged) <= 12)
+                    {
+                        Log.Info(
+                            "Novolis.Reach",
+                            $"Rejected H.264 frame {frame.Sequence}, key={frame.IsKeyFrame}.");
+                    }
+
                     RequestKeyFrame();
                     continue;
                 }
-
                 if (frame.IsKeyFrame)
-                    Interlocked.Exchange(ref _needsKeyFrame, 0);
-
+                    Interlocked.Exchange(ref _keyFrameRequestSent, 0);
                 RawVideoFrame? decoded = null;
                 try
                 {
@@ -162,14 +193,29 @@ public sealed class AndroidReachVideoPresenter :
                         break;
                     }
                 }
-                catch (Exception)
+                catch (Exception exception)
                 {
+                    Log.Warn(
+                        "Novolis.Reach",
+                        $"H.264 decoder reset: {exception.GetType().Name}: {exception.Message}");
                     ResetDecoder();
-                    RequestKeyFrame();
+                    _streamGate.RequireKeyFrame();
+                    RequestKeyFrame(force: true);
                 }
 
-                if (decoded is not null)
+                if (decoded is not null
+                    && _streamGate.IsCurrent(generation))
+                {
+                    if (Interlocked.Increment(ref _decodedFramesLogged) <= 5)
+                    {
+                        Log.Info(
+                            "Novolis.Reach",
+                            $"Decoded H.264 frame {decoded.Width}x{decoded.Height}, "
+                            + $"min={decoded.Pixels.Min()}, max={decoded.Pixels.Max()}.");
+                    }
+
                     FrameDecoded?.Invoke(decoded);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -181,12 +227,14 @@ public sealed class AndroidReachVideoPresenter :
         }
     }
 
-    private void RequestKeyFrame()
+    private void RequestKeyFrame(bool force = false)
     {
         if (Volatile.Read(ref _disposeStarted) != 0)
             return;
 
-        if (Interlocked.Exchange(ref _needsKeyFrame, 1) == 0)
+        if (force)
+            Interlocked.Exchange(ref _keyFrameRequestSent, 0);
+        if (Interlocked.Exchange(ref _keyFrameRequestSent, 1) == 0)
             KeyFrameRequested?.Invoke();
     }
 
@@ -262,7 +310,7 @@ public sealed class AndroidReachVideoPresenter :
                 var uValue = uPlane.Read(chromaY, chromaX);
                 var vValue = vPlane.Read(chromaY, chromaX);
 
-                var c = Math.Max(0, yValue - 16);
+                var c = global::System.Math.Max(0, yValue - 16);
                 var red = Clamp((298 * c + 409 * (vValue - 128) + 128) >> 8);
                 var green = Clamp(
                     (298 * c
@@ -298,7 +346,7 @@ public sealed class AndroidReachVideoPresenter :
         return new PlaneData(bytes, plane.RowStride, plane.PixelStride);
     }
 
-    private static int Clamp(int value) => Math.Clamp(value, 0, 255);
+    private static int Clamp(int value) => global::System.Math.Clamp(value, 0, 255);
 
     private readonly record struct PlaneData(
         byte[] Bytes,

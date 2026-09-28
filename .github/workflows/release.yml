@@ -23,6 +23,7 @@ on:
           - RepoStudio
           - ShipDesigner
           - SpaceFleetSurveyTeam
+          - PresenceLedger
           - Merglyph
           - Reach
       channel:

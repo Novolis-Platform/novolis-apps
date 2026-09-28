@@ -140,8 +140,16 @@ internal static class SeedEconomy
             },
             Resources = new Dictionary<ResourceId, Resource>
             {
-                [ids.OreId] = new Resource(ids.OreId, "Ore", ResourceKind.IntermediateGood),
-                [ids.WidgetId] = new Resource(ids.WidgetId, "Widget", ResourceKind.ConsumerGood)
+                [ids.OreId] = new Resource(
+                    ids.OreId,
+                    "Ore",
+                    ResourceKind.IntermediateGood,
+                    EconomicAssetId.From(ids.OreId.Value)),
+                [ids.WidgetId] = new Resource(
+                    ids.WidgetId,
+                    "Widget",
+                    ResourceKind.ConsumerGood,
+                    EconomicAssetId.From(ids.WidgetId.Value))
             },
             Lanes = new Dictionary<string, TransportLane>
             {

@@ -33,6 +33,7 @@ Interconnected product docs live under **[sketch-studio/](sketch-studio/README.m
 
 | App | Docs folder |
 | --- | --- |
+| Presence Ledger | [`presence-ledger.md`](presence-ledger.md) |
 | Sins of a Capitalism Tycoon | [`src/SinsOfACapitalismTycoon/docs/`](../src/SinsOfACapitalismTycoon/docs/README.md) |
 | Space Fleet Survey Team | [`src/SpaceFleetSurveyTeam/docs/`](../src/SpaceFleetSurveyTeam/docs/) |
 

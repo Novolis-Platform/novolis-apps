@@ -886,6 +886,96 @@
       "release": { "githubRelease": true, "checksums": true }
     },
     {
+      "key": "presence-ledger",
+      "choice": "PresenceLedger",
+      "displayName": "Presence Ledger",
+      "sourceRoot": "src/PresenceLedger",
+      "solution": "src/PresenceLedger/PresenceLedger.slnx",
+      "artifactPrefix": "PresenceLedger",
+      "stack": "avalonia-mobile",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/PresenceLedger/PresenceLedger.Desktop/PresenceLedger.Desktop.csproj",
+        "linuxCi": [
+          "src/PresenceLedger/PresenceLedger.Core/PresenceLedger.Core.csproj",
+          "src/PresenceLedger/PresenceLedger.Storage/PresenceLedger.Storage.csproj",
+          "src/PresenceLedger/PresenceLedger.App/PresenceLedger.App.csproj",
+          "tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj",
+          "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj"
+        ],
+        "android": "src/PresenceLedger/PresenceLedger.Android/PresenceLedger.Android.csproj",
+        "maui": null,
+        "tests": [
+          "tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj",
+          "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj"
+        ],
+        "all": [
+          "src/PresenceLedger/PresenceLedger.Core/PresenceLedger.Core.csproj",
+          "src/PresenceLedger/PresenceLedger.Storage/PresenceLedger.Storage.csproj",
+          "src/PresenceLedger/PresenceLedger.App/PresenceLedger.App.csproj",
+          "src/PresenceLedger/PresenceLedger.Desktop/PresenceLedger.Desktop.csproj",
+          "src/PresenceLedger/PresenceLedger.Android/PresenceLedger.Android.csproj",
+          "tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj",
+          "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj"
+        ]
+      },
+      "local": ["windows", "android"],
+      "ship": ["windows-inno", "android-apk"],
+      "validation": {
+        "changedPathGlobs": [
+          "src/PresenceLedger/**",
+          "tests/PresenceLedger.Core.Tests/**",
+          "tests/PresenceLedger.Storage.Tests/**"
+        ],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsCi": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia", "android"]
+      },
+      "windows": {
+        "exeName": "PresenceLedger.exe",
+        "appId": "Novolis.PresenceLedger",
+        "installDir": "Novolis\\Presence Ledger",
+        "groupName": "Presence Ledger",
+        "setupBase": "PresenceLedgerSetup",
+        "scriptFile": "presence-ledger.iss",
+        "closeApplicationsFilter": "PresenceLedger.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": {
+        "project": "src/PresenceLedger/PresenceLedger.Android/PresenceLedger.Android.csproj",
+        "applicationId": "com.novolis.presenceledger",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "PRESENCELEDGER_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [
+          "android.permission.INTERNET",
+          "android.permission.ACCESS_COARSE_LOCATION",
+          "android.permission.ACCESS_FINE_LOCATION",
+          "android.permission.ACCESS_BACKGROUND_LOCATION",
+          "android.permission.NEARBY_WIFI_DEVICES",
+          "android.permission.FOREGROUND_SERVICE",
+          "android.permission.FOREGROUND_SERVICE_LOCATION",
+          "android.permission.POST_NOTIFICATIONS"
+        ],
+        "networkPolicy": "kartverket-only"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\presence-ledger",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\presence-ledger\\cache",
+        "credentialsNamespace": "Novolis.PresenceLedger",
+        "networkDestinations": [
+          "cache.kartverket.no",
+          "ws.geonorge.no"
+        ],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
       "key": "merglyph",
       "choice": "Merglyph",
       "displayName": "Merglyph",

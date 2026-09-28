@@ -44,6 +44,7 @@ public sealed class ReachSessionHost : BackgroundService
     private int _streamWidth;
     private int _streamHeight;
     private long _sequence;
+    private int _captureDiagnosticsLogged;
 
     /// <summary>Creates the interactive-session helper.</summary>
     public ReachSessionHost(
@@ -149,7 +150,9 @@ public sealed class ReachSessionHost : BackgroundService
             case ReachMessageType.PointerMove:
             {
                 var move = ReachMessageCodec.ReadBody<ReachPointerMove>(envelope);
-                _input.MovePointer((int)Math.Round(move.X), (int)Math.Round(move.Y));
+                _input.MovePointer(
+                    (int)global::System.Math.Round(move.X),
+                    (int)global::System.Math.Round(move.Y));
                 break;
             }
             case ReachMessageType.PointerButton:
@@ -216,10 +219,13 @@ public sealed class ReachSessionHost : BackgroundService
                 }
 
                 await RestartCaptureAsync(
-                        Math.Clamp(configuration.Width, 0, 3840),
-                        Math.Clamp(configuration.Height, 0, 2160),
-                        Math.Clamp(configuration.FramesPerSecond, 5, 60),
-                        Math.Clamp(configuration.TargetBitrate, 250_000, 50_000_000),
+                        global::System.Math.Clamp(configuration.Width, 0, 3840),
+                        global::System.Math.Clamp(configuration.Height, 0, 2160),
+                        global::System.Math.Clamp(configuration.FramesPerSecond, 5, 60),
+                        global::System.Math.Clamp(
+                            configuration.TargetBitrate,
+                            250_000,
+                            50_000_000),
                         cancellationToken)
                     .ConfigureAwait(false);
                 break;
@@ -228,9 +234,9 @@ public sealed class ReachSessionHost : BackgroundService
             {
                 var resize = ReachMessageCodec.ReadBody<ReachDisplayResize>(envelope);
                 await RestartCaptureAsync(
-                        Math.Clamp(resize.Width, 0, 3840),
-                        Math.Clamp(resize.Height, 0, 2160),
-                        Math.Clamp(resize.FramesPerSecond, 5, 60),
+                        global::System.Math.Clamp(resize.Width, 0, 3840),
+                        global::System.Math.Clamp(resize.Height, 0, 2160),
+                        global::System.Math.Clamp(resize.FramesPerSecond, 5, 60),
                         _targetBitrate,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -286,6 +292,7 @@ public sealed class ReachSessionHost : BackgroundService
         _videoMetadataSent = false;
         _streamWidth = 0;
         _streamHeight = 0;
+        _captureDiagnosticsLogged = 0;
         _capture = CreateCaptureSource();
         _capture.FrameCaptured += OnFrameCaptured;
         await _capture.StartAsync(cancellationToken).ConfigureAwait(false);
@@ -308,8 +315,18 @@ public sealed class ReachSessionHost : BackgroundService
         _framesPerSecond = framesPerSecond;
         _targetBitrate = targetBitrate;
         await StopCaptureAsync().ConfigureAwait(false);
-        if (_connection is not null)
+        var connection = _connection;
+        if (connection is not null)
+        {
+            await SendAsync(
+                    connection,
+                    ReachMessageType.VideoStreamReset,
+                    new ReachVideoStreamReset(Interlocked.Read(ref _sequence)),
+                    "control",
+                    cancellationToken)
+                .ConfigureAwait(false);
             await StartCaptureAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private WindowsDesktopCaptureSource CreateCaptureSource() =>
@@ -421,7 +438,12 @@ public sealed class ReachSessionHost : BackgroundService
                     frame.Height,
                     _framesPerSecond,
                     _targetBitrate);
-                var encoded = _encoder.Encode(frame);
+                if (!_encoder.TryEncode(frame, out var encoded)
+                    || encoded is null)
+                {
+                    continue;
+                }
+
                 _streamWidth = encoded.Width;
                 _streamHeight = encoded.Height;
                 if (!_videoMetadataSent)
@@ -472,8 +494,8 @@ public sealed class ReachSessionHost : BackgroundService
             return frame;
         }
 
-        var width = Math.Clamp(_targetWidth, 1, 3840);
-        var height = Math.Clamp(_targetHeight, 1, 2160);
+        var width = global::System.Math.Clamp(_targetWidth, 1, 3840);
+        var height = global::System.Math.Clamp(_targetHeight, 1, 2160);
         var pixels = new byte[checked(width * height * 4)];
         for (var y = 0; y < height; y++)
         {
@@ -568,6 +590,15 @@ public sealed class ReachSessionHost : BackgroundService
 
     private void OnFrameCaptured(RawVideoFrame frame)
     {
+        if (Interlocked.Exchange(ref _captureDiagnosticsLogged, 1) == 0)
+        {
+            _log.LogInformation(
+                "Captured first Reach frame {Width}x{Height}, max channel value {Max}.",
+                frame.Width,
+                frame.Height,
+                frame.Pixels.Max());
+        }
+
         _frames?.Writer.TryWrite(frame);
     }
 

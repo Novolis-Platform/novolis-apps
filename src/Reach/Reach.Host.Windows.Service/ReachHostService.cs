@@ -39,6 +39,7 @@ public sealed class ReachHostService : BackgroundService
     private bool _sharingPaused;
     private DateTimeOffset _nextSessionHelperLaunchAttempt =
         DateTimeOffset.MinValue;
+    private int _videoFramesLogged;
 
     /// <summary>Creates the host service.</summary>
     public ReachHostService(
@@ -539,14 +540,32 @@ public sealed class ReachHostService : BackgroundService
     {
         while (!cancellationToken.IsCancellationRequested)
         {
+            ILocalIpcConnection? connection = null;
             try
             {
-                TryStartSessionHelper();
-                var client = LocalIpcTransport.CreateClient();
-                var connection = await client.ConnectAsync(
-                        new LocalIpcEndpoint(SessionEndpoint),
-                        cancellationToken)
+                connection = await TryConnectSessionHelperAsync(
+                        cancellationToken,
+                        TimeSpan.FromMilliseconds(500))
                     .ConfigureAwait(false);
+                if (connection is null)
+                {
+                    TryStartSessionHelper();
+                    connection = await TryConnectSessionHelperAsync(
+                            cancellationToken,
+                            TimeSpan.FromSeconds(5))
+                        .ConfigureAwait(false);
+                }
+
+                if (connection is null)
+                {
+                    Log("Interactive session helper is not ready yet.");
+                    await Task.Delay(
+                            TimeSpan.FromSeconds(3),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    continue;
+                }
+
                 Interlocked.Exchange(ref _sessionConnection, connection);
                 Log("Interactive session helper connected.");
                 var pendingClient = _clients.Values
@@ -573,6 +592,15 @@ public sealed class ReachHostService : BackgroundService
                     if (_sharingPaused && frame.Kind == "media")
                         continue;
 
+                    if (envelope.Type == ReachMessageType.VideoFrame
+                        && Interlocked.Increment(ref _videoFramesLogged) <= 5)
+                    {
+                        var video = ReachMessageCodec.ReadBody<ReachVideoFrame>(envelope);
+                        Log(
+                            $"Forwarding Reach video frame {video.Sequence} "
+                            + $"{video.Width}x{video.Height}, {video.AccessUnit.Length} bytes.");
+                    }
+
                     await BroadcastPayloadAsync(
                             envelope,
                             frame.Payload,
@@ -590,11 +618,18 @@ public sealed class ReachHostService : BackgroundService
             }
             finally
             {
-                var connection = Interlocked.Exchange(ref _sessionConnection, null);
-                if (connection is not null)
+                var activeConnection = Interlocked.CompareExchange(
+                    ref _sessionConnection,
+                    null,
+                    connection);
+                if (ReferenceEquals(activeConnection, connection)
+                    && connection is not null)
+                {
                     await connection.DisposeAsync().ConfigureAwait(false);
+                }
 
-                if (!cancellationToken.IsCancellationRequested)
+                if (connection is not null
+                    && !cancellationToken.IsCancellationRequested)
                 {
                     await NotifySessionEndedAsync(
                             "The interactive Reach host connection ended.",
@@ -605,6 +640,36 @@ public sealed class ReachHostService : BackgroundService
 
             await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken)
                 .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task<ILocalIpcConnection?> TryConnectSessionHelperAsync(
+        CancellationToken cancellationToken,
+        TimeSpan timeout)
+    {
+        using var timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        timeoutCancellation.CancelAfter(timeout);
+        try
+        {
+            var client = LocalIpcTransport.CreateClient();
+            return await client.ConnectAsync(
+                    new LocalIpcEndpoint(SessionEndpoint),
+                    timeoutCancellation.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (
+            !cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (SocketException)
+        {
+            return null;
         }
     }
 
@@ -636,6 +701,12 @@ public sealed class ReachHostService : BackgroundService
         if (!File.Exists(executable))
         {
             Log("Reach host executable is not beside the service; waiting for an independently started host.");
+            return;
+        }
+
+        if (_sessions.IsProcessRunningInActiveSession(executable))
+        {
+            Log("Interactive Reach host is already running; waiting for its IPC endpoint.");
             return;
         }
 
@@ -720,9 +791,9 @@ public sealed class ReachHostService : BackgroundService
         ReachMessageEnvelope envelope,
         CancellationToken cancellationToken)
     {
-        var connection = _sessionConnection;
-        if (connection is null)
-            return;
+        var connection = Volatile.Read(ref _sessionConnection)
+            ?? throw new InvalidOperationException(
+                "The interactive Reach host is not connected.");
 
         await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try

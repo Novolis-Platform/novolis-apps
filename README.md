@@ -90,6 +90,7 @@ pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio
 | Live Studio | avalonia-desktop | windows-inno | windows, linux |
 | Books Mobile | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Read Aloud | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
+| Presence Ledger | avalonia-mobile | windows-inno, android-apk | windows, android |
 | Coverage Studio | avalonia-desktop | windows-inno | windows, linux |
 | Capitalist Simulator | avalonia-desktop | windows-inno | windows, linux |
 | GeoPolity | avalonia-desktop | windows-inno | windows, linux |

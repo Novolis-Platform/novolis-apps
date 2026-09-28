@@ -55,6 +55,8 @@ public sealed class ReachClientView : UserControl
     private Point _gestureStartCenter;
     private double _videoZoom = 1;
     private bool _discoveryActive;
+    private bool _streamStatusShown;
+    private int _statusPriority;
 
     /// <summary>Creates the shared client surface.</summary>
     public ReachClientView(
@@ -64,14 +66,21 @@ public sealed class ReachClientView : UserControl
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _session.StatusChanged += OnStatusChanged;
+        _session.StateChanged += OnSessionStateChanged;
+        _session.SessionEnded += OnSessionEnded;
+        _session.MediaConnectionLost += OnMediaConnectionLost;
+        _session.ConnectionLost += OnConnectionLost;
         _session.DisplayTopologyReceived += OnDisplayTopology;
         _session.VideoStreamStarted += OnVideoStreamStarted;
+        _session.VideoStreamReset += OnVideoStreamReset;
         _session.ClipboardContentReceived += OnClipboardContent;
         _presenter = presenter ?? new NullReachVideoPresenter();
         _session.VideoFrameReceived += _presenter.Present;
         _presenter.FrameDecoded += OnFrameDecoded;
         if (_presenter is IReachKeyFrameRequester keyFrameRequester)
             keyFrameRequester.KeyFrameRequested += OnKeyFrameRequested;
+        if (_presenter is IReachVideoStreamResetter streamResetter)
+            _session.VideoStreamReset += _ => streamResetter.ResetStream();
         _audioPresenter = audioPresenter ?? new NullReachAudioPresenter();
         _session.AudioFrameReceived += _audioPresenter.Present;
 
@@ -79,14 +88,17 @@ public sealed class ReachClientView : UserControl
         {
             Text = ResolveDefaultEndpoint(),
             PlaceholderText = "Searching for Reach hosts...",
-            Width = OperatingSystem.IsAndroid() ? 200 : 260,
-            MinWidth = OperatingSystem.IsAndroid() ? 180 : 260,
+            Width = OperatingSystem.IsAndroid() ? double.NaN : 260,
+            MinWidth = OperatingSystem.IsAndroid() ? 0 : 260,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         _endpoint.TextChanged += EndpointTextChanged;
         _discover = new Button
         {
             Content = "Discover",
             HorizontalAlignment = HorizontalAlignment.Left,
+            MinWidth = 0,
+            Padding = new global::Avalonia.Thickness(8, 4),
         };
         _discover.Click += DiscoverClicked;
         _connect = new Button
@@ -94,6 +106,8 @@ public sealed class ReachClientView : UserControl
             Content = "Connect",
             HorizontalAlignment = HorizontalAlignment.Left,
             IsEnabled = false,
+            MinWidth = 0,
+            Padding = new global::Avalonia.Thickness(8, 4),
         };
         _connect.Click += ConnectClicked;
         _status = new TextBlock
@@ -111,8 +125,9 @@ public sealed class ReachClientView : UserControl
         {
             Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            Focusable = true,
+            VerticalAlignment = OperatingSystem.IsAndroid()
+                ? VerticalAlignment.Top
+                : VerticalAlignment.Stretch,
             IsHitTestVisible = true,
             RenderTransformOrigin = new RelativePoint(
                 0.5,
@@ -123,36 +138,40 @@ public sealed class ReachClientView : UserControl
                 Children = { _videoScale, _videoTranslation },
             },
         };
-        _videoImage.AddHandler(
-            InputElement.PointerPressedEvent,
-            OnVideoPointerPressed,
-            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
-        _videoImage.AddHandler(
-            InputElement.PointerMovedEvent,
-            OnVideoPointerMoved,
-            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
-        _videoImage.AddHandler(
-            InputElement.PointerReleasedEvent,
-            OnVideoPointerReleased,
-            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
-        _videoImage.PointerWheelChanged += OnVideoPointerWheel;
-        _videoImage.KeyDown += OnVideoKeyDown;
-        _videoImage.KeyUp += OnVideoKeyUp;
-        _videoImage.AddHandler(
-            InputElement.TextInputEvent,
-            OnVideoTextInput,
-            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
         _videoSurface = new Border
         {
             Background = Brushes.Black,
-            MinHeight = 360,
+            Focusable = true,
+            IsHitTestVisible = true,
+            MinHeight = OperatingSystem.IsAndroid() ? 220 : 360,
             ClipToBounds = true,
             Child = _videoImage,
         };
+        _videoSurface.KeyDown += OnVideoKeyDown;
+        _videoSurface.KeyUp += OnVideoKeyUp;
+        _videoSurface.AddHandler(
+            InputElement.TextInputEvent,
+            OnVideoTextInput,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        _videoSurface.AddHandler(
+            InputElement.PointerPressedEvent,
+            OnVideoPointerPressed,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        _videoSurface.AddHandler(
+            InputElement.PointerMovedEvent,
+            OnVideoPointerMoved,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        _videoSurface.AddHandler(
+            InputElement.PointerReleasedEvent,
+            OnVideoPointerReleased,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        _videoSurface.PointerWheelChanged += OnVideoPointerWheel;
         _remoteTextInput = new TextBox
         {
             PlaceholderText = "Type to send to remote session",
-            Width = 240,
+            Width = double.NaN,
+            MinWidth = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             IsVisible = OperatingSystem.IsAndroid(),
         };
         _sendText = new Button
@@ -162,27 +181,33 @@ public sealed class ReachClientView : UserControl
         };
         _sendText.Click += SendTextClicked;
         _remoteTextInput.KeyDown += RemoteTextKeyDown;
-        var remoteTextRow = new StackPanel
+        var remoteTextRow = new Grid
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            ColumnSpacing = 8,
             IsVisible = OperatingSystem.IsAndroid(),
             Children = { _remoteTextInput, _sendText },
         };
+        Grid.SetColumn(_sendText, 1);
+
+        var endpointRow = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"),
+            ColumnSpacing = 8,
+            Children = { _endpoint, _discover, _connect },
+        };
+        Grid.SetColumn(_discover, 1);
+        Grid.SetColumn(_connect, 2);
 
         Content = new Grid
         {
             RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*"),
-            Margin = new global::Avalonia.Thickness(24),
+            Margin = new global::Avalonia.Thickness(
+                OperatingSystem.IsAndroid() ? 12 : 24),
             RowSpacing = 12,
             Children =
             {
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Spacing = 8,
-                    Children = { _endpoint, _discover, _connect },
-                },
+                endpointRow,
                 _status,
                 _capabilities,
                 remoteTextRow,
@@ -199,8 +224,7 @@ public sealed class ReachClientView : UserControl
 
     private void EndpointTextChanged(object? sender, TextChangedEventArgs args)
     {
-        _connect.IsEnabled = !_discoveryActive
-            && !string.IsNullOrWhiteSpace(_endpoint.Text);
+        UpdateConnectionControls();
     }
 
     private async void DiscoverClicked(
@@ -229,7 +253,6 @@ public sealed class ReachClientView : UserControl
             foreach (var host in hosts)
             {
                 _endpoint.Text = host.Endpoint;
-                _status.Text = $"Connecting to {host.HostName}...";
                 if (await ConnectToEndpointAsync())
                     return;
             }
@@ -244,7 +267,7 @@ public sealed class ReachClientView : UserControl
         {
             _discoveryActive = false;
             _discover.IsEnabled = true;
-            _connect.IsEnabled = !string.IsNullOrWhiteSpace(_endpoint.Text);
+            UpdateConnectionControls();
         }
     }
 
@@ -252,6 +275,12 @@ public sealed class ReachClientView : UserControl
         object? sender,
         global::Avalonia.Interactivity.RoutedEventArgs args)
     {
+        if (_session.IsConnected || _session.State == ReachSessionState.Lost)
+        {
+            await ReconnectToEndpointAsync();
+            return;
+        }
+
         await ConnectToEndpointAsync();
     }
 
@@ -259,6 +288,8 @@ public sealed class ReachClientView : UserControl
     {
         _connect.IsEnabled = false;
         _androidVideoConfigured = false;
+        _streamStatusShown = false;
+        ResetStatusPriority();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         try
         {
@@ -272,35 +303,180 @@ public sealed class ReachClientView : UserControl
                 ? "Capabilities: none"
                 : $"Capabilities: {capabilities.Features}; "
                   + $"video={string.Join(",", capabilities.OfferedVideoCodecs)}";
+            SetConnectedStatus();
             return true;
         }
         catch (Exception exception)
         {
-            _status.Text = $"Connection failed: {exception.Message}";
+            OnStatusChanged($"Connection failed: {exception.Message}");
             return false;
         }
         finally
         {
-            _connect.IsEnabled = !_discoveryActive
-                && !string.IsNullOrWhiteSpace(_endpoint.Text);
+            UpdateConnectionControls();
+        }
+    }
+
+    private async Task ReconnectToEndpointAsync()
+    {
+        _connect.IsEnabled = false;
+        _androidVideoConfigured = false;
+        _streamStatusShown = false;
+        ResetStatusPriority();
+        ClearVideoFrame();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try
+        {
+            await _session.ReconnectAsync(timeout.Token);
+            _capabilities.Text = _session.NegotiatedCapabilities is { } capabilities
+                ? $"Capabilities: {capabilities.Features}; "
+                  + $"video={string.Join(",", capabilities.OfferedVideoCodecs)}"
+                : "Capabilities: none";
+            SetConnectedStatus(reconnected: true);
+        }
+        catch (Exception exception)
+        {
+            OnStatusChanged($"Reconnect failed: {exception.Message}");
+        }
+        finally
+        {
+            UpdateConnectionControls();
         }
     }
 
     private void OnStatusChanged(string status)
     {
-        if (Dispatcher.UIThread.CheckAccess())
+        var priority = GetStatusPriority(status);
+        void Apply()
+        {
+            if (priority < _statusPriority)
+                return;
+
+            _statusPriority = priority;
             _status.Text = status;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Apply();
         else
-            Dispatcher.UIThread.Post(() => _status.Text = status);
+            Dispatcher.UIThread.Post(Apply);
+    }
+
+    private void ResetStatusPriority()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+            _statusPriority = 0;
+        else
+            Dispatcher.UIThread.Post(() => _statusPriority = 0);
+    }
+
+    private void SetConnectedStatus(bool reconnected = false)
+    {
+        if (_session.State == ReachSessionState.Streaming
+            && _session.LastVideoFrameAt is not null)
+        {
+            var dimensions = _videoWidth > 0 && _videoHeight > 0
+                ? $" ({_videoWidth}x{_videoHeight})"
+                : string.Empty;
+            OnStatusChanged($"Streaming remote session{dimensions}.");
+            return;
+        }
+
+        OnStatusChanged(
+            reconnected
+                ? "Reconnected; waiting for the remote session stream..."
+                : "Connected; waiting for the remote session stream...");
+    }
+
+    private static int GetStatusPriority(string status) =>
+        status.StartsWith("Streaming", StringComparison.OrdinalIgnoreCase)
+            ? 3
+            : status.StartsWith("Remote video stream reset", StringComparison.OrdinalIgnoreCase)
+                || status.StartsWith("Connected", StringComparison.OrdinalIgnoreCase)
+                || status.StartsWith("Reconnected", StringComparison.OrdinalIgnoreCase)
+                || status.StartsWith("Waiting", StringComparison.OrdinalIgnoreCase)
+                    ? 2
+                    : status.StartsWith("Remote session ended", StringComparison.OrdinalIgnoreCase)
+                        || status.StartsWith("Remote video stream lost", StringComparison.OrdinalIgnoreCase)
+                        || status.StartsWith("Reach connection lost", StringComparison.OrdinalIgnoreCase)
+                        || status.StartsWith("Connection failed", StringComparison.OrdinalIgnoreCase)
+                        || status.StartsWith("Reconnect failed", StringComparison.OrdinalIgnoreCase)
+                            ? 4
+                            : 1;
+
+    private void OnSessionStateChanged(ReachSessionState state)
+    {
+        void Apply()
+        {
+            _connect.Content = state is ReachSessionState.Lost
+                or ReachSessionState.Connected
+                or ReachSessionState.Streaming
+                ? "Reconnect"
+                : "Connect";
+            UpdateConnectionControls();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Apply();
+        else
+            Dispatcher.UIThread.Post(Apply);
+    }
+
+    private void OnSessionEnded(string reason)
+    {
+        ClearVideoFrame();
+        OnStatusChanged($"Remote session ended: {reason}");
+    }
+
+    private void OnMediaConnectionLost()
+    {
+        ClearVideoFrame();
+        OnStatusChanged("Remote video stream lost. Press Reconnect.");
+        UpdateConnectionControls();
+    }
+
+    private void OnConnectionLost()
+    {
+        ClearVideoFrame();
+        OnStatusChanged("Reach connection lost. Press Connect to retry.");
+        UpdateConnectionControls();
+    }
+
+    private void OnVideoStreamReset(ReachVideoStreamReset reset)
+    {
+        ClearVideoFrame();
+        OnStatusChanged($"Remote video stream reset at frame {reset.Sequence}.");
+    }
+
+    private void UpdateConnectionControls()
+    {
+        void Apply()
+        {
+            _connect.IsEnabled = !_discoveryActive
+                && !string.IsNullOrWhiteSpace(_endpoint.Text)
+                && _session.State is not ReachSessionState.Connecting;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Apply();
+        else
+            Dispatcher.UIThread.Post(Apply);
     }
 
     private void OnFrameDecoded(RawVideoFrame frame)
     {
-        if (frame.Format != VideoPixelFormat.Bgra32)
+        if (frame.Format != VideoPixelFormat.Bgra32
+            || !_session.IsConnected)
             return;
 
         _videoWidth = frame.Width;
         _videoHeight = frame.Height;
+        if (!_streamStatusShown)
+        {
+            _streamStatusShown = true;
+            OnStatusChanged(
+                $"Streaming remote session ({frame.Width}x{frame.Height}).");
+        }
         lock (_frameGate)
         {
             _pendingFrame = frame;
@@ -366,6 +542,41 @@ public sealed class ReachClientView : UserControl
         (previous as IDisposable)?.Dispose();
     }
 
+    private void ClearVideoFrame()
+    {
+        void Clear()
+        {
+            lock (_frameGate)
+            {
+                _pendingFrame = null;
+                _frameUpdateScheduled = false;
+            }
+
+            var previous = _videoImage.Source;
+            _videoImage.Source = null;
+            (previous as IDisposable)?.Dispose();
+            _videoWidth = 0;
+            _videoHeight = 0;
+            _androidVideoConfigured = false;
+            _streamStatusShown = false;
+            _touchPoints.Clear();
+            _touchGestureActive = false;
+            _touchRemoteButtonDown = false;
+            _videoZoom = 1;
+            _videoScale.ScaleX = 1;
+            _videoScale.ScaleY = 1;
+            _videoTranslation.X = 0;
+            _videoTranslation.Y = 0;
+            if (_presenter is IReachVideoStreamResetter streamResetter)
+                streamResetter.ResetStream();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Clear();
+        else
+            Dispatcher.UIThread.Post(Clear);
+    }
+
     private void OnKeyFrameRequested() =>
         QueueInput(() => _session.RequestKeyFrameAsync());
 
@@ -422,7 +633,7 @@ public sealed class ReachClientView : UserControl
 
     private void OnVideoPointerPressed(object? sender, PointerPressedEventArgs args)
     {
-        _videoImage.Focus();
+        _videoSurface.Focus();
         if (args.Pointer.Type == PointerType.Touch)
         {
             _touchPoints[args.Pointer.Id] = args.GetPosition(_videoSurface);
@@ -450,7 +661,7 @@ public sealed class ReachClientView : UserControl
                 _touchRemoteButtonDown = true;
             }
 
-            args.Pointer.Capture(_videoImage);
+            args.Pointer.Capture(_videoSurface);
             args.Handled = true;
             return;
         }
@@ -458,14 +669,14 @@ public sealed class ReachClientView : UserControl
         if (!TryGetRemotePoint(args, out var x, out var y))
             return;
 
-        var point = args.GetCurrentPoint(_videoImage);
+        var point = args.GetCurrentPoint(_videoSurface);
         var button = GetPressedButton(point.Properties, args.Pointer.Type);
         if (button is null)
             return;
 
         QueueInput(() => _session.SendPointerMoveAsync(x, y));
         QueueInput(() => _session.SendPointerButtonAsync(button, true));
-        args.Pointer.Capture(_videoImage);
+        args.Pointer.Capture(_videoSurface);
         args.Handled = true;
     }
 
@@ -513,7 +724,7 @@ public sealed class ReachClientView : UserControl
                 _touchGestureActive = true;
             }
 
-            if (args.Pointer.Captured == _videoImage)
+            if (args.Pointer.Captured == _videoSurface)
                 args.Pointer.Capture(null);
             args.Handled = true;
             return;
@@ -530,7 +741,7 @@ public sealed class ReachClientView : UserControl
         if (button is null)
             return;
 
-        if (args.Pointer.Captured == _videoImage)
+        if (args.Pointer.Captured == _videoSurface)
             args.Pointer.Capture(null);
         QueuePointerButton(button, false);
         args.Handled = true;
@@ -576,21 +787,22 @@ public sealed class ReachClientView : UserControl
     private void ApplyVideoTransform(double zoom, double panX, double panY)
     {
         var bounds = _videoSurface.Bounds;
-        if (bounds.Width <= 0 || bounds.Height <= 0)
+        var fit = ReachVideoGeometry.CalculateFit(
+            bounds.Width,
+            bounds.Height,
+            _videoWidth,
+            _videoHeight,
+            zoom,
+            panX,
+            panY);
+        if (fit.Scale <= 0)
             return;
 
-        var scale = Math.Min(
-            bounds.Width / Math.Max(1, _videoWidth),
-            bounds.Height / Math.Max(1, _videoHeight));
-        var renderedWidth = _videoWidth * scale;
-        var renderedHeight = _videoHeight * scale;
-        var maxPanX = Math.Max(0, (renderedWidth * zoom - bounds.Width) / 2);
-        var maxPanY = Math.Max(0, (renderedHeight * zoom - bounds.Height) / 2);
-        _videoZoom = zoom;
-        _videoScale.ScaleX = zoom;
-        _videoScale.ScaleY = zoom;
-        _videoTranslation.X = Math.Clamp(panX, -maxPanX, maxPanX);
-        _videoTranslation.Y = Math.Clamp(panY, -maxPanY, maxPanY);
+        _videoZoom = fit.Zoom;
+        _videoScale.ScaleX = fit.Zoom;
+        _videoScale.ScaleY = fit.Zoom;
+        _videoTranslation.X = fit.PanX;
+        _videoTranslation.Y = fit.PanY;
     }
 
     private void ResetVideoPanIfUnzoomed()
@@ -695,44 +907,27 @@ public sealed class ReachClientView : UserControl
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return false;
 
-        var scale = Math.Min(
-            bounds.Width / _videoWidth,
-            bounds.Height / _videoHeight);
-        var centerX = bounds.Width / 2;
-        var centerY = bounds.Height / 2;
-        var renderedWidth = _videoWidth * scale * _videoZoom;
-        var renderedHeight = _videoHeight * scale * _videoZoom;
-        var originX = centerX
-            + ((bounds.Width - _videoWidth * scale) / 2 - centerX) * _videoZoom
-            + _videoTranslation.X;
-        var originY = centerY
-            + ((bounds.Height - _videoHeight * scale) / 2 - centerY) * _videoZoom
-            + _videoTranslation.Y;
         var point = args.GetPosition(_videoSurface);
-        if (point.X < originX
-            || point.Y < originY
-            || point.X >= originX + renderedWidth
-            || point.Y >= originY + renderedHeight)
-        {
-            return false;
-        }
-
-        var transformedScale = scale * _videoZoom;
-        x = _selectedDisplayLeft + Math.Clamp(
-            (point.X - originX) / transformedScale,
-            0,
-            _videoWidth - 1)
-            * (_selectedDisplayWidth > 0
-                ? (double)_selectedDisplayWidth / _videoWidth
-                : 1);
-        y = _selectedDisplayTop + Math.Clamp(
-            (point.Y - originY) / transformedScale,
-            0,
-            _videoHeight - 1)
-            * (_selectedDisplayHeight > 0
-                ? (double)_selectedDisplayHeight / _videoHeight
-                : 1);
-        return true;
+        var fit = ReachVideoGeometry.CalculateFit(
+            bounds.Width,
+            bounds.Height,
+            _videoWidth,
+            _videoHeight,
+            _videoZoom,
+            _videoTranslation.X,
+            _videoTranslation.Y);
+        return ReachVideoGeometry.TryMapPoint(
+            fit,
+            point.X,
+            point.Y,
+            _videoWidth,
+            _videoHeight,
+            _selectedDisplayLeft,
+            _selectedDisplayTop,
+            _selectedDisplayWidth,
+            _selectedDisplayHeight,
+            out x,
+            out y);
     }
 
     private static string? GetPressedButton(

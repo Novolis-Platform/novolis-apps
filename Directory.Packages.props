@@ -71,6 +71,7 @@
     <PackageVersion Include="Novolis.IO.Paths" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.Watching" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.StarMap" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Map" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Packaging.Inno" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Raylib" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Rendering" Version="2026.1.*" />

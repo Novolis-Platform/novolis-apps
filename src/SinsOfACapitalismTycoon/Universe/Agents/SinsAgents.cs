@@ -123,7 +123,11 @@ internal static class SinsAgents
     }
 
     decimal Gate(ProductId p) =>
-      TapeAwareGatePricing.Gate(sim.State.World.MarketBook, p, Floor(p));
+      TapeAwareGatePricing.Gate(
+        sim.State.World.MarketBook,
+        p,
+        Floor(p),
+        sim.State.World.Specification);
 
     bool AvoidCongested(TransportHubId hub)
     {

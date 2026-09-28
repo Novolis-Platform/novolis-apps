@@ -20,6 +20,13 @@ public interface IReachKeyFrameRequester
     event Action? KeyFrameRequested;
 }
 
+/// <summary>Optional presenter hook for a host video-stream reset.</summary>
+public interface IReachVideoStreamResetter
+{
+    /// <summary>Discards decoder state before the next key frame.</summary>
+    void ResetStream();
+}
+
 /// <summary>Presenter used on platforms without a decoder in the current slice.</summary>
 public sealed class NullReachVideoPresenter : IReachVideoPresenter
 {

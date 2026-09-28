@@ -6,9 +6,20 @@ using Novolis.Transports.Framing;
 
 namespace Novolis.Reach.Client;
 
+/// <summary>Describes the observable state of a Reach client session.</summary>
+public enum ReachSessionState
+{
+    Disconnected,
+    Connecting,
+    Connected,
+    Streaming,
+    Lost,
+}
+
 /// <summary>Owns one client-side Reach control connection.</summary>
 public sealed class ReachClientSession : IAsyncDisposable
 {
+    private readonly int? _mediaPort;
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private TcpClient? _client;
     private NetworkStream? _stream;
@@ -24,10 +35,37 @@ public sealed class ReachClientSession : IAsyncDisposable
     private string? _clientName;
     private readonly Guid _sessionId = Guid.NewGuid();
     private long _lastVideoSequence;
+    private long _lastVideoFrameTicks;
     private int _disconnectRequested;
+    private int _state = (int)ReachSessionState.Disconnected;
+
+    /// <summary>Creates a Reach client session.</summary>
+    /// <param name="mediaPort">
+    /// Optional media port override. Use zero to disable the dedicated media
+    /// channel, which is useful for control-only peers.
+    /// </param>
+    public ReachClientSession(int? mediaPort = null)
+    {
+        if (mediaPort is < 0 or > 65535)
+            throw new ArgumentOutOfRangeException(nameof(mediaPort));
+
+        _mediaPort = mediaPort;
+    }
 
     /// <summary>Raised when the session status changes.</summary>
     public event Action<string>? StatusChanged;
+
+    /// <summary>Raised when the session state changes.</summary>
+    public event Action<ReachSessionState>? StateChanged;
+
+    /// <summary>Raised when the remote host ends the session.</summary>
+    public event Action<string>? SessionEnded;
+
+    /// <summary>Raised when the media channel ends independently of control.</summary>
+    public event Action? MediaConnectionLost;
+
+    /// <summary>Raised when the control channel ends unexpectedly.</summary>
+    public event Action? ConnectionLost;
 
     /// <summary>Raised for each encoded video frame received from the host.</summary>
     public event Action<ReachVideoFrame>? VideoFrameReceived;
@@ -37,6 +75,9 @@ public sealed class ReachClientSession : IAsyncDisposable
 
     /// <summary>Raised when the host starts or restarts its video stream.</summary>
     public event Action<ReachVideoStreamStart>? VideoStreamStarted;
+
+    /// <summary>Raised when the host resets its video stream.</summary>
+    public event Action<ReachVideoStreamReset>? VideoStreamReset;
 
     /// <summary>Raised when the host starts its audio stream.</summary>
     public event Action<ReachAudioStreamStart>? AudioStreamStarted;
@@ -53,6 +94,28 @@ public sealed class ReachClientSession : IAsyncDisposable
     /// <summary>Gets whether the control channel is connected.</summary>
     public bool IsConnected => _stream is not null;
 
+    /// <summary>Gets whether the dedicated media channel is connected.</summary>
+    public bool IsMediaConnected => _mediaStream is not null;
+
+    /// <summary>Gets the current session state.</summary>
+    public ReachSessionState State =>
+        (ReachSessionState)Volatile.Read(ref _state);
+
+    /// <summary>Gets the last received video sequence number.</summary>
+    public long LastVideoSequence => Interlocked.Read(ref _lastVideoSequence);
+
+    /// <summary>Gets when the last encoded video frame arrived.</summary>
+    public DateTimeOffset? LastVideoFrameAt
+    {
+        get
+        {
+            var ticks = Interlocked.Read(ref _lastVideoFrameTicks);
+            return ticks == 0
+                ? null
+                : new DateTimeOffset(ticks, TimeSpan.Zero);
+        }
+    }
+
     /// <summary>Connects and completes the Reach hello/capability exchange.</summary>
     public async Task ConnectAsync(
         string endpoint,
@@ -63,8 +126,9 @@ public sealed class ReachClientSession : IAsyncDisposable
         if (IsConnected)
             return;
 
-        Volatile.Write(ref _disconnectRequested, 0);
         var address = ParseEndpoint(endpoint);
+        Volatile.Write(ref _disconnectRequested, 0);
+        SetState(ReachSessionState.Connecting);
         _lastEndpoint = endpoint;
         _platform = platform;
         _clientName = clientName;
@@ -78,6 +142,7 @@ public sealed class ReachClientSession : IAsyncDisposable
         catch
         {
             client.Dispose();
+            SetState(ReachSessionState.Lost);
             RaiseStatus($"Unable to connect to {address.Address}:{address.Port}.");
             throw;
         }
@@ -85,6 +150,7 @@ public sealed class ReachClientSession : IAsyncDisposable
         var stream = client.GetStream();
         _client = client;
         _stream = stream;
+        SetState(ReachSessionState.Connected);
         RaiseStatus($"Connected to {address.Address}:{address.Port}; negotiating...");
 
         try
@@ -151,10 +217,23 @@ public sealed class ReachClientSession : IAsyncDisposable
                     receiveCancellation.Token),
                 CancellationToken.None);
             await TryConnectMediaAsync(address, cancellationToken).ConfigureAwait(false);
-            await RequestKeyFrameAsync(cancellationToken).ConfigureAwait(false);
+            if (_mediaPort != 0 && !IsMediaConnected)
+            {
+                RaiseStatus(
+                    $"Connected to {hostHello.HostName}, but the video channel is unavailable.");
+                MediaConnectionLost?.Invoke();
+            }
+
+            // Publish the connected state before requesting the first frame.
+            // The receive loop can deliver that frame before this method
+            // returns, so a trailing "connected" status would overwrite the
+            // more specific streaming status in the client surface.
             RaiseStatus(
-                $"Connected to {hostHello.HostName}; "
-                + $"video={string.Join(",", negotiatedCapabilities.OfferedVideoCodecs)}");
+                IsMediaConnected || _mediaPort == 0
+                    ? $"Connected to {hostHello.HostName}; "
+                      + $"video={string.Join(",", negotiatedCapabilities.OfferedVideoCodecs)}"
+                    : $"Connected to {hostHello.HostName}, but the video channel is unavailable.");
+            await RequestKeyFrameAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -453,10 +532,12 @@ public sealed class ReachClientSession : IAsyncDisposable
                     ReachMessageCodec.ReadBody<ReachVideoStreamStart>(envelope));
                 break;
             case ReachMessageType.VideoStreamReset:
-                Interlocked.Exchange(
-                    ref _lastVideoSequence,
-                    ReachMessageCodec.ReadBody<ReachVideoStreamReset>(envelope).Sequence);
+            {
+                var reset = ReachMessageCodec.ReadBody<ReachVideoStreamReset>(envelope);
+                Interlocked.Exchange(ref _lastVideoSequence, reset.Sequence);
+                VideoStreamReset?.Invoke(reset);
                 break;
+            }
             case ReachMessageType.DisplayTopology:
                 DisplayTopologyReceived?.Invoke(
                     ReachMessageCodec.ReadBody<ReachDisplayTopology>(envelope));
@@ -465,6 +546,10 @@ public sealed class ReachClientSession : IAsyncDisposable
             {
                 var video = ReachMessageCodec.ReadBody<ReachVideoFrame>(envelope);
                 Interlocked.Exchange(ref _lastVideoSequence, video.Sequence);
+                Interlocked.Exchange(
+                    ref _lastVideoFrameTicks,
+                    DateTimeOffset.UtcNow.UtcTicks);
+                SetState(ReachSessionState.Streaming);
                 VideoFrameReceived?.Invoke(video);
                 break;
             }
@@ -481,8 +566,12 @@ public sealed class ReachClientSession : IAsyncDisposable
                     ReachMessageCodec.ReadBody<ReachClipboardContent>(envelope));
                 break;
             case ReachMessageType.SessionClose:
-                RaiseStatus("The Reach host closed the session.");
+            {
+                var close = ReachMessageCodec.ReadBody<ReachSessionClose>(envelope);
+                RaiseStatus($"The Reach host closed the session: {close.Reason}");
+                SessionEnded?.Invoke(close.Reason);
                 return false;
+            }
         }
 
         return true;
@@ -492,18 +581,22 @@ public sealed class ReachClientSession : IAsyncDisposable
         IPEndPoint controlAddress,
         CancellationToken cancellationToken)
     {
-        if (controlAddress.Port != ReachProtocol.ControlPort)
+        if (_mediaPort == 0)
             return;
 
         var client = new TcpClient(controlAddress.AddressFamily);
         try
         {
+            var mediaPort = _mediaPort
+                ?? (controlAddress.Port == ReachProtocol.ControlPort
+                    ? ReachProtocol.MediaPort
+                    : checked(controlAddress.Port + 1));
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(1));
             await client.ConnectAsync(
                     controlAddress.Address,
-                    ReachProtocol.MediaPort,
+                    mediaPort,
                     timeout.Token)
                 .ConfigureAwait(false);
             var stream = client.GetStream();
@@ -582,7 +675,13 @@ public sealed class ReachClientSession : IAsyncDisposable
         finally
         {
             if (!cancellationToken.IsCancellationRequested)
+            {
                 DetachMediaTransport(owner);
+                if (IsConnected)
+                    SetState(ReachSessionState.Connected);
+                RaiseStatus("The Reach media stream ended.");
+                MediaConnectionLost?.Invoke();
+            }
         }
     }
 
@@ -651,6 +750,9 @@ public sealed class ReachClientSession : IAsyncDisposable
 
         mediaCancellation?.Dispose();
         NegotiatedCapabilities = null;
+        Interlocked.Exchange(ref _lastVideoSequence, 0);
+        Interlocked.Exchange(ref _lastVideoFrameTicks, 0);
+        SetState(ReachSessionState.Disconnected);
         if (announce)
             RaiseStatus("Disconnected");
     }
@@ -670,12 +772,33 @@ public sealed class ReachClientSession : IAsyncDisposable
         Interlocked.Exchange(ref _receiveTask, null);
         Interlocked.Exchange(ref _stream, null)?.Dispose();
         Interlocked.Exchange(ref _client, null)?.Dispose();
-        Interlocked.Exchange(ref _mediaReceiveCancellation, null)?.Cancel();
+        var mediaOwner = Interlocked.Exchange(
+            ref _mediaReceiveCancellation,
+            null);
+        mediaOwner?.Cancel();
         Interlocked.Exchange(ref _mediaStream, null)?.Dispose();
         Interlocked.Exchange(ref _mediaClient, null)?.Dispose();
         NegotiatedCapabilities = null;
+        Interlocked.Exchange(ref _lastVideoSequence, 0);
+        Interlocked.Exchange(ref _lastVideoFrameTicks, 0);
         owner.Dispose();
+        mediaOwner?.Dispose();
+        SetState(ReachSessionState.Lost);
         RaiseStatus("Reach connection lost. Use reconnect to resume.");
+        ConnectionLost?.Invoke();
+    }
+
+    private void SetState(ReachSessionState state)
+    {
+        if (Interlocked.Exchange(ref _state, (int)state) == (int)state)
+            return;
+
+        StateChanged?.Invoke(state);
+    }
+
+    private void RaiseStatus(string status)
+    {
+        StatusChanged?.Invoke(status);
     }
 
     private static IPEndPoint ParseEndpoint(string endpoint)
@@ -706,8 +829,6 @@ public sealed class ReachClientSession : IAsyncDisposable
             ReachPlatform.Android => ReachCapabilities.AndroidClient,
             _ => new ReachCapabilities(ReachCapability.None),
         };
-
-    private void RaiseStatus(string status) => StatusChanged?.Invoke(status);
 
     private static async Task<byte[]> ComputeHashAsync(
         string path,

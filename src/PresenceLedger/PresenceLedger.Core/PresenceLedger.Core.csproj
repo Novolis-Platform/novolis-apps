@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PresenceLedger.Core</RootNamespace>
+    <AssemblyName>PresenceLedger.Core</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Novolis.Math.Geometry" />
+  </ItemGroup>
+</Project>
