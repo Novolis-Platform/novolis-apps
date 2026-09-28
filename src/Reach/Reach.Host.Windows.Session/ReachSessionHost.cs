@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Drawing;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
@@ -34,6 +35,15 @@ public sealed class ReachSessionHost : BackgroundService
     private Channel<RawVideoFrame>? _frames;
     private Task? _encodeTask;
     private bool _audioStarted;
+    private bool _audioEnabled;
+    private bool _videoMetadataSent;
+    private string _selectedDisplayId = string.Empty;
+    private int _framesPerSecond = 30;
+    private int _targetWidth;
+    private int _targetHeight;
+    private int _targetBitrate = 8_000_000;
+    private int _streamWidth;
+    private int _streamHeight;
     private long _sequence;
 
     /// <summary>Creates the interactive-session helper.</summary>
@@ -102,8 +112,36 @@ public sealed class ReachSessionHost : BackgroundService
         switch (envelope.Type)
         {
             case ReachMessageType.SessionOpen:
-                await StartCaptureAsync(cancellationToken).ConfigureAwait(false);
+            {
+                var open = ReachMessageCodec.ReadBody<ReachSessionOpen>(envelope);
+                _selectedDisplayId = open.RequestedDisplayId;
+                _audioEnabled = open.EnableAudio;
+                if (_capture is null)
+                {
+                    await StartCaptureAsync(cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    await SendSessionMetadataAsync(cancellationToken).ConfigureAwait(false);
+                }
+
                 break;
+            }
+            case ReachMessageType.SessionResume:
+            {
+                var resume = ReachMessageCodec.ReadBody<ReachSessionResume>(envelope);
+                _audioEnabled = resume.EnableAudio;
+                if (_capture is null)
+                {
+                    await StartCaptureAsync(cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    await SendSessionMetadataAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                break;
+            }
             case ReachMessageType.SessionClose:
                 await StopCaptureAsync().ConfigureAwait(false);
                 break;
@@ -116,13 +154,12 @@ public sealed class ReachSessionHost : BackgroundService
             case ReachMessageType.PointerButton:
             {
                 var button = ReachMessageCodec.ReadBody<ReachPointerButton>(envelope);
-                if (button.IsDown
-                    && Enum.TryParse<WindowsInputController.WindowsPointerButton>(
+                if (Enum.TryParse<WindowsInputController.WindowsPointerButton>(
                         button.Button,
                         ignoreCase: true,
                         out var parsedButton))
                 {
-                    _input.Click(parsedButton, button.ClickCount);
+                    _input.Button(parsedButton, button.IsDown);
                 }
 
                 break;
@@ -168,8 +205,20 @@ public sealed class ReachSessionHost : BackgroundService
             case ReachMessageType.VideoStreamConfiguration:
             {
                 var configuration = ReachMessageCodec.ReadBody<ReachVideoStreamConfiguration>(envelope);
+                if (!string.Equals(
+                        configuration.Codec,
+                        "H264",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        $"Reach host does not support {configuration.Codec} video.");
+                }
+
                 await RestartCaptureAsync(
+                        Math.Clamp(configuration.Width, 0, 3840),
+                        Math.Clamp(configuration.Height, 0, 2160),
                         Math.Clamp(configuration.FramesPerSecond, 5, 60),
+                        Math.Clamp(configuration.TargetBitrate, 250_000, 50_000_000),
                         cancellationToken)
                     .ConfigureAwait(false);
                 break;
@@ -178,13 +227,40 @@ public sealed class ReachSessionHost : BackgroundService
             {
                 var resize = ReachMessageCodec.ReadBody<ReachDisplayResize>(envelope);
                 await RestartCaptureAsync(
+                        Math.Clamp(resize.Width, 0, 3840),
+                        Math.Clamp(resize.Height, 0, 2160),
                         Math.Clamp(resize.FramesPerSecond, 5, 60),
+                        _targetBitrate,
                         cancellationToken)
                     .ConfigureAwait(false);
                 break;
             }
+            case ReachMessageType.DisplaySelect:
+            {
+                _selectedDisplayId = ReachMessageCodec
+                    .ReadBody<ReachDisplaySelect>(envelope)
+                    .DisplayId;
+                if (_capture is not null)
+                {
+                    await RestartCaptureAsync(
+                            _targetWidth,
+                            _targetHeight,
+                            _framesPerSecond,
+                            _targetBitrate,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                break;
+            }
             case ReachMessageType.RequestKeyFrame:
-                await RestartCaptureAsync(30, cancellationToken).ConfigureAwait(false);
+                await RestartCaptureAsync(
+                        _targetWidth,
+                        _targetHeight,
+                        _framesPerSecond,
+                        _targetBitrate,
+                        cancellationToken)
+                    .ConfigureAwait(false);
                 break;
         }
     }
@@ -192,7 +268,10 @@ public sealed class ReachSessionHost : BackgroundService
     private async Task StartCaptureAsync(CancellationToken cancellationToken)
     {
         if (_capture is not null)
+        {
+            await SendSessionMetadataAsync(cancellationToken).ConfigureAwait(false);
             return;
+        }
 
         var connection = _connection
             ?? throw new InvalidOperationException("No service connection is available.");
@@ -203,85 +282,127 @@ public sealed class ReachSessionHost : BackgroundService
                 SingleReader = true,
                 SingleWriter = true,
             });
-        _capture = new WindowsDesktopCaptureSource(framesPerSecond: 30);
+        _videoMetadataSent = false;
+        _streamWidth = 0;
+        _streamHeight = 0;
+        _capture = CreateCaptureSource();
         _capture.FrameCaptured += OnFrameCaptured;
         await _capture.StartAsync(cancellationToken).ConfigureAwait(false);
         _encodeTask = EncodeLoopAsync(connection, _frames.Reader, cancellationToken);
 
-        await SendAsync(
-                connection,
-                ReachMessageType.VideoStreamStart,
-                new ReachVideoStreamStart("H264", 0, 0, 30),
-                "control",
-                cancellationToken)
-            .ConfigureAwait(false);
-        WaveFormat? audioFormat = null;
+        StartAudio();
+        await SendAudioMetadataAsync(connection, cancellationToken).ConfigureAwait(false);
+        await SendTopologyAsync(connection, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RestartCaptureAsync(
+        int width,
+        int height,
+        int framesPerSecond,
+        int targetBitrate,
+        CancellationToken cancellationToken)
+    {
+        _targetWidth = width;
+        _targetHeight = height;
+        _framesPerSecond = framesPerSecond;
+        _targetBitrate = targetBitrate;
+        await StopCaptureAsync().ConfigureAwait(false);
+        if (_connection is not null)
+            await StartCaptureAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private WindowsDesktopCaptureSource CreateCaptureSource() =>
+        new(
+            _framesPerSecond,
+            captureAllMonitors: GetSelectedMonitor() is null,
+            captureBounds: GetSelectedMonitor() is { } monitor
+                ? new Rectangle(
+                    monitor.Left,
+                    monitor.Top,
+                    monitor.Width,
+                    monitor.Height)
+                : null);
+
+    private WindowsMonitorInfo? GetSelectedMonitor()
+    {
+        if (!int.TryParse(
+                _selectedDisplayId.StartsWith("display-", StringComparison.Ordinal)
+                    ? _selectedDisplayId["display-".Length..]
+                    : string.Empty,
+                out var index))
+        {
+            return null;
+        }
+
+        return _display.GetMonitors().ElementAtOrDefault(index);
+    }
+
+    private void StartAudio()
+    {
+        if (!_audioEnabled || _audioStarted)
+            return;
+
         try
         {
             _audioCapture.DataAvailable += OnAudioDataAvailable;
             _audioCapture.Start();
             _audioStarted = true;
-            audioFormat = _audioCapture.Format;
         }
         catch (Exception exception)
         {
             _log.LogWarning(exception, "Loopback audio is unavailable; continuing without audio.");
             _audioCapture.DataAvailable -= OnAudioDataAvailable;
+            _audioStarted = false;
         }
+    }
 
-        if (audioFormat is not null)
+    private async Task SendSessionMetadataAsync(CancellationToken cancellationToken)
+    {
+        var connection = _connection;
+        if (connection is null)
+            return;
+
+        if (_streamWidth > 0 && _streamHeight > 0)
         {
             await SendAsync(
                     connection,
-                    ReachMessageType.AudioStreamStart,
-                    new ReachAudioStreamStart(
-                        audioFormat.Encoding == NAudio.Wave.WaveFormatEncoding.IeeeFloat
-                            ? "PCM_FLOAT"
-                            : "PCM",
-                        audioFormat.SampleRate,
-                        audioFormat.Channels,
-                        audioFormat.BitsPerSample,
-                        audioFormat.Encoding == NAudio.Wave.WaveFormatEncoding.IeeeFloat),
+                    ReachMessageType.VideoStreamStart,
+                    new ReachVideoStreamStart(
+                        "H264",
+                        _streamWidth,
+                        _streamHeight,
+                        _framesPerSecond),
                     "control",
                     cancellationToken)
                 .ConfigureAwait(false);
         }
+
+        StartAudio();
+        await SendAudioMetadataAsync(connection, cancellationToken).ConfigureAwait(false);
         await SendTopologyAsync(connection, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task RestartCaptureAsync(
-        int framesPerSecond,
+    private async Task SendAudioMetadataAsync(
+        ILocalIpcConnection connection,
         CancellationToken cancellationToken)
     {
-        await StopCaptureAsync().ConfigureAwait(false);
-        if (_connection is not null)
-        {
-            _capture = new WindowsDesktopCaptureSource(framesPerSecond);
-            _capture.FrameCaptured += OnFrameCaptured;
-            _frames = Channel.CreateBounded<RawVideoFrame>(
-                new BoundedChannelOptions(2)
-                {
-                    FullMode = BoundedChannelFullMode.DropOldest,
-                    SingleReader = true,
-                    SingleWriter = true,
-                });
-            await _capture.StartAsync(cancellationToken).ConfigureAwait(false);
-            _encodeTask = EncodeLoopAsync(
-                _connection,
-                _frames.Reader,
-                cancellationToken);
-            try
-            {
-                _audioCapture.DataAvailable += OnAudioDataAvailable;
-                _audioCapture.Start();
-                _audioStarted = true;
-            }
-            catch (Exception exception)
-            {
-                _log.LogWarning(exception, "Loopback audio restart failed.");
-                _audioCapture.DataAvailable -= OnAudioDataAvailable;
-            }
-        }
+        if (!_audioStarted || _audioCapture.Format is not { } audioFormat)
+            return;
+
+        await SendAsync(
+                connection,
+                ReachMessageType.AudioStreamStart,
+                new ReachAudioStreamStart(
+                    audioFormat.Encoding == NAudio.Wave.WaveFormatEncoding.IeeeFloat
+                        ? "PCM_FLOAT"
+                        : "PCM",
+                    audioFormat.SampleRate,
+                    audioFormat.Channels,
+                    audioFormat.BitsPerSample,
+                    audioFormat.Encoding == NAudio.Wave.WaveFormatEncoding.IeeeFloat),
+                "control",
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task EncodeLoopAsync(
@@ -289,12 +410,35 @@ public sealed class ReachSessionHost : BackgroundService
         ChannelReader<RawVideoFrame> reader,
         CancellationToken cancellationToken)
     {
-        await foreach (var frame in reader.ReadAllAsync(cancellationToken))
+        await foreach (var captured in reader.ReadAllAsync(cancellationToken))
         {
             try
             {
-                _encoder ??= new WindowsH264Encoder(frame.Width, frame.Height);
+                var frame = ResizeFrame(captured);
+                _encoder ??= new WindowsH264Encoder(
+                    frame.Width,
+                    frame.Height,
+                    _framesPerSecond,
+                    _targetBitrate);
                 var encoded = _encoder.Encode(frame);
+                _streamWidth = encoded.Width;
+                _streamHeight = encoded.Height;
+                if (!_videoMetadataSent)
+                {
+                    _videoMetadataSent = true;
+                    await SendAsync(
+                            connection,
+                            ReachMessageType.VideoStreamStart,
+                            new ReachVideoStreamStart(
+                                encoded.Codec,
+                                encoded.Width,
+                                encoded.Height,
+                                _framesPerSecond),
+                            "control",
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
                 var packet = new ReachVideoFrame(
                     Interlocked.Increment(ref _sequence),
                     encoded.Width,
@@ -316,6 +460,39 @@ public sealed class ReachSessionHost : BackgroundService
                 _log.LogWarning(exception, "Reach frame encoding failed.");
             }
         }
+    }
+
+    private RawVideoFrame ResizeFrame(RawVideoFrame frame)
+    {
+        if (_targetWidth <= 0
+            || _targetHeight <= 0
+            || (_targetWidth == frame.Width && _targetHeight == frame.Height))
+        {
+            return frame;
+        }
+
+        var width = Math.Clamp(_targetWidth, 1, 3840);
+        var height = Math.Clamp(_targetHeight, 1, 2160);
+        var pixels = new byte[checked(width * height * 4)];
+        for (var y = 0; y < height; y++)
+        {
+            var sourceY = y * frame.Height / height;
+            for (var x = 0; x < width; x++)
+            {
+                var sourceX = x * frame.Width / width;
+                var source = sourceY * frame.Stride + sourceX * 4;
+                var destination = (y * width + x) * 4;
+                frame.Pixels.AsSpan(source, 4).CopyTo(pixels.AsSpan(destination, 4));
+            }
+        }
+
+        return new RawVideoFrame(
+            width,
+            height,
+            width * 4,
+            frame.Format,
+            pixels,
+            frame.Timestamp);
     }
 
     private async Task SendTopologyAsync(
@@ -459,5 +636,8 @@ public sealed class ReachSessionHost : BackgroundService
 
         _encoder?.Dispose();
         _encoder = null;
+        _videoMetadataSent = false;
+        _streamWidth = 0;
+        _streamHeight = 0;
     }
 }

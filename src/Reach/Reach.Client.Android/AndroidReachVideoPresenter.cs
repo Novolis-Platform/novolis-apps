@@ -6,7 +6,9 @@ using Novolis.Video;
 namespace Novolis.Reach.Client.Android;
 
 /// <summary>Decodes Reach H.264 frames with the Android platform decoder.</summary>
-public sealed class AndroidReachVideoPresenter : IReachVideoPresenter
+public sealed class AndroidReachVideoPresenter :
+    IReachVideoPresenter,
+    IReachKeyFrameRequester
 {
     private const int FlexibleYuv420ColorFormat = unchecked((int)0x7F420888);
     private readonly object _gate = new();
@@ -17,6 +19,9 @@ public sealed class AndroidReachVideoPresenter : IReachVideoPresenter
 
     /// <inheritdoc />
     public event Action<RawVideoFrame>? FrameDecoded;
+
+    /// <inheritdoc />
+    public event Action? KeyFrameRequested;
 
     /// <inheritdoc />
     public void Present(ReachVideoFrame frame)
@@ -49,7 +54,7 @@ public sealed class AndroidReachVideoPresenter : IReachVideoPresenter
                     inputIndex,
                     0,
                     frame.AccessUnit.Length,
-                    frame.Timestamp / 1_000,
+                    frame.Timestamp / 10,
                     frame.IsKeyFrame
                         ? MediaCodecBufferFlags.KeyFrame
                         : MediaCodecBufferFlags.None);
@@ -91,6 +96,7 @@ public sealed class AndroidReachVideoPresenter : IReachVideoPresenter
             catch (Exception)
             {
                 ResetDecoder();
+                KeyFrameRequested?.Invoke();
             }
         }
 
@@ -111,6 +117,7 @@ public sealed class AndroidReachVideoPresenter : IReachVideoPresenter
         }
 
         FrameDecoded = null;
+        KeyFrameRequested = null;
     }
 
     private void EnsureDecoder(int width, int height)

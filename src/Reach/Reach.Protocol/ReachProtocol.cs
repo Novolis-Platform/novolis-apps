@@ -94,6 +94,7 @@ public enum ReachMessageType
     SessionOpen,
     SessionResume,
     SessionClose,
+    MediaHello,
     DisplayTopology,
     DisplaySelect,
     DisplayResize,

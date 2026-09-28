@@ -20,13 +20,25 @@ public sealed record ReachClientHello(
 public sealed record ReachCapabilitiesMessage(ReachCapabilities Capabilities);
 
 /// <summary>Opens a client session.</summary>
-public sealed record ReachSessionOpen(Guid SessionId, string RequestedDisplayId);
+public sealed record ReachSessionOpen(
+    Guid SessionId,
+    string RequestedDisplayId,
+    bool EnableAudio = false);
 
 /// <summary>Resumes a previous client session.</summary>
-public sealed record ReachSessionResume(Guid SessionId, long LastVideoSequence);
+public sealed record ReachSessionResume(
+    Guid SessionId,
+    long LastVideoSequence,
+    bool EnableAudio = false);
 
 /// <summary>Closes a client session.</summary>
 public sealed record ReachSessionClose(Guid SessionId, string Reason);
+
+/// <summary>Identifies the optional media connection for an open session.</summary>
+public sealed record ReachMediaHello(
+    Guid SessionId,
+    string AppId,
+    string ProtocolVersion);
 
 /// <summary>Monitor topology announcement.</summary>
 public sealed record ReachDisplayTopology(IReadOnlyList<ReachDisplay> Displays);

@@ -33,4 +33,19 @@ public static class ReachMessageCodec
         return envelope.Body.Deserialize<T>(ReachProtocol.JsonOptions)
             ?? throw new InvalidDataException($"Reach message {envelope.Type} had no body.");
     }
+
+    /// <summary>Reads a body while enforcing the expected envelope type.</summary>
+    public static T ReadBody<T>(
+        ReachMessageEnvelope envelope,
+        ReachMessageType expectedType)
+    {
+        ArgumentNullException.ThrowIfNull(envelope);
+        if (envelope.Type != expectedType)
+        {
+            throw new InvalidDataException(
+                $"Expected Reach message {expectedType}, received {envelope.Type}.");
+        }
+
+        return ReadBody<T>(envelope);
+    }
 }

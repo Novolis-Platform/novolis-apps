@@ -27,6 +27,7 @@ public sealed class ReachHostService : BackgroundService
     private readonly ConcurrentDictionary<long, ClientConnection> _clients = new();
     private readonly ConcurrentDictionary<Guid, FileTransferState> _fileTransfers = new();
     private readonly ConcurrentBag<TcpListener> _listeners = new();
+    private readonly ConcurrentBag<TcpListener> _mediaListeners = new();
     private readonly object _messagesGate = new();
     private readonly List<string> _messages = [];
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
@@ -93,6 +94,7 @@ public sealed class ReachHostService : BackgroundService
         foreach (var address in addresses)
         {
             tasks.Add(RunRemoteListenerAsync(address, cancellationToken));
+            tasks.Add(RunMediaListenerAsync(address, cancellationToken));
         }
 
         try
@@ -105,6 +107,8 @@ public sealed class ReachHostService : BackgroundService
         finally
         {
             foreach (var listener in _listeners)
+                listener.Stop();
+            foreach (var listener in _mediaListeners)
                 listener.Stop();
             foreach (var client in _clients.Values)
                 await client.DisposeAsync().ConfigureAwait(false);
@@ -165,6 +169,107 @@ public sealed class ReachHostService : BackgroundService
         }
     }
 
+    private async Task RunMediaListenerAsync(
+        IPAddress address,
+        CancellationToken cancellationToken)
+    {
+        var listener = new TcpListener(address, ReachProtocol.MediaPort);
+        try
+        {
+            listener.Start();
+        }
+        catch (SocketException exception)
+        {
+            Log($"Could not listen for Reach media on {address}:{ReachProtocol.MediaPort}: {exception.Message}");
+            return;
+        }
+
+        _mediaListeners.Add(listener);
+        Log($"Listening for Reach media on {address}:{ReachProtocol.MediaPort}.");
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var client = await listener.AcceptTcpClientAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                client.NoDelay = true;
+                _ = HandleMediaClientAsync(client, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (SocketException exception)
+        {
+            Log($"Reach media listener on {address} stopped: {exception.Message}");
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    private async Task HandleMediaClientAsync(
+        TcpClient client,
+        CancellationToken cancellationToken)
+    {
+        var ownsClient = true;
+        try
+        {
+            var stream = client.GetStream();
+            var envelope = await ReadEnvelopeAsync(stream, cancellationToken)
+                .ConfigureAwait(false)
+                ?? throw new EndOfStreamException("Reach media client closed during hello.");
+            if (envelope.Type != ReachMessageType.MediaHello)
+                throw new InvalidDataException("Reach media connection did not send MediaHello.");
+
+            var hello = ReachMessageCodec.ReadBody<ReachMediaHello>(envelope);
+            if (!string.Equals(hello.AppId, ReachProtocol.AppId, StringComparison.Ordinal)
+                || !ReachProtocol.IsCompatible(hello.ProtocolVersion))
+            {
+                throw new InvalidDataException("Incompatible Reach media hello.");
+            }
+
+            var remoteAddress = (client.Client.RemoteEndPoint as IPEndPoint)?.Address;
+            ClientConnection? connection = null;
+            for (var attempt = 0; attempt < 60; attempt++)
+            {
+                connection = _clients.Values.FirstOrDefault(candidate =>
+                    candidate.IsReady
+                    && candidate.SessionId == hello.SessionId
+                    && (remoteAddress is null
+                        || (candidate.RemoteEndPoint as IPEndPoint)?.Address.Equals(remoteAddress) == true));
+                if (connection is not null)
+                    break;
+
+                await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (connection is null)
+                throw new InvalidDataException("Reach media hello has no active control session.");
+
+            connection.AttachMediaStream(stream);
+            ownsClient = false;
+            Log($"Media channel attached to client {connection.Id}.");
+            await stream.CopyToAsync(Stream.Null, cancellationToken).ConfigureAwait(false);
+            connection.DetachMediaStream(stream);
+            ownsClient = true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Log($"Reach media connection ended: {exception.Message}");
+        }
+        finally
+        {
+            if (ownsClient)
+                client.Dispose();
+        }
+    }
+
     private async Task HandleRemoteClientAsync(
         ClientConnection connection,
         CancellationToken cancellationToken)
@@ -173,6 +278,7 @@ public sealed class ReachHostService : BackgroundService
         try
         {
             var hello = await ReadMessageAsync<ReachClientHello>(
+                    ReachMessageType.ClientHello,
                     connection.Stream,
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -184,12 +290,14 @@ public sealed class ReachHostService : BackgroundService
             }
 
             var clientCapabilities = await ReadMessageAsync<ReachCapabilitiesMessage>(
+                    ReachMessageType.ClientCapabilities,
                     connection.Stream,
                     cancellationToken).ConfigureAwait(false);
             Log($"Client {connection.Id} capabilities received.");
             var negotiated = ReachCapabilities.Intersect(
                 ReachCapabilities.WindowsHost,
                 clientCapabilities.Capabilities);
+            connection.Capabilities = negotiated;
             await connection.SendAsync(
                     ReachMessageType.HostHello,
                     new ReachHostHello(
@@ -205,10 +313,6 @@ public sealed class ReachHostService : BackgroundService
                     cancellationToken).ConfigureAwait(false);
             connection.IsReady = true;
             Log($"Client {connection.Id} handshake complete.");
-            await SendSessionCommandAsync(
-                    ReachMessageType.SessionOpen,
-                    new ReachSessionOpen(Guid.NewGuid(), string.Empty),
-                    cancellationToken).ConfigureAwait(false);
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -220,7 +324,57 @@ public sealed class ReachHostService : BackgroundService
                     return;
 
                 if (envelope.Type == ReachMessageType.SessionClose)
+                {
+                    var close = ReachMessageCodec.ReadBody<ReachSessionClose>(envelope);
+                    connection.SessionId = close.SessionId;
+                    if (!_clients.Values.Any(client =>
+                            client.IsReady && client.Id != connection.Id))
+                    {
+                        connection.SessionCloseForwarded = true;
+                        await SendSessionCommandAsync(
+                                ReachMessageType.SessionClose,
+                                close,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    }
                     return;
+                }
+
+                if (envelope.Type == ReachMessageType.SessionOpen)
+                {
+                    var open = ReachMessageCodec.ReadBody<ReachSessionOpen>(envelope);
+                    connection.SessionId = open.SessionId;
+                    connection.RequestedDisplayId = open.RequestedDisplayId;
+                    connection.EnableAudio = open.EnableAudio
+                        && connection.Capabilities?.Supports(ReachCapability.Audio) == true;
+                    await SendSessionCommandAsync(
+                            ReachMessageType.SessionOpen,
+                            open with
+                            {
+                                EnableAudio = connection.EnableAudio,
+                            },
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    continue;
+                }
+
+                if (envelope.Type == ReachMessageType.SessionResume)
+                {
+                    var resume = ReachMessageCodec.ReadBody<ReachSessionResume>(envelope);
+                    connection.SessionId = resume.SessionId;
+                    connection.LastVideoSequence = resume.LastVideoSequence;
+                    connection.EnableAudio = resume.EnableAudio
+                        && connection.Capabilities?.Supports(ReachCapability.Audio) == true;
+                    await SendSessionCommandAsync(
+                            ReachMessageType.SessionResume,
+                            resume with
+                            {
+                                EnableAudio = connection.EnableAudio,
+                            },
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    continue;
+                }
 
                 if (envelope.Type == ReachMessageType.FileOffer)
                 {
@@ -280,6 +434,24 @@ public sealed class ReachHostService : BackgroundService
         finally
         {
             _clients.TryRemove(connection.Id, out _);
+            if (connection.IsReady
+                && !connection.SessionCloseForwarded
+                && !_clients.Values.Any(static client => client.IsReady))
+            {
+                try
+                {
+                    await SendSessionCommandAsync(
+                            ReachMessageType.SessionClose,
+                            new ReachSessionClose(
+                                connection.SessionId,
+                                "Client connection ended."),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+            }
             foreach (var transfer in _fileTransfers.Values.Where(
                          transfer => transfer.ClientId == connection.Id))
             {
@@ -351,45 +523,35 @@ public sealed class ReachHostService : BackgroundService
                     .ConfigureAwait(false);
                 _sessionConnection = connection;
                 Log("Interactive session helper connected.");
-                await connection.SendAsync(
-                    new LocalIpcFrame(
-                        Interlocked.Increment(ref _localSequence),
-                        "control",
-                        "attach",
-                        ReachMessageCodec.Serialize(
+                var pendingClient = _clients.Values
+                    .Where(static client => client.IsReady)
+                    .OrderBy(static client => client.Id)
+                    .FirstOrDefault();
+                if (pendingClient is not null)
+                {
+                    await SendSessionCommandAsync(
                             ReachMessageType.SessionOpen,
-                            Interlocked.Increment(ref _localSequence),
-                            new ReachSessionOpen(Guid.NewGuid(), string.Empty))),
-                    cancellationToken).ConfigureAwait(false);
+                            new ReachSessionOpen(
+                                pendingClient.SessionId,
+                                pendingClient.RequestedDisplayId,
+                                pendingClient.EnableAudio),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
 
                 await foreach (var frame in connection.ReadAllAsync(cancellationToken))
                 {
-                    if (frame.Kind == "media"
-                        && (frame.Name == "VideoFrame" || frame.Name == "AudioFrame"))
-                    {
-                        var envelope = ReachMessageCodec.Deserialize(frame.Payload);
-                        if (!_sharingPaused)
-                        {
-                            if (envelope.Type == ReachMessageType.VideoFrame)
-                            {
-                                var packet = ReachMessageCodec.ReadBody<ReachVideoFrame>(envelope);
-                                await BroadcastAsync(
-                                        envelope.Type,
-                                        packet,
-                                        cancellationToken)
-                                    .ConfigureAwait(false);
-                            }
-                            else if (envelope.Type == ReachMessageType.AudioFrame)
-                            {
-                                var packet = ReachMessageCodec.ReadBody<ReachAudioFrame>(envelope);
-                                await BroadcastAsync(
-                                        envelope.Type,
-                                        packet,
-                                        cancellationToken)
-                                    .ConfigureAwait(false);
-                            }
-                        }
-                    }
+                    var envelope = ReachMessageCodec.Deserialize(frame.Payload);
+                    if (!IsHostToClientFrame(frame.Kind, envelope.Type))
+                        continue;
+                    if (_sharingPaused && frame.Kind == "media")
+                        continue;
+
+                    await BroadcastPayloadAsync(
+                            envelope,
+                            frame.Payload,
+                            cancellationToken)
+                        .ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -411,6 +573,21 @@ public sealed class ReachHostService : BackgroundService
                 .ConfigureAwait(false);
         }
     }
+
+    private static bool IsHostToClientFrame(
+        string kind,
+        ReachMessageType type) =>
+        kind switch
+        {
+            "control" => type is ReachMessageType.VideoStreamStart
+                or ReachMessageType.VideoStreamReset
+                or ReachMessageType.DisplayTopology
+                or ReachMessageType.AudioStreamStart
+                or ReachMessageType.ClipboardContent,
+            "media" => type is ReachMessageType.VideoFrame
+                or ReachMessageType.AudioFrame,
+            _ => false,
+        };
 
     private void TryStartSessionHelper()
     {
@@ -497,19 +674,24 @@ public sealed class ReachHostService : BackgroundService
         }
     }
 
-    private async Task BroadcastAsync<T>(
-        ReachMessageType type,
-        T message,
+    private async Task BroadcastPayloadAsync(
+        ReachMessageEnvelope envelope,
+        byte[] payload,
         CancellationToken cancellationToken)
     {
-        var payload = ReachMessageCodec.Serialize(
-            type,
-            Interlocked.Increment(ref _localSequence),
-            message);
         var sends = _clients.Values
-            .Where(static client => client.IsReady)
+            .Where(client =>
+                client.IsReady
+                && (envelope.Type is not ReachMessageType.AudioStreamStart
+                    and not ReachMessageType.AudioFrame
+                    || client.Capabilities?.Supports(ReachCapability.Audio) == true))
             .Select(client =>
-                client.SendPayloadAsync(payload, cancellationToken).AsTask());
+                client.SendPayloadForChannelAsync(
+                        payload,
+                        envelope.Type is ReachMessageType.VideoFrame
+                            or ReachMessageType.AudioFrame,
+                        cancellationToken)
+                    .AsTask());
         await Task.WhenAll(sends).ConfigureAwait(false);
     }
 
@@ -667,13 +849,14 @@ public sealed class ReachHostService : BackgroundService
     }
 
     private static async Task<T> ReadMessageAsync<T>(
+        ReachMessageType expectedType,
         Stream stream,
         CancellationToken cancellationToken)
     {
         var envelope = await ReadEnvelopeAsync(stream, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new EndOfStreamException("Reach client closed the control stream.");
-        return ReachMessageCodec.ReadBody<T>(envelope);
+        return ReachMessageCodec.ReadBody<T>(envelope, expectedType);
     }
 
     private static async Task<ReachMessageEnvelope?> ReadEnvelopeAsync(
@@ -696,6 +879,8 @@ public sealed class ReachHostService : BackgroundService
     {
         private readonly TcpClient _client;
         private readonly SemaphoreSlim _sendGate = new(1, 1);
+        private readonly SemaphoreSlim _mediaSendGate = new(1, 1);
+        private NetworkStream? _mediaStream;
 
         public ClientConnection(long id, TcpClient client)
         {
@@ -708,6 +893,29 @@ public sealed class ReachHostService : BackgroundService
         public NetworkStream Stream { get; }
         public EndPoint? RemoteEndPoint => _client.Client.RemoteEndPoint;
         public bool IsReady { get; set; }
+        public ReachCapabilities? Capabilities { get; set; }
+        public Guid SessionId { get; set; }
+        public string RequestedDisplayId { get; set; } = string.Empty;
+        public long LastVideoSequence { get; set; }
+        public bool EnableAudio { get; set; }
+        public bool SessionCloseForwarded { get; set; }
+        public bool HasMediaChannel => Volatile.Read(ref _mediaStream) is not null;
+
+        public void AttachMediaStream(NetworkStream stream)
+        {
+            var previous = Interlocked.Exchange(ref _mediaStream, stream);
+            previous?.Dispose();
+        }
+
+        public void DetachMediaStream(NetworkStream stream)
+        {
+            if (ReferenceEquals(
+                    Interlocked.CompareExchange(ref _mediaStream, null, stream),
+                    stream))
+            {
+                stream.Dispose();
+            }
+        }
 
         public async ValueTask SendAsync<T>(
             ReachMessageType type,
@@ -741,11 +949,47 @@ public sealed class ReachHostService : BackgroundService
             }
         }
 
+        public async ValueTask SendPayloadForChannelAsync(
+            byte[] payload,
+            bool media,
+            CancellationToken cancellationToken)
+        {
+            var mediaStream = Volatile.Read(ref _mediaStream);
+            if (!media || mediaStream is null)
+            {
+                await SendPayloadAsync(payload, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            await _mediaSendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await LengthPrefixedFrameCodec.WriteAsync(
+                        mediaStream,
+                        payload,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                DetachMediaStream(mediaStream);
+                await SendPayloadAsync(payload, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                _mediaSendGate.Release();
+            }
+        }
+
         public async ValueTask DisposeAsync()
         {
+            var mediaStream = Interlocked.Exchange(ref _mediaStream, null);
+            if (mediaStream is not null)
+                await mediaStream.DisposeAsync().ConfigureAwait(false);
             await Stream.DisposeAsync().ConfigureAwait(false);
             _client.Dispose();
             _sendGate.Dispose();
+            _mediaSendGate.Dispose();
         }
     }
 

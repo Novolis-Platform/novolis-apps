@@ -16,7 +16,8 @@ public sealed class WindowsReachAudioPresenter : IReachAudioPresenter
     public void Present(ReachAudioFrame frame)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!string.Equals(frame.Codec, "PCM", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(frame.Codec, "PCM", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(frame.Codec, "PCM_FLOAT", StringComparison.OrdinalIgnoreCase))
             return;
 
         lock (_gate)

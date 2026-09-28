@@ -795,7 +795,7 @@
         "groupName": "Novolis Reach",
         "setupBase": "ReachSetup",
         "scriptFile": "reach.iss",
-        "closeApplicationsFilter": "Novolis.Reach.Client.Windows.exe",
+        "closeApplicationsFilter": "Novolis.Reach.Client.Windows.exe;Novolis.Reach.Host.Windows.Service.exe;Novolis.Reach.Host.Windows.Session.exe;Novolis.Reach.Host.Windows.Console.exe",
         "fileAssociationsAllowed": false
       },
       "android": {

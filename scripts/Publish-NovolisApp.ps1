@@ -94,6 +94,33 @@ function Get-NovolisLinuxAppCatalog {
     }
 }
 
+function Add-NovolisReachInstallerEntries {
+    param([Parameter(Mandatory)][string]$ScriptPath)
+
+    $contents = [IO.File]::ReadAllText($ScriptPath)
+    $newLine = if ($contents.Contains("`r`n")) { "`r`n" } else { "`n" }
+    $startup = 'Name: "{userstartup}\Novolis Reach Host"; Filename: "{app}\Novolis.Reach.Host.Windows.Service.exe"; WorkingDir: "{app}"'
+    $run = 'Filename: "{app}\Novolis.Reach.Host.Windows.Service.exe"; Description: "Start Novolis Reach Host"; Flags: nowait runhidden skipifsilent'
+
+    if (-not $contents.Contains("[Icons]$newLine")) {
+        throw "Reach installer script is missing the [Icons] section: $ScriptPath"
+    }
+    if (-not $contents.Contains("[Run]$newLine")) {
+        throw "Reach installer script is missing the [Run] section: $ScriptPath"
+    }
+
+    $contents = $contents.Replace(
+        "[Icons]$newLine",
+        "[Icons]$newLine$startup$newLine")
+    $contents = $contents.Replace(
+        "[Run]$newLine",
+        "[Run]$newLine$run$newLine")
+    [IO.File]::WriteAllText(
+        $ScriptPath,
+        $contents,
+        [Text.UTF8Encoding]::new($false))
+}
+
 function Publish-NovolisApp {
     param(
         [Parameter(Mandatory)]
@@ -205,6 +232,9 @@ function Publish-NovolisApp {
         -t:NovolisGenerateInnoScript `
         @(Get-NovolisMsBuildPropertyArgs -Properties $inno.MsBuildArgs) | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Generating the Inno script failed with exit code $LASTEXITCODE." }
+    if ($AppKey -eq 'reach') {
+        Add-NovolisReachInstallerEntries -ScriptPath $inno.ScriptPath
+    }
 
     $iscc = @(
         "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"

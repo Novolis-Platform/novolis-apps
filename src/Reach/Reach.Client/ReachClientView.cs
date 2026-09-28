@@ -46,6 +46,8 @@ public sealed class ReachClientView : UserControl
         _presenter = presenter ?? new NullReachVideoPresenter();
         _session.VideoFrameReceived += _presenter.Present;
         _presenter.FrameDecoded += OnFrameDecoded;
+        if (_presenter is IReachKeyFrameRequester keyFrameRequester)
+            keyFrameRequester.KeyFrameRequested += OnKeyFrameRequested;
         _audioPresenter = audioPresenter ?? new NullReachAudioPresenter();
         _session.AudioFrameReceived += _audioPresenter.Present;
 
@@ -272,6 +274,9 @@ public sealed class ReachClientView : UserControl
         _videoImage.Source = bitmap;
         (previous as IDisposable)?.Dispose();
     }
+
+    private void OnKeyFrameRequested() =>
+        QueueInput(() => _session.RequestKeyFrameAsync());
 
     private void OnDisplayTopology(ReachDisplayTopology topology)
     {

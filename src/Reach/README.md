@@ -21,9 +21,13 @@ implementation.
 | `Novolis.Reach.Client.Linux` | Linux client |
 | `Novolis.Reach.Client.Android` | Android client |
 
-The service binds only to configured Tailscale IPv4 addresses. Reach has no
-Novolis account, relay, or public authentication flow in this personal-use
-shape.
+The service binds to loopback, private IPv4, and Tailscale IPv4 addresses.
+Reach has no Novolis account, relay, or public authentication flow in this
+personal-use shape.
+
+The host uses TCP `19800` for control/input, TCP `19801` for encoded media,
+and UDP `19802` for discovery. Clients fall back to the control stream when an
+older host does not expose the media channel.
 
 ## Run locally
 
@@ -36,7 +40,7 @@ dotnet run --project d:\novolis\novolis-apps\src\Reach\Reach.Client.Windows\Reac
 Windows, Linux, and Android clients are day-one Reach clients. The release
 catalog produces a Windows installer, a self-contained Linux tarball, and an
 Android APK; the Windows installer also contains the Service, Session, and
-Console host components.
+Console host components and starts the host process at install and user-logon.
 
 ### Local protocol emulator
 

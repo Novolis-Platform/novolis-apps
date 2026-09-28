@@ -13,6 +13,13 @@ public interface IReachVideoPresenter : IDisposable
     void Present(ReachVideoFrame frame);
 }
 
+/// <summary>Optional decoder recovery notification for presenters that lose codec state.</summary>
+public interface IReachKeyFrameRequester
+{
+    /// <summary>Raised when the presenter needs a fresh key frame.</summary>
+    event Action? KeyFrameRequested;
+}
+
 /// <summary>Presenter used on platforms without a decoder in the current slice.</summary>
 public sealed class NullReachVideoPresenter : IReachVideoPresenter
 {

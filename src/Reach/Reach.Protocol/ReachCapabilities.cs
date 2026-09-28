@@ -57,7 +57,7 @@ public sealed record ReachCapabilities(
         | ReachCapability.AdaptiveQuality,
         MaximumDisplays: 8,
         VideoCodecs: ["H264"],
-        AudioCodecs: ["PCM"]);
+        AudioCodecs: ["PCM", "PCM_FLOAT"]);
 
     /// <summary>Baseline capabilities for a Windows client.</summary>
     public static ReachCapabilities WindowsClient { get; } = new(
@@ -70,7 +70,7 @@ public sealed record ReachCapabilities(
         | ReachCapability.AdaptiveQuality,
         MaximumDisplays: 8,
         VideoCodecs: ["H264"],
-        AudioCodecs: ["PCM"]);
+        AudioCodecs: ["PCM", "PCM_FLOAT"]);
 
     /// <summary>Baseline capabilities for a Linux client.</summary>
     public static ReachCapabilities LinuxClient { get; } = new(
