@@ -37,7 +37,8 @@ public sealed class ReachHostService : BackgroundService
     private long _localSequence;
     private string[] _endpoints = [];
     private bool _sharingPaused;
-    private bool _sessionHelperLaunchAttempted;
+    private DateTimeOffset _nextSessionHelperLaunchAttempt =
+        DateTimeOffset.MinValue;
 
     /// <summary>Creates the host service.</summary>
     public ReachHostService(
@@ -52,10 +53,15 @@ public sealed class ReachHostService : BackgroundService
     public ReachHostStatus GetStatus()
     {
         _sessions.TryGetActiveSession(out var session);
+        var sessionConnection = Volatile.Read(ref _sessionConnection);
         lock (_messagesGate)
         {
             return new ReachHostStatus(
-                _endpoints.Length == 0 ? "Waiting for LAN or Tailscale" : "Running",
+                _endpoints.Length == 0
+                    ? "Waiting for LAN or Tailscale"
+                    : sessionConnection is null
+                        ? "Waiting for interactive session"
+                        : "Running",
                 _endpoints,
                 _clients.Count,
                 _sharingPaused,
@@ -213,10 +219,11 @@ public sealed class ReachHostService : BackgroundService
         TcpClient client,
         CancellationToken cancellationToken)
     {
-        var ownsClient = true;
+        NetworkStream? stream = null;
+        ClientConnection? connection = null;
         try
         {
-            var stream = client.GetStream();
+            stream = client.GetStream();
             var envelope = await ReadEnvelopeAsync(stream, cancellationToken)
                 .ConfigureAwait(false)
                 ?? throw new EndOfStreamException("Reach media client closed during hello.");
@@ -231,7 +238,6 @@ public sealed class ReachHostService : BackgroundService
             }
 
             var remoteAddress = (client.Client.RemoteEndPoint as IPEndPoint)?.Address;
-            ClientConnection? connection = null;
             for (var attempt = 0; attempt < 60; attempt++)
             {
                 connection = _clients.Values.FirstOrDefault(candidate =>
@@ -250,11 +256,8 @@ public sealed class ReachHostService : BackgroundService
                 throw new InvalidDataException("Reach media hello has no active control session.");
 
             connection.AttachMediaStream(stream);
-            ownsClient = false;
             Log($"Media channel attached to client {connection.Id}.");
             await stream.CopyToAsync(Stream.Null, cancellationToken).ConfigureAwait(false);
-            connection.DetachMediaStream(stream);
-            ownsClient = true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -265,8 +268,9 @@ public sealed class ReachHostService : BackgroundService
         }
         finally
         {
-            if (ownsClient)
-                client.Dispose();
+            if (connection is not null && stream is not null)
+                connection.DetachMediaStream(stream);
+            client.Dispose();
         }
     }
 
@@ -343,6 +347,17 @@ public sealed class ReachHostService : BackgroundService
                 if (envelope.Type == ReachMessageType.SessionOpen)
                 {
                     var open = ReachMessageCodec.ReadBody<ReachSessionOpen>(envelope);
+                    if (!await WaitForSessionConnectionAsync(cancellationToken)
+                            .ConfigureAwait(false))
+                    {
+                        await SendSessionEndedAsync(
+                                connection,
+                                "The interactive Reach host is unavailable.",
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
                     connection.SessionId = open.SessionId;
                     connection.RequestedDisplayId = open.RequestedDisplayId;
                     connection.EnableAudio = open.EnableAudio
@@ -361,6 +376,17 @@ public sealed class ReachHostService : BackgroundService
                 if (envelope.Type == ReachMessageType.SessionResume)
                 {
                     var resume = ReachMessageCodec.ReadBody<ReachSessionResume>(envelope);
+                    if (!await WaitForSessionConnectionAsync(cancellationToken)
+                            .ConfigureAwait(false))
+                    {
+                        await SendSessionEndedAsync(
+                                connection,
+                                "The interactive Reach host is unavailable.",
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
                     connection.SessionId = resume.SessionId;
                     connection.LastVideoSequence = resume.LastVideoSequence;
                     connection.EnableAudio = resume.EnableAudio
@@ -521,7 +547,7 @@ public sealed class ReachHostService : BackgroundService
                         new LocalIpcEndpoint(SessionEndpoint),
                         cancellationToken)
                     .ConfigureAwait(false);
-                _sessionConnection = connection;
+                Interlocked.Exchange(ref _sessionConnection, connection);
                 Log("Interactive session helper connected.");
                 var pendingClient = _clients.Values
                     .Where(static client => client.IsReady)
@@ -567,6 +593,14 @@ public sealed class ReachHostService : BackgroundService
                 var connection = Interlocked.Exchange(ref _sessionConnection, null);
                 if (connection is not null)
                     await connection.DisposeAsync().ConfigureAwait(false);
+
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    await NotifySessionEndedAsync(
+                            "The interactive Reach host connection ended.",
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
 
             await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken)
@@ -591,10 +625,11 @@ public sealed class ReachHostService : BackgroundService
 
     private void TryStartSessionHelper()
     {
-        if (_sessionHelperLaunchAttempted)
+        var now = DateTimeOffset.UtcNow;
+        if (now < _nextSessionHelperLaunchAttempt)
             return;
 
-        _sessionHelperLaunchAttempted = true;
+        _nextSessionHelperLaunchAttempt = now.AddSeconds(5);
         var executable = Path.Combine(
             AppContext.BaseDirectory,
             "Novolis.Reach.Host.Windows.exe");
@@ -614,6 +649,70 @@ public sealed class ReachHostService : BackgroundService
         else
         {
             Log($"Could not start the interactive Reach host (Win32 {errorCode}).");
+        }
+    }
+
+    private async Task<bool> WaitForSessionConnectionAsync(
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            if (Volatile.Read(ref _sessionConnection) is not null)
+                return true;
+
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return Volatile.Read(ref _sessionConnection) is not null;
+    }
+
+    private async Task SendSessionEndedAsync(
+        ClientConnection connection,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        connection.SessionCloseForwarded = true;
+        await connection.SendAsync(
+                ReachMessageType.SessionClose,
+                new ReachSessionClose(connection.SessionId, reason),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task NotifySessionEndedAsync(
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var sends = _clients.Values
+            .Where(static client => client.IsReady)
+            .Select(client => NotifySessionEndedAsync(
+                client,
+                reason,
+                cancellationToken));
+        await Task.WhenAll(sends).ConfigureAwait(false);
+    }
+
+    private async Task NotifySessionEndedAsync(
+        ClientConnection connection,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SendSessionEndedAsync(
+                    connection,
+                    reason,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception) when (
+            exception is IOException
+                or ObjectDisposedException
+                or SocketException
+                or InvalidOperationException)
+        {
+            Log($"Could not notify client {connection.Id} that the session ended: {exception.Message}");
         }
     }
 
@@ -685,14 +784,37 @@ public sealed class ReachHostService : BackgroundService
                 && (envelope.Type is not ReachMessageType.AudioStreamStart
                     and not ReachMessageType.AudioFrame
                     || client.Capabilities?.Supports(ReachCapability.Audio) == true))
-            .Select(client =>
-                client.SendPayloadForChannelAsync(
-                        payload,
-                        envelope.Type is ReachMessageType.VideoFrame
-                            or ReachMessageType.AudioFrame,
-                        cancellationToken)
-                    .AsTask());
+            .Select(client => BroadcastPayloadToClientAsync(
+                client,
+                payload,
+                envelope.Type is ReachMessageType.VideoFrame
+                    or ReachMessageType.AudioFrame,
+                cancellationToken));
         await Task.WhenAll(sends).ConfigureAwait(false);
+    }
+
+    private async Task BroadcastPayloadToClientAsync(
+        ClientConnection connection,
+        byte[] payload,
+        bool media,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await connection.SendPayloadForChannelAsync(
+                    payload,
+                    media,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception) when (
+            exception is IOException
+                or ObjectDisposedException
+                or SocketException
+                or InvalidOperationException)
+        {
+            Log($"Client {connection.Id} dropped during broadcast: {exception.Message}");
+        }
     }
 
     private async Task HandleFileOfferAsync(
@@ -881,6 +1003,7 @@ public sealed class ReachHostService : BackgroundService
         private readonly SemaphoreSlim _sendGate = new(1, 1);
         private readonly SemaphoreSlim _mediaSendGate = new(1, 1);
         private NetworkStream? _mediaStream;
+        private int _disposeStarted;
 
         public ClientConnection(long id, TcpClient client)
         {
@@ -934,9 +1057,11 @@ public sealed class ReachHostService : BackgroundService
             byte[] payload,
             CancellationToken cancellationToken)
         {
+            ThrowIfDisposed();
             await _sendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                ThrowIfDisposed();
                 await LengthPrefixedFrameCodec.WriteAsync(
                         Stream,
                         payload,
@@ -954,6 +1079,7 @@ public sealed class ReachHostService : BackgroundService
             bool media,
             CancellationToken cancellationToken)
         {
+            ThrowIfDisposed();
             var mediaStream = Volatile.Read(ref _mediaStream);
             if (!media || mediaStream is null)
             {
@@ -964,6 +1090,7 @@ public sealed class ReachHostService : BackgroundService
             await _mediaSendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                ThrowIfDisposed();
                 await LengthPrefixedFrameCodec.WriteAsync(
                         mediaStream,
                         payload,
@@ -983,13 +1110,23 @@ public sealed class ReachHostService : BackgroundService
 
         public async ValueTask DisposeAsync()
         {
+            if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
+                return;
+
             var mediaStream = Interlocked.Exchange(ref _mediaStream, null);
             if (mediaStream is not null)
                 await mediaStream.DisposeAsync().ConfigureAwait(false);
             await Stream.DisposeAsync().ConfigureAwait(false);
             _client.Dispose();
-            _sendGate.Dispose();
-            _mediaSendGate.Dispose();
+            // The gates are intentionally left undisposed. A broadcast may
+            // already be waiting on one while the client is being removed;
+            // disposing it here races that waiter and tears down the service.
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (Volatile.Read(ref _disposeStarted) != 0)
+                throw new ObjectDisposedException(nameof(ClientConnection));
         }
     }
 
