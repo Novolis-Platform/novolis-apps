@@ -208,10 +208,12 @@ public sealed class AndroidReachVideoPresenter :
                 {
                     if (Interlocked.Increment(ref _decodedFramesLogged) <= 5)
                     {
+                        var (brightPixels, meanValue) = MeasureLuma(decoded.Pixels);
                         Log.Info(
                             "Novolis.Reach",
                             $"Decoded H.264 frame {decoded.Width}x{decoded.Height}, "
-                            + $"min={decoded.Pixels.Min()}, max={decoded.Pixels.Max()}.");
+                            + $"min={decoded.Pixels.Min()}, max={decoded.Pixels.Max()}, "
+                            + $"bright={brightPixels}, mean={meanValue}.");
                     }
 
                     FrameDecoded?.Invoke(decoded);
@@ -347,6 +349,25 @@ public sealed class AndroidReachVideoPresenter :
     }
 
     private static int Clamp(int value) => global::System.Math.Clamp(value, 0, 255);
+
+    private static (int BrightPixels, int MeanValue) MeasureLuma(byte[] pixels)
+    {
+        long total = 0;
+        var bright = 0;
+        var pixelCount = 0;
+        for (var index = 0; index + 2 < pixels.Length; index += 4)
+        {
+            var value = global::System.Math.Max(
+                pixels[index],
+                global::System.Math.Max(pixels[index + 1], pixels[index + 2]));
+            total += value;
+            if (value > 16)
+                bright++;
+            pixelCount++;
+        }
+
+        return (bright, pixelCount == 0 ? 0 : (int)(total / pixelCount));
+    }
 
     private readonly record struct PlaneData(
         byte[] Bytes,
