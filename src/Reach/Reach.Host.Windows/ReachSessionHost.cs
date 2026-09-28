@@ -266,7 +266,8 @@ public sealed class ReachSessionHost : BackgroundService
                         _targetHeight,
                         _framesPerSecond,
                         _targetBitrate,
-                        cancellationToken)
+                        cancellationToken,
+                        notifyReset: false)
                     .ConfigureAwait(false);
                 break;
         }
@@ -308,7 +309,8 @@ public sealed class ReachSessionHost : BackgroundService
         int height,
         int framesPerSecond,
         int targetBitrate,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool notifyReset = true)
     {
         _targetWidth = width;
         _targetHeight = height;
@@ -318,13 +320,17 @@ public sealed class ReachSessionHost : BackgroundService
         var connection = _connection;
         if (connection is not null)
         {
-            await SendAsync(
-                    connection,
-                    ReachMessageType.VideoStreamReset,
-                    new ReachVideoStreamReset(Interlocked.Read(ref _sequence)),
-                    "control",
-                    cancellationToken)
-                .ConfigureAwait(false);
+            if (notifyReset)
+            {
+                await SendAsync(
+                        connection,
+                        ReachMessageType.VideoStreamReset,
+                        new ReachVideoStreamReset(Interlocked.Read(ref _sequence)),
+                        "control",
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             await StartCaptureAsync(cancellationToken).ConfigureAwait(false);
         }
     }

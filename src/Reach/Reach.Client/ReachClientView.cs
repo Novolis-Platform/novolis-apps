@@ -79,8 +79,6 @@ public sealed class ReachClientView : UserControl
         _presenter.FrameDecoded += OnFrameDecoded;
         if (_presenter is IReachKeyFrameRequester keyFrameRequester)
             keyFrameRequester.KeyFrameRequested += OnKeyFrameRequested;
-        if (_presenter is IReachVideoStreamResetter streamResetter)
-            _session.VideoStreamReset += _ => streamResetter.ResetStream();
         _audioPresenter = audioPresenter ?? new NullReachAudioPresenter();
         _session.AudioFrameReceived += _audioPresenter.Present;
 
@@ -444,8 +442,37 @@ public sealed class ReachClientView : UserControl
 
     private void OnVideoStreamReset(ReachVideoStreamReset reset)
     {
-        ClearVideoFrame();
+        ResetVideoStreamForRecovery();
         OnStatusChanged($"Remote video stream reset at frame {reset.Sequence}.");
+    }
+
+    private void ResetVideoStreamForRecovery()
+    {
+        void Reset()
+        {
+            lock (_frameGate)
+            {
+                _pendingFrame = null;
+                _frameUpdateScheduled = false;
+            }
+
+            _streamStatusShown = false;
+            _touchPoints.Clear();
+            _touchGestureActive = false;
+            _touchRemoteButtonDown = false;
+            _videoZoom = 1;
+            _videoScale.ScaleX = 1;
+            _videoScale.ScaleY = 1;
+            _videoTranslation.X = 0;
+            _videoTranslation.Y = 0;
+            if (_presenter is IReachVideoStreamResetter streamResetter)
+                streamResetter.ResetStream();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Reset();
+        else
+            Dispatcher.UIThread.Post(Reset);
     }
 
     private void UpdateConnectionControls()

@@ -82,7 +82,11 @@ public sealed class AndroidReachVideoPresenter :
         // Never let slow software YUV conversion turn the TCP stream into a
         // queue of stale desktop frames. Drop the oldest access unit and ask
         // the host for a fresh intra frame so the decoder can catch up cleanly.
-        _frames.Reader.TryRead(out _);
+        while (_frames.Reader.TryRead(out _))
+        {
+        }
+
+        Interlocked.Exchange(ref _resetRequested, 1);
         _streamGate.RequireKeyFrame();
         RequestKeyFrame();
         _frames.Writer.TryWrite(frame);
