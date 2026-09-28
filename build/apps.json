@@ -767,8 +767,7 @@
           "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",
           "src/Reach/Reach.Client.Android/Reach.Client.Android.csproj",
           "src/Reach/Reach.Host.Windows.Service/Reach.Host.Windows.Service.csproj",
-          "src/Reach/Reach.Host.Windows.Session/Reach.Host.Windows.Session.csproj",
-          "src/Reach/Reach.Host.Windows.Console/Reach.Host.Windows.Console.csproj",
+          "src/Reach/Reach.Host.Windows/Reach.Host.Windows.csproj",
           "tests/Reach.Unit/Reach.Unit.csproj"
         ]
       },
@@ -787,15 +786,14 @@
         "exeName": "Novolis.Reach.Client.Windows.exe",
         "additionalProjects": [
           "src/Reach/Reach.Host.Windows.Service/Reach.Host.Windows.Service.csproj",
-          "src/Reach/Reach.Host.Windows.Session/Reach.Host.Windows.Session.csproj",
-          "src/Reach/Reach.Host.Windows.Console/Reach.Host.Windows.Console.csproj"
+          "src/Reach/Reach.Host.Windows/Reach.Host.Windows.csproj"
         ],
         "appId": "Novolis.Reach",
         "installDir": "Novolis\\Reach",
         "groupName": "Novolis Reach",
         "setupBase": "ReachSetup",
         "scriptFile": "reach.iss",
-        "closeApplicationsFilter": "Novolis.Reach.Client.Windows.exe;Novolis.Reach.Host.Windows.Service.exe;Novolis.Reach.Host.Windows.Session.exe;Novolis.Reach.Host.Windows.Console.exe",
+        "closeApplicationsFilter": "Novolis.Reach.Client.Windows.exe;Novolis.Reach.Host.Windows.Service.exe;Novolis.Reach.Host.Windows.exe",
         "fileAssociationsAllowed": false
       },
       "android": {

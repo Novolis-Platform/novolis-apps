@@ -23,13 +23,33 @@ public sealed class ReachClientView : UserControl
     private readonly Button _discover;
     private readonly Button _connect;
     private readonly Image _videoImage;
+    private readonly Border _videoSurface;
+    private readonly TextBox _remoteTextInput;
+    private readonly Button _sendText;
     private readonly IReachVideoPresenter _presenter;
     private readonly IReachAudioPresenter _audioPresenter;
     private readonly HashSet<Key> _pressedKeys = [];
+    private readonly Dictionary<int, Point> _touchPoints = [];
+    private readonly ScaleTransform _videoScale = new(1, 1);
+    private readonly TranslateTransform _videoTranslation = new();
+    private readonly object _frameGate = new();
     private int _videoWidth;
     private int _videoHeight;
     private int _selectedDisplayLeft;
     private int _selectedDisplayTop;
+    private int _selectedDisplayWidth;
+    private int _selectedDisplayHeight;
+    private RawVideoFrame? _pendingFrame;
+    private bool _frameUpdateScheduled;
+    private bool _androidVideoConfigured;
+    private bool _touchGestureActive;
+    private bool _touchRemoteButtonDown;
+    private double _gestureStartDistance;
+    private double _gestureStartZoom;
+    private double _gestureStartPanX;
+    private double _gestureStartPanY;
+    private Point _gestureStartCenter;
+    private double _videoZoom = 1;
     private bool _discoveryActive;
 
     /// <summary>Creates the shared client surface.</summary>
@@ -89,6 +109,14 @@ public sealed class ReachClientView : UserControl
             VerticalAlignment = VerticalAlignment.Stretch,
             Focusable = true,
             IsHitTestVisible = true,
+            RenderTransformOrigin = new RelativePoint(
+                0.5,
+                0.5,
+                RelativeUnit.Relative),
+            RenderTransform = new TransformGroup
+            {
+                Children = { _videoScale, _videoTranslation },
+            },
         };
         _videoImage.AddHandler(
             InputElement.PointerPressedEvent,
@@ -109,16 +137,37 @@ public sealed class ReachClientView : UserControl
             InputElement.TextInputEvent,
             OnVideoTextInput,
             RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
-        var videoSurface = new Border
+        _videoSurface = new Border
         {
             Background = Brushes.Black,
             MinHeight = 360,
+            ClipToBounds = true,
             Child = _videoImage,
+        };
+        _remoteTextInput = new TextBox
+        {
+            Watermark = "Type to send to remote session",
+            Width = 240,
+            IsVisible = OperatingSystem.IsAndroid(),
+        };
+        _sendText = new Button
+        {
+            Content = "Send",
+            IsVisible = OperatingSystem.IsAndroid(),
+        };
+        _sendText.Click += SendTextClicked;
+        _remoteTextInput.KeyDown += RemoteTextKeyDown;
+        var remoteTextRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            IsVisible = OperatingSystem.IsAndroid(),
+            Children = { _remoteTextInput, _sendText },
         };
 
         Content = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*"),
             Margin = new global::Avalonia.Thickness(24),
             RowSpacing = 12,
             Children =
@@ -131,12 +180,14 @@ public sealed class ReachClientView : UserControl
                 },
                 _status,
                 _capabilities,
-                videoSurface,
+                remoteTextRow,
+                _videoSurface,
             },
         };
         Grid.SetRow(_status, 1);
         Grid.SetRow(_capabilities, 2);
-        Grid.SetRow(videoSurface, 3);
+        Grid.SetRow(remoteTextRow, 3);
+        Grid.SetRow(_videoSurface, 4);
 
         _ = DiscoverHostsAsync();
     }
@@ -202,6 +253,7 @@ public sealed class ReachClientView : UserControl
     private async Task<bool> ConnectToEndpointAsync()
     {
         _connect.IsEnabled = false;
+        _androidVideoConfigured = false;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         try
         {
@@ -244,12 +296,46 @@ public sealed class ReachClientView : UserControl
 
         _videoWidth = frame.Width;
         _videoHeight = frame.Height;
-        if (!Dispatcher.UIThread.CheckAccess())
+        lock (_frameGate)
         {
-            Dispatcher.UIThread.Post(() => OnFrameDecoded(frame));
-            return;
+            _pendingFrame = frame;
+            if (_frameUpdateScheduled)
+                return;
+
+            _frameUpdateScheduled = true;
         }
 
+        Dispatcher.UIThread.Post(ApplyPendingFrame);
+    }
+
+    private void ApplyPendingFrame()
+    {
+        RawVideoFrame? frame;
+        lock (_frameGate)
+        {
+            frame = _pendingFrame;
+            _pendingFrame = null;
+        }
+
+        if (frame is not null)
+        {
+            ApplyFrame(frame);
+        }
+
+        lock (_frameGate)
+        {
+            if (_pendingFrame is null)
+            {
+                _frameUpdateScheduled = false;
+                return;
+            }
+        }
+
+        Dispatcher.UIThread.Post(ApplyPendingFrame);
+    }
+
+    private void ApplyFrame(RawVideoFrame frame)
+    {
         var bitmap = new WriteableBitmap(
             new PixelSize(frame.Width, frame.Height),
             new Vector(96, 96),
@@ -288,12 +374,25 @@ public sealed class ReachClientView : UserControl
         {
             _selectedDisplayLeft = display.Left;
             _selectedDisplayTop = display.Top;
+            _selectedDisplayWidth = display.Width;
+            _selectedDisplayHeight = display.Height;
         }
 
         if (Dispatcher.UIThread.CheckAccess())
             Apply();
         else
             Dispatcher.UIThread.Post(Apply);
+
+        if (OperatingSystem.IsAndroid() && !_androidVideoConfigured)
+        {
+            _androidVideoConfigured = true;
+            var (width, height) = GetAndroidVideoSize(display);
+            QueueInput(() => _session.ConfigureVideoAsync(
+                width,
+                height,
+                20,
+                3_000_000));
+        }
     }
 
     private void OnVideoStreamStarted(ReachVideoStreamStart stream)
@@ -319,11 +418,43 @@ public sealed class ReachClientView : UserControl
     private void OnVideoPointerPressed(object? sender, PointerPressedEventArgs args)
     {
         _videoImage.Focus();
+        if (args.Pointer.Type == PointerType.Touch)
+        {
+            _touchPoints[args.Pointer.Id] = args.GetPosition(_videoSurface);
+            if (_touchPoints.Count >= 2)
+            {
+                if (_touchRemoteButtonDown)
+                {
+                    QueueInput(() => _session.SendPointerButtonAsync("Left", false));
+                    _touchRemoteButtonDown = false;
+                }
+
+                BeginTouchGesture();
+                args.Pointer.Capture(_videoImage);
+                args.Handled = true;
+                return;
+            }
+
+            if (TryGetRemotePoint(args, out var touchX, out var touchY))
+            {
+                QueueInput(async () =>
+                {
+                    await _session.SendPointerMoveAsync(touchX, touchY);
+                    await _session.SendPointerButtonAsync("Left", true);
+                });
+                _touchRemoteButtonDown = true;
+            }
+
+            args.Pointer.Capture(_videoImage);
+            args.Handled = true;
+            return;
+        }
+
         if (!TryGetRemotePoint(args, out var x, out var y))
             return;
 
         var point = args.GetCurrentPoint(_videoImage);
-        var button = GetPressedButton(point.Properties);
+        var button = GetPressedButton(point.Properties, args.Pointer.Type);
         if (button is null)
             return;
 
@@ -335,6 +466,23 @@ public sealed class ReachClientView : UserControl
 
     private void OnVideoPointerMoved(object? sender, PointerEventArgs args)
     {
+        if (args.Pointer.Type == PointerType.Touch)
+        {
+            _touchPoints[args.Pointer.Id] = args.GetPosition(_videoSurface);
+            if (_touchPoints.Count >= 2)
+            {
+                UpdateTouchGesture();
+                args.Handled = true;
+                return;
+            }
+
+            if (_touchGestureActive)
+            {
+                args.Handled = true;
+                return;
+            }
+        }
+
         if (!TryGetRemotePoint(args, out var x, out var y))
             return;
 
@@ -344,11 +492,34 @@ public sealed class ReachClientView : UserControl
 
     private void OnVideoPointerReleased(object? sender, PointerReleasedEventArgs args)
     {
+        if (args.Pointer.Type == PointerType.Touch)
+        {
+            _touchPoints.Remove(args.Pointer.Id);
+            if (_touchPoints.Count == 0)
+            {
+                if (_touchRemoteButtonDown)
+                    QueueInput(() => _session.SendPointerButtonAsync("Left", false));
+                _touchRemoteButtonDown = false;
+                _touchGestureActive = false;
+                ResetVideoPanIfUnzoomed();
+            }
+            else if (_touchPoints.Count < 2)
+            {
+                _touchGestureActive = true;
+            }
+
+            if (args.Pointer.Captured == _videoImage)
+                args.Pointer.Capture(null);
+            args.Handled = true;
+            return;
+        }
+
         var button = args.InitialPressMouseButton switch
         {
             MouseButton.Left => "Left",
             MouseButton.Right => "Right",
             MouseButton.Middle => "Middle",
+            _ when args.Pointer.Type == PointerType.Touch => "Left",
             _ => null,
         };
         if (button is null)
@@ -360,6 +531,79 @@ public sealed class ReachClientView : UserControl
         args.Handled = true;
     }
 
+    private void BeginTouchGesture()
+    {
+        var points = _touchPoints.Values.Take(2).ToArray();
+        if (points.Length < 2)
+            return;
+
+        _touchGestureActive = true;
+        _gestureStartDistance = Distance(points[0], points[1]);
+        if (_gestureStartDistance < 1)
+            _gestureStartDistance = 1;
+        _gestureStartCenter = Midpoint(points[0], points[1]);
+        _gestureStartZoom = _videoZoom;
+        _gestureStartPanX = _videoTranslation.X;
+        _gestureStartPanY = _videoTranslation.Y;
+    }
+
+    private void UpdateTouchGesture()
+    {
+        if (!_touchGestureActive)
+            BeginTouchGesture();
+
+        var points = _touchPoints.Values.Take(2).ToArray();
+        if (points.Length < 2)
+            return;
+
+        var distance = Math.Max(1, Distance(points[0], points[1]));
+        var center = Midpoint(points[0], points[1]);
+        _videoZoom = Math.Clamp(
+            _gestureStartZoom * distance / _gestureStartDistance,
+            1,
+            4);
+        ApplyVideoTransform(
+            _videoZoom,
+            _gestureStartPanX + center.X - _gestureStartCenter.X,
+            _gestureStartPanY + center.Y - _gestureStartCenter.Y);
+    }
+
+    private void ApplyVideoTransform(double zoom, double panX, double panY)
+    {
+        var bounds = _videoSurface.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return;
+
+        var scale = Math.Min(
+            bounds.Width / Math.Max(1, _videoWidth),
+            bounds.Height / Math.Max(1, _videoHeight));
+        var renderedWidth = _videoWidth * scale;
+        var renderedHeight = _videoHeight * scale;
+        var maxPanX = Math.Max(0, (renderedWidth * zoom - bounds.Width) / 2);
+        var maxPanY = Math.Max(0, (renderedHeight * zoom - bounds.Height) / 2);
+        _videoZoom = zoom;
+        _videoScale.ScaleX = zoom;
+        _videoScale.ScaleY = zoom;
+        _videoTranslation.X = Math.Clamp(panX, -maxPanX, maxPanX);
+        _videoTranslation.Y = Math.Clamp(panY, -maxPanY, maxPanY);
+    }
+
+    private void ResetVideoPanIfUnzoomed()
+    {
+        if (_videoZoom <= 1)
+            ApplyVideoTransform(1, 0, 0);
+    }
+
+    private static double Distance(Point first, Point second)
+    {
+        var x = first.X - second.X;
+        var y = first.Y - second.Y;
+        return Math.Sqrt(x * x + y * y);
+    }
+
+    private static Point Midpoint(Point first, Point second) =>
+        new((first.X + second.X) / 2, (first.Y + second.Y) / 2);
+
     private void OnVideoPointerWheel(object? sender, PointerWheelEventArgs args)
     {
         var delta = (int)Math.Round(args.Delta.Y * 120);
@@ -368,6 +612,33 @@ public sealed class ReachClientView : UserControl
 
         QueueInput(() => _session.SendPointerWheelAsync(delta));
         args.Handled = true;
+    }
+
+    private void SendTextClicked(
+        object? sender,
+        RoutedEventArgs args)
+    {
+        SendRemoteText();
+        _remoteTextInput.Focus();
+    }
+
+    private void RemoteTextKeyDown(object? sender, KeyEventArgs args)
+    {
+        if (args.Key != Key.Return)
+            return;
+
+        SendRemoteText();
+        args.Handled = true;
+    }
+
+    private void SendRemoteText()
+    {
+        var text = _remoteTextInput.Text;
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        QueueInput(() => _session.SendTextInputAsync(text));
+        _remoteTextInput.Clear();
     }
 
     private void OnVideoKeyDown(object? sender, KeyEventArgs args)
@@ -415,18 +686,24 @@ public sealed class ReachClientView : UserControl
         if (_videoWidth <= 0 || _videoHeight <= 0)
             return false;
 
-        var bounds = _videoImage.Bounds;
+        var bounds = _videoSurface.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return false;
 
         var scale = Math.Min(
             bounds.Width / _videoWidth,
             bounds.Height / _videoHeight);
-        var renderedWidth = _videoWidth * scale;
-        var renderedHeight = _videoHeight * scale;
-        var originX = (bounds.Width - renderedWidth) / 2;
-        var originY = (bounds.Height - renderedHeight) / 2;
-        var point = args.GetPosition(_videoImage);
+        var centerX = bounds.Width / 2;
+        var centerY = bounds.Height / 2;
+        var renderedWidth = _videoWidth * scale * _videoZoom;
+        var renderedHeight = _videoHeight * scale * _videoZoom;
+        var originX = centerX
+            + ((bounds.Width - _videoWidth * scale) / 2 - centerX) * _videoZoom
+            + _videoTranslation.X;
+        var originY = centerY
+            + ((bounds.Height - _videoHeight * scale) / 2 - centerY) * _videoZoom
+            + _videoTranslation.Y;
+        var point = args.GetPosition(_videoSurface);
         if (point.X < originX
             || point.Y < originY
             || point.X >= originX + renderedWidth
@@ -435,19 +712,30 @@ public sealed class ReachClientView : UserControl
             return false;
         }
 
+        var transformedScale = scale * _videoZoom;
         x = _selectedDisplayLeft + Math.Clamp(
-            (point.X - originX) / scale,
+            (point.X - originX) / transformedScale,
             0,
-            _videoWidth - 1);
+            _videoWidth - 1)
+            * (_selectedDisplayWidth > 0
+                ? (double)_selectedDisplayWidth / _videoWidth
+                : 1);
         y = _selectedDisplayTop + Math.Clamp(
-            (point.Y - originY) / scale,
+            (point.Y - originY) / transformedScale,
             0,
-            _videoHeight - 1);
+            _videoHeight - 1)
+            * (_selectedDisplayHeight > 0
+                ? (double)_selectedDisplayHeight / _videoHeight
+                : 1);
         return true;
     }
 
-    private static string? GetPressedButton(PointerPointProperties properties)
+    private static string? GetPressedButton(
+        PointerPointProperties properties,
+        PointerType pointerType)
     {
+        if (pointerType == PointerType.Touch)
+            return "Left";
         if (properties.IsLeftButtonPressed)
             return "Left";
         if (properties.IsRightButtonPressed)
@@ -456,6 +744,19 @@ public sealed class ReachClientView : UserControl
             return "Middle";
         return null;
     }
+
+    private static (int Width, int Height) GetAndroidVideoSize(
+        ReachDisplay display)
+    {
+        const int maximumWidth = 960;
+        var scale = Math.Min(1d, maximumWidth / (double)display.Width);
+        var width = Math.Max(16, AlignToCodecBlock(display.Width * scale));
+        var height = Math.Max(16, AlignToCodecBlock(display.Height * scale));
+        return (width, height);
+    }
+
+    private static int AlignToCodecBlock(double value) =>
+        Math.Max(16, (int)Math.Round(value / 16d) * 16);
 
     private void QueueInput(Func<Task> input)
     {

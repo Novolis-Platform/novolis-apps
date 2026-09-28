@@ -99,8 +99,8 @@ function Add-NovolisReachInstallerEntries {
 
     $contents = [IO.File]::ReadAllText($ScriptPath)
     $newLine = if ($contents.Contains("`r`n")) { "`r`n" } else { "`n" }
-    $startup = 'Name: "{userstartup}\Novolis Reach Host"; Filename: "{app}\Novolis.Reach.Host.Windows.Service.exe"; WorkingDir: "{app}"'
-    $run = 'Filename: "{app}\Novolis.Reach.Host.Windows.Service.exe"; Description: "Start Novolis Reach Host"; Flags: nowait runhidden skipifsilent'
+    $serviceStartup = 'Name: "{userstartup}\Novolis Reach Service"; Filename: "{app}\Novolis.Reach.Host.Windows.Service.exe"; WorkingDir: "{app}"'
+    $serviceRun = 'Filename: "{app}\Novolis.Reach.Host.Windows.Service.exe"; Description: "Start Novolis Reach Service"; Flags: nowait runhidden skipifsilent'
 
     if (-not $contents.Contains("[Icons]$newLine")) {
         throw "Reach installer script is missing the [Icons] section: $ScriptPath"
@@ -111,10 +111,10 @@ function Add-NovolisReachInstallerEntries {
 
     $contents = $contents.Replace(
         "[Icons]$newLine",
-        "[Icons]$newLine$startup$newLine")
+        "[Icons]$newLine$serviceStartup$newLine")
     $contents = $contents.Replace(
         "[Run]$newLine",
-        "[Run]$newLine$run$newLine")
+        "[Run]$newLine$serviceRun$newLine")
     [IO.File]::WriteAllText(
         $ScriptPath,
         $contents,

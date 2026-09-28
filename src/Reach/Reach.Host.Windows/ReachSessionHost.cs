@@ -14,15 +14,14 @@ using Novolis.Windows.Clipboard;
 using Novolis.Windows.Display;
 using Novolis.Windows.Input;
 
-namespace Novolis.Reach.Host.Windows.Session;
+namespace Novolis.Reach.Host.Windows;
 
 /// <summary>
-/// Headless helper that runs in the interactive user session and owns capture
-/// and input access.
+/// Runs in the interactive user session and owns capture and input access.
 /// </summary>
 public sealed class ReachSessionHost : BackgroundService
 {
-    private const string Endpoint = "Novolis.Reach.Host.Windows.Session";
+    private const string Endpoint = "Novolis.Reach.Host.Windows";
     private readonly ILogger<ReachSessionHost> _log;
     private readonly WindowsInputController _input;
     private readonly WindowsClipboardService _clipboard;
@@ -114,7 +113,9 @@ public sealed class ReachSessionHost : BackgroundService
             case ReachMessageType.SessionOpen:
             {
                 var open = ReachMessageCodec.ReadBody<ReachSessionOpen>(envelope);
-                _selectedDisplayId = open.RequestedDisplayId;
+                _selectedDisplayId = string.IsNullOrWhiteSpace(open.RequestedDisplayId)
+                    ? "display-0"
+                    : open.RequestedDisplayId;
                 _audioEnabled = open.EnableAudio;
                 if (_capture is null)
                 {

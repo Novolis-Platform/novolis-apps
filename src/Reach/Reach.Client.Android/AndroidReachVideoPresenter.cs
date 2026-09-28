@@ -1,4 +1,5 @@
 using Android.Media;
+using System.Threading.Channels;
 using Novolis.Reach.Client;
 using Novolis.Reach.Protocol;
 using Novolis.Video;
@@ -11,11 +12,27 @@ public sealed class AndroidReachVideoPresenter :
     IReachKeyFrameRequester
 {
     private const int FlexibleYuv420ColorFormat = unchecked((int)0x7F420888);
-    private readonly object _gate = new();
+    private readonly Channel<ReachVideoFrame> _frames =
+        Channel.CreateBounded<ReachVideoFrame>(
+            new BoundedChannelOptions(2)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = true,
+            });
+    private readonly CancellationTokenSource _decodeCancellation = new();
+    private readonly Task _decodeTask;
     private MediaCodec? _codec;
     private int _width;
     private int _height;
-    private bool _disposed;
+    private int _needsKeyFrame;
+    private int _disposeStarted;
+
+    /// <summary>Creates the Android decoder and starts its latest-frame worker.</summary>
+    public AndroidReachVideoPresenter()
+    {
+        _decodeTask = DecodeLoopAsync(_decodeCancellation.Token);
+    }
 
     /// <inheritdoc />
     public event Action<RawVideoFrame>? FrameDecoded;
@@ -26,98 +43,151 @@ public sealed class AndroidReachVideoPresenter :
     /// <inheritdoc />
     public void Present(ReachVideoFrame frame)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!string.Equals(frame.Codec, "H264", StringComparison.OrdinalIgnoreCase))
+        if (Volatile.Read(ref _disposeStarted) != 0
+            || !string.Equals(frame.Codec, "H264", StringComparison.OrdinalIgnoreCase))
             return;
 
-        RawVideoFrame? decoded = null;
-        lock (_gate)
+        if (_frames.Writer.TryWrite(frame))
+            return;
+
+        // Never let slow software YUV conversion turn the TCP stream into a
+        // queue of stale desktop frames. Drop the oldest access unit and ask
+        // the host for a fresh intra frame so the decoder can catch up cleanly.
+        _frames.Reader.TryRead(out _);
+        if (Interlocked.Exchange(ref _needsKeyFrame, 1) == 0)
+            KeyFrameRequested?.Invoke();
+        if (!_frames.Writer.TryWrite(frame))
         {
-            try
-            {
-                EnsureDecoder(frame.Width, frame.Height);
-                var codec = _codec;
-                if (codec is null)
-                    return;
-
-                var inputIndex = codec.DequeueInputBuffer(10_000);
-                if (inputIndex < 0)
-                    return;
-
-                var input = codec.GetInputBuffer(inputIndex);
-                if (input is null || input.Capacity() < frame.AccessUnit.Length)
-                    return;
-
-                input.Clear();
-                input.Put(frame.AccessUnit);
-                codec.QueueInputBuffer(
-                    inputIndex,
-                    0,
-                    frame.AccessUnit.Length,
-                    frame.Timestamp / 10,
-                    frame.IsKeyFrame
-                        ? MediaCodecBufferFlags.KeyFrame
-                        : MediaCodecBufferFlags.None);
-
-                var bufferInfo = new MediaCodec.BufferInfo();
-                while (true)
-                {
-                    var outputIndex = codec.DequeueOutputBuffer(bufferInfo, 10_000);
-                    if (outputIndex == (int)MediaCodecInfoState.TryAgainLater)
-                        break;
-                    if (outputIndex == (int)MediaCodecInfoState.OutputFormatChanged
-                        || outputIndex == (int)MediaCodecInfoState.OutputBuffersChanged)
-                    {
-                        continue;
-                    }
-                    if (outputIndex < 0)
-                        break;
-
-                    try
-                    {
-                        using var image = codec.GetOutputImage(outputIndex);
-                        if (image is not null && bufferInfo.Size > 0)
-                        {
-                            decoded = ConvertToBgra(
-                                image,
-                                frame.Width,
-                                frame.Height,
-                                frame.Timestamp);
-                        }
-                    }
-                    finally
-                    {
-                        codec.ReleaseOutputBuffer(outputIndex, false);
-                    }
-
-                    break;
-                }
-            }
-            catch (Exception)
-            {
-                ResetDecoder();
-                KeyFrameRequested?.Invoke();
-            }
+            return;
         }
 
-        if (decoded is not null)
-            FrameDecoded?.Invoke(decoded);
+        RequestKeyFrame();
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        lock (_gate)
-        {
-            if (_disposed)
-                return;
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
+            return;
 
-            _disposed = true;
-            ResetDecoder();
+        _frames.Writer.TryComplete();
+        _decodeCancellation.Cancel();
+        try
+        {
+            _decodeTask.GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException)
+        {
         }
 
+        _decodeCancellation.Dispose();
         FrameDecoded = null;
         KeyFrameRequested = null;
+    }
+
+    private async Task DecodeLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var frame in _frames.Reader.ReadAllAsync(cancellationToken))
+            {
+                if (Volatile.Read(ref _needsKeyFrame) != 0
+                    && !frame.IsKeyFrame)
+                {
+                    RequestKeyFrame();
+                    continue;
+                }
+
+                if (frame.IsKeyFrame)
+                    Interlocked.Exchange(ref _needsKeyFrame, 0);
+
+                RawVideoFrame? decoded = null;
+                try
+                {
+                    EnsureDecoder(frame.Width, frame.Height);
+                    var codec = _codec;
+                    if (codec is null)
+                        continue;
+
+                    var inputIndex = codec.DequeueInputBuffer(10_000);
+                    if (inputIndex < 0)
+                        continue;
+
+                    var input = codec.GetInputBuffer(inputIndex);
+                    if (input is null || input.Capacity() < frame.AccessUnit.Length)
+                        continue;
+
+                    input.Clear();
+                    input.Put(frame.AccessUnit);
+                    codec.QueueInputBuffer(
+                        inputIndex,
+                        0,
+                        frame.AccessUnit.Length,
+                        frame.Timestamp / 10,
+                        frame.IsKeyFrame
+                            ? MediaCodecBufferFlags.KeyFrame
+                            : MediaCodecBufferFlags.None);
+
+                    var bufferInfo = new MediaCodec.BufferInfo();
+                    while (true)
+                    {
+                        var outputIndex = codec.DequeueOutputBuffer(bufferInfo, 10_000);
+                        if (outputIndex == (int)MediaCodecInfoState.TryAgainLater)
+                            break;
+                        if (outputIndex == (int)MediaCodecInfoState.OutputFormatChanged
+                            || outputIndex == (int)MediaCodecInfoState.OutputBuffersChanged)
+                        {
+                            continue;
+                        }
+                        if (outputIndex < 0)
+                            break;
+
+                        try
+                        {
+                            using var image = codec.GetOutputImage(outputIndex);
+                            if (image is not null && bufferInfo.Size > 0)
+                            {
+                                decoded = ConvertToBgra(
+                                    image,
+                                    frame.Width,
+                                    frame.Height,
+                                    frame.Timestamp);
+                            }
+                        }
+                        finally
+                        {
+                            codec.ReleaseOutputBuffer(outputIndex, false);
+                        }
+
+                        break;
+                    }
+                }
+                catch (Exception)
+                {
+                    ResetDecoder();
+                    RequestKeyFrame();
+                }
+
+                if (decoded is not null)
+                    FrameDecoded?.Invoke(decoded);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            ResetDecoder();
+        }
+    }
+
+    private void RequestKeyFrame()
+    {
+        if (Volatile.Read(ref _disposeStarted) != 0)
+            return;
+
+        if (Interlocked.Exchange(ref _needsKeyFrame, 1) == 0)
+            KeyFrameRequested?.Invoke();
     }
 
     private void EnsureDecoder(int width, int height)

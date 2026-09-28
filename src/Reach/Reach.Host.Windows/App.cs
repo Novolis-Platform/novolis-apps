@@ -3,7 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Novolis.Reach.Host.Windows.Console;
+namespace Novolis.Reach.Host.Windows;
 
 /// <summary>Avalonia operator application for the Reach host service.</summary>
 public sealed class App : Application
@@ -17,9 +17,13 @@ public sealed class App : Application
     /// <inheritdoc />
     public override void OnFrameworkInitializationCompleted()
     {
-        var view = Services.GetRequiredService<ReachHostConsoleView>();
+        var view = Services.GetRequiredService<ReachHostView>();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.MainWindow = new ReachHostConsoleWindow { Content = view };
+        {
+            var window = new ReachHostWindow { Content = view };
+            Services.GetRequiredService<ReachHostTrayController>().Attach(window);
+            desktop.MainWindow = window;
+        }
         base.OnFrameworkInitializationCompleted();
     }
 }

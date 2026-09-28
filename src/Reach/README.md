@@ -15,8 +15,7 @@ implementation.
 | Process | Role |
 | --- | --- |
 | `Novolis.Reach.Host.Windows.Service` | Headless Windows service; accepts remote clients and owns lifecycle |
-| `Novolis.Reach.Host.Windows.Session` | Headless helper in the logged-in interactive session |
-| `Novolis.Reach.Host.Windows.Console` | Avalonia operator dashboard over local IPC |
+| `Novolis.Reach.Host.Windows` | Per-user Windows host app; captures the interactive session and owns the tray icon |
 | `Novolis.Reach.Client.Windows` | Windows client |
 | `Novolis.Reach.Client.Linux` | Linux client |
 | `Novolis.Reach.Client.Android` | Android client |
@@ -33,28 +32,16 @@ older host does not expose the media channel.
 
 ```powershell
 dotnet run --project d:\novolis\novolis-apps\src\Reach\Reach.Host.Windows.Service\Reach.Host.Windows.Service.csproj -p:NovolisUseProjectReferences=true
-dotnet run --project d:\novolis\novolis-apps\src\Reach\Reach.Host.Windows.Console\Reach.Host.Windows.Console.csproj -p:NovolisUseProjectReferences=true
+dotnet run --project d:\novolis\novolis-apps\src\Reach\Reach.Host.Windows\Reach.Host.Windows.csproj -p:NovolisUseProjectReferences=true
 dotnet run --project d:\novolis\novolis-apps\src\Reach\Reach.Client.Windows\Reach.Client.Windows.csproj -p:NovolisUseProjectReferences=true
 ```
 
 Windows, Linux, and Android clients are day-one Reach clients. The release
 catalog produces a Windows installer, a self-contained Linux tarball, and an
-Android APK; the Windows installer also contains the Service, Session, and
-Console host components and starts the host process at install and user-logon.
-
-### Local protocol emulator
-
-For client development without attaching to a real Windows session, run the
-deterministic local host emulator:
-
-```powershell
-dotnet run --project d:\novolis\novolis-apps\src\Reach\Reach.Host.Windows.Emulator\Reach.Host.Windows.Emulator.csproj -p:NovolisUseProjectReferences=true -- --port 19800 --fps 12
-```
-
-It serves a generated H.264 desktop stream on `127.0.0.1:19800`, announces
-itself through Reach discovery, and logs pointer, wheel, keyboard, text, and
-clipboard input. The Android client translates a loopback discovery result to
-`10.0.2.2:19800`, which is the Android emulator route to the Windows host.
+Android APK. The Windows installer contains the service and the per-user host
+app; the service launches the host app in the active Windows session (or
+directly when the service is running in the user's session), where it captures
+the real screen and shows the Reach tray icon.
 
 To build a packaged APK and install it on a booted Android emulator:
 
@@ -63,7 +50,7 @@ dotnet publish d:\novolis\novolis-apps\src\Reach\Reach.Client.Android\Reach.Clie
 & "$env:ANDROID_HOME\platform-tools\adb.exe" install -r d:\novolis\novolis-apps\artifacts\publish\Reach.Client.Android\debug\com.novolis.reach-Signed.apk
 ```
 
-Launch Reach, allow discovery to finish, and connect to the local emulator.
+Launch Reach, allow discovery to finish, and connect to the Windows host.
 
 Reach's protocol is product-private. Generic framing, datagrams, discovery,
 Tailscale binding, Windows capabilities, and video codecs live in their

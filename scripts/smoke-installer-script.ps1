@@ -80,6 +80,10 @@ System.Console.WriteLine("Wrote " + @"$($inno.ScriptPath.Replace('"','\"'))");
     if ($LASTEXITCODE -ne 0) { throw "Sibling Inno generator failed" }
 }
 
+if ($AppKey -eq 'reach') {
+    Add-NovolisReachInstallerEntries -ScriptPath $inno.ScriptPath
+}
+
 $script = Get-Content -LiteralPath $inno.ScriptPath -Raw
 foreach ($needle in @(
     'PrivilegesRequired=lowest',
@@ -87,7 +91,9 @@ foreach ($needle in @(
     "AppId=$($catalog.AppId)",
     '{localappdata}\Programs\',
     'Flags: unchecked',
-    "CloseApplicationsFilter=`"$($catalog.CloseApplicationsFilter)`""
+    "CloseApplicationsFilter=`"$($catalog.CloseApplicationsFilter)`"",
+    'Novolis.Reach.Host.Windows.Service.exe',
+    'Novolis.Reach.Host.Windows.exe'
 )) {
     if ($script -notlike "*$needle*") {
         throw "Generated Inno script missing: $needle"
@@ -96,6 +102,9 @@ foreach ($needle in @(
 
 if ($script -match 'Program Files' -or $script -match 'PrivilegesRequired=admin') {
     throw 'Generated Inno script must not target Program Files or require admin.'
+}
+if ($script -match 'Reach\.Host\.Windows\.(Session|Console|Emulator)') {
+    throw 'Reach installer script must not reference retired host processes.'
 }
 
 Write-Host "Installer smoke OK: $($inno.ScriptPath)"

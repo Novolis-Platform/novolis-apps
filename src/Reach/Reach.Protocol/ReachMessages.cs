@@ -150,7 +150,7 @@ public sealed record ReachHostStatus(
     string? InteractiveUser,
     string[] RecentMessages);
 
-/// <summary>Command sent by the operator Console to the host service.</summary>
+/// <summary>Command sent by the operator host app to the host service.</summary>
 public enum ReachHostCommand
 {
     GetStatus,
@@ -158,7 +158,7 @@ public enum ReachHostCommand
     GetLogs,
 }
 
-/// <summary>Local IPC request from the operator Console.</summary>
+/// <summary>Local IPC request from the operator host app.</summary>
 public sealed record ReachHostControlRequest(
     ReachHostCommand Command,
     bool? Enabled = null);

@@ -1,10 +1,10 @@
 using Novolis.Reach.Protocol;
 using Novolis.Transports.LocalIpc;
 
-namespace Novolis.Reach.Host.Windows.Console;
+namespace Novolis.Reach.Host.Windows;
 
-/// <summary>Calls the headless Reach host service over a named pipe.</summary>
-public sealed class ReachHostConsoleClient
+/// <summary>Calls the Reach host service over a named pipe.</summary>
+public sealed class ReachHostClient
 {
     private const string Endpoint = "Novolis.Reach.Host.Windows.Service";
 
@@ -22,7 +22,7 @@ public sealed class ReachHostConsoleClient
         await connection.SendAsync(
                 new LocalIpcFrame(
                     sequence,
-                    "console",
+                    "operator",
                     request.Command.ToString(),
                     ReachMessageCodec.Serialize(
                         ReachMessageType.HostStatus,
@@ -33,7 +33,7 @@ public sealed class ReachHostConsoleClient
 
         await foreach (var frame in connection.ReadAllAsync(cancellationToken))
         {
-            if (frame.Kind != "console")
+            if (frame.Kind != "operator")
                 continue;
 
             var envelope = ReachMessageCodec.Deserialize(frame.Payload);

@@ -1,17 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <UseWindowsForms>true</UseWindowsForms>
-    <RootNamespace>Novolis.Reach.Host.Windows.Session</RootNamespace>
-    <AssemblyName>Novolis.Reach.Host.Windows.Session</AssemblyName>
+    <RootNamespace>Novolis.Reach.Host.Windows</RootNamespace>
+    <AssemblyName>Novolis.Reach.Host.Windows</AssemblyName>
+    <ApplicationTitle>Novolis Reach Host</ApplicationTitle>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Novolis.Avalonia.Mobile.Desktop" />
     <PackageReference Include="Novolis.Transports.Framing" />
     <PackageReference Include="Novolis.Transports.LocalIpc" />
     <PackageReference Include="Novolis.Video.Abstractions" />

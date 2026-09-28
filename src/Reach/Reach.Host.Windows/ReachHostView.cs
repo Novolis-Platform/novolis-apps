@@ -4,12 +4,13 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Novolis.Reach.Protocol;
 
-namespace Novolis.Reach.Host.Windows.Console;
+namespace Novolis.Reach.Host.Windows;
 
 /// <summary>Diagnostics and configuration dashboard for the host service.</summary>
-public sealed class ReachHostConsoleView : UserControl
+public sealed class ReachHostView : UserControl
 {
-    private readonly ReachHostConsoleClient _client;
+    private readonly ReachHostClient _client;
+    private readonly ReachHostTrayController _tray;
     private readonly TextBlock _status;
     private readonly TextBlock _endpoints;
     private readonly TextBlock _clients;
@@ -18,9 +19,12 @@ public sealed class ReachHostConsoleView : UserControl
     private bool _sharingPaused;
 
     /// <summary>Creates the operator dashboard.</summary>
-    public ReachHostConsoleView(ReachHostConsoleClient client)
+    public ReachHostView(
+        ReachHostClient client,
+        ReachHostTrayController tray)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
+        _tray = tray ?? throw new ArgumentNullException(nameof(tray));
         _status = new TextBlock { Text = "Service status: unknown" };
         _endpoints = new TextBlock { TextWrapping = TextWrapping.Wrap };
         _clients = new TextBlock { TextWrapping = TextWrapping.Wrap };
@@ -32,6 +36,8 @@ public sealed class ReachHostConsoleView : UserControl
         };
         _pause = new Button { Content = "Pause sharing" };
         _pause.Click += PauseClicked;
+        var hideToTray = new Button { Content = "Hide to tray" };
+        hideToTray.Click += (_, _) => _tray.HideToTray();
         var refresh = new Button { Content = "Refresh" };
         refresh.Click += RefreshClicked;
 
@@ -46,7 +52,7 @@ public sealed class ReachHostConsoleView : UserControl
                 {
                     Orientation = Orientation.Horizontal,
                     Spacing = 8,
-                    Children = { refresh, _pause },
+                    Children = { refresh, _pause, hideToTray },
                 },
                 _status,
                 _endpoints,

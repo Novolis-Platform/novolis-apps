@@ -20,8 +20,8 @@ namespace Novolis.Reach.Host.Windows.Service;
 /// </summary>
 public sealed class ReachHostService : BackgroundService
 {
-    private const string ConsoleEndpoint = "Novolis.Reach.Host.Windows.Service";
-    private const string SessionEndpoint = "Novolis.Reach.Host.Windows.Session";
+    private const string OperatorEndpoint = "Novolis.Reach.Host.Windows.Service";
+    private const string SessionEndpoint = "Novolis.Reach.Host.Windows";
     private readonly ILogger<ReachHostService> _log;
     private readonly WindowsSessionManager _sessions;
     private readonly ConcurrentDictionary<long, ClientConnection> _clients = new();
@@ -87,7 +87,7 @@ public sealed class ReachHostService : BackgroundService
 
         var tasks = new List<Task>
         {
-            RunConsoleIpcAsync(cancellationToken),
+            RunOperatorIpcAsync(cancellationToken),
             RunSessionBridgeAsync(cancellationToken),
             RunDiscoveryAsync(cancellationToken),
         };
@@ -463,26 +463,26 @@ public sealed class ReachHostService : BackgroundService
         }
     }
 
-    private async Task RunConsoleIpcAsync(CancellationToken cancellationToken)
+    private async Task RunOperatorIpcAsync(CancellationToken cancellationToken)
     {
         await using var listener = LocalIpcTransport.CreateListener(
-            new LocalIpcEndpoint(ConsoleEndpoint));
+            new LocalIpcEndpoint(OperatorEndpoint));
         while (!cancellationToken.IsCancellationRequested)
         {
             await using var connection = await listener.AcceptAsync(cancellationToken)
                 .ConfigureAwait(false);
             await foreach (var frame in connection.ReadAllAsync(cancellationToken))
             {
-                if (!string.Equals(frame.Kind, "console", StringComparison.Ordinal))
+                if (!string.Equals(frame.Kind, "operator", StringComparison.Ordinal))
                     continue;
 
                 var request = ReachMessageCodec.ReadBody<ReachHostControlRequest>(
                     ReachMessageCodec.Deserialize(frame.Payload));
-                var response = HandleConsoleRequest(request);
+                var response = HandleOperatorRequest(request);
                 await connection.SendAsync(
                     new LocalIpcFrame(
                         Interlocked.Increment(ref _localSequence),
-                        "console",
+                        "operator",
                         "response",
                         ReachMessageCodec.Serialize(
                             ReachMessageType.HostStatus,
@@ -493,7 +493,7 @@ public sealed class ReachHostService : BackgroundService
         }
     }
 
-    private ReachHostControlResponse HandleConsoleRequest(ReachHostControlRequest request)
+    private ReachHostControlResponse HandleOperatorRequest(ReachHostControlRequest request)
     {
         switch (request.Command)
         {
@@ -597,10 +597,10 @@ public sealed class ReachHostService : BackgroundService
         _sessionHelperLaunchAttempted = true;
         var executable = Path.Combine(
             AppContext.BaseDirectory,
-            "Novolis.Reach.Host.Windows.Session.exe");
+            "Novolis.Reach.Host.Windows.exe");
         if (!File.Exists(executable))
         {
-            Log("Session helper executable is not beside the service; waiting for an independently started helper.");
+            Log("Reach host executable is not beside the service; waiting for an independently started host.");
             return;
         }
 
@@ -609,11 +609,11 @@ public sealed class ReachHostService : BackgroundService
                 string.Empty,
                 out var errorCode))
         {
-            Log("Started the interactive session helper.");
+            Log("Started the interactive Reach host.");
         }
         else
         {
-            Log($"Could not start the interactive session helper (Win32 {errorCode}).");
+            Log($"Could not start the interactive Reach host (Win32 {errorCode}).");
         }
     }
 
