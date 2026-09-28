@@ -11,11 +11,11 @@
   <Folder Name="/Reach.Client/">
     <Project Path="Reach.Client/Reach.Client.csproj" />
   </Folder>
-  <Folder Name="/Reach.Host.Windows/">
-    <Project Path="Reach.Host.Windows/Reach.Host.Windows.csproj" />
-  </Folder>
   <Folder Name="/Reach.Host.Windows.Service/">
     <Project Path="Reach.Host.Windows.Service/Reach.Host.Windows.Service.csproj" />
+  </Folder>
+  <Folder Name="/Reach.Host.Windows/">
+    <Project Path="Reach.Host.Windows/Reach.Host.Windows.csproj" />
   </Folder>
   <Folder Name="/Reach.Protocol/">
     <Project Path="Reach.Protocol/Reach.Protocol.csproj" />

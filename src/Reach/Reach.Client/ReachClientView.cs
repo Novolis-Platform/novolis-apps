@@ -32,7 +32,11 @@ public sealed class ReachClientView : UserControl
     private readonly Dictionary<int, Point> _touchPoints = [];
     private readonly ScaleTransform _videoScale = new(1, 1);
     private readonly TranslateTransform _videoTranslation = new();
+    private readonly object _inputGate = new();
     private readonly object _frameGate = new();
+    private Task _inputTail = Task.CompletedTask;
+    private Point? _pendingPointerMove;
+    private bool _pointerMoveQueued;
     private int _videoWidth;
     private int _videoHeight;
     private int _selectedDisplayLeft;
@@ -75,7 +79,8 @@ public sealed class ReachClientView : UserControl
         {
             Text = ResolveDefaultEndpoint(),
             PlaceholderText = "Searching for Reach hosts...",
-            MinWidth = 260,
+            Width = OperatingSystem.IsAndroid() ? 200 : 260,
+            MinWidth = OperatingSystem.IsAndroid() ? 180 : 260,
         };
         _endpoint.TextChanged += EndpointTextChanged;
         _discover = new Button
@@ -146,7 +151,7 @@ public sealed class ReachClientView : UserControl
         };
         _remoteTextInput = new TextBox
         {
-            Watermark = "Type to send to remote session",
+            PlaceholderText = "Type to send to remote session",
             Width = 240,
             IsVisible = OperatingSystem.IsAndroid(),
         };
@@ -425,7 +430,7 @@ public sealed class ReachClientView : UserControl
             {
                 if (_touchRemoteButtonDown)
                 {
-                    QueueInput(() => _session.SendPointerButtonAsync("Left", false));
+                    QueuePointerButton("Left", false);
                     _touchRemoteButtonDown = false;
                 }
 
@@ -486,7 +491,7 @@ public sealed class ReachClientView : UserControl
         if (!TryGetRemotePoint(args, out var x, out var y))
             return;
 
-        QueueInput(() => _session.SendPointerMoveAsync(x, y));
+        QueuePointerMove(x, y);
         args.Handled = true;
     }
 
@@ -498,7 +503,7 @@ public sealed class ReachClientView : UserControl
             if (_touchPoints.Count == 0)
             {
                 if (_touchRemoteButtonDown)
-                    QueueInput(() => _session.SendPointerButtonAsync("Left", false));
+                    QueuePointerButton("Left", false);
                 _touchRemoteButtonDown = false;
                 _touchGestureActive = false;
                 ResetVideoPanIfUnzoomed();
@@ -527,7 +532,7 @@ public sealed class ReachClientView : UserControl
 
         if (args.Pointer.Captured == _videoImage)
             args.Pointer.Capture(null);
-        QueueInput(() => _session.SendPointerButtonAsync(button, false));
+        QueuePointerButton(button, false);
         args.Handled = true;
     }
 
@@ -760,7 +765,84 @@ public sealed class ReachClientView : UserControl
 
     private void QueueInput(Func<Task> input)
     {
-        _ = SendInputAsync(input);
+        lock (_inputGate)
+        {
+            QueueInputLocked(input);
+        }
+    }
+
+    private void QueueInputLocked(Func<Task> input)
+    {
+        _inputTail = _inputTail
+            .ContinueWith(
+                _ => SendInputAsync(input),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default)
+            .Unwrap();
+    }
+
+    private void QueuePointerMove(double x, double y)
+    {
+        lock (_inputGate)
+        {
+            _pendingPointerMove = new Point(x, y);
+            if (_pointerMoveQueued)
+                return;
+
+            _pointerMoveQueued = true;
+            QueueInputLocked(SendLatestPointerMoveAsync);
+        }
+    }
+
+    private async Task SendLatestPointerMoveAsync()
+    {
+        Point? point;
+        lock (_inputGate)
+        {
+            point = _pendingPointerMove;
+            _pendingPointerMove = null;
+        }
+
+        if (point is { } latest)
+        {
+            await SendInputAsync(() => _session.SendPointerMoveAsync(
+                latest.X,
+                latest.Y)).ConfigureAwait(false);
+        }
+
+        lock (_inputGate)
+        {
+            _pointerMoveQueued = false;
+            if (_pendingPointerMove is not null)
+            {
+                _pointerMoveQueued = true;
+                QueueInputLocked(SendLatestPointerMoveAsync);
+            }
+        }
+    }
+
+    private void QueuePointerButton(string button, bool isDown)
+    {
+        QueueInput(async () =>
+        {
+            Point? point;
+            lock (_inputGate)
+            {
+                point = _pendingPointerMove;
+                _pendingPointerMove = null;
+            }
+
+            if (point is { } latest)
+            {
+                await _session.SendPointerMoveAsync(
+                    latest.X,
+                    latest.Y).ConfigureAwait(false);
+            }
+
+            await _session.SendPointerButtonAsync(button, isDown)
+                .ConfigureAwait(false);
+        });
     }
 
     private async Task SendInputAsync(Func<Task> input)
