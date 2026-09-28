@@ -14,6 +14,9 @@
   <Folder Name="/Reach.Host.Windows.Console/">
     <Project Path="Reach.Host.Windows.Console/Reach.Host.Windows.Console.csproj" />
   </Folder>
+  <Folder Name="/Reach.Host.Windows.Emulator/">
+    <Project Path="Reach.Host.Windows.Emulator/Reach.Host.Windows.Emulator.csproj" />
+  </Folder>
   <Folder Name="/Reach.Host.Windows.Service/">
     <Project Path="Reach.Host.Windows.Service/Reach.Host.Windows.Service.csproj" />
   </Folder>

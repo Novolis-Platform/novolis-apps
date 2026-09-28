@@ -22,6 +22,7 @@
     <Project Path="src/Merglyph/Merglyph.Core/Merglyph.Core.csproj" />
     <Project Path="src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj" />
     <Project Path="src/Reach/Reach.Client/Reach.Client.csproj" />
+    <Project Path="src/Reach/Reach.Host.Windows.Emulator/Reach.Host.Windows.Emulator.csproj" />
     <Project Path="src/Reach/Reach.Protocol/Reach.Protocol.csproj" />
     <Project Path="src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj" />
     <Project Path="src/ReadAloud/ReadAloud/ReadAloud.csproj" />

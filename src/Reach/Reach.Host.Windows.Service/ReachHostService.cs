@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Hosting;
@@ -22,7 +23,6 @@ public sealed class ReachHostService : BackgroundService
     private const string ConsoleEndpoint = "Novolis.Reach.Host.Windows.Service";
     private const string SessionEndpoint = "Novolis.Reach.Host.Windows.Session";
     private readonly ILogger<ReachHostService> _log;
-    private readonly TailscaleAddressEnumerator _tailscale;
     private readonly WindowsSessionManager _sessions;
     private readonly ConcurrentDictionary<long, ClientConnection> _clients = new();
     private readonly ConcurrentDictionary<Guid, FileTransferState> _fileTransfers = new();
@@ -41,11 +41,9 @@ public sealed class ReachHostService : BackgroundService
     /// <summary>Creates the host service.</summary>
     public ReachHostService(
         ILogger<ReachHostService> log,
-        TailscaleAddressEnumerator tailscale,
         WindowsSessionManager sessions)
     {
         _log = log;
-        _tailscale = tailscale;
         _sessions = sessions;
     }
 
@@ -56,7 +54,7 @@ public sealed class ReachHostService : BackgroundService
         lock (_messagesGate)
         {
             return new ReachHostStatus(
-                _endpoints.Length == 0 ? "Waiting for Tailscale" : "Running",
+                _endpoints.Length == 0 ? "Waiting for LAN or Tailscale" : "Running",
                 _endpoints,
                 _clients.Count,
                 _sharingPaused,
@@ -76,22 +74,25 @@ public sealed class ReachHostService : BackgroundService
         var cancellationToken = linked.Token;
         Log("Reach host service starting.");
 
-        var addresses = _tailscale.GetIPv4Addresses().ToArray();
+        var addresses = new[] { IPAddress.Loopback }
+            .Concat(GetReachableIPv4Addresses())
+            .Distinct()
+            .ToArray();
         _endpoints = addresses
             .Select(static address => $"tcp://{address}:{ReachProtocol.ControlPort}")
             .ToArray();
         if (addresses.Length == 0)
-            Log("No Tailscale IPv4 adapter is available; remote listening is paused.");
+            Log("No private IPv4 adapter is available; remote listening is paused.");
 
         var tasks = new List<Task>
         {
             RunConsoleIpcAsync(cancellationToken),
             RunSessionBridgeAsync(cancellationToken),
+            RunDiscoveryAsync(cancellationToken),
         };
         foreach (var address in addresses)
         {
             tasks.Add(RunRemoteListenerAsync(address, cancellationToken));
-            tasks.Add(RunDiscoveryAsync(address, cancellationToken));
         }
 
         try
@@ -126,7 +127,16 @@ public sealed class ReachHostService : BackgroundService
         CancellationToken cancellationToken)
     {
         var listener = new TcpListener(address, ReachProtocol.ControlPort);
-        listener.Start();
+        try
+        {
+            listener.Start();
+        }
+        catch (SocketException exception)
+        {
+            Log($"Could not listen for Reach clients on {address}:{ReachProtocol.ControlPort}: {exception.Message}");
+            return;
+        }
+
         _listeners.Add(listener);
         Log($"Listening for Reach clients on {address}:{ReachProtocol.ControlPort}.");
         try
@@ -166,6 +176,7 @@ public sealed class ReachHostService : BackgroundService
                     connection.Stream,
                     cancellationToken)
                 .ConfigureAwait(false);
+            Log($"Client {connection.Id} sent {hello.Platform} hello.");
             if (!string.Equals(hello.AppId, ReachProtocol.AppId, StringComparison.Ordinal)
                 || !ReachProtocol.IsCompatible(hello.ProtocolVersion))
             {
@@ -175,6 +186,7 @@ public sealed class ReachHostService : BackgroundService
             var clientCapabilities = await ReadMessageAsync<ReachCapabilitiesMessage>(
                     connection.Stream,
                     cancellationToken).ConfigureAwait(false);
+            Log($"Client {connection.Id} capabilities received.");
             var negotiated = ReachCapabilities.Intersect(
                 ReachCapabilities.WindowsHost,
                 clientCapabilities.Capabilities);
@@ -191,6 +203,8 @@ public sealed class ReachHostService : BackgroundService
                     ReachMessageType.HostCapabilities,
                     new ReachCapabilitiesMessage(negotiated),
                     cancellationToken).ConfigureAwait(false);
+            connection.IsReady = true;
+            Log($"Client {connection.Id} handshake complete.");
             await SendSessionCommandAsync(
                     ReachMessageType.SessionOpen,
                     new ReachSessionOpen(Guid.NewGuid(), string.Empty),
@@ -492,8 +506,10 @@ public sealed class ReachHostService : BackgroundService
             type,
             Interlocked.Increment(ref _localSequence),
             message);
-        var sends = _clients.Values.Select(client =>
-            client.SendPayloadAsync(payload, cancellationToken).AsTask());
+        var sends = _clients.Values
+            .Where(static client => client.IsReady)
+            .Select(client =>
+                client.SendPayloadAsync(payload, cancellationToken).AsTask());
         await Task.WhenAll(sends).ConfigureAwait(false);
     }
 
@@ -600,19 +616,54 @@ public sealed class ReachHostService : BackgroundService
             .ConfigureAwait(false);
     }
 
-    private async Task RunDiscoveryAsync(
-        IPAddress address,
-        CancellationToken cancellationToken)
+    private async Task RunDiscoveryAsync(CancellationToken cancellationToken)
     {
         await using var responder = new DiscoveryResponder(
-            new IPEndPoint(address, ReachProtocol.DiscoveryPort),
+            new IPEndPoint(IPAddress.Any, ReachProtocol.DiscoveryPort),
             ReachProtocol.DiscoveryProbe,
             new DiscoveryBeacon(
                 ReachProtocol.AppId,
                 ReachProtocol.Version,
                 Environment.MachineName,
-                [$"tcp://{address}:{ReachProtocol.ControlPort}"]));
+                _endpoints));
         await responder.RunAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static IReadOnlyList<IPAddress> GetReachableIPv4Addresses()
+    {
+        var addresses = new List<IPAddress>();
+        foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (networkInterface.OperationalStatus != OperationalStatus.Up)
+                continue;
+
+            foreach (var address in networkInterface
+                         .GetIPProperties()
+                         .UnicastAddresses
+                         .Select(static item => item.Address)
+                         .Where(static item =>
+                             item.AddressFamily == AddressFamily.InterNetwork
+                             && !IPAddress.IsLoopback(item))
+                         .Where(IsPrivateOrTailscaleIPv4))
+            {
+                if (!addresses.Contains(address))
+                    addresses.Add(address);
+            }
+        }
+
+        return addresses;
+    }
+
+    private static bool IsPrivateOrTailscaleIPv4(IPAddress address)
+    {
+        if (TailscaleAddressEnumerator.IsTailscaleIPv4(address))
+            return true;
+
+        var bytes = address.GetAddressBytes();
+        return bytes[0] == 10
+            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+            || (bytes[0] == 192 && bytes[1] == 168)
+            || (bytes[0] == 169 && bytes[1] == 254);
     }
 
     private static async Task<T> ReadMessageAsync<T>(
@@ -656,6 +707,7 @@ public sealed class ReachHostService : BackgroundService
         public long Id { get; }
         public NetworkStream Stream { get; }
         public EndPoint? RemoteEndPoint => _client.Client.RemoteEndPoint;
+        public bool IsReady { get; set; }
 
         public async ValueTask SendAsync<T>(
             ReachMessageType type,

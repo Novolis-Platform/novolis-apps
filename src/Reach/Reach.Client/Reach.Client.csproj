@@ -12,7 +12,9 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Novolis.Transports.Discovery" />
     <PackageReference Include="Novolis.Transports.Framing" />
+    <PackageReference Include="Novolis.Transports.Tailscale" />
     <PackageReference Include="Novolis.Video.Abstractions" />
   </ItemGroup>
 </Project>

@@ -460,6 +460,9 @@ function Publish-NovolisAndroidApk {
         '-f', 'net10.0-android'
         '-c', 'Release'
         '-p:AndroidPackageFormats=apk'
+        '-p:AndroidBuildApplicationPackage=true'
+        '-p:AndroidFastDeployment=false'
+        '-p:EmbedAssembliesIntoApk=true'
         "-p:ApplicationDisplayVersion=$PackageVersion"
         "-p:ApplicationVersion=$versionCode"
         "-p:NovolisAndroidVersionCode=$versionCode"

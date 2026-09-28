@@ -35,14 +35,24 @@ public sealed class WindowsReachVideoPresenter : IReachVideoPresenter
                 _height = frame.Height;
             }
 
-            decoded = _decoder.Decode(
-                new EncodedVideoFrame(
-                    frame.Width,
-                    frame.Height,
-                    frame.Timestamp,
-                    frame.AccessUnit,
-                    frame.IsKeyFrame,
-                    frame.Codec));
+            try
+            {
+                decoded = _decoder.Decode(
+                    new EncodedVideoFrame(
+                        frame.Width,
+                        frame.Height,
+                        frame.Timestamp,
+                        frame.AccessUnit,
+                        frame.IsKeyFrame,
+                        frame.Codec));
+            }
+            catch (InvalidOperationException)
+            {
+                // Decoder priming and an encoder-epoch transition can both
+                // produce an access unit without a presentable BGRA frame.
+                // Keep the control transport alive and wait for the next unit.
+                return;
+            }
         }
 
         FrameDecoded?.Invoke(decoded);

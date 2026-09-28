@@ -38,6 +38,29 @@ catalog produces a Windows installer, a self-contained Linux tarball, and an
 Android APK; the Windows installer also contains the Service, Session, and
 Console host components.
 
+### Local protocol emulator
+
+For client development without attaching to a real Windows session, run the
+deterministic local host emulator:
+
+```powershell
+dotnet run --project d:\novolis\novolis-apps\src\Reach\Reach.Host.Windows.Emulator\Reach.Host.Windows.Emulator.csproj -p:NovolisUseProjectReferences=true -- --port 19800 --fps 12
+```
+
+It serves a generated H.264 desktop stream on `127.0.0.1:19800`, announces
+itself through Reach discovery, and logs pointer, wheel, keyboard, text, and
+clipboard input. The Android client translates a loopback discovery result to
+`10.0.2.2:19800`, which is the Android emulator route to the Windows host.
+
+To build a packaged APK and install it on a booted Android emulator:
+
+```powershell
+dotnet publish d:\novolis\novolis-apps\src\Reach\Reach.Client.Android\Reach.Client.Android.csproj -p:NovolisUseProjectReferences=true -f net10.0-android -c Debug -p:AndroidPackageFormats=apk -p:AndroidBuildApplicationPackage=true -p:AndroidFastDeployment=false -p:EmbedAssembliesIntoApk=true
+& "$env:ANDROID_HOME\platform-tools\adb.exe" install -r d:\novolis\novolis-apps\artifacts\publish\Reach.Client.Android\debug\com.novolis.reach-Signed.apk
+```
+
+Launch Reach, allow discovery to finish, and connect to the local emulator.
+
 Reach's protocol is product-private. Generic framing, datagrams, discovery,
 Tailscale binding, Windows capabilities, and video codecs live in their
 respective Novolis libraries and do not contain Reach types.

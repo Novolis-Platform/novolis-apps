@@ -12,5 +12,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Reach\Reach.Protocol\Reach.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\Reach\Reach.Client\Reach.Client.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Novolis.Transports.Framing" />
   </ItemGroup>
 </Project>

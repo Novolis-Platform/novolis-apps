@@ -27,8 +27,20 @@ public sealed class ReachClientSession : IAsyncDisposable
     /// <summary>Raised for each encoded video frame received from the host.</summary>
     public event Action<ReachVideoFrame>? VideoFrameReceived;
 
+    /// <summary>Raised when the host announces its display topology.</summary>
+    public event Action<ReachDisplayTopology>? DisplayTopologyReceived;
+
+    /// <summary>Raised when the host starts or restarts its video stream.</summary>
+    public event Action<ReachVideoStreamStart>? VideoStreamStarted;
+
+    /// <summary>Raised when the host starts its audio stream.</summary>
+    public event Action<ReachAudioStreamStart>? AudioStreamStarted;
+
     /// <summary>Raised for each remote audio block received from the host.</summary>
     public event Action<ReachAudioFrame>? AudioFrameReceived;
+
+    /// <summary>Raised when the host sends clipboard content.</summary>
+    public event Action<ReachClipboardContent>? ClipboardContentReceived;
 
     /// <summary>Gets negotiated capabilities after connection.</summary>
     public ReachCapabilities? NegotiatedCapabilities { get; private set; }
@@ -51,12 +63,23 @@ public sealed class ReachClientSession : IAsyncDisposable
         _platform = platform;
         _clientName = clientName;
         var client = new TcpClient(address.AddressFamily);
-        await client.ConnectAsync(address.Address, address.Port, cancellationToken)
-            .ConfigureAwait(false);
+        RaiseStatus($"Connecting to {address.Address}:{address.Port}...");
+        try
+        {
+            await client.ConnectAsync(address.Address, address.Port, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            client.Dispose();
+            RaiseStatus($"Unable to connect to {address.Address}:{address.Port}.");
+            throw;
+        }
+
         var stream = client.GetStream();
         _client = client;
         _stream = stream;
-        RaiseStatus($"Connected to {address.Address}:{address.Port}");
+        RaiseStatus($"Connected to {address.Address}:{address.Port}; negotiating...");
 
         try
         {
@@ -73,6 +96,7 @@ public sealed class ReachClientSession : IAsyncDisposable
                 new ReachCapabilitiesMessage(GetCapabilities(platform)),
                 cancellationToken).ConfigureAwait(false);
 
+            RaiseStatus("Waiting for Reach host capabilities...");
             var hostHello = await ReadAsync<ReachHostHello>(cancellationToken)
                 .ConfigureAwait(false);
             if (!string.Equals(hostHello.AppId, ReachProtocol.AppId, StringComparison.Ordinal)
@@ -106,6 +130,7 @@ public sealed class ReachClientSession : IAsyncDisposable
             _receiveTask = Task.Run(
                 () => ReceiveLoopAsync(_receiveCancellation.Token),
                 CancellationToken.None);
+            await RequestKeyFrameAsync(cancellationToken).ConfigureAwait(false);
             RaiseStatus(
                 $"Connected to {hostHello.HostName}; "
                 + $"video={string.Join(",", NegotiatedCapabilities.OfferedVideoCodecs)}");
@@ -239,6 +264,55 @@ public sealed class ReachClientSession : IAsyncDisposable
             new ReachClipboardContent("text", text),
             cancellationToken);
 
+    /// <summary>Sends one pointer position in the selected display.</summary>
+    public Task SendPointerMoveAsync(
+        double x,
+        double y,
+        CancellationToken cancellationToken = default) =>
+        SendAsync(
+            ReachMessageType.PointerMove,
+            new ReachPointerMove(x, y),
+            cancellationToken);
+
+    /// <summary>Sends one pointer button transition.</summary>
+    public Task SendPointerButtonAsync(
+        string button,
+        bool isDown,
+        int clickCount = 1,
+        CancellationToken cancellationToken = default) =>
+        SendAsync(
+            ReachMessageType.PointerButton,
+            new ReachPointerButton(button, isDown, clickCount),
+            cancellationToken);
+
+    /// <summary>Sends one pointer wheel delta.</summary>
+    public Task SendPointerWheelAsync(
+        int delta,
+        CancellationToken cancellationToken = default) =>
+        SendAsync(
+            ReachMessageType.PointerWheel,
+            new ReachPointerWheel(delta),
+            cancellationToken);
+
+    /// <summary>Sends one virtual-key transition.</summary>
+    public Task SendKeyAsync(
+        ushort virtualKey,
+        bool isDown,
+        CancellationToken cancellationToken = default) =>
+        SendAsync(
+            isDown ? ReachMessageType.KeyDown : ReachMessageType.KeyUp,
+            new ReachKeyEvent(virtualKey),
+            cancellationToken);
+
+    /// <summary>Sends Unicode text input to the host.</summary>
+    public Task SendTextInputAsync(
+        string text,
+        CancellationToken cancellationToken = default) =>
+        SendAsync(
+            ReachMessageType.TextInput,
+            new ReachTextInput(text),
+            cancellationToken);
+
     /// <summary>Sends file paths as a rich clipboard file-list payload.</summary>
     public Task SendClipboardFilesAsync(
         IEnumerable<string> files,
@@ -320,18 +394,50 @@ public sealed class ReachClientSession : IAsyncDisposable
                     return;
 
                 var envelope = ReachMessageCodec.Deserialize(frame.Payload);
-                if (envelope.Type == ReachMessageType.VideoFrame)
+                switch (envelope.Type)
                 {
-                    var video = ReachMessageCodec.ReadBody<ReachVideoFrame>(envelope);
-                    Interlocked.Exchange(ref _lastVideoSequence, video.Sequence);
-                    VideoFrameReceived?.Invoke(video);
+                    case ReachMessageType.VideoStreamStart:
+                        VideoStreamStarted?.Invoke(
+                            ReachMessageCodec.ReadBody<ReachVideoStreamStart>(envelope));
+                        break;
+                    case ReachMessageType.VideoStreamReset:
+                        Interlocked.Exchange(
+                            ref _lastVideoSequence,
+                            ReachMessageCodec.ReadBody<ReachVideoStreamReset>(envelope).Sequence);
+                        break;
+                    case ReachMessageType.DisplayTopology:
+                        DisplayTopologyReceived?.Invoke(
+                            ReachMessageCodec.ReadBody<ReachDisplayTopology>(envelope));
+                        break;
+                    case ReachMessageType.VideoFrame:
+                    {
+                        var video = ReachMessageCodec.ReadBody<ReachVideoFrame>(envelope);
+                        Interlocked.Exchange(ref _lastVideoSequence, video.Sequence);
+                        VideoFrameReceived?.Invoke(video);
+                        break;
+                    }
+                    case ReachMessageType.AudioStreamStart:
+                        AudioStreamStarted?.Invoke(
+                            ReachMessageCodec.ReadBody<ReachAudioStreamStart>(envelope));
+                        break;
+                    case ReachMessageType.AudioFrame:
+                        AudioFrameReceived?.Invoke(
+                            ReachMessageCodec.ReadBody<ReachAudioFrame>(envelope));
+                        break;
+                    case ReachMessageType.ClipboardContent:
+                        ClipboardContentReceived?.Invoke(
+                            ReachMessageCodec.ReadBody<ReachClipboardContent>(envelope));
+                        break;
+                    case ReachMessageType.SessionClose:
+                        RaiseStatus("The Reach host closed the session.");
+                        return;
                 }
-                else if (envelope.Type == ReachMessageType.AudioFrame)
-                    AudioFrameReceived?.Invoke(
-                        ReachMessageCodec.ReadBody<ReachAudioFrame>(envelope));
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
