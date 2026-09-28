@@ -39,7 +39,6 @@ public sealed class ReachHostService : BackgroundService
     private bool _sharingPaused;
     private DateTimeOffset _nextSessionHelperLaunchAttempt =
         DateTimeOffset.MinValue;
-    private int _videoFramesLogged;
 
     /// <summary>Creates the host service.</summary>
     public ReachHostService(
@@ -591,15 +590,6 @@ public sealed class ReachHostService : BackgroundService
                         continue;
                     if (_sharingPaused && frame.Kind == "media")
                         continue;
-
-                    if (envelope.Type == ReachMessageType.VideoFrame
-                        && Interlocked.Increment(ref _videoFramesLogged) <= 5)
-                    {
-                        var video = ReachMessageCodec.ReadBody<ReachVideoFrame>(envelope);
-                        Log(
-                            $"Forwarding Reach video frame {video.Sequence} "
-                            + $"{video.Width}x{video.Height}, {video.AccessUnit.Length} bytes.");
-                    }
 
                     await BroadcastPayloadAsync(
                             envelope,

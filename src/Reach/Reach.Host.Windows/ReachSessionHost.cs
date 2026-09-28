@@ -44,7 +44,6 @@ public sealed class ReachSessionHost : BackgroundService
     private int _streamWidth;
     private int _streamHeight;
     private long _sequence;
-    private int _captureDiagnosticsLogged;
 
     /// <summary>Creates the interactive-session helper.</summary>
     public ReachSessionHost(
@@ -293,7 +292,6 @@ public sealed class ReachSessionHost : BackgroundService
         _videoMetadataSent = false;
         _streamWidth = 0;
         _streamHeight = 0;
-        _captureDiagnosticsLogged = 0;
         _capture = CreateCaptureSource();
         _capture.FrameCaptured += OnFrameCaptured;
         await _capture.StartAsync(cancellationToken).ConfigureAwait(false);
@@ -596,15 +594,6 @@ public sealed class ReachSessionHost : BackgroundService
 
     private void OnFrameCaptured(RawVideoFrame frame)
     {
-        if (Interlocked.Exchange(ref _captureDiagnosticsLogged, 1) == 0)
-        {
-            _log.LogInformation(
-                "Captured first Reach frame {Width}x{Height}, max channel value {Max}.",
-                frame.Width,
-                frame.Height,
-                frame.Pixels.Max());
-        }
-
         _frames?.Writer.TryWrite(frame);
     }
 
