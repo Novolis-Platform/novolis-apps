@@ -177,9 +177,9 @@ public sealed class MainView : DockPanel
             ReadAloudButtonKind.Primary);
         _signInButton.Click += async (_, _) => await SignInAzureAsync();
         _fallbackButton = ReadAloudTheme.Button(
-            "Use local fallback",
+            "Import credentials",
             ReadAloudButtonKind.Secondary);
-        _fallbackButton.Click += async (_, _) => await UseLocalAzureFallbackAsync();
+        _fallbackButton.Click += async (_, _) => await ImportLocalAzureCredentialsAsync();
         _fallbackButton.IsVisible = _fallbackProvider?.IsAvailable == true;
         _signOutButton = ReadAloudTheme.Button("Sign out", ReadAloudButtonKind.Quiet);
         _signOutButton.Click += async (_, _) => await SignOutAzureAsync();
@@ -499,27 +499,27 @@ public sealed class MainView : DockPanel
         }
     }
 
-    async Task UseLocalAzureFallbackAsync()
+    async Task ImportLocalAzureCredentialsAsync()
     {
         if (_fallbackProvider is null)
             return;
 
         _fallbackButton.IsEnabled = false;
-        SetStatus("Loading local Azure Speech fallback…");
+        SetStatus("Importing local Azure Speech credentials…");
         try
         {
             var setup = await _fallbackProvider.LoadAsync();
             await _speech.ConfigureAzureAsync(setup);
             var voices = await _speech.TestAzureAsync();
-            _resourceStatus.Text = "Using the local developer fallback.";
-            SetStatus($"Azure Speech fallback connected ({voices.Count:N0} voices available).");
+            _resourceStatus.Text = "Using imported local developer credentials.";
+            SetStatus($"Azure Speech credentials imported ({voices.Count:N0} voices available).");
             RefreshProviderUi();
             RefreshListen();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Read Aloud local Azure Speech fallback failed.");
-            SetStatus($"Local Azure fallback failed: {ex.Message}");
+            _logger.LogError(ex, "Read Aloud local Azure Speech credential import failed.");
+            SetStatus($"Credential import failed: {ex.Message}");
         }
         finally
         {

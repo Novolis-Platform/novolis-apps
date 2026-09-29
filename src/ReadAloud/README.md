@@ -77,7 +77,7 @@ endpoint and Speech subscription key:
 ```
 
 The file is copied into Android app-private storage, never packaged into the
-APK, and loaded only after pressing **Use local fallback** in **Azure setup**.
+APK, and loaded only after pressing **Import credentials** in **Azure setup**.
 
 ## Packages
 
