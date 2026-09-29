@@ -18,6 +18,7 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
 
     readonly IServiceProvider _services;
     readonly IPresenceEngine _engine;
+    readonly IPresenceObservationStore _observations;
     readonly object _gate = new();
 
     CancellationTokenSource? _cancellation;
@@ -29,10 +30,12 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
     /// <summary>Creates an observation coordinator.</summary>
     public PresenceObservationCoordinator(
         IServiceProvider services,
-        IPresenceEngine engine)
+        IPresenceEngine engine,
+        IPresenceObservationStore observations)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        _observations = observations ?? throw new ArgumentNullException(nameof(observations));
     }
 
     /// <summary>Whether a platform observation session is currently active.</summary>
@@ -193,6 +196,9 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
                         reading.At,
                         reading.Position,
                         reading.AccuracyMeters);
+                    await RetainAsync(
+                        PresenceObservationRecord.FromPosition(observation),
+                        cancellationToken);
                     await writer.WriteAsync(observation, cancellationToken);
                     lock (_gate)
                         _lastPositionAt = reading.At;
@@ -222,6 +228,14 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
             try
             {
                 var reading = await source.ReadAsync(cancellationToken);
+                var wifiObservation = new WifiObservation(
+                    reading.At,
+                    reading.ConnectedSsid);
+                await RetainAsync(
+                    PresenceObservationRecord.FromWifi(
+                        wifiObservation,
+                        MapWifiStatus(reading.Status)),
+                    cancellationToken);
                 // A redacted/unknown SSID is not evidence of departure. A
                 // known non-matching network is useful absence evidence.
                 if (reading.Status == MobileObservationStatus.Available
@@ -291,4 +305,30 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         lock (_gate)
             _lastError = exception;
     }
+
+    async ValueTask RetainAsync(
+        PresenceObservationRecord observation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _observations.AppendAsync(observation, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            SetError(exception);
+        }
+    }
+
+    static RecordedWifiStatus MapWifiStatus(MobileObservationStatus status) =>
+        status switch
+        {
+            MobileObservationStatus.Available => RecordedWifiStatus.Available,
+            MobileObservationStatus.Redacted => RecordedWifiStatus.Redacted,
+            _ => RecordedWifiStatus.Unavailable,
+        };
 }

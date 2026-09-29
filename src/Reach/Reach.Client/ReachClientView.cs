@@ -68,6 +68,7 @@ public sealed class ReachClientView : UserControl
     private bool _streamStatusShown;
     private bool _keyboardMode;
     private bool _scrollModeEnabled;
+    private string _endpointValue = string.Empty;
     private int _statusPriority;
     private CancellationTokenSource? _reconnectCancellation;
     private CancellationTokenSource? _connectCancellation;
@@ -120,6 +121,7 @@ public sealed class ReachClientView : UserControl
         _endpoint.TextChanged += EndpointTextChanged;
         if (LoadRememberedEndpoints().FirstOrDefault() is { } rememberedEndpoint)
             _endpoint.Text = rememberedEndpoint;
+        _endpointValue = _endpoint.Text ?? string.Empty;
         _discover = new Button
         {
             Name = "ReachDiscover",
@@ -326,6 +328,9 @@ public sealed class ReachClientView : UserControl
 
     private void EndpointTextChanged(object? sender, TextChangedEventArgs args)
     {
+        Volatile.Write(
+            ref _endpointValue,
+            _endpoint.Text ?? string.Empty);
         UpdateConnectionControls();
     }
 
@@ -947,7 +952,8 @@ public sealed class ReachClientView : UserControl
             _androidVideoConfigured = true;
             _videoProfileController = new ReachVideoProfileController(
                 display,
-                ResolveInitialVideoProfileKind(_endpoint.Text));
+                ResolveInitialVideoProfileKind(
+                    Volatile.Read(ref _endpointValue)));
             var profile = _videoProfileController.Current;
             QueueInput(() => _session.ConfigureVideoAsync(
                 profile.Width,

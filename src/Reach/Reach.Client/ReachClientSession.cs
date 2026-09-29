@@ -1321,7 +1321,6 @@ public sealed class ReachClientSession : IAsyncDisposable
 
     private void RaiseStatus(string status)
     {
-        Console.WriteLine($"[Reach] {status}");
         StatusChanged?.Invoke(status);
     }
 

@@ -1,8 +1,9 @@
 # Presence Ledger
 
 Presence Ledger is a local-first Avalonia application for recording confirmed
-arrival and departure at user-defined locations. It stores semantic events,
-not a continuous route or GPS breadcrumb history.
+arrival and departure at user-defined locations. It keeps sparse, point-in-time
+observation samples so each displayed day can be explained and replayed, not a
+continuous route or GPS breadcrumb history.
 
 ## Product metadata
 
@@ -19,7 +20,7 @@ not a continuous route or GPS breadcrumb history.
 | Project | Role |
 | --- | --- |
 | `PresenceLedger.Core` | Pure domain model and deterministic inference |
-| `PresenceLedger.Storage` | NDJSON location, state, and event stores |
+| `PresenceLedger.Storage` | NDJSON location, state, event, and daily observation stores |
 | `PresenceLedger.App` | Shared Avalonia UI, map picker, and composition |
 | `PresenceLedger.Desktop` | Windows desktop head for setup and history |
 | `PresenceLedger.Android` | Android head, permissions, and foreground observation |
@@ -43,14 +44,27 @@ dotnet build src/PresenceLedger/PresenceLedger.Android/PresenceLedger.Android.cs
 
 Android supplies sparse location and connected-Wi-Fi evidence. The shared
 coordinator converts those readings into `PositionObservation` and
-`WifiObservation` values. `PresenceLedger.Core` applies each observation to
-each configured location and writes only confirmed `PresenceEvent` values and
-restart-safe inference state. Raw observations are not persisted.
+`WifiObservation` values, appends a versioned local observation record, and
+then sends the transient observation through the inference engine.
+`PresenceLedger.Core` applies each observation to each configured location and
+writes confirmed `PresenceEvent` values and restart-safe inference state.
+Observation files are append-only NDJSON under:
 
-The map picker is provider-neutral in `Novolis.Avalonia.Map`. This app supplies
-a Kartverket tile/search adapter and displays `© Kartverket` while map content
-is visible. Map network access is limited to setup; the ledger itself has no
-account, cloud, telemetry, or backend.
+```text
+<app-private-root>/observations/YYYY-MM-DD.ndjson
+```
+
+The file name is always the UTC date. The Today view converts the selected
+display date into the device timezone, replays the relevant samples, and
+shows the resulting segments plus optional evidence details. Location
+revisions have effective UTC timestamps so a place can be introduced
+retroactively without rewriting existing files.
+
+The map surfaces are provider-neutral in `Novolis.Avalonia.Map`. This app
+supplies a Kartverket tile/search adapter and displays `© Kartverket` while
+map content is visible. Map tiles and Geonorge address search are the only
+network-backed features; the ledger itself has no account, cloud, telemetry,
+or backend.
 
 ## Local validation
 

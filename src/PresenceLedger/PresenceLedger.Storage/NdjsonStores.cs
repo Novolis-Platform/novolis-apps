@@ -18,13 +18,31 @@ public sealed class NdjsonTrackedLocationStore : ITrackedLocationStore
     public async IAsyncEnumerable<TrackedLocation> ReadAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var latest = new Dictionary<Guid, TrackedLocation>();
-        await foreach (var location in _file.ReadAsync<TrackedLocation>(cancellationToken))
-            latest[location.Id] = location;
+        var revisions = new List<TrackedLocation>();
+        await foreach (var location in ReadHistoryAsync(cancellationToken))
+            revisions.Add(location);
 
-        foreach (var location in latest.Values)
+        var now = DateTimeOffset.UtcNow;
+        foreach (var location in revisions
+                     .GroupBy(location => location.Id)
+                     .Select(group => group
+                         .Where(location =>
+                             (location.EffectiveFromUtc is null
+                                 || location.EffectiveFromUtc <= now)
+                             && (location.EffectiveToUtc is null
+                                 || now < location.EffectiveToUtc))
+                         .OrderBy(location =>
+                             location.EffectiveFromUtc ?? DateTimeOffset.MinValue)
+                         .LastOrDefault())
+                     .Where(location => location is not null)
+                     .Select(location => location!))
             yield return location;
     }
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<TrackedLocation> ReadHistoryAsync(
+        CancellationToken cancellationToken = default) =>
+        _file.ReadAsync<TrackedLocation>(cancellationToken);
 
     /// <inheritdoc />
     public ValueTask SaveAsync(
@@ -110,7 +128,63 @@ public sealed class NdjsonPresenceStateStore : IPresenceStateStore
     }
 }
 
-/// <summary>Convenience bundle of the three first-version local stores.</summary>
+/// <summary>Daily UTC NDJSON store for retained platform observations.</summary>
+public sealed class NdjsonPresenceObservationStore : IPresenceObservationStore
+{
+    readonly string _rootDirectory;
+    readonly object _gate = new();
+    readonly Dictionary<DateOnly, NdjsonFile> _files = new();
+
+    /// <summary>Creates a daily observation store beneath the supplied directory.</summary>
+    public NdjsonPresenceObservationStore(string rootDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
+        _rootDirectory = System.IO.Path.Combine(rootDirectory, "observations");
+        Directory.CreateDirectory(_rootDirectory);
+    }
+
+    /// <summary>Returns the physical path for one UTC date.</summary>
+    public string GetFilePath(DateOnly utcDate) =>
+        System.IO.Path.Combine(
+            _rootDirectory,
+            $"{utcDate:yyyy-MM-dd}.ndjson");
+
+    /// <inheritdoc />
+    public ValueTask AppendAsync(
+        PresenceObservationRecord observation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(observation);
+        return GetFile(observation.At.UtcDateTime).AppendAsync(
+            observation,
+            cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public IAsyncEnumerable<PresenceObservationRecord> ReadAsync(
+        DateOnly utcDate,
+        CancellationToken cancellationToken = default) =>
+        GetFile(utcDate).ReadAsync<PresenceObservationRecord>(cancellationToken);
+
+    NdjsonFile GetFile(DateTime utcDate) =>
+        GetFile(DateOnly.FromDateTime(DateTime.SpecifyKind(utcDate, DateTimeKind.Utc)));
+
+    NdjsonFile GetFile(DateOnly utcDate)
+    {
+        lock (_gate)
+        {
+            if (!_files.TryGetValue(utcDate, out var file))
+            {
+                file = new NdjsonFile(GetFilePath(utcDate));
+                _files.Add(utcDate, file);
+            }
+
+            return file;
+        }
+    }
+}
+
+/// <summary>Convenience bundle of the local ledger stores.</summary>
 public sealed class NdjsonPresenceStorage
 {
     /// <summary>Creates stores beneath an application-private root.</summary>
@@ -124,6 +198,7 @@ public sealed class NdjsonPresenceStorage
             System.IO.Path.Combine(rootDirectory, "presence.ndjson"));
         States = new NdjsonPresenceStateStore(
             System.IO.Path.Combine(rootDirectory, "states.ndjson"));
+        Observations = new NdjsonPresenceObservationStore(rootDirectory);
     }
 
     /// <summary>Location definition store.</summary>
@@ -134,4 +209,7 @@ public sealed class NdjsonPresenceStorage
 
     /// <summary>Operational inference state store.</summary>
     public NdjsonPresenceStateStore States { get; }
+
+    /// <summary>Versioned daily raw observation store.</summary>
+    public NdjsonPresenceObservationStore Observations { get; }
 }

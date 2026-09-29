@@ -7,6 +7,10 @@ public interface ITrackedLocationStore
     IAsyncEnumerable<TrackedLocation> ReadAsync(
         CancellationToken cancellationToken = default);
 
+    /// <summary>Reads all retained location revisions in append order.</summary>
+    IAsyncEnumerable<TrackedLocation> ReadHistoryAsync(
+        CancellationToken cancellationToken = default);
+
     /// <summary>Creates or replaces a configured location.</summary>
     ValueTask SaveAsync(
         TrackedLocation location,
@@ -41,6 +45,20 @@ public interface IPresenceStateStore
     /// <summary>Appends a new state snapshot.</summary>
     ValueTask SaveAsync(
         LocationPresenceState state,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>Persists point-in-time evidence for local diagnostics and replay.</summary>
+public interface IPresenceObservationStore
+{
+    /// <summary>Appends one retained observation to its UTC daily file.</summary>
+    ValueTask AppendAsync(
+        PresenceObservationRecord observation,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Reads one UTC date without scanning unrelated dates.</summary>
+    IAsyncEnumerable<PresenceObservationRecord> ReadAsync(
+        DateOnly utcDate,
         CancellationToken cancellationToken = default);
 }
 

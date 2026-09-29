@@ -719,10 +719,7 @@ public sealed class ReachHostService : BackgroundService
                         cancellationToken)
                     .ConfigureAwait(false);
                 if (envelope is null)
-                {
-                    Log($"Client {connection.Id} control channel closed by peer.");
                     return;
-                }
 
                 if (envelope.Type == ReachMessageType.LatencyProbe)
                 {
@@ -739,7 +736,6 @@ public sealed class ReachHostService : BackgroundService
 
                 if (envelope.Type == ReachMessageType.SessionClose)
                 {
-                    Log($"Client {connection.Id} sent SessionClose.");
                     var close = ReachMessageCodec.ReadBody<ReachSessionClose>(envelope);
                     connection.SessionId = close.SessionId;
                     if (!_clients.Values.Any(client =>

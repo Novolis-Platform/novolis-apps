@@ -22,9 +22,10 @@ access is denied, the diagnostics page reports the resulting limitation.
 
 Once foreground location permission is available, the Android head starts a
 low-priority foreground service. The service owns no inference logic: it
-starts the shared observation coordinator, which sends sparse readings through
-a channel to `PresenceLedger.Core`. Stopping the service cancels the source
-subscriptions and does not write raw observations.
+starts the shared observation coordinator, which appends each accepted sample
+to the app-private UTC daily NDJSON store and sends the transient reading
+through a channel to `PresenceLedger.Core`. Stopping the service cancels the
+source subscriptions; it does not send data anywhere.
 
 Backup is disabled and cleartext network traffic is disabled. Map traffic is
 HTTPS-only and is limited to the Kartverket/Geonorge destinations declared in

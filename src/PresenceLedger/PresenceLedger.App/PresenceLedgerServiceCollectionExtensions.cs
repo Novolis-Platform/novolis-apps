@@ -36,12 +36,15 @@ public static class PresenceLedgerServiceCollectionExtensions
             sp.GetRequiredService<NdjsonPresenceStorage>().Events);
         services.AddSingleton<IPresenceStateStore>(sp =>
             sp.GetRequiredService<NdjsonPresenceStorage>().States);
+        services.AddSingleton<IPresenceObservationStore>(sp =>
+            sp.GetRequiredService<NdjsonPresenceStorage>().Observations);
         services.AddSingleton<IPresenceEngine>(sp =>
             new PresenceEngine(
                 TimeProvider.System,
                 sp.GetRequiredService<ITrackedLocationStore>(),
                 sp.GetRequiredService<IPresenceStateStore>(),
                 sp.GetRequiredService<IPresenceEventStore>()));
+        services.AddSingleton<PresenceDayProjector>();
         services.AddSingleton<KartverketMapTileSource>();
         services.AddSingleton<IMapTileSource>(sp =>
             sp.GetRequiredService<KartverketMapTileSource>());

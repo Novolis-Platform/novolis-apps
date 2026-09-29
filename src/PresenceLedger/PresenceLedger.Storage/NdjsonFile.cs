@@ -89,6 +89,12 @@ internal sealed class NdjsonFile
                 // One malformed physical line must not hide later ledger entries.
                 continue;
             }
+            catch (ArgumentException)
+            {
+                // Constructor validation can reject a syntactically valid but
+                // corrupt line without hiding later local records.
+                continue;
+            }
 
             if (value is not null)
                 yield return value;

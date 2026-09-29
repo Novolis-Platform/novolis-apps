@@ -120,6 +120,36 @@ public sealed class NdjsonStorageTests
         }
     }
 
+    [Test]
+    public async Task Observations_are_written_to_utc_daily_files_and_read_by_date()
+    {
+        var root = CreateRoot();
+        try
+        {
+            var storage = new NdjsonPresenceStorage(root);
+            var observation = new PresenceObservationRecord(
+                new DateTimeOffset(2026, 9, 29, 23, 59, 0, TimeSpan.FromHours(2)),
+                new GeoCoordinate(58.14623, 7.99517),
+                12,
+                RecordedWifiStatus.Available,
+                "Semine");
+
+            await storage.Observations.AppendAsync(observation);
+
+            var utcDate = new DateOnly(2026, 9, 29);
+            var restored = await ReadAll(storage.Observations.ReadAsync(utcDate));
+
+            await Assert.That(storage.Observations.GetFilePath(utcDate))
+                .IsEqualTo(Path.Combine(root, "observations", "2026-09-29.ndjson"));
+            await Assert.That(restored).Count().IsEqualTo(1);
+            await Assert.That(restored[0]).IsEqualTo(observation);
+        }
+        finally
+        {
+            DeleteRoot(root);
+        }
+    }
+
     static TrackedLocation Location() =>
         new(
             Guid.Parse("5ad8d6e7-63f1-4d22-a5e4-0a972702b4d1"),

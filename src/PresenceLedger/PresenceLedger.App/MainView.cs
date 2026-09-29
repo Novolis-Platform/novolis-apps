@@ -9,6 +9,7 @@ using Novolis.Avalonia.Mobile;
 using Novolis.Math.Geometry;
 using PresenceLedger.App.Map;
 using PresenceLedger.Core;
+using PresenceLedger.Storage;
 
 namespace PresenceLedger.App;
 
@@ -20,17 +21,21 @@ public sealed class MainView : UserControl
     readonly ITrackedLocationStore _locations;
     readonly IPresenceEventStore _events;
     readonly IPresenceStateStore _states;
+    readonly IPresenceObservationStore _observations;
+    readonly PresenceDayProjector _dayProjector;
     readonly IMapTileSource _tileSource;
     readonly IMapSearchProvider _searchProvider;
     readonly IServiceProvider _services;
     readonly ContentControl _content = new();
     readonly TextBlock _status = new();
 
+    DateOnly _displayDate = DateOnly.FromDateTime(DateTime.Now);
     GeoCoordinate? _selectedCoordinate;
     TrackedLocation? _editingLocation;
     TextBox? _nameInput;
     TextBox? _ssidInput;
     TextBox? _coordinateInput;
+    TextBox? _effectiveFromInput;
     Slider? _radiusInput;
     TextBlock? _radiusLabel;
     MapControl? _pickerMap;
@@ -40,6 +45,8 @@ public sealed class MainView : UserControl
         ITrackedLocationStore locations,
         IPresenceEventStore events,
         IPresenceStateStore states,
+        IPresenceObservationStore observations,
+        PresenceDayProjector dayProjector,
         IMapTileSource tileSource,
         IMapSearchProvider searchProvider,
         IServiceProvider services)
@@ -47,45 +54,120 @@ public sealed class MainView : UserControl
         _locations = locations ?? throw new ArgumentNullException(nameof(locations));
         _events = events ?? throw new ArgumentNullException(nameof(events));
         _states = states ?? throw new ArgumentNullException(nameof(states));
+        _observations = observations ?? throw new ArgumentNullException(nameof(observations));
+        _dayProjector = dayProjector ?? throw new ArgumentNullException(nameof(dayProjector));
         _tileSource = tileSource ?? throw new ArgumentNullException(nameof(tileSource));
         _searchProvider = searchProvider ?? throw new ArgumentNullException(nameof(searchProvider));
         _services = services ?? throw new ArgumentNullException(nameof(services));
 
-        Background = new SolidColorBrush(Color.Parse("#0d1b2a"));
+        Background = PresencePalette.BackgroundBrush;
         BuildShell();
-        AttachedToVisualTree += async (_, _) => await ShowLocationsAsync();
+        AttachedToVisualTree += async (_, _) => await ShowTodayAsync();
     }
 
     void BuildShell()
     {
         var header = new StackPanel
         {
-            Margin = new Thickness(16, 14, 16, 8),
-            Spacing = 8,
+            Margin = new Thickness(16, 14, 16, 10),
+            Spacing = 10,
         };
-        var title = new TextBlock
-        {
-            Text = "Presence Ledger",
-            FontSize = 24,
-            FontWeight = FontWeight.SemiBold,
-            Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        header.Children.Add(title);
 
-        var navigation = new WrapPanel
+        var brandMark = new Border
+        {
+            Width = 48,
+            Height = 48,
+            Background = PresencePalette.TealDeepBrush,
+            BorderBrush = PresencePalette.TealBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(16),
+            Child = new TextBlock
+            {
+                Text = "P",
+                FontSize = 25,
+                FontWeight = FontWeight.Bold,
+                Foreground = PresencePalette.TextBrush,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        var brandCopy = new StackPanel
+        {
+            Spacing = 1,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "PRESENCE LEDGER",
+                    FontSize = 17,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = PresencePalette.TextBrush,
+                },
+                new TextBlock
+                {
+                    Text = "A quiet record of your places",
+                    FontSize = 11,
+                    Foreground = PresencePalette.MutedBrush,
+                },
+            },
+        };
+        var localBadge = new Border
+        {
+            Padding = new Thickness(10, 6),
+            Background = PresencePalette.SurfaceBrush,
+            BorderBrush = PresencePalette.BorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(14),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = "LOCAL",
+                Classes = { "eyebrow" },
+                Foreground = PresencePalette.TealBrush,
+            },
+        };
+        var brandRow = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto),
+            },
+            ColumnSpacing = 12,
+        };
+        brandRow.Children.Add(brandMark);
+        Grid.SetColumn(brandMark, 0);
+        brandRow.Children.Add(brandCopy);
+        Grid.SetColumn(brandCopy, 1);
+        brandRow.Children.Add(localBadge);
+        Grid.SetColumn(localBadge, 2);
+        header.Children.Add(brandRow);
+
+        var navigation = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        navigation.Children.Add(NavigationButton("Locations", async () => await ShowLocationsAsync()));
+        navigation.Children.Add(NavigationButton("Today", async () => await ShowTodayAsync()));
+        navigation.Children.Add(NavigationButton("Map", async () => await ShowMapAsync()));
+        navigation.Children.Add(NavigationButton("Places", async () => await ShowLocationsAsync()));
         navigation.Children.Add(NavigationButton("History", async () => await ShowHistoryAsync()));
-        navigation.Children.Add(NavigationButton("Diagnostics", async () => await ShowDiagnosticsAsync()));
-        navigation.Children.Add(NavigationButton("+ Add location", async () => await ShowAddLocationAsync()));
-        header.Children.Add(navigation);
+        navigation.Children.Add(NavigationButton("More", async () => await ShowDiagnosticsAsync()));
+        var navigationScroll = new ScrollViewer
+        {
+            Content = navigation,
+            HorizontalScrollBarVisibility =
+                Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility =
+                Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+        };
+        header.Children.Add(navigationScroll);
 
-        _status.Text = "Local only";
-        _status.Foreground = new SolidColorBrush(Color.Parse("#91a9b5"));
+        _status.Text = "Local storage · map and address search use Kartverket services";
+        _status.Foreground = PresencePalette.MutedBrush;
+        _status.FontSize = 11;
         _status.Margin = new Thickness(16, 4);
 
         var shell = new DockPanel();
@@ -102,14 +184,152 @@ public sealed class MainView : UserControl
         var button = new Button
         {
             Content = label,
-            Margin = new Thickness(0, 0, 6, 6),
-            MinHeight = 44,
-            Padding = new Thickness(10, 7),
-            Background = new SolidColorBrush(Color.Parse("#17384a")),
-            Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
+            Classes = { "nav-button" },
+            Background = PresencePalette.SurfaceBrush,
+            Foreground = PresencePalette.TextBrush,
         };
         button.Click += async (_, _) => await action();
         return button;
+    }
+
+    async Task ShowTodayAsync()
+    {
+        try
+        {
+            var projection = await ReadDayProjectionAsync(_displayDate);
+            _content.Content = PresenceTodayView.Build(
+                projection,
+                DateTimeOffset.UtcNow,
+                () => _ = ChangeDayAsync(-1),
+                () => _ = ChangeDayAsync(1),
+                () => _ = ChangeDayAsync(
+                    DateOnly.FromDateTime(DateTime.Now).DayNumber - _displayDate.DayNumber),
+                () => _ = ShowMapAsync(),
+                () => _ = ShowAddLocationAsync(),
+                GetObservationStatusText());
+            SetStatus(
+                $"{projection.Observations.Count} local sample"
+                + $"{(projection.Observations.Count == 1 ? string.Empty : "s")} · "
+                + $"{projection.Intervals.Count} confirmed segment"
+                + $"{(projection.Intervals.Count == 1 ? string.Empty : "s")}");
+        }
+        catch (Exception ex)
+        {
+            _content.Content = ErrorSurface(
+                "Today is unavailable",
+                "The local ledger could not be projected.",
+                ex.Message,
+                () => _ = ShowTodayAsync());
+            SetStatus($"Could not read today: {ex.Message}");
+        }
+    }
+
+    async Task ChangeDayAsync(int dayOffset)
+    {
+        _displayDate = _displayDate.AddDays(dayOffset);
+        await ShowTodayAsync();
+    }
+
+    string GetObservationStatusText()
+    {
+        var location = _services.GetService<ILocationReadingSource>();
+        var wifi = _services.GetService<IWifiObservationSource>();
+        var coordinator = _services.GetService<PresenceObservationCoordinator>();
+        if (location is null && wifi is null)
+            return "Desktop history mode · local data is available here, background observation is not.";
+
+        var statuses = new[]
+        {
+            location?.GetStatus(),
+            wifi?.GetStatus(),
+        }
+        .Where(status => status is not null)
+        .Select(status => FormatSourceStatus(status!.Value))
+        .ToArray();
+        var service = coordinator?.IsRunning == true
+            ? "observer active"
+            : "observer paused";
+        return statuses.Length == 0
+            ? $"Local {service}."
+            : $"Local {service} · {string.Join(" · ", statuses)}";
+    }
+
+    async Task<PresenceDayProjection> ReadDayProjectionAsync(DateOnly displayDate)
+    {
+        var displayTimeZone = TimeZoneInfo.Local;
+        var localStart = displayDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        var localEnd = displayDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        var utcStart = TimeZoneInfo.ConvertTimeToUtc(localStart, displayTimeZone);
+        var utcEnd = TimeZoneInfo.ConvertTimeToUtc(localEnd, displayTimeZone);
+        var observations = new List<PresenceObservationRecord>();
+        for (var utcDate = DateOnly.FromDateTime(utcStart);
+             utcDate <= DateOnly.FromDateTime(utcEnd.AddTicks(-1));
+             utcDate = utcDate.AddDays(1))
+        {
+            await foreach (var observation in _observations.ReadAsync(utcDate))
+                observations.Add(observation);
+        }
+
+        var events = await ReadAllAsync(_events.ReadAsync());
+        var locationHistory = await ReadAllAsync(_locations.ReadHistoryAsync());
+        return _dayProjector.Project(
+            displayDate,
+            displayTimeZone,
+            events,
+            observations,
+            locationHistory);
+    }
+
+    static Control ErrorSurface(
+        string title,
+        string subtitle,
+        string detail,
+        Action retry)
+    {
+        var button = new Button
+        {
+            Content = "Try again",
+            Classes = { "primary-button" },
+            Background = PresencePalette.CopperBrush,
+            Foreground = Brushes.White,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        button.Click += (_, _) => retry();
+        return new ScrollViewer
+        {
+            Content = new StackPanel
+            {
+                Margin = new Thickness(16, 24),
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = title,
+                        Classes = { "page-title" },
+                        Foreground = PresencePalette.TextBrush,
+                    },
+                    new TextBlock
+                    {
+                        Text = subtitle,
+                        Classes = { "body-copy" },
+                        Foreground = PresencePalette.MutedBrush,
+                    },
+                    new TextBlock
+                    {
+                        Text = detail,
+                        Foreground = PresencePalette.DangerBrush,
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    button,
+                },
+            },
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            HorizontalScrollBarVisibility =
+                Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility =
+                Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+        };
     }
 
     async Task ShowLocationsAsync()
@@ -117,15 +337,43 @@ public sealed class MainView : UserControl
         try
         {
             var locations = await ReadAllAsync(_locations.ReadAsync());
-            var stack = PageStack("Locations", "Only semantic arrival and departure events are retained.");
+            var stack = PageStack(
+                "Your places",
+                "Home, Work, and the other places that make your day legible.");
+            var add = new Button
+            {
+                Content = "Add location",
+                Classes = { "primary-button" },
+                Background = PresencePalette.CopperBrush,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            add.Click += async (_, _) => await ShowAddLocationAsync();
+            stack.Children.Add(add);
             if (locations.Count == 0)
             {
-                stack.Children.Add(new TextBlock
-                {
-                    Text = "No locations configured yet.",
-                    Foreground = MutedBrush,
-                    Margin = new Thickness(0, 14),
-                });
+                stack.Children.Add(Card(
+                    new StackPanel
+                    {
+                        Spacing = 8,
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = "Nothing configured yet.",
+                                FontSize = 18,
+                                FontWeight = FontWeight.SemiBold,
+                                Foreground = PresencePalette.TextBrush,
+                            },
+                            new TextBlock
+                            {
+                                Text = "Add a place with a map point, radius, and optional Wi-Fi evidence.",
+                                Foreground = PresencePalette.MutedBrush,
+                                TextWrapping = TextWrapping.Wrap,
+                            },
+                        },
+                    },
+                    PresencePalette.SurfaceBrush));
             }
             else
             {
@@ -140,11 +388,206 @@ public sealed class MainView : UserControl
                 HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
                 VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             };
-            SetStatus($"{locations.Count} location{(locations.Count == 1 ? string.Empty : "s")} configured");
+            SetStatus($"{locations.Count} place{(locations.Count == 1 ? string.Empty : "s")} configured");
         }
         catch (Exception ex)
         {
+            _content.Content = ErrorSurface(
+                "Places are unavailable",
+                "The local location ledger could not be read.",
+                ex.Message,
+                () => _ = ShowLocationsAsync());
             SetStatus($"Could not read locations: {ex.Message}");
+        }
+    }
+
+    static Border Card(Control child, IBrush background) =>
+        new()
+        {
+            Child = child,
+            Padding = new Thickness(18),
+            Background = background,
+            BorderBrush = PresencePalette.BorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(18),
+        };
+
+    async Task ShowMapAsync()
+    {
+        try
+        {
+            var locations = await ReadAllAsync(_locations.ReadAsync());
+            var projection = await ReadDayProjectionAsync(_displayDate);
+            var center = locations.FirstOrDefault()?.Area.Center
+                ?? projection.Observations
+                    .Select(item => item.Position)
+                    .FirstOrDefault(position => position is not null)
+                ?? DefaultMapCenter;
+            var map = new MapControl
+            {
+                Viewport = new MapViewport(center, locations.Count == 0 ? 12 : 14),
+                TileSource = _tileSource,
+                Attribution = KartverketMap.Attribution,
+                Height = 360,
+                MinHeight = 260,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                BackgroundBrush = PresencePalette.SurfaceBrush,
+            };
+            map.Markers = locations
+                .Select(location => new MapMarker(
+                    location.Id.ToString("N"),
+                    location.Area.Center,
+                    location.DisplayName,
+                    8))
+                .Concat(projection.Observations
+                    .Where(item => item.Position is not null)
+                    .Select((item, index) => new MapMarker(
+                        $"sample-{index}",
+                        item.Position!.Value,
+                        null,
+                        4)))
+                .ToArray();
+            var sampleTrack = projection.Observations
+                .Where(item => item.Position is not null)
+                .Select(item => item.Position!.Value)
+                .ToArray();
+            map.Tracks = sampleTrack.Length < 2
+                ? []
+                : [new MapTrackOverlay("day-samples", sampleTrack, "Local samples")];
+            map.Circles = locations
+                .Select(location => new MapCircleOverlay(
+                    location.Id.ToString("N"),
+                    location.Area,
+                    location.DisplayName))
+                .ToArray();
+            var zoomIn = new Button
+            {
+                Content = "+",
+                MinWidth = 44,
+                MinHeight = 44,
+                Background = PresencePalette.SurfaceBrush,
+                Foreground = PresencePalette.TextBrush,
+            };
+            zoomIn.Click += (_, _) => map.ZoomIn();
+            var zoomOut = new Button
+            {
+                Content = "−",
+                MinWidth = 44,
+                MinHeight = 44,
+                Background = PresencePalette.SurfaceBrush,
+                Foreground = PresencePalette.TextBrush,
+            };
+            zoomOut.Click += (_, _) => map.ZoomOut();
+            var fit = new Button
+            {
+                Content = "Fit",
+                MinHeight = 44,
+                Background = PresencePalette.SurfaceBrush,
+                Foreground = PresencePalette.TextBrush,
+            };
+            fit.Click += (_, _) => map.FitToContent(
+                locations
+                    .Select(location => location.Area.Center)
+                    .Concat(sampleTrack));
+            var mapFrame = new Grid
+            {
+                Children =
+                {
+                    map,
+                    new StackPanel
+                    {
+                        Orientation = Orientation.Vertical,
+                        Spacing = 6,
+                        Margin = new Thickness(10),
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        VerticalAlignment = VerticalAlignment.Top,
+                        Children = { zoomIn, zoomOut, fit },
+                    },
+                },
+            };
+
+            var refresh = new Button
+            {
+                Content = "Refresh map",
+                Classes = { "primary-button" },
+                Background = PresencePalette.TealDeepBrush,
+                Foreground = PresencePalette.TextBrush,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            refresh.Click += async (_, _) =>
+            {
+                try
+                {
+                    await map.RefreshTilesAsync();
+                    SetStatus("Map refreshed");
+                }
+                catch (Exception ex)
+                {
+                    SetStatus($"Map unavailable: {ex.Message}");
+                }
+            };
+
+            var stack = new StackPanel
+            {
+                Margin = new Thickness(16, 12, 16, 28),
+                Spacing = 12,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "DAY MAP",
+                        Classes = { "eyebrow" },
+                        Foreground = PresencePalette.TealBrush,
+                    },
+                    new TextBlock
+                    {
+                        Text = "Where the day took shape",
+                        Classes = { "page-title" },
+                        Foreground = PresencePalette.TextBrush,
+                    },
+                    new TextBlock
+                    {
+                        Text = $"{_displayDate:yyyy-MM-dd} · configured places and local samples",
+                        Classes = { "body-copy" },
+                        Foreground = PresencePalette.MutedBrush,
+                    },
+                    mapFrame,
+                    refresh,
+                    new TextBlock
+                    {
+                        Text = "Map tiles and address search may use Kartverket/Geonorge. Your locations and samples stay in the app’s private storage.",
+                        Foreground = PresencePalette.MutedBrush,
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                },
+            };
+            _content.Content = new ScrollViewer
+            {
+                Content = stack,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                HorizontalScrollBarVisibility =
+                    Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility =
+                    Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            };
+            try
+            {
+                await map.RefreshTilesAsync();
+                SetStatus("Map ready");
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Map unavailable: {ex.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _content.Content = ErrorSurface(
+                "Map is unavailable",
+                "The local day data could not be loaded.",
+                ex.Message,
+                () => _ = ShowMapAsync());
+            SetStatus($"Could not read map data: {ex.Message}");
         }
     }
 
@@ -163,7 +606,7 @@ public sealed class MainView : UserControl
             : $"Location + Wi-Fi · {location.Wifi.Ssid}";
         var content = new StackPanel
         {
-            Spacing = 4,
+            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Children =
             {
@@ -172,18 +615,20 @@ public sealed class MainView : UserControl
                     Text = location.DisplayName,
                     FontSize = 18,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
+                    Foreground = PresencePalette.TextBrush,
                 },
                 new TextBlock
                 {
                     Text = stateText,
-                    Foreground = MutedBrush,
+                    Foreground = state.State == PresenceState.Present
+                        ? PresencePalette.TealBrush
+                        : PresencePalette.MutedBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },
                 new TextBlock
                 {
                     Text = $"{evidenceText} · {location.Area.RadiusMeters:0} m radius",
-                    Foreground = MutedBrush,
+                    Foreground = PresencePalette.MutedBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },
             },
@@ -195,6 +640,8 @@ public sealed class MainView : UserControl
             MinHeight = 44,
             Margin = new Thickness(0, 8, 0, 0),
             Padding = new Thickness(12, 7),
+            Background = PresencePalette.RaisedBrush,
+            Foreground = PresencePalette.TextBrush,
         };
         edit.Click += async (_, _) => await ShowAddLocationAsync(location);
         content.Children.Add(edit);
@@ -203,8 +650,8 @@ public sealed class MainView : UserControl
             Child = content,
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 10),
-            Background = new SolidColorBrush(Color.Parse("#142b3b")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#285268")),
+            Background = PresencePalette.SurfaceBrush,
+            BorderBrush = PresencePalette.BorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
         };
@@ -218,6 +665,14 @@ public sealed class MainView : UserControl
         {
             Text = existing?.DisplayName ?? string.Empty,
             PlaceholderText = "Display name",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+        };
+        _effectiveFromInput = new TextBox
+        {
+            Text = existing?.EffectiveFromUtc?.ToString("O")
+                ?? DateTimeOffset.UtcNow.ToString("O"),
+            PlaceholderText = "2026-09-29T07:00:00Z",
             HorizontalAlignment = HorizontalAlignment.Stretch,
             MinHeight = 48,
         };
@@ -242,7 +697,7 @@ public sealed class MainView : UserControl
             Value = existing?.Area.RadiusMeters ?? 200,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        _radiusLabel = new TextBlock { Foreground = MutedBrush };
+        _radiusLabel = new TextBlock { Foreground = PresencePalette.MutedBrush };
         _radiusInput.PropertyChanged += (_, e) =>
         {
             if (e.Property == Slider.ValueProperty && _radiusLabel is not null)
@@ -289,9 +744,10 @@ public sealed class MainView : UserControl
         var searchButton = new Button
         {
             Content = "Search address",
+            Classes = { "primary-button" },
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 48,
-            Padding = new Thickness(12, 7),
+            Background = PresencePalette.TealDeepBrush,
+            Foreground = PresencePalette.TextBrush,
         };
         searchButton.Click += async (_, _) =>
         {
@@ -309,7 +765,7 @@ public sealed class MainView : UserControl
                     searchResults.Children.Add(new TextBlock
                     {
                         Text = "No addresses found.",
-                        Foreground = MutedBrush,
+                        Foreground = PresencePalette.MutedBrush,
                     });
                 }
 
@@ -340,10 +796,9 @@ public sealed class MainView : UserControl
         var save = new Button
         {
             Content = existing is null ? "Save location" : "Update location",
+            Classes = { "primary-button" },
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 48,
-            Padding = new Thickness(14, 8),
-            Background = new SolidColorBrush(Color.Parse("#b56f2b")),
+            Background = PresencePalette.CopperBrush,
             Foreground = Brushes.White,
         };
         save.Click += async (_, _) => await SaveLocationAsync();
@@ -354,17 +809,31 @@ public sealed class MainView : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
             MinHeight = 48,
             Padding = new Thickness(14, 8),
+            Background = PresencePalette.SurfaceBrush,
+            Foreground = PresencePalette.TextBrush,
         };
         cancel.Click += async (_, _) => await ShowLocationsAsync();
 
         var stack = PageStack(
             existing is null ? "Add location" : "Edit location",
             "Choose a point and radius. Map content is used only during setup.");
-        stack.Children.Add(new TextBlock { Text = "Name", Foreground = MutedBrush });
+        stack.Children.Add(new TextBlock { Text = "Name", Foreground = PresencePalette.MutedBrush });
         stack.Children.Add(_nameInput);
-        stack.Children.Add(new TextBlock { Text = "Wi-Fi network (optional)", Foreground = MutedBrush });
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Effective from (UTC)",
+            Foreground = PresencePalette.MutedBrush,
+        });
+        stack.Children.Add(_effectiveFromInput);
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Use this to introduce a place retroactively without rewriting later revisions.",
+            Foreground = PresencePalette.MutedBrush,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        stack.Children.Add(new TextBlock { Text = "Wi-Fi network (optional)", Foreground = PresencePalette.MutedBrush });
         stack.Children.Add(_ssidInput);
-        stack.Children.Add(new TextBlock { Text = "Address search", Foreground = MutedBrush });
+        stack.Children.Add(new TextBlock { Text = "Address search", Foreground = PresencePalette.MutedBrush });
         stack.Children.Add(new StackPanel
         {
             Orientation = Orientation.Vertical,
@@ -376,19 +845,19 @@ public sealed class MainView : UserControl
         stack.Children.Add(new TextBlock
         {
             Text = "Selected coordinates",
-            Foreground = MutedBrush,
+            Foreground = PresencePalette.MutedBrush,
         });
         stack.Children.Add(_coordinateInput);
         stack.Children.Add(new TextBlock
         {
             Text = "Enter latitude, longitude in decimal degrees, or tap the map.",
-            Foreground = MutedBrush,
+            Foreground = PresencePalette.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
         });
         stack.Children.Add(new TextBlock
         {
             Text = "Tap the map to set the center, then adjust the radius.",
-            Foreground = MutedBrush,
+            Foreground = PresencePalette.MutedBrush,
         });
         stack.Children.Add(_pickerMap);
         stack.Children.Add(_radiusLabel);
@@ -430,6 +899,17 @@ public sealed class MainView : UserControl
             return;
         }
 
+        if (_effectiveFromInput is null
+            || !DateTimeOffset.TryParse(
+                _effectiveFromInput.Text,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var effectiveFrom))
+        {
+            SetStatus("Enter a valid effective-from UTC timestamp.");
+            return;
+        }
+
         _selectedCoordinate = coordinate;
         var ssid = string.IsNullOrWhiteSpace(_ssidInput?.Text)
             ? null
@@ -442,36 +922,105 @@ public sealed class MainView : UserControl
             _nameInput.Text.Trim(),
             new GeoCircle(coordinate, _radiusInput.Value),
             ssid,
-            policy));
+            policy,
+            effectiveFrom));
         _editingLocation = null;
         await ShowLocationsAsync();
     }
 
     async Task ShowHistoryAsync()
     {
-        var locations = await ReadAllAsync(_locations.ReadAsync());
-        var names = locations.ToDictionary(location => location.Id, location => location.DisplayName);
-        var events = await ReadAllAsync(_events.ReadAsync());
-        var stack = PageStack("History", "Semantic events only; no route or breadcrumb history.");
-
-        foreach (var presenceEvent in events.OrderByDescending(item => item.At))
+        try
         {
-            var name = names.TryGetValue(presenceEvent.LocationId, out var locationName)
-                ? locationName
-                : presenceEvent.LocationId.ToString();
-            stack.Children.Add(new TextBlock
-            {
-                Text = $"{presenceEvent.At.ToLocalTime():g}  "
-                    + $"{presenceEvent.Transition}  {name}",
-                Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
-                Margin = new Thickness(0, 3),
-            });
-        }
+            var locationHistory = await ReadAllAsync(_locations.ReadHistoryAsync());
+            var events = await ReadAllAsync(_events.ReadAsync());
+            var stack = PageStack(
+                "History",
+                "Confirmed transitions, with no continuous route or breadcrumb history.");
 
-        if (events.Count == 0)
-            stack.Children.Add(new TextBlock { Text = "No presence events yet.", Foreground = MutedBrush });
-        _content.Content = new ScrollViewer { Content = stack };
-        SetStatus($"{events.Count} event{(events.Count == 1 ? string.Empty : "s")}");
+            foreach (var presenceEvent in events.OrderByDescending(item => item.At))
+            {
+                var name = ResolveLocationName(
+                    locationHistory,
+                    presenceEvent.LocationId,
+                    presenceEvent.At);
+                var label = presenceEvent.Transition == PresenceTransition.Arrived
+                    ? "ARRIVED"
+                    : "LEFT";
+                var color = presenceEvent.Transition == PresenceTransition.Arrived
+                    ? PresencePalette.TealBrush
+                    : PresencePalette.CopperBrush;
+                stack.Children.Add(Card(
+                    new StackPanel
+                    {
+                        Spacing = 4,
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = label,
+                                Classes = { "eyebrow" },
+                                Foreground = color,
+                            },
+                            new TextBlock
+                            {
+                                Text = name,
+                                FontSize = 18,
+                                FontWeight = FontWeight.SemiBold,
+                                Foreground = PresencePalette.TextBrush,
+                            },
+                            new TextBlock
+                            {
+                                Text = $"{presenceEvent.At.ToLocalTime():g} · "
+                                    + $"{presenceEvent.Evidence.Confidence} evidence",
+                                Foreground = PresencePalette.MutedBrush,
+                            },
+                        },
+                    },
+                    PresencePalette.SurfaceBrush));
+            }
+
+            if (events.Count == 0)
+                stack.Children.Add(new TextBlock
+                {
+                    Text = "No presence events yet.",
+                    Foreground = PresencePalette.MutedBrush,
+                });
+            _content.Content = new ScrollViewer
+            {
+                Content = stack,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                HorizontalScrollBarVisibility =
+                    Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility =
+                    Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            };
+            SetStatus($"{events.Count} event{(events.Count == 1 ? string.Empty : "s")}");
+        }
+        catch (Exception ex)
+        {
+            _content.Content = ErrorSurface(
+                "History is unavailable",
+                "The local event ledger could not be read.",
+                ex.Message,
+                () => _ = ShowHistoryAsync());
+            SetStatus($"Could not read history: {ex.Message}");
+        }
+    }
+
+    static string ResolveLocationName(
+        IEnumerable<TrackedLocation> history,
+        Guid locationId,
+        DateTimeOffset at)
+    {
+        var location = history
+            .Where(item =>
+                item.Id == locationId
+                && (item.EffectiveFromUtc is null || item.EffectiveFromUtc <= at)
+                && (item.EffectiveToUtc is null || at < item.EffectiveToUtc))
+            .OrderBy(item => item.EffectiveFromUtc ?? DateTimeOffset.MinValue)
+            .LastOrDefault();
+        return location?.DisplayName ?? locationId.ToString();
     }
 
     async Task ShowDiagnosticsAsync()
@@ -483,6 +1032,8 @@ public sealed class MainView : UserControl
         var coordinator = _services.GetService<PresenceObservationCoordinator>();
         var locationStatus = locationSource?.GetStatus();
         var wifiStatus = wifiSource?.GetStatus();
+        var today = await ReadDayProjectionAsync(DateOnly.FromDateTime(DateTime.Now));
+        var storage = _services.GetService<NdjsonPresenceStorage>();
         var stack = PageStack("Diagnostics", "Platform capability is reported separately from presence inference.");
         stack.Children.Add(DiagnosticLine(
             "Location source",
@@ -511,7 +1062,14 @@ public sealed class MainView : UserControl
         stack.Children.Add(DiagnosticLine(
             "Last observation error",
             coordinator?.LastError?.Message ?? "None"));
-        stack.Children.Add(DiagnosticLine("Stored observations", "0 — observations are ephemeral"));
+        stack.Children.Add(DiagnosticLine(
+            "Stored observations today",
+            $"{today.Observations.Count} local sample{(today.Observations.Count == 1 ? string.Empty : "s")}"));
+        stack.Children.Add(DiagnosticLine(
+            "Observation file",
+            storage?.Observations.GetFilePath(
+                DateOnly.FromDateTime(DateTime.UtcNow))
+            ?? "Unavailable"));
         _content.Content = new ScrollViewer { Content = stack };
         SetStatus("Diagnostics refreshed");
     }
@@ -592,12 +1150,12 @@ public sealed class MainView : UserControl
                     Text = title,
                     FontSize = 26,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
+                    Foreground = PresencePalette.TextBrush,
                 },
                 new TextBlock
                 {
                     Text = subtitle,
-                    Foreground = MutedBrush,
+                    Foreground = PresencePalette.MutedBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },
             },
@@ -612,12 +1170,12 @@ public sealed class MainView : UserControl
                 new TextBlock
                 {
                     Text = label,
-                    Foreground = MutedBrush,
+                    Foreground = PresencePalette.MutedBrush,
                 },
                 new TextBlock
                 {
                     Text = value,
-                    Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
+                    Foreground = PresencePalette.TextBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },
             },
@@ -629,8 +1187,6 @@ public sealed class MainView : UserControl
             : $"{status.Status}: {status.Detail}";
 
     void SetStatus(string text) => _status.Text = text;
-
-    static IBrush MutedBrush => new SolidColorBrush(Color.Parse("#91a9b5"));
 
     static async Task<List<T>> ReadAllAsync<T>(IAsyncEnumerable<T> source)
     {
