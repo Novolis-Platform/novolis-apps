@@ -202,7 +202,7 @@ jobs:
             -FilePath $env:GITHUB_OUTPUT `
             -Append `
             -Encoding utf8
-      - uses: Novolis-Platform/novolis-workflows/actions/upload-google-play-bundle@main
+      - uses: Novolis-Platform/novolis-workflows/actions/upload-google-play-bundle@6155cbe3e42233aff5691f7496f1515e5e1f5ada
         with:
           package-name: ${{ matrix.application_id }}
           bundle: ${{ steps.bundle.outputs.bundle_path }}
