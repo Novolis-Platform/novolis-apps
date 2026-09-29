@@ -27,18 +27,14 @@ public sealed class MainView : DockPanel
     readonly ComboBox _providerPicker;
     readonly Button _configureButton;
     readonly Border _azureSetupPanel;
-    readonly TextBox _endpointBox;
-    readonly TextBox _keyBox;
-    readonly TextBox _clientIdBox;
-    readonly TextBox _tenantIdBox;
-    readonly ComboBox _authModePicker;
-    readonly StackPanel _keyFields;
-    readonly StackPanel _entraFields;
     readonly IAzureSpeechResourcePicker? _resourcePicker;
-    readonly IAzureSpeechFallbackProvider? _fallbackProvider;
+    readonly ComboBox _credentialVariantPicker;
+    readonly StackPanel _automaticCredentialsPanel;
+    readonly StackPanel _manualCredentialsPanel;
     readonly Button _signInButton;
-    readonly Button _fallbackButton;
+    readonly Button _importButton;
     readonly Button _signOutButton;
+    readonly TextBlock _credentialStatus;
     readonly TextBlock _resourceStatus;
     readonly ComboBox _subscriptionPicker;
     readonly ComboBox _resourceGroupPicker;
@@ -56,15 +52,13 @@ public sealed class MainView : DockPanel
         IScreenWakeLock wakeLock,
         IDiagnosticShare diagnosticShare,
         ILogger<MainView> logger,
-        IAzureSpeechResourcePicker? resourcePicker = null,
-        IAzureSpeechFallbackProvider? fallbackProvider = null)
+        IAzureSpeechResourcePicker? resourcePicker = null)
     {
         _speech = speech ?? throw new ArgumentNullException(nameof(speech));
         _wakeLock = wakeLock ?? throw new ArgumentNullException(nameof(wakeLock));
         _diagnosticShare = diagnosticShare ?? throw new ArgumentNullException(nameof(diagnosticShare));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resourcePicker = resourcePicker;
-        _fallbackProvider = fallbackProvider;
 
         LastChildFill = true;
         Background = ReadAloudPalette.WindowBrush;
@@ -114,82 +108,50 @@ public sealed class MainView : DockPanel
             actions.Children.Add(btn);
         }
 
-        var providerRow = new StackPanel
+        var providerRow = new WrapPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
             Margin = new Thickness(0, 4, 0, 0),
-            Children =
-            {
-                ReadAloudTheme.Muted("Voice source:", 14),
-                _providerPicker,
-                _configureButton,
-            },
         };
+        providerRow.Children.Add(ReadAloudTheme.Muted("Voice source:", 14));
+        providerRow.Children.Add(_providerPicker);
+        providerRow.Children.Add(_configureButton);
+        foreach (var child in providerRow.Children)
+            child.Margin = new Thickness(0, 0, 8, 8);
 
         _status = ReadAloudTheme.Muted("Device voice works offline. Azure Speech adds MP3 export.");
 
-        _endpointBox = new TextBox
+        _credentialVariantPicker = new ComboBox
         {
-            PlaceholderText = "https://your-resource.cognitiveservices.azure.com/",
-            FontFamily = ReadAloudPalette.BodyFont,
-            Foreground = ReadAloudPalette.BodyBrush,
-            Background = ReadAloudPalette.PanelRaisedBrush,
-        };
-        _authModePicker = new ComboBox
-        {
-            ItemsSource = new[] { "Subscription key", "Microsoft Entra sign-in" },
-            SelectedIndex = 0,
+            ItemsSource = new[]
+            {
+                "Automatic — Microsoft sign-in",
+                "Manual — JSON credentials file",
+            },
+            SelectedIndex = _resourcePicker is null ? 1 : 0,
+            IsEnabled = _resourcePicker is not null,
             FontFamily = ReadAloudPalette.BodyFont,
         };
-        _authModePicker.SelectionChanged += (_, _) => RefreshAuthFields();
-        _keyBox = new TextBox
-        {
-            PlaceholderText = "Speech resource key",
-            PasswordChar = '•',
-            FontFamily = ReadAloudPalette.BodyFont,
-            Foreground = ReadAloudPalette.BodyBrush,
-            Background = ReadAloudPalette.PanelRaisedBrush,
-        };
-        _clientIdBox = new TextBox
-        {
-            PlaceholderText = "Registered Entra application client id",
-            FontFamily = ReadAloudPalette.BodyFont,
-            Foreground = ReadAloudPalette.BodyBrush,
-            Background = ReadAloudPalette.PanelRaisedBrush,
-        };
-        _tenantIdBox = new TextBox
-        {
-            PlaceholderText = "Tenant id (optional)",
-            FontFamily = ReadAloudPalette.BodyFont,
-            Foreground = ReadAloudPalette.BodyBrush,
-            Background = ReadAloudPalette.PanelRaisedBrush,
-        };
-        _keyFields = new StackPanel { Spacing = 4, Children = { _keyBox } };
-        _entraFields = new StackPanel
-        {
-            Spacing = 4,
-            Children = { _clientIdBox, _tenantIdBox },
-            IsVisible = false,
-        };
+        _credentialVariantPicker.SelectionChanged += (_, _) => RefreshCredentialVariant();
         _signInButton = ReadAloudTheme.Button(
             "Sign in with Microsoft",
             ReadAloudButtonKind.Primary);
         _signInButton.Click += async (_, _) => await SignInAzureAsync();
-        _fallbackButton = ReadAloudTheme.Button(
-            "Import credentials",
+        _importButton = ReadAloudTheme.Button(
+            "Import credentials file…",
             ReadAloudButtonKind.Secondary);
-        _fallbackButton.Click += async (_, _) => await ImportLocalAzureCredentialsAsync();
-        _fallbackButton.IsVisible = _fallbackProvider?.IsAvailable == true;
+        _importButton.Click += async (_, _) => await ImportAzureCredentialsAsync();
         _signOutButton = ReadAloudTheme.Button("Sign out", ReadAloudButtonKind.Quiet);
         _signOutButton.Click += async (_, _) => await SignOutAzureAsync();
         _signOutButton.IsVisible = false;
+        _credentialStatus = ReadAloudTheme.Muted(
+            "No Azure Speech credentials are configured.",
+            13);
         _resourceStatus = ReadAloudTheme.Muted(
             "Sign in to choose an Azure subscription.",
             13);
         _subscriptionPicker = new ComboBox
         {
-            MinWidth = 240,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             IsEnabled = false,
             FontFamily = ReadAloudPalette.BodyFont,
         };
@@ -197,7 +159,7 @@ public sealed class MainView : DockPanel
             await OnSubscriptionSelectedAsync();
         _resourceGroupPicker = new ComboBox
         {
-            MinWidth = 240,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             IsVisible = false,
             IsEnabled = false,
             FontFamily = ReadAloudPalette.BodyFont,
@@ -206,15 +168,17 @@ public sealed class MainView : DockPanel
             await OnResourceGroupSelectedAsync();
         _speechResourcePicker = new ComboBox
         {
-            MinWidth = 240,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             IsVisible = false,
             IsEnabled = false,
             FontFamily = ReadAloudPalette.BodyFont,
         };
         _speechResourcePicker.SelectionChanged += async (_, _) =>
             await OnSpeechResourceSelectedAsync();
+        _automaticCredentialsPanel = BuildAutomaticCredentialsPanel();
+        _manualCredentialsPanel = BuildManualCredentialsPanel();
         _azureSetupPanel = BuildAzureSetupPanel();
-        RefreshAuthFields();
+        RefreshCredentialVariant();
 
         var chrome = new StackPanel
         {
@@ -290,52 +254,30 @@ public sealed class MainView : DockPanel
         }
     }
 
-    Border BuildAzureSetupPanel() =>
-        _resourcePicker is not null
-            ? BuildAzureResourcePickerPanel()
-            : BuildManualAzureSetupPanel();
-
-    Border BuildAzureResourcePickerPanel() =>
-        new Border
+    Border BuildAzureSetupPanel()
+    {
+        var children = new List<Control>
         {
-            IsVisible = false,
-            Margin = new Thickness(0, 8, 0, 0),
-            Padding = new Thickness(10),
-            Background = ReadAloudPalette.PanelBrush,
-            CornerRadius = new CornerRadius(4),
-            BorderBrush = ReadAloudPalette.AccentBrush,
-            BorderThickness = new Thickness(1),
-            Child = new StackPanel
-            {
-                Spacing = 5,
-                Children =
-                {
-                    ReadAloudTheme.Muted(
-                        "Sign in with Microsoft. Read Aloud will show only subscriptions and Speech resources you can access.",
-                        13),
-                    new WrapPanel
-                    {
-                        Children = { _signInButton, _fallbackButton, _signOutButton },
-                    },
-                    _resourceStatus,
-                    ReadAloudTheme.Muted("Azure subscription", 12),
-                    _subscriptionPicker,
-                    ReadAloudTheme.Muted("Resource group", 12),
-                    _resourceGroupPicker,
-                    ReadAloudTheme.Muted("Speech service", 12),
-                    _speechResourcePicker,
-                },
-            },
+            ReadAloudTheme.Muted(
+                "Azure Speech credentials are used only for Azure playback and MP3 export.",
+                13),
+            _credentialStatus,
         };
 
-    Border BuildManualAzureSetupPanel()
-    {
-        var save = ReadAloudTheme.Button("Save and test", ReadAloudButtonKind.Primary);
-        save.Click += async (_, _) => await SaveAzureSetupAsync();
-        var test = ReadAloudTheme.Button("Test saved connection", ReadAloudButtonKind.Secondary);
-        test.Click += async (_, _) => await TestAzureAsync();
-        var remove = ReadAloudTheme.Button("Remove Azure setup", ReadAloudButtonKind.Danger);
-        remove.Click += async (_, _) => await RemoveAzureSetupAsync();
+        if (_resourcePicker is not null)
+        {
+            children.Add(ReadAloudTheme.Muted("Credential variant", 12));
+            children.Add(_credentialVariantPicker);
+            children.Add(_automaticCredentialsPanel);
+        }
+
+        children.Add(_manualCredentialsPanel);
+        var content = new StackPanel
+        {
+            Spacing = 5,
+        };
+        foreach (var child in children)
+            content.Children.Add(child);
 
         return new Border
         {
@@ -346,25 +288,66 @@ public sealed class MainView : DockPanel
             CornerRadius = new CornerRadius(4),
             BorderBrush = ReadAloudPalette.AccentBrush,
             BorderThickness = new Thickness(1),
-            Child = new StackPanel
+            Child = content,
+        };
+    }
+
+    StackPanel BuildAutomaticCredentialsPanel()
+    {
+        var actions = new WrapPanel();
+        foreach (var button in new[] { _signInButton, _signOutButton })
+        {
+            button.Margin = new Thickness(0, 0, 8, 8);
+            actions.Children.Add(button);
+        }
+
+        return new StackPanel
+        {
+            Spacing = 5,
+            IsVisible = false,
+            Children =
             {
-                Spacing = 5,
-                Children =
-                {
-                    ReadAloudTheme.Muted(
-                        "Read Aloud signs in to your Azure Speech resource. The endpoint and credential are stored in platform secure storage.",
-                        13),
-                    ReadAloudTheme.Muted("Resource endpoint", 12),
-                    _endpointBox,
-                    ReadAloudTheme.Muted("Authentication", 12),
-                    _authModePicker,
-                    _keyFields,
-                    _entraFields,
-                    new WrapPanel
-                    {
-                        Children = { save, test, remove },
-                    },
-                },
+                ReadAloudTheme.Muted(
+                    "Automatic uses Microsoft sign-in, then filters your subscriptions, resource groups, and compatible Speech services. No key file is used.",
+                    13),
+                actions,
+                _resourceStatus,
+                ReadAloudTheme.Muted("Azure subscription", 12),
+                _subscriptionPicker,
+                ReadAloudTheme.Muted("Resource group", 12),
+                _resourceGroupPicker,
+                ReadAloudTheme.Muted("Speech service", 12),
+                _speechResourcePicker,
+            },
+        };
+    }
+
+    StackPanel BuildManualCredentialsPanel()
+    {
+        var test = ReadAloudTheme.Button("Test saved connection", ReadAloudButtonKind.Secondary);
+        test.Click += async (_, _) => await TestAzureAsync();
+        var remove = ReadAloudTheme.Button("Remove Azure setup", ReadAloudButtonKind.Danger);
+        remove.Click += async (_, _) => await RemoveAzureSetupAsync();
+        var actions = new WrapPanel();
+        foreach (var button in new[] { _importButton, test, remove })
+        {
+            button.Margin = new Thickness(0, 0, 8, 8);
+            actions.Children.Add(button);
+        }
+
+        return new StackPanel
+        {
+            IsVisible = false,
+            Spacing = 5,
+            Children =
+            {
+                ReadAloudTheme.Muted(
+                    "Manual import reads a versioned JSON file. The file is not packaged or copied; its key is stored only in platform secure storage.",
+                    13),
+                ReadAloudTheme.Muted(
+                    "Required layout: schema, version, authentication, endpoint, subscriptionKey. Optional: voiceName and locale.",
+                    13),
+                actions,
             },
         };
     }
@@ -375,45 +358,31 @@ public sealed class MainView : DockPanel
         if (!_azureSetupPanel.IsVisible)
             return;
 
-        if (_resourcePicker is not null)
+        var setup = _speech.AzureConfiguration;
+        if (_resourcePicker is not null && setup is not null)
         {
-            SetStatus(
-                _subscriptions.Count == 0
-                    ? "Sign in to choose an Azure Speech resource."
-                    : "Choose an Azure Speech resource.");
-            return;
+            _credentialVariantPicker.SelectedIndex =
+                setup.EffectiveCredentialSource == AzureSpeechCredentialSource.Automatic ? 0 : 1;
         }
 
-        if (_azureSetupPanel.IsVisible)
-        {
-            var setup = _speech.AzureConfiguration;
-            if (setup is not null)
-            {
-                _endpointBox.Text = setup.Endpoint.ToString();
-                _authModePicker.SelectedIndex =
-                    setup.AuthenticationMode == AzureSpeechAuthenticationMode.ApiKey ? 0 : 1;
-                _clientIdBox.Text = setup.ClientId ?? string.Empty;
-                _tenantIdBox.Text = setup.TenantId ?? string.Empty;
-            }
-            else
-            {
-                _endpointBox.Text = SpeechService.DefaultAzureEndpoint.ToString();
-                _authModePicker.SelectedIndex = 1;
-                _clientIdBox.Text = SpeechService.DefaultAzureClientId;
-                _tenantIdBox.Text = SpeechService.DefaultAzureTenantId;
-            }
-
-            RefreshAuthFields();
-        }
+        RefreshCredentialVariant();
+        SetStatus(_resourcePicker is not null &&
+                  _credentialVariantPicker.SelectedIndex == 0
+            ? "Automatic Azure sign-in: choose a Speech resource."
+            : "Manual Azure credentials: import the JSON file.");
     }
 
-    void RefreshAuthFields()
+    void RefreshCredentialVariant()
     {
-        if (_keyFields is null || _entraFields is null)
-            return;
-        var entra = _authModePicker.SelectedIndex == 1;
-        _keyFields.IsVisible = !entra;
-        _entraFields.IsVisible = entra;
+        var automatic = _resourcePicker is not null &&
+                        _credentialVariantPicker.SelectedIndex == 0;
+        _automaticCredentialsPanel.IsVisible = automatic;
+        _manualCredentialsPanel.IsVisible = !automatic;
+
+        var setup = _speech.AzureConfiguration;
+        _credentialStatus.Text = setup is null
+            ? "Current credentials: not configured."
+            : $"Current credentials: {DescribeCredentialSource(setup)}.";
     }
 
     async Task OnProviderChangedAsync()
@@ -437,10 +406,8 @@ public sealed class MainView : DockPanel
             _azureSetupPanel.IsVisible = true;
             SetStatus(
                 _resourcePicker is null
-                    ? "Add your Azure Speech resource before selecting Azure playback."
-                    : "Sign in to choose an Azure Speech resource.");
-            if (_resourcePicker is null)
-                RefreshAuthFields();
+                    ? "Import the Azure Speech credentials JSON before selecting Azure playback."
+                    : "Sign in or import an Azure Speech credentials file.");
             return;
         }
 
@@ -499,31 +466,51 @@ public sealed class MainView : DockPanel
         }
     }
 
-    async Task ImportLocalAzureCredentialsAsync()
+    async Task ImportAzureCredentialsAsync()
     {
-        if (_fallbackProvider is null)
+        var top = TopLevel.GetTopLevel(this);
+        if (top?.StorageProvider is null)
             return;
 
-        _fallbackButton.IsEnabled = false;
-        SetStatus("Importing local Azure Speech credentials…");
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import Azure Speech credentials",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Azure Speech credentials JSON")
+                {
+                    Patterns = ["*.json"],
+                    MimeTypes = ["application/json"],
+                },
+            ],
+        });
+        if (files.Count == 0)
+            return;
+
+        _importButton.IsEnabled = false;
+        SetStatus("Reading manual Azure credentials…");
         try
         {
-            var setup = await _fallbackProvider.LoadAsync();
+            await using var stream = await files[0].OpenReadAsync();
+            var setup = await AzureSpeechCredentialFile.ReadAsync(stream);
             await _speech.ConfigureAzureAsync(setup);
             var voices = await _speech.TestAzureAsync();
-            _resourceStatus.Text = "Using imported local developer credentials.";
-            SetStatus($"Azure Speech credentials imported ({voices.Count:N0} voices available).");
+            if (_resourcePicker is not null)
+                _credentialVariantPicker.SelectedIndex = 1;
+            RefreshCredentialVariant();
+            SetStatus($"Manual Azure Speech credentials imported ({voices.Count:N0} voices available).");
             RefreshProviderUi();
             RefreshListen();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Read Aloud local Azure Speech credential import failed.");
-            SetStatus($"Credential import failed: {ex.Message}");
+            _logger.LogError(ex, "Read Aloud manual Azure Speech credential import failed.");
+            SetStatus($"Credential file import failed: {ex.Message}");
         }
         finally
         {
-            _fallbackButton.IsEnabled = _fallbackProvider.IsAvailable;
+            _importButton.IsEnabled = true;
         }
     }
 
@@ -681,6 +668,7 @@ public sealed class MainView : DockPanel
             await _speech.ConfigureAzureAsync(new AzureSpeechSetup
             {
                 Endpoint = resource.Endpoint,
+                CredentialSource = AzureSpeechCredentialSource.Automatic,
                 AuthenticationMode = AzureSpeechAuthenticationMode.MicrosoftEntra,
                 ClientId = resource.ClientId,
                 TenantId = resource.TenantId,
@@ -723,6 +711,7 @@ public sealed class MainView : DockPanel
             ResetResourcePickersCore();
             _resourceRefresh = false;
             _signOutButton.IsVisible = false;
+            RefreshCredentialVariant();
             SetStatus("Signed out. Device voice remains available.");
             RefreshProviderUi();
             RefreshListen();
@@ -751,47 +740,6 @@ public sealed class MainView : DockPanel
         _speechResourcePicker.IsEnabled = false;
     }
 
-    async Task SaveAzureSetupAsync()
-    {
-        if (!Uri.TryCreate(_endpointBox.Text?.Trim(), UriKind.Absolute, out var endpoint) ||
-            !string.Equals(endpoint.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            SetStatus("Enter an absolute HTTPS Azure Speech endpoint.");
-            return;
-        }
-
-        var entra = _authModePicker.SelectedIndex == 1;
-        var setup = new AzureSpeechSetup
-        {
-            Endpoint = endpoint,
-            AuthenticationMode = entra
-                ? AzureSpeechAuthenticationMode.MicrosoftEntra
-                : AzureSpeechAuthenticationMode.ApiKey,
-            ApiKey = entra ? null : _keyBox.Text,
-            ClientId = entra ? _clientIdBox.Text?.Trim() : null,
-            TenantId = entra ? _tenantIdBox.Text?.Trim() : null,
-            VoiceName = _speech.Voice.Voice,
-            Locale = "en-US",
-        };
-
-        try
-        {
-            SetStatus(entra
-                ? "Saving Azure setup and opening Microsoft sign-in…"
-                : "Saving Azure setup and testing the resource…");
-            await _speech.ConfigureAzureAsync(setup);
-            var voices = await _speech.TestAzureAsync();
-            SetStatus($"Azure Speech connected ({voices.Count:N0} voices available).");
-            RefreshProviderUi();
-            RefreshListen();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Read Aloud Azure setup failed.");
-            SetStatus($"Azure setup failed: {ex.Message}");
-        }
-    }
-
     async Task TestAzureAsync()
     {
         try
@@ -813,6 +761,7 @@ public sealed class MainView : DockPanel
         {
             await _speech.RemoveAzureAsync();
             _azureSetupPanel.IsVisible = false;
+            RefreshCredentialVariant();
             RefreshProviderUi();
             RefreshListen();
             SetStatus("Azure setup removed. Device voice remains available.");
@@ -830,7 +779,13 @@ public sealed class MainView : DockPanel
         _providerPicker.SelectedIndex = _speech.Provider == SpeechProvider.AzureSpeech ? 1 : 0;
         _providerRefresh = false;
         _configureButton.Content = _speech.CanCreateMp3 ? "Azure settings" : "Azure setup";
+        RefreshCredentialVariant();
     }
+
+    static string DescribeCredentialSource(AzureSpeechSetup setup) =>
+        setup.EffectiveCredentialSource == AzureSpeechCredentialSource.Automatic
+            ? "Automatic — Microsoft sign-in"
+            : "Manual — imported JSON credentials";
 
     void Clear()
     {
@@ -977,8 +932,11 @@ public sealed class MainView : DockPanel
         if (!_speech.CanCreateMp3)
         {
             _azureSetupPanel.IsVisible = true;
-            SetStatus("MP3 export needs Azure Speech setup; device voice does not create files.");
-            RefreshAuthFields();
+            SetStatus(
+                _resourcePicker is null
+                    ? "MP3 export needs a manual Azure credentials file."
+                    : "MP3 export needs automatic sign-in or a manual Azure credentials file.");
+            RefreshCredentialVariant();
             return;
         }
 

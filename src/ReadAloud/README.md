@@ -52,32 +52,36 @@ Requires Android SDK / workload and a connected device or emulator. APK is never
 ## Android Azure sign-in
 
 The Android host uses a single-tenant Microsoft Entra public client and the
-system browser. Open **Azure setup**, choose **Sign in with Microsoft**, then
-choose a subscription only when more than one is available. Read Aloud filters
-resource groups and services to compatible Speech resources and automatically
-selects the only valid resource when there is one. No Speech key, endpoint, or
-client id is entered by the user or embedded as a secret in the APK.
+system browser. Open **Azure setup**, choose **Automatic — Microsoft sign-in**,
+then choose a subscription only when more than one is available. Read Aloud
+filters resource groups and services to compatible Speech resources and
+automatically selects the only valid resource when there is one. The automatic
+path does not ask for a Speech key or embed one as a secret in the APK.
 
 The selected resource is configured with Microsoft Entra data-plane access.
 MSAL owns the platform-native secure token cache. The
 single-tenant app registration uses the MSAL redirect
 `msalc8b938aa-2e5d-48b4-89c6-fc139733c44d://auth`.
 
-For developer-only testing, an optional untracked fallback can be installed
-from `local/ReadAloud/azure-speech-fallback.json`. It must contain an HTTPS
-endpoint and Speech subscription key:
+For **Manual — JSON credentials file**, choose **Import credentials file…**
+and select a user-owned UTF-8 JSON file with this exact schema:
 
 ```json
 {
+  "schema": "novolis.readaloud.azure-speech-credentials",
+  "version": 1,
+  "authentication": "subscriptionKey",
   "endpoint": "https://your-resource.cognitiveservices.azure.com/",
-  "subscriptionKey": "developer-only-key",
+  "subscriptionKey": "your-speech-resource-key",
   "voiceName": "en-US-AvaMultilingualNeural",
   "locale": "en-US"
 }
 ```
 
-The file is copied into Android app-private storage, never packaged into the
-APK, and loaded only after pressing **Import credentials** in **Azure setup**.
+`schema`, `version`, `authentication`, `endpoint`, and `subscriptionKey` are
+required. `voiceName` and `locale` are optional. The selected file is read
+once; it is not copied into or packaged with the app. The imported key is
+stored only in platform secure storage.
 
 ## Packages
 

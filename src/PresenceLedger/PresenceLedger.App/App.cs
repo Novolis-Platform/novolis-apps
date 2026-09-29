@@ -1,5 +1,8 @@
 using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -29,7 +32,14 @@ public sealed class App : Application
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
         {
-            single.MainView = mainView;
+            single.MainView = new ScrollViewer
+            {
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Top,
+                Content = mainView,
+            };
         }
 
         base.OnFrameworkInitializationCompleted();

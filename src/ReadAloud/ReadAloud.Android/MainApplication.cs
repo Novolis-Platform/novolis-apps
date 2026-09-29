@@ -54,7 +54,6 @@ public class MainApplication : AvaloniaAndroidApplication<App>
                     SpeechService.DefaultAzureTenantId));
                 services.AddSingleton<HttpClient>();
                 services.AddSingleton<IAzureSpeechResourcePicker, AndroidAzureSpeechResourcePicker>();
-                services.AddSingleton<IAzureSpeechFallbackProvider, AndroidAzureSpeechFallbackProvider>();
                 services.AddSingleton<IAzureSpeechCredentialFactory, AndroidEntraSpeechCredentialFactory>();
             })
             .Build();
