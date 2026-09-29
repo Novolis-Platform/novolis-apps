@@ -15,12 +15,12 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
-    <PackageReference Include="Novolis.Transports.Datagrams" />
-    <PackageReference Include="Novolis.Transports.Discovery" />
-    <PackageReference Include="Novolis.Transports.Framing" />
-    <PackageReference Include="Novolis.Transports.LocalIpc" />
-    <PackageReference Include="Novolis.Transports.Tailscale" />
-    <PackageReference Include="Novolis.Transports.Udp" />
-    <PackageReference Include="Novolis.Windows.Sessions" />
+    <LibraryReference Include="Novolis.Transports.Datagrams" />
+    <LibraryReference Include="Novolis.Transports.Discovery" />
+    <LibraryReference Include="Novolis.Transports.Framing" />
+    <LibraryReference Include="Novolis.Transports.LocalIpc" />
+    <LibraryReference Include="Novolis.Transports.Tailscale" />
+    <LibraryReference Include="Novolis.Transports.Udp" />
+    <LibraryReference Include="Novolis.Windows.Sessions" />
   </ItemGroup>
 </Project>

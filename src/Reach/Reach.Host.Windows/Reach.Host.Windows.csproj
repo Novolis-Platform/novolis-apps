@@ -15,15 +15,15 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Novolis.Avalonia.Mobile.Desktop" />
-    <PackageReference Include="Novolis.Transports.Framing" />
-    <PackageReference Include="Novolis.Transports.LocalIpc" />
-    <PackageReference Include="Novolis.Video.Abstractions" />
-    <PackageReference Include="Novolis.Video.Capture.Windows" />
-    <PackageReference Include="Novolis.Video.Codecs.H264" />
-    <PackageReference Include="Novolis.Windows.Audio" />
-    <PackageReference Include="Novolis.Windows.Clipboard" />
-    <PackageReference Include="Novolis.Windows.Display" />
-    <PackageReference Include="Novolis.Windows.Input" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile.Desktop" />
+    <LibraryReference Include="Novolis.Transports.Framing" />
+    <LibraryReference Include="Novolis.Transports.LocalIpc" />
+    <LibraryReference Include="Novolis.Video.Abstractions" />
+    <LibraryReference Include="Novolis.Video.Capture.Windows" />
+    <LibraryReference Include="Novolis.Video.Codecs.H264" />
+    <LibraryReference Include="Novolis.Windows.Audio" />
+    <LibraryReference Include="Novolis.Windows.Clipboard" />
+    <LibraryReference Include="Novolis.Windows.Display" />
+    <LibraryReference Include="Novolis.Windows.Input" />
   </ItemGroup>
 </Project>

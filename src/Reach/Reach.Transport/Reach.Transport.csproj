@@ -9,10 +9,10 @@
     <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Novolis.Transports.Abstractions" />
-    <PackageReference Include="Novolis.Transports.Quic" />
-    <PackageReference Include="Novolis.Transports.Tcp" />
-    <PackageReference Include="Novolis.Transports.Udp" />
-    <PackageReference Include="Novolis.Transports.Framing" />
+    <LibraryReference Include="Novolis.Transports.Abstractions" />
+    <LibraryReference Include="Novolis.Transports.Quic" />
+    <LibraryReference Include="Novolis.Transports.Tcp" />
+    <LibraryReference Include="Novolis.Transports.Udp" />
+    <LibraryReference Include="Novolis.Transports.Framing" />
   </ItemGroup>
 </Project>

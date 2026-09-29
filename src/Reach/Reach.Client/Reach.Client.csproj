@@ -13,9 +13,9 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Novolis.Transports.Discovery" />
-    <PackageReference Include="Novolis.Transports.Framing" />
-    <PackageReference Include="Novolis.Transports.Tailscale" />
-    <PackageReference Include="Novolis.Video.Abstractions" />
+    <LibraryReference Include="Novolis.Transports.Discovery" />
+    <LibraryReference Include="Novolis.Transports.Framing" />
+    <LibraryReference Include="Novolis.Transports.Tailscale" />
+    <LibraryReference Include="Novolis.Video.Abstractions" />
   </ItemGroup>
 </Project>
