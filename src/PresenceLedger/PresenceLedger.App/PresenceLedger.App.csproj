@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>PresenceLedger.App</RootNamespace>
     <AssemblyName>PresenceLedger.App</AssemblyName>
+    <Description>Local-first arrival and departure ledger for user-defined locations.</Description>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>

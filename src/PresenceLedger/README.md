@@ -4,6 +4,16 @@ Presence Ledger is a local-first Avalonia application for recording confirmed
 arrival and departure at user-defined locations. It stores semantic events,
 not a continuous route or GPS breadcrumb history.
 
+## Product metadata
+
+- Display name: `Presence Ledger`
+- Publisher: `Novolis`
+- Android application ID: `com.novolis.presenceledger`
+- Release channels: Windows installer and portable archive, plus Android APK
+- Source license: MIT
+- Branding: the Windows window/installer and Android launcher use the shared
+  Novolis mark from the repository brand assets.
+
 ## Projects
 
 | Project | Role |
@@ -54,6 +64,12 @@ dotnet test d:\novolis\novolis-apps\tests\PresenceLedger.Storage.Tests\PresenceL
 
 Committed builds consume published GitHub Packages `2026.1.*` packages and
 nuget.org dependencies.
+
+## Releases
+
+Release artifacts are published from the `PresenceLedger` choice in the
+repository's `Release` workflow. The release includes the Windows installer,
+portable archive, Android APK, and `SHA256SUMS.txt`.
 
 ## Privacy
 

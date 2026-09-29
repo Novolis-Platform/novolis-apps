@@ -919,7 +919,7 @@
           "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj"
         ]
       },
-      "local": ["windows", "android"],
+      "local": ["windows", "linux", "android"],
       "ship": ["windows-inno", "android-apk"],
       "validation": {
         "changedPathGlobs": [

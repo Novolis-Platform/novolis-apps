@@ -10,8 +10,9 @@
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <application
     android:allowBackup="false"
-    android:icon="@android:drawable/sym_def_app_icon"
+    android:icon="@mipmap/ic_launcher"
     android:label="Presence Ledger"
+    android:roundIcon="@mipmap/ic_launcher"
     android:supportsRtl="true"
     android:theme="@style/PresenceLedgerTheme"
     android:usesCleartextTraffic="false">
