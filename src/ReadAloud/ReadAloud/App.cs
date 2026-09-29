@@ -35,7 +35,10 @@ public sealed class App : Application
         {
             single.MainView = new ScrollViewer
             {
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                // Keep the mobile surface constrained to the display width so
+                // WrapPanel rows can wrap instead of creating a wider canvas
+                // whose left edge is clipped on Android.
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 VerticalContentAlignment = VerticalAlignment.Top,
