@@ -434,16 +434,18 @@ function New-NovolisAdhocAndroidKeystore {
 function Find-NovolisPublishedAndroidArtifact {
     param(
         [Parameter(Mandatory)][string]$RepoRoot,
-        [Parameter(Mandatory)][ValidateSet('apk', 'aab')][string]$PackageFormat
+        [Parameter(Mandatory)][ValidateSet('apk', 'aab')][string]$PackageFormat,
+        [string]$ApplicationId
     )
 
     $extension = $PackageFormat.ToLowerInvariant()
     @(Get-ChildItem -Path $RepoRoot -Recurse -File -Filter "*.$extension" -ErrorAction SilentlyContinue) |
         Where-Object {
             $_.FullName -notmatch '[\\/]obj[\\/]' -and
-            $_.FullName -notmatch '[\\/]artifacts[\\/]' -and
-            $_.FullName -match '(?i)[\\/]bin[\\/]Release[\\/]' -and
-            $_.Name -notmatch '(?i)unsigned'
+            $_.FullName -match '(?i)[\\/]release[\\/]' -and
+            $_.Name -notmatch '(?i)unsigned' -and
+            ([string]::IsNullOrWhiteSpace($ApplicationId) -or
+                $_.Name.Contains($ApplicationId, [StringComparison]::OrdinalIgnoreCase))
         } |
         Sort-Object LastWriteTimeUtc -Descending |
         Select-Object -First 1
@@ -551,7 +553,10 @@ function Publish-NovolisAndroidArtifact {
     & dotnet publish @publishArgs @cfgArgs | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Android $PackageFormat publish failed with exit code $LASTEXITCODE." }
 
-    $artifact = Find-NovolisPublishedAndroidArtifact -RepoRoot $RepoRoot -PackageFormat $PackageFormat
+    $artifact = Find-NovolisPublishedAndroidArtifact `
+        -RepoRoot $RepoRoot `
+        -PackageFormat $PackageFormat `
+        -ApplicationId $app.ApplicationId
     if (-not $artifact) { throw "No Android $PackageFormat produced for $AppKey." }
 
     $dest = Join-Path $stagingDir "$($app.ArtifactPrefix)-$PackageVersion-android.$PackageFormat"
