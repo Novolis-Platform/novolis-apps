@@ -43,11 +43,53 @@ public sealed class MarkdownSpeechPreParserTests
         await Assert.That(normalized).Contains("Completed list item. Finished item");
         await Assert.That(normalized).Contains("Todo list item. Open item");
         await Assert.That(normalized).Contains("Note. This is useful context.");
-        await Assert.That(normalized).Contains("Table row. Name: Alpha. Value: Bravo");
-        await Assert.That(normalized).Contains("Diagram omitted.");
+        await Assert.That(normalized).Contains("Table cannot be read.");
+        await Assert.That(normalized).Contains("Code-block cannot be read.");
+        await Assert.That(normalized).DoesNotContain("Alpha");
+        await Assert.That(normalized).DoesNotContain("Bravo");
         await Assert.That(normalized).DoesNotContain("https://example.com");
         await Assert.That(normalized).DoesNotContain("**");
         await Assert.That(normalized).DoesNotContain("```");
         await Assert.That(normalized).DoesNotContain("flowchart");
+    }
+
+    [Test]
+    public async Task Normalize_replaces_every_fenced_code_variant_without_leaking_code()
+    {
+        var markdown = """
+            ```
+            plain code
+            ```
+
+            ```plaintext
+            plaintext code
+            ```
+
+            ```text
+            text code
+            ```
+
+            ```mermaid
+            flowchart LR
+            A --> B
+            ```
+
+            ~~~
+            tilde code
+            ~~~
+            """;
+
+        var normalized = MarkdownSpeechPreParser.Normalize(markdown);
+
+        await Assert.That(normalized)
+            .Contains("Code-block cannot be read.");
+        await Assert.That(
+                normalized.Split("Code-block cannot be read.", StringSplitOptions.None).Length - 1)
+            .IsEqualTo(5);
+        await Assert.That(normalized).DoesNotContain("plain code");
+        await Assert.That(normalized).DoesNotContain("plaintext code");
+        await Assert.That(normalized).DoesNotContain("text code");
+        await Assert.That(normalized).DoesNotContain("flowchart");
+        await Assert.That(normalized).DoesNotContain("tilde code");
     }
 }

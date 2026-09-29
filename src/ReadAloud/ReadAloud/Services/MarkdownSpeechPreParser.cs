@@ -64,9 +64,6 @@ public static class MarkdownSpeechPreParser
     static readonly Regex Checkbox = new(
         @"^\[(?<state>[ xX])\]\s*",
         RegexOptions.Compiled);
-    static readonly Regex TableSeparatorCell = new(
-        @"^:?-{3,}:?$",
-        RegexOptions.Compiled);
 
     /// <summary>Returns Markdown transformed into natural speech paragraphs.</summary>
     public static string Normalize(string markdown)
@@ -83,9 +80,7 @@ public static class MarkdownSpeechPreParser
         var lines = source.Split('\n');
         var blocks = new List<string>();
         var paragraph = new StringBuilder();
-        var codeLines = new List<string>();
         string? fenceMarker = null;
-        string language = string.Empty;
 
         void FlushParagraph(bool sentenceBoundary = false)
         {
@@ -98,23 +93,7 @@ public static class MarkdownSpeechPreParser
 
         void AddCodeBlock()
         {
-            var code = string.Join(' ', codeLines).Trim();
-            codeLines.Clear();
-            var normalizedLanguage = CleanInline(language);
-            language = string.Empty;
-            if (normalizedLanguage is "mermaid" or "plantuml" or "dot" or "graphviz")
-            {
-                AddBlock(blocks, "Diagram omitted.");
-                return;
-            }
-
-            if (code.Length == 0)
-                return;
-
-            var label = normalizedLanguage.Length == 0
-                ? "Code block."
-                : $"Code block {normalizedLanguage}.";
-            AddBlock(blocks, $"{label} {code}");
+            AddBlock(blocks, MarkdownDeserializer.CodeBlockPlaceholder);
         }
 
         for (var index = 0; index < lines.Length; index++)
@@ -129,10 +108,6 @@ public static class MarkdownSpeechPreParser
                     fenceMarker = null;
                     AddCodeBlock();
                 }
-                else
-                {
-                    codeLines.Add(trimmed);
-                }
 
                 continue;
             }
@@ -142,7 +117,6 @@ public static class MarkdownSpeechPreParser
             {
                 FlushParagraph(sentenceBoundary: true);
                 fenceMarker = fence.Groups["marker"].Value;
-                language = fence.Groups["language"].Value.Trim().Split(' ', 2)[0];
                 continue;
             }
 
@@ -165,7 +139,6 @@ public static class MarkdownSpeechPreParser
             if (TryReadTable(
                     lines,
                     ref index,
-                    trimmed,
                     out var tableBlocks))
             {
                 FlushParagraph(sentenceBoundary: true);
@@ -298,63 +271,21 @@ public static class MarkdownSpeechPreParser
     static bool TryReadTable(
         string[] lines,
         ref int index,
-        string current,
         out List<string> blocks)
     {
         blocks = [];
-        if (!IsTableRow(current) ||
-            index + 1 >= lines.Length ||
-            !IsTableSeparator(lines[index + 1]))
+        if (!MarkdownDetector.TryReadTable(
+                lines,
+                index,
+                out var nextIndex,
+                out var speech))
         {
             return false;
         }
 
-        var headers = SplitTableRow(current);
-        if (headers.Count > 0)
-            blocks.Add($"Table. {string.Join(", ", headers)}");
-
-        index += 2;
-        while (index < lines.Length && IsTableRow(lines[index].Trim()))
-        {
-            var cells = SplitTableRow(lines[index]);
-            if (cells.Count > 0)
-            {
-                var values = cells
-                    .Select((cell, cellIndex) =>
-                        cellIndex < headers.Count && headers[cellIndex].Length > 0
-                            ? $"{headers[cellIndex]}: {cell}"
-                            : cell)
-                    .Where(static value => value.Length > 0);
-                blocks.Add($"Table row. {string.Join(". ", values)}");
-            }
-
-            index++;
-        }
-
-        index--;
+        blocks.Add(speech);
+        index = nextIndex - 1;
         return true;
-    }
-
-    static bool IsTableRow(string line) =>
-        line.Contains('|', StringComparison.Ordinal) &&
-        SplitTableRow(line).Count > 1;
-
-    static bool IsTableSeparator(string line) =>
-        SplitTableRow(line).Count > 1 &&
-        SplitTableRow(line).All(cell => TableSeparatorCell.IsMatch(cell));
-
-    static List<string> SplitTableRow(string line)
-    {
-        var value = line.Trim();
-        if (value.StartsWith('|'))
-            value = value[1..];
-        if (value.EndsWith('|'))
-            value = value[..^1];
-
-        return value
-            .Split('|')
-            .Select(cell => CleanInline(cell.Replace("\\|", "|", StringComparison.Ordinal)))
-            .ToList();
     }
 
     static bool IsFenceClose(string line, string marker)
