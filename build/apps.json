@@ -437,7 +437,11 @@
         "appDataRoot": "%LOCALAPPDATA%\\Novolis\\read-aloud",
         "cacheRoot": "%LOCALAPPDATA%\\Novolis\\read-aloud\\cache",
         "credentialsNamespace": "Novolis.ReadAloud",
-        "networkDestinations": ["speech.platform.bing.com"],
+        "networkDestinations": [
+          "management.azure.com",
+          "norwayeast.api.cognitive.microsoft.com",
+          "login.microsoftonline.com"
+        ],
         "retention": "uninstall-preserves-user-data"
       },
       "release": { "githubRelease": true, "checksums": true }

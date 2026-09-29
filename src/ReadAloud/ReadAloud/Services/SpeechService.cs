@@ -10,6 +10,10 @@ namespace ReadAloud.Services;
 public sealed class SpeechService : IDisposable
 {
     public const int MobileMaxChunkChars = 700;
+    public static readonly Uri DefaultAzureEndpoint =
+        new("https://norwayeast.api.cognitive.microsoft.com/");
+    public const string DefaultAzureClientId = "c8b938aa-2e5d-48b4-89c6-fc139733c44d";
+    public const string DefaultAzureTenantId = "25427e56-8e11-4e5a-b8e6-d7645bdc27b1";
 
     readonly SpeechFront _front;
     readonly IAudioPlayer _player;

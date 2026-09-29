@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="read_aloud_window">#05070D</color>
+  <color name="read_aloud_accent">#2FDFFF</color>
+</resources>

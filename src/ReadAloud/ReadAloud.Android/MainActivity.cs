@@ -1,8 +1,10 @@
 using Android.App;
+using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
 using Avalonia.Android;
+using Microsoft.Identity.Client;
 
 namespace ReadAloud.Android;
 
@@ -35,5 +37,14 @@ public class MainActivity : AvaloniaMainActivity
         if (ReferenceEquals(Current, this))
             Current = null;
         base.OnPause();
+    }
+
+    protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
+    {
+        AuthenticationContinuationHelper.SetAuthenticationContinuationEventArgs(
+            requestCode,
+            resultCode,
+            data!);
+        base.OnActivityResult(requestCode, resultCode, data);
     }
 }

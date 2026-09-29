@@ -49,6 +49,20 @@ pwsh -File d:\novolis\novolis-apps\scripts\deploy-readaloud-android.ps1 -Serial 
 
 Requires Android SDK / workload and a connected device or emulator. APK is never uploaded to GitHub Releases. Device voice works offline; Azure Speech and MP3 export use the endpoint and quota supplied by the user.
 
+## Android Azure sign-in
+
+The Android host uses a single-tenant Microsoft Entra public client and the
+system browser. Open **Azure setup**, choose **Sign in with Microsoft**, then
+choose a subscription only when more than one is available. Read Aloud filters
+resource groups and services to compatible Speech resources and automatically
+selects the only valid resource when there is one. No Speech key, endpoint, or
+client id is entered by the user or embedded as a secret in the APK.
+
+The selected resource is configured with Microsoft Entra data-plane access.
+The token cache is encrypted with Android Keystore-backed storage. The
+single-tenant app registration uses the MSAL redirect
+`msalc8b938aa-2e5d-48b4-89c6-fc139733c44d://auth`.
+
 ## Packages
 
 Consumes GitHub Packages `2026.1.*`:

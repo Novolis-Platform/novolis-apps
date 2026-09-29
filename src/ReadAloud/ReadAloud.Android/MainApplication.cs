@@ -7,9 +7,11 @@ using Microsoft.Extensions.Hosting;
 using Novolis.Audio.Voice.Platform.Android;
 using Novolis.Avalonia.Diagnostics;
 using Novolis.Avalonia.Mobile.Android;
+using Novolis.Avalonia.Speech;
 using Novolis.Logging.Diagnostics;
 using Novolis.Manuscript.Export.Audio;
 using ReadAloud;
+using ReadAloud.Services;
 
 namespace ReadAloud.Android;
 
@@ -47,6 +49,13 @@ public class MainApplication : AvaloniaAndroidApplication<App>
                 services.AddNovolisVoiceAndroid();
                 services.AddSingleton<IScreenWakeLock, AndroidScreenWakeLock>();
                 services.AddReadAloudCore();
+                services.AddSingleton(sp => new AndroidEntraAuthentication(
+                    sp.GetRequiredService<Novolis.Avalonia.Mobile.ISecureTokenStore>(),
+                    SpeechService.DefaultAzureClientId,
+                    SpeechService.DefaultAzureTenantId));
+                services.AddSingleton<HttpClient>();
+                services.AddSingleton<IAzureSpeechResourcePicker, AndroidAzureSpeechResourcePicker>();
+                services.AddSingleton<IAzureSpeechCredentialFactory, AndroidEntraSpeechCredentialFactory>();
             })
             .Build();
         App.Services = _host.Services;

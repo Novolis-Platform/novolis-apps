@@ -34,19 +34,33 @@ public sealed class MainView : DockPanel
     readonly ComboBox _authModePicker;
     readonly StackPanel _keyFields;
     readonly StackPanel _entraFields;
+    readonly IAzureSpeechResourcePicker? _resourcePicker;
+    readonly Button _signInButton;
+    readonly Button _signOutButton;
+    readonly TextBlock _resourceStatus;
+    readonly ComboBox _subscriptionPicker;
+    readonly ComboBox _resourceGroupPicker;
+    readonly ComboBox _speechResourcePicker;
+    IReadOnlyList<AzureSubscriptionChoice> _subscriptions = [];
+    IReadOnlyList<AzureSpeechResourceGroupChoice> _resourceGroups = [];
+    IReadOnlyList<AzureSpeechResourceChoice> _speechResources = [];
     bool _providerRefresh;
+    bool _providerReady;
+    bool _resourceRefresh;
     IDisposable? _wake;
 
     public MainView(
         SpeechService speech,
         IScreenWakeLock wakeLock,
         IDiagnosticShare diagnosticShare,
-        ILogger<MainView> logger)
+        ILogger<MainView> logger,
+        IAzureSpeechResourcePicker? resourcePicker = null)
     {
         _speech = speech ?? throw new ArgumentNullException(nameof(speech));
         _wakeLock = wakeLock ?? throw new ArgumentNullException(nameof(wakeLock));
         _diagnosticShare = diagnosticShare ?? throw new ArgumentNullException(nameof(diagnosticShare));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _resourcePicker = resourcePicker;
 
         LastChildFill = true;
         Background = ReadAloudPalette.WindowBrush;
@@ -154,6 +168,42 @@ public sealed class MainView : DockPanel
             Children = { _clientIdBox, _tenantIdBox },
             IsVisible = false,
         };
+        _signInButton = ReadAloudTheme.Button(
+            "Sign in with Microsoft",
+            ReadAloudButtonKind.Primary);
+        _signInButton.Click += async (_, _) => await SignInAzureAsync();
+        _signOutButton = ReadAloudTheme.Button("Sign out", ReadAloudButtonKind.Quiet);
+        _signOutButton.Click += async (_, _) => await SignOutAzureAsync();
+        _signOutButton.IsVisible = false;
+        _resourceStatus = ReadAloudTheme.Muted(
+            "Sign in to choose an Azure subscription.",
+            13);
+        _subscriptionPicker = new ComboBox
+        {
+            MinWidth = 240,
+            IsEnabled = false,
+            FontFamily = ReadAloudPalette.BodyFont,
+        };
+        _subscriptionPicker.SelectionChanged += async (_, _) =>
+            await OnSubscriptionSelectedAsync();
+        _resourceGroupPicker = new ComboBox
+        {
+            MinWidth = 240,
+            IsVisible = false,
+            IsEnabled = false,
+            FontFamily = ReadAloudPalette.BodyFont,
+        };
+        _resourceGroupPicker.SelectionChanged += async (_, _) =>
+            await OnResourceGroupSelectedAsync();
+        _speechResourcePicker = new ComboBox
+        {
+            MinWidth = 240,
+            IsVisible = false,
+            IsEnabled = false,
+            FontFamily = ReadAloudPalette.BodyFont,
+        };
+        _speechResourcePicker.SelectionChanged += async (_, _) =>
+            await OnSpeechResourceSelectedAsync();
         _azureSetupPanel = BuildAzureSetupPanel();
         RefreshAuthFields();
 
@@ -213,6 +263,7 @@ public sealed class MainView : DockPanel
             await _speech.InitializeAsync();
             Dispatcher.UIThread.Post(() =>
             {
+                _providerReady = true;
                 RefreshProviderUi();
                 RefreshListen();
             });
@@ -220,11 +271,55 @@ public sealed class MainView : DockPanel
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read Aloud speech setup load failed.");
-            Dispatcher.UIThread.Post(() => SetStatus("Device voice is ready; saved Azure setup needs attention."));
+            Dispatcher.UIThread.Post(() =>
+            {
+                _providerReady = true;
+                SetStatus("Device voice is ready; saved Azure setup needs attention.");
+                RefreshProviderUi();
+                RefreshListen();
+            });
         }
     }
 
-    Border BuildAzureSetupPanel()
+    Border BuildAzureSetupPanel() =>
+        _resourcePicker is not null
+            ? BuildAzureResourcePickerPanel()
+            : BuildManualAzureSetupPanel();
+
+    Border BuildAzureResourcePickerPanel() =>
+        new Border
+        {
+            IsVisible = false,
+            Margin = new Thickness(0, 8, 0, 0),
+            Padding = new Thickness(10),
+            Background = ReadAloudPalette.PanelBrush,
+            CornerRadius = new CornerRadius(4),
+            BorderBrush = ReadAloudPalette.AccentBrush,
+            BorderThickness = new Thickness(1),
+            Child = new StackPanel
+            {
+                Spacing = 5,
+                Children =
+                {
+                    ReadAloudTheme.Muted(
+                        "Sign in with Microsoft. Read Aloud will show only subscriptions and Speech resources you can access.",
+                        13),
+                    new WrapPanel
+                    {
+                        Children = { _signInButton, _signOutButton },
+                    },
+                    _resourceStatus,
+                    ReadAloudTheme.Muted("Azure subscription", 12),
+                    _subscriptionPicker,
+                    ReadAloudTheme.Muted("Resource group", 12),
+                    _resourceGroupPicker,
+                    ReadAloudTheme.Muted("Speech service", 12),
+                    _speechResourcePicker,
+                },
+            },
+        };
+
+    Border BuildManualAzureSetupPanel()
     {
         var save = ReadAloudTheme.Button("Save and test", ReadAloudButtonKind.Primary);
         save.Click += async (_, _) => await SaveAzureSetupAsync();
@@ -248,7 +343,7 @@ public sealed class MainView : DockPanel
                 Children =
                 {
                     ReadAloudTheme.Muted(
-                        "Azure Speech is your resource and your bill. The endpoint and credential are stored in platform secure storage.",
+                        "Read Aloud signs in to your Azure Speech resource. The endpoint and credential are stored in platform secure storage.",
                         13),
                     ReadAloudTheme.Muted("Resource endpoint", 12),
                     _endpointBox,
@@ -268,6 +363,18 @@ public sealed class MainView : DockPanel
     void ToggleAzureSetup()
     {
         _azureSetupPanel.IsVisible = !_azureSetupPanel.IsVisible;
+        if (!_azureSetupPanel.IsVisible)
+            return;
+
+        if (_resourcePicker is not null)
+        {
+            SetStatus(
+                _subscriptions.Count == 0
+                    ? "Sign in to choose an Azure Speech resource."
+                    : "Choose an Azure Speech resource.");
+            return;
+        }
+
         if (_azureSetupPanel.IsVisible)
         {
             var setup = _speech.AzureConfiguration;
@@ -278,6 +385,13 @@ public sealed class MainView : DockPanel
                     setup.AuthenticationMode == AzureSpeechAuthenticationMode.ApiKey ? 0 : 1;
                 _clientIdBox.Text = setup.ClientId ?? string.Empty;
                 _tenantIdBox.Text = setup.TenantId ?? string.Empty;
+            }
+            else
+            {
+                _endpointBox.Text = SpeechService.DefaultAzureEndpoint.ToString();
+                _authModePicker.SelectedIndex = 1;
+                _clientIdBox.Text = SpeechService.DefaultAzureClientId;
+                _tenantIdBox.Text = SpeechService.DefaultAzureTenantId;
             }
 
             RefreshAuthFields();
@@ -295,7 +409,7 @@ public sealed class MainView : DockPanel
 
     async Task OnProviderChangedAsync()
     {
-        if (_providerRefresh)
+        if (_providerRefresh || !_providerReady)
             return;
 
         if (_providerPicker.SelectedIndex == 0)
@@ -312,14 +426,292 @@ public sealed class MainView : DockPanel
             _providerPicker.SelectedIndex = 0;
             _providerRefresh = false;
             _azureSetupPanel.IsVisible = true;
-            SetStatus("Add your Azure Speech resource before selecting Azure playback.");
-            RefreshAuthFields();
+            SetStatus(
+                _resourcePicker is null
+                    ? "Add your Azure Speech resource before selecting Azure playback."
+                    : "Sign in to choose an Azure Speech resource.");
+            if (_resourcePicker is null)
+                RefreshAuthFields();
             return;
         }
 
         await _speech.UseAzureSpeechAsync();
         SetStatus("Azure Speech selected. Requests use your resource and quota.");
         RefreshListen();
+    }
+
+    async Task SignInAzureAsync()
+    {
+        if (_resourcePicker is null)
+            return;
+
+        _signInButton.IsEnabled = false;
+        SetStatus("Opening Microsoft sign-in…");
+        try
+        {
+            _subscriptions = await _resourcePicker.SignInAsync();
+            _signOutButton.IsVisible = true;
+            _resourceRefresh = true;
+            _subscriptionPicker.ItemsSource =
+                _subscriptions.Select(subscription => subscription.DisplayName).ToArray();
+            _subscriptionPicker.SelectedIndex = _subscriptions.Count == 1 ? 0 : -1;
+            _subscriptionPicker.IsEnabled = _subscriptions.Count > 0;
+            ResetResourcePickersCore();
+            _resourceRefresh = false;
+
+            if (_subscriptions.Count == 0)
+            {
+                SetStatus("No enabled Azure subscriptions are available to this account.");
+                return;
+            }
+
+            if (_subscriptions.Count == 1)
+            {
+                await LoadResourceGroupsAsync(_subscriptions[0]);
+                return;
+            }
+
+            _resourceStatus.Text = "Choose the Azure subscription to search.";
+            SetStatus("Choose an Azure subscription.");
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Azure sign-in cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud Azure sign-in failed.");
+            SetStatus($"Azure sign-in failed: {ex.Message}");
+        }
+        finally
+        {
+            _resourceRefresh = false;
+            _signInButton.IsEnabled = true;
+        }
+    }
+
+    async Task OnSubscriptionSelectedAsync()
+    {
+        if (_resourceRefresh ||
+            _resourcePicker is null ||
+            _subscriptionPicker.SelectedIndex < 0 ||
+            _subscriptionPicker.SelectedIndex >= _subscriptions.Count)
+        {
+            return;
+        }
+
+        await LoadResourceGroupsAsync(_subscriptions[_subscriptionPicker.SelectedIndex]);
+    }
+
+    async Task LoadResourceGroupsAsync(AzureSubscriptionChoice subscription)
+    {
+        if (_resourcePicker is null)
+            return;
+
+        try
+        {
+            SetStatus($"Finding Speech resources in {subscription.DisplayName}…");
+            _resourceGroups = await _resourcePicker.GetSpeechResourceGroupsAsync(subscription.Id);
+            _resourceRefresh = true;
+            _resourceGroupPicker.ItemsSource =
+                _resourceGroups
+                    .Select(group => $"{group.Name} ({group.SpeechResourceCount:N0})")
+                    .ToArray();
+            _resourceGroupPicker.SelectedIndex = _resourceGroups.Count == 1 ? 0 : -1;
+            _resourceGroupPicker.IsVisible = _resourceGroups.Count > 1;
+            _resourceGroupPicker.IsEnabled = _resourceGroups.Count > 0;
+            ResetSpeechResourcePickerCore();
+            _resourceRefresh = false;
+
+            if (_resourceGroups.Count == 0)
+            {
+                SetStatus("No compatible Azure Speech resource was found.");
+                _resourceStatus.Text =
+                    "No resource group contains a compatible Speech service.";
+                return;
+            }
+
+            if (_resourceGroups.Count == 1)
+            {
+                await LoadSpeechResourcesAsync(subscription, _resourceGroups[0]);
+                return;
+            }
+
+            _resourceStatus.Text = "Choose the resource group to search.";
+            SetStatus("Choose an Azure resource group.");
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Azure resource discovery cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud Azure resource-group discovery failed.");
+            SetStatus($"Resource discovery failed: {ex.Message}");
+        }
+        finally
+        {
+            _resourceRefresh = false;
+        }
+    }
+
+    async Task OnResourceGroupSelectedAsync()
+    {
+        if (_resourceRefresh ||
+            _resourcePicker is null ||
+            _subscriptionPicker.SelectedIndex < 0 ||
+            _resourceGroupPicker.SelectedIndex < 0 ||
+            _resourceGroupPicker.SelectedIndex >= _resourceGroups.Count)
+        {
+            return;
+        }
+
+        await LoadSpeechResourcesAsync(
+            _subscriptions[_subscriptionPicker.SelectedIndex],
+            _resourceGroups[_resourceGroupPicker.SelectedIndex]);
+    }
+
+    async Task LoadSpeechResourcesAsync(
+        AzureSubscriptionChoice subscription,
+        AzureSpeechResourceGroupChoice resourceGroup)
+    {
+        if (_resourcePicker is null)
+            return;
+
+        try
+        {
+            SetStatus($"Finding Speech services in {resourceGroup.Name}…");
+            _speechResources = await _resourcePicker.GetSpeechResourcesAsync(
+                subscription.Id,
+                resourceGroup.Name);
+            _resourceRefresh = true;
+            _speechResourcePicker.ItemsSource =
+                _speechResources
+                    .Select(resource => $"{resource.Name} ({resource.Location})")
+                    .ToArray();
+            _speechResourcePicker.SelectedIndex = _speechResources.Count == 1 ? 0 : -1;
+            _speechResourcePicker.IsVisible = _speechResources.Count > 1;
+            _speechResourcePicker.IsEnabled = _speechResources.Count > 0;
+            _resourceRefresh = false;
+
+            if (_speechResources.Count == 0)
+            {
+                SetStatus("No compatible Speech service was found in that group.");
+                return;
+            }
+
+            if (_speechResources.Count == 1)
+            {
+                await ConfigureAzureResourceAsync(_speechResources[0]);
+                return;
+            }
+
+            _resourceStatus.Text = "Choose the Speech service to use.";
+            SetStatus("Choose an Azure Speech service.");
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Azure resource discovery cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud Azure Speech discovery failed.");
+            SetStatus($"Speech discovery failed: {ex.Message}");
+        }
+        finally
+        {
+            _resourceRefresh = false;
+        }
+    }
+
+    async Task OnSpeechResourceSelectedAsync()
+    {
+        if (_resourceRefresh ||
+            _speechResourcePicker.SelectedIndex < 0 ||
+            _speechResourcePicker.SelectedIndex >= _speechResources.Count)
+        {
+            return;
+        }
+
+        await ConfigureAzureResourceAsync(_speechResources[_speechResourcePicker.SelectedIndex]);
+    }
+
+    async Task ConfigureAzureResourceAsync(AzureSpeechResourceChoice resource)
+    {
+        try
+        {
+            SetStatus($"Connecting to {resource.Name}…");
+            await _speech.ConfigureAzureAsync(new AzureSpeechSetup
+            {
+                Endpoint = resource.Endpoint,
+                AuthenticationMode = AzureSpeechAuthenticationMode.MicrosoftEntra,
+                ClientId = resource.ClientId,
+                TenantId = resource.TenantId,
+                VoiceName = _speech.Voice.Voice,
+                Locale = "en-US",
+            });
+            var voices = await _speech.TestAzureAsync();
+            _azureSetupPanel.IsVisible = false;
+            SetStatus($"Connected to {resource.Name} ({voices.Count:N0} voices available).");
+            RefreshProviderUi();
+            RefreshListen();
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Azure connection cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud Azure Speech resource connection failed.");
+            SetStatus($"Azure connection failed: {ex.Message}");
+        }
+    }
+
+    async Task SignOutAzureAsync()
+    {
+        if (_resourcePicker is null)
+            return;
+
+        try
+        {
+            await _resourcePicker.SignOutAsync();
+            await _speech.RemoveAzureAsync();
+            _subscriptions = [];
+            _resourceGroups = [];
+            _speechResources = [];
+            _resourceRefresh = true;
+            _subscriptionPicker.ItemsSource = Array.Empty<string>();
+            _subscriptionPicker.SelectedIndex = -1;
+            _subscriptionPicker.IsEnabled = false;
+            ResetResourcePickersCore();
+            _resourceRefresh = false;
+            _signOutButton.IsVisible = false;
+            SetStatus("Signed out. Device voice remains available.");
+            RefreshProviderUi();
+            RefreshListen();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud Azure sign-out failed.");
+            SetStatus($"Azure sign-out failed: {ex.Message}");
+        }
+    }
+
+    void ResetResourcePickersCore()
+    {
+        _resourceGroupPicker.ItemsSource = Array.Empty<string>();
+        _resourceGroupPicker.SelectedIndex = -1;
+        _resourceGroupPicker.IsVisible = false;
+        _resourceGroupPicker.IsEnabled = false;
+        ResetSpeechResourcePickerCore();
+    }
+
+    void ResetSpeechResourcePickerCore()
+    {
+        _speechResourcePicker.ItemsSource = Array.Empty<string>();
+        _speechResourcePicker.SelectedIndex = -1;
+        _speechResourcePicker.IsVisible = false;
+        _speechResourcePicker.IsEnabled = false;
     }
 
     async Task SaveAzureSetupAsync()
