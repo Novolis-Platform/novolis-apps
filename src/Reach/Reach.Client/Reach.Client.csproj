@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
+    <ProjectReference Include="..\Reach.Transport\Reach.Transport.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" />

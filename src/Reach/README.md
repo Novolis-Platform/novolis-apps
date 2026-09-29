@@ -24,9 +24,12 @@ The service binds to loopback, private IPv4, and Tailscale IPv4 addresses.
 Reach has no Novolis account, relay, or public authentication flow in this
 personal-use shape.
 
-The host uses TCP `19800` for control/input, TCP `19801` for encoded media,
-and UDP `19802` for discovery. Clients fall back to the control stream when an
-older host does not expose the media channel.
+The host uses TCP `19800` for control/input, TCP `19801` for reliable encoded
+media fallback, and UDP `19802` for discovery. When QUIC is available, the
+service advertises a pinned `quic://` control candidate alongside the TCP
+candidate. A successful QUIC session receives an authenticated AES-GCM UDP
+media offer on `19801`; clients fall back to QUIC streams or TCP when UDP is
+unavailable.
 
 ## Run locally
 

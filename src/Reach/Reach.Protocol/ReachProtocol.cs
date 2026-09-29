@@ -95,6 +95,7 @@ public enum ReachMessageType
     SessionResume,
     SessionClose,
     MediaHello,
+    BulkHello,
     DisplayTopology,
     DisplaySelect,
     DisplayResize,
@@ -117,6 +118,7 @@ public enum ReachMessageType
     FileOffer,
     FileChunk,
     FileComplete,
+    DatagramOffer,
     HostStatus,
 }
 

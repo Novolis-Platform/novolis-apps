@@ -40,6 +40,23 @@ public sealed record ReachMediaHello(
     string AppId,
     string ProtocolVersion);
 
+/// <summary>Identifies an optional reliable bulk stream for an open session.</summary>
+public sealed record ReachBulkHello(
+    Guid SessionId,
+    string AppId,
+    string ProtocolVersion);
+
+/// <summary>
+/// Offers an authenticated, loss-tolerant UDP media path over the secure
+/// control channel.
+/// </summary>
+public sealed record ReachDatagramOffer(
+    Guid SessionId,
+    int Port,
+    string Token,
+    string Key,
+    int MaximumPacketSize = 1_200);
+
 /// <summary>Monitor topology announcement.</summary>
 public sealed record ReachDisplayTopology(IReadOnlyList<ReachDisplay> Displays);
 

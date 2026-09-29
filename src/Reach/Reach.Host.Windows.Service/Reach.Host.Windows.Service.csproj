@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
+    <ProjectReference Include="..\Reach.Transport\Reach.Transport.csproj" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -19,6 +20,7 @@
     <PackageReference Include="Novolis.Transports.Framing" />
     <PackageReference Include="Novolis.Transports.LocalIpc" />
     <PackageReference Include="Novolis.Transports.Tailscale" />
+    <PackageReference Include="Novolis.Transports.Udp" />
     <PackageReference Include="Novolis.Windows.Sessions" />
   </ItemGroup>
 </Project>

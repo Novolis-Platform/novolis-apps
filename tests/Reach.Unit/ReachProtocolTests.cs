@@ -60,6 +60,26 @@ public sealed class ReachProtocolTests
     }
 
     [Test]
+    public async Task BulkStreamHelloRoundTripsTypedBody()
+    {
+        var sessionId = Guid.NewGuid();
+        var bytes = ReachMessageCodec.Serialize(
+            ReachMessageType.BulkHello,
+            sequence: 7,
+            new ReachBulkHello(
+                sessionId,
+                ReachProtocol.AppId,
+                ReachProtocol.Version));
+
+        var envelope = ReachMessageCodec.Deserialize(bytes);
+        var hello = ReachMessageCodec.ReadBody<ReachBulkHello>(envelope);
+
+        await Assert.That(envelope.Type).IsEqualTo(ReachMessageType.BulkHello);
+        await Assert.That(hello.SessionId).IsEqualTo(sessionId);
+        await Assert.That(hello.AppId).IsEqualTo(ReachProtocol.AppId);
+    }
+
+    [Test]
     public async Task SessionStateMachineAcceptsOpenAndResume()
     {
         var machine = new ReachSessionStateMachine();

@@ -11,4 +11,5 @@
   <Folder Name="/tests/">
     <Project Path="../../tests/Reach.Unit/Reach.Unit.csproj" />
   </Folder>
+  <Project Path="Reach.Transport/Reach.Transport.csproj" />
 </Solution>

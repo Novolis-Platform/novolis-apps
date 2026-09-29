@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Novolis.Reach.Transport</RootNamespace>
+    <AssemblyName>Novolis.Reach.Transport</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Novolis.Transports.Abstractions" />
+    <PackageReference Include="Novolis.Transports.Quic" />
+    <PackageReference Include="Novolis.Transports.Tcp" />
+    <PackageReference Include="Novolis.Transports.Udp" />
+    <PackageReference Include="Novolis.Transports.Framing" />
+  </ItemGroup>
+</Project>

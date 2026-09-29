@@ -3,13 +3,19 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Novolis.Reach.Protocol;
+using Novolis.Reach.Transport;
+using Novolis.Transports;
 using Novolis.Transports.Discovery;
 using Novolis.Transports.Framing;
 using Novolis.Transports.LocalIpc;
+using Novolis.Transports.Quic;
+using Novolis.Transports.Tcp;
 using Novolis.Transports.Tailscale;
+using Novolis.Transports.Udp;
 using Novolis.Windows.Sessions;
 
 namespace Novolis.Reach.Host.Windows.Service;
@@ -26,13 +32,14 @@ public sealed class ReachHostService : BackgroundService
     private readonly WindowsSessionManager _sessions;
     private readonly ConcurrentDictionary<long, ClientConnection> _clients = new();
     private readonly ConcurrentDictionary<Guid, FileTransferState> _fileTransfers = new();
-    private readonly ConcurrentBag<TcpListener> _listeners = new();
-    private readonly ConcurrentBag<TcpListener> _mediaListeners = new();
+    private readonly ConcurrentBag<IAsyncDisposable> _listeners = new();
+    private readonly ConcurrentBag<IAsyncDisposable> _mediaListeners = new();
     private readonly object _messagesGate = new();
     private readonly List<string> _messages = [];
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private ILocalIpcConnection? _sessionConnection;
+    private ITransportDatagramChannel? _datagramChannel;
     private long _clientSequence;
     private long _localSequence;
     private string[] _endpoints = [];
@@ -85,11 +92,52 @@ public sealed class ReachHostService : BackgroundService
             .Concat(GetReachableIPv4Addresses())
             .Distinct()
             .ToArray();
+        X509Certificate2? quicCertificate = null;
+        if (QuicTransportListener.IsSupported)
+        {
+            try
+            {
+                quicCertificate = CreateQuicCertificate();
+            }
+            catch (Exception exception)
+            {
+                Log($"QUIC certificate initialization failed: {exception.Message}");
+            }
+        }
+
+        var quicPin = quicCertificate?.GetCertHashString(
+            HashAlgorithmName.SHA256);
         _endpoints = addresses
-            .Select(static address => $"tcp://{address}:{ReachProtocol.ControlPort}")
+            .SelectMany(address => quicPin is { Length: > 0 }
+                ? new[]
+                {
+                    $"quic://{address}:{ReachProtocol.ControlPort}?pin={quicPin}",
+                    $"tcp://{address}:{ReachProtocol.ControlPort}",
+                }
+                : new[]
+                {
+                    $"tcp://{address}:{ReachProtocol.ControlPort}",
+                })
             .ToArray();
         if (addresses.Length == 0)
             Log("No private IPv4 adapter is available; remote listening is paused.");
+
+        ITransportDatagramChannel? datagramChannel = null;
+        try
+        {
+            datagramChannel = new UdpDatagramChannel(
+                new IPEndPoint(IPAddress.Any, ReachProtocol.MediaPort));
+            _datagramChannel = datagramChannel;
+            Log(
+                $"Listening for authenticated Reach UDP media on "
+                + $"{datagramChannel.LocalEndPoint}.");
+        }
+        catch (SocketException exception)
+        {
+            Log(
+                $"Could not listen for Reach UDP media on port "
+                + $"{ReachProtocol.MediaPort}: {exception.Message}");
+        }
 
         var tasks = new List<Task>
         {
@@ -97,10 +145,19 @@ public sealed class ReachHostService : BackgroundService
             RunSessionBridgeAsync(cancellationToken),
             RunDiscoveryAsync(cancellationToken),
         };
+        if (datagramChannel is not null)
+            tasks.Add(RunDatagramMediaListenerAsync(datagramChannel, cancellationToken));
         foreach (var address in addresses)
         {
             tasks.Add(RunRemoteListenerAsync(address, cancellationToken));
             tasks.Add(RunMediaListenerAsync(address, cancellationToken));
+            if (quicCertificate is not null)
+            {
+                tasks.Add(RunQuicListenerAsync(
+                    address,
+                    quicCertificate,
+                    cancellationToken));
+            }
         }
 
         try
@@ -113,11 +170,15 @@ public sealed class ReachHostService : BackgroundService
         finally
         {
             foreach (var listener in _listeners)
-                listener.Stop();
+                await listener.DisposeAsync().ConfigureAwait(false);
             foreach (var listener in _mediaListeners)
-                listener.Stop();
+                await listener.DisposeAsync().ConfigureAwait(false);
+            if (datagramChannel is not null)
+                await datagramChannel.DisposeAsync().ConfigureAwait(false);
+            _datagramChannel = null;
             foreach (var client in _clients.Values)
                 await client.DisposeAsync().ConfigureAwait(false);
+            quicCertificate?.Dispose();
             var sessionConnection = Interlocked.Exchange(ref _sessionConnection, null);
             if (sessionConnection is not null)
                 await sessionConnection.DisposeAsync().ConfigureAwait(false);
@@ -136,10 +197,11 @@ public sealed class ReachHostService : BackgroundService
         IPAddress address,
         CancellationToken cancellationToken)
     {
-        var listener = new TcpListener(address, ReachProtocol.ControlPort);
+        TcpTransportListener listener;
         try
         {
-            listener.Start();
+            listener = new TcpTransportListener(
+                new IPEndPoint(address, ReachProtocol.ControlPort));
         }
         catch (SocketException exception)
         {
@@ -153,11 +215,15 @@ public sealed class ReachHostService : BackgroundService
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var client = await listener.AcceptTcpClientAsync(cancellationToken)
+                var transport = await listener.AcceptConnectionAsync(
+                        cancellationToken)
                     .ConfigureAwait(false);
-                client.NoDelay = true;
                 var id = Interlocked.Increment(ref _clientSequence);
-                var connection = new ClientConnection(id, client);
+                var connection = await ClientConnection.CreateAsync(
+                        id,
+                        transport,
+                        cancellationToken)
+                    .ConfigureAwait(false);
                 _clients[id] = connection;
                 _ = HandleRemoteClientAsync(connection, cancellationToken);
             }
@@ -171,7 +237,89 @@ public sealed class ReachHostService : BackgroundService
         }
         finally
         {
-            listener.Stop();
+            await listener.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task RunQuicListenerAsync(
+        IPAddress address,
+        X509Certificate2 certificate,
+        CancellationToken cancellationToken)
+    {
+        QuicTransportListener listener;
+        try
+        {
+            listener = await QuicTransportListener.ListenAsync(
+                    new IPEndPoint(address, ReachProtocol.ControlPort),
+                    new QuicTransportOptions
+                    {
+                        ServerCertificate = certificate,
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            Log(
+                $"Could not listen for Reach QUIC clients on "
+                + $"{address}:{ReachProtocol.ControlPort}: {exception.Message}");
+            return;
+        }
+
+        _listeners.Add(listener);
+        Log(
+            $"Listening for Reach QUIC clients on "
+            + $"{address}:{ReachProtocol.ControlPort}.");
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                ITransportConnection transport;
+                try
+                {
+                    transport = await listener.AcceptConnectionAsync(
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (
+                    cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var id = Interlocked.Increment(ref _clientSequence);
+                    var connection = await ClientConnection.CreateAsync(
+                            id,
+                            transport,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    _clients[id] = connection;
+                    _ = HandleRemoteClientAsync(connection, cancellationToken);
+                }
+                catch
+                {
+                    await transport.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Log($"Reach QUIC listener on {address} stopped: {exception.Message}");
+        }
+        finally
+        {
+            await listener.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -179,10 +327,11 @@ public sealed class ReachHostService : BackgroundService
         IPAddress address,
         CancellationToken cancellationToken)
     {
-        var listener = new TcpListener(address, ReachProtocol.MediaPort);
+        TcpTransportListener listener;
         try
         {
-            listener.Start();
+            listener = new TcpTransportListener(
+                new IPEndPoint(address, ReachProtocol.MediaPort));
         }
         catch (SocketException exception)
         {
@@ -196,10 +345,10 @@ public sealed class ReachHostService : BackgroundService
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var client = await listener.AcceptTcpClientAsync(cancellationToken)
+                var transport = await listener.AcceptConnectionAsync(
+                        cancellationToken)
                     .ConfigureAwait(false);
-                client.NoDelay = true;
-                _ = HandleMediaClientAsync(client, cancellationToken);
+                _ = HandleMediaClientAsync(transport, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -211,20 +360,240 @@ public sealed class ReachHostService : BackgroundService
         }
         finally
         {
-            listener.Stop();
+            await listener.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task RunDatagramMediaListenerAsync(
+        ITransportDatagramChannel channel,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var datagram = await channel.ReceiveAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                if (!ReachDatagramPacketCodec.TryDecodeHandshake(
+                        datagram.Payload,
+                        out var sessionId,
+                        out var token))
+                {
+                    continue;
+                }
+
+                var connection = _clients.Values.FirstOrDefault(candidate =>
+                    candidate.IsReady
+                    && candidate.DatagramSession?.SessionId == sessionId
+                    && string.Equals(
+                        candidate.DatagramSession.Token,
+                        token,
+                        StringComparison.Ordinal)
+                    && IsSameRemoteAddress(
+                        candidate.RemoteEndPoint,
+                        datagram.RemoteEndpoint));
+                if (connection is null)
+                    continue;
+
+                connection.AttachDatagram(channel, datagram.RemoteEndpoint);
+                Log(
+                    $"Authenticated UDP media for client {connection.Id} from "
+                    + $"{datagram.RemoteEndpoint}.");
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Log($"Reach UDP media listener stopped: {exception.Message}");
+        }
+    }
+
+    private static bool IsSameRemoteAddress(
+        EndPoint expected,
+        EndPoint actual) =>
+        expected is IPEndPoint expectedIp
+        && actual is IPEndPoint actualIp
+        && expectedIp.Address.Equals(actualIp.Address);
+
+    private async Task HandleQuicMediaStreamAsync(
+        ClientConnection connection,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var transportStream = await connection.Transport
+                        .AcceptInboundStreamAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                _ = HandleQuicInboundStreamAsync(
+                    connection,
+                    transportStream,
+                    cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Log($"Reach QUIC stream accept loop ended: {exception.Message}");
+        }
+    }
+
+    private async Task HandleQuicInboundStreamAsync(
+        ClientConnection connection,
+        ITransportStream transportStream,
+        CancellationToken cancellationToken)
+    {
+        var attached = false;
+        try
+        {
+            var envelope = await ReadEnvelopeAsync(
+                    transportStream.Stream,
+                    cancellationToken)
+                .ConfigureAwait(false)
+                ?? throw new EndOfStreamException(
+                    "Reach QUIC stream closed during hello.");
+            switch (envelope.Type)
+            {
+                case ReachMessageType.MediaHello:
+                {
+                    var hello = ReachMessageCodec.ReadBody<ReachMediaHello>(envelope);
+                    ValidateQuicStreamHello(
+                        hello.AppId,
+                        hello.ProtocolVersion,
+                        hello.SessionId,
+                        connection.SessionId,
+                        "media");
+                    connection.AttachMediaStream(connection.Transport, transportStream);
+                    attached = true;
+                    Log($"QUIC media stream attached to client {connection.Id}.");
+                    await transportStream.Stream.CopyToAsync(
+                            Stream.Null,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    break;
+                }
+                case ReachMessageType.BulkHello:
+                {
+                    var hello = ReachMessageCodec.ReadBody<ReachBulkHello>(envelope);
+                    ValidateQuicStreamHello(
+                        hello.AppId,
+                        hello.ProtocolVersion,
+                        hello.SessionId,
+                        connection.SessionId,
+                        "bulk");
+                    Log($"QUIC bulk stream attached to client {connection.Id}.");
+                    await HandleQuicBulkStreamAsync(
+                            connection,
+                            transportStream.Stream,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    break;
+                }
+                default:
+                    throw new InvalidDataException(
+                        "Reach QUIC stream did not send MediaHello or BulkHello.");
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Log($"Reach QUIC stream ended: {exception.Message}");
+        }
+        finally
+        {
+            if (attached)
+                connection.DetachMediaStream(transportStream.Stream);
+            else
+                await transportStream.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task HandleQuicBulkStreamAsync(
+        ClientConnection connection,
+        Stream stream,
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var envelope = await ReadEnvelopeAsync(stream, cancellationToken)
+                .ConfigureAwait(false);
+            if (envelope is null)
+                return;
+
+            switch (envelope.Type)
+            {
+                case ReachMessageType.FileOffer:
+                    await HandleFileOfferAsync(
+                            connection,
+                            ReachMessageCodec.ReadBody<ReachFileOffer>(envelope),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    break;
+                case ReachMessageType.FileChunk:
+                    await HandleFileChunkAsync(
+                            ReachMessageCodec.ReadBody<ReachFileChunk>(envelope),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    break;
+                case ReachMessageType.FileComplete:
+                    await HandleFileCompleteAsync(
+                            connection,
+                            ReachMessageCodec.ReadBody<ReachFileComplete>(envelope),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    break;
+                default:
+                    throw new InvalidDataException(
+                        "Reach QUIC bulk stream carried an unsupported message.");
+            }
+        }
+    }
+
+    private static void ValidateQuicStreamHello(
+        string appId,
+        string protocolVersion,
+        Guid sessionId,
+        Guid expectedSessionId,
+        string streamName)
+    {
+        if (!string.Equals(appId, ReachProtocol.AppId, StringComparison.Ordinal)
+            || !ReachProtocol.IsCompatible(protocolVersion)
+            || sessionId != expectedSessionId)
+        {
+            throw new InvalidDataException(
+                $"Incompatible Reach QUIC {streamName} hello.");
         }
     }
 
     private async Task HandleMediaClientAsync(
-        TcpClient client,
+        ITransportConnection transport,
         CancellationToken cancellationToken)
     {
-        NetworkStream? stream = null;
+        ITransportStream? transportStream = null;
         ClientConnection? connection = null;
+        var attached = false;
         try
         {
-            stream = client.GetStream();
-            var envelope = await ReadEnvelopeAsync(stream, cancellationToken)
+            transportStream = await transport.AcceptInboundStreamAsync(
+                    cancellationToken)
+                .ConfigureAwait(false);
+            var envelope = await ReadEnvelopeAsync(
+                    transportStream.Stream,
+                    cancellationToken)
                 .ConfigureAwait(false)
                 ?? throw new EndOfStreamException("Reach media client closed during hello.");
             if (envelope.Type != ReachMessageType.MediaHello)
@@ -237,7 +606,8 @@ public sealed class ReachHostService : BackgroundService
                 throw new InvalidDataException("Incompatible Reach media hello.");
             }
 
-            var remoteAddress = (client.Client.RemoteEndPoint as IPEndPoint)?.Address;
+            var remoteAddress =
+                (transport.Info.RemoteEndPoint as IPEndPoint)?.Address;
             for (var attempt = 0; attempt < 60; attempt++)
             {
                 connection = _clients.Values.FirstOrDefault(candidate =>
@@ -255,9 +625,13 @@ public sealed class ReachHostService : BackgroundService
             if (connection is null)
                 throw new InvalidDataException("Reach media hello has no active control session.");
 
-            connection.AttachMediaStream(stream);
+            connection.AttachMediaStream(transport, transportStream);
+            attached = true;
             Log($"Media channel attached to client {connection.Id}.");
-            await stream.CopyToAsync(Stream.Null, cancellationToken).ConfigureAwait(false);
+            await transportStream.Stream.CopyToAsync(
+                    Stream.Null,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -268,9 +642,14 @@ public sealed class ReachHostService : BackgroundService
         }
         finally
         {
-            if (connection is not null && stream is not null)
-                connection.DetachMediaStream(stream);
-            client.Dispose();
+            if (connection is not null && transportStream is not null && attached)
+                connection.DetachMediaStream(transportStream.Stream);
+            else
+            {
+                if (transportStream is not null)
+                    await transportStream.DisposeAsync().ConfigureAwait(false);
+                await transport.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -317,6 +696,12 @@ public sealed class ReachHostService : BackgroundService
                     cancellationToken).ConfigureAwait(false);
             connection.IsReady = true;
             Log($"Client {connection.Id} handshake complete.");
+            if (connection.Transport.Info.Kind == TransportKind.Quic)
+            {
+                _ = HandleQuicMediaStreamAsync(
+                    connection,
+                    cancellationToken);
+            }
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -362,6 +747,10 @@ public sealed class ReachHostService : BackgroundService
                     connection.RequestedDisplayId = open.RequestedDisplayId;
                     connection.EnableAudio = open.EnableAudio
                         && connection.Capabilities?.Supports(ReachCapability.Audio) == true;
+                    await OfferDatagramMediaAsync(
+                            connection,
+                            cancellationToken)
+                        .ConfigureAwait(false);
                     await SendSessionCommandAsync(
                             ReachMessageType.SessionOpen,
                             open with
@@ -391,6 +780,10 @@ public sealed class ReachHostService : BackgroundService
                     connection.LastVideoSequence = resume.LastVideoSequence;
                     connection.EnableAudio = resume.EnableAudio
                         && connection.Capabilities?.Supports(ReachCapability.Audio) == true;
+                    await OfferDatagramMediaAsync(
+                            connection,
+                            cancellationToken)
+                        .ConfigureAwait(false);
                     await SendSessionCommandAsync(
                             ReachMessageType.SessionResume,
                             resume with
@@ -728,6 +1121,36 @@ public sealed class ReachHostService : BackgroundService
         return Volatile.Read(ref _sessionConnection) is not null;
     }
 
+    private async Task OfferDatagramMediaAsync(
+        ClientConnection connection,
+        CancellationToken cancellationToken)
+    {
+        var channel = Volatile.Read(ref _datagramChannel);
+        if (connection.Transport.Info.Kind != TransportKind.Quic
+            || channel is null
+            || channel.LocalEndPoint is not IPEndPoint localEndpoint)
+        {
+            connection.ClearDatagram();
+            return;
+        }
+
+        var session = new ReachDatagramSession(
+            connection.SessionId,
+            RandomNumberGenerator.GetBytes(32),
+            Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)));
+        connection.SetDatagramSession(session);
+        await connection.SendAsync(
+                ReachMessageType.DatagramOffer,
+                new ReachDatagramOffer(
+                    session.SessionId,
+                    localEndpoint.Port,
+                    session.Token,
+                    Convert.ToBase64String(session.Key)),
+                cancellationToken)
+            .ConfigureAwait(false);
+        Log($"Offered authenticated UDP media to client {connection.Id}.");
+    }
+
     private async Task SendSessionEndedAsync(
         ClientConnection connection,
         string reason,
@@ -994,6 +1417,44 @@ public sealed class ReachHostService : BackgroundService
         await responder.RunAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    private static X509Certificate2 CreateQuicCertificate()
+    {
+        using var rsa = RSA.Create(2048);
+        var request = new CertificateRequest(
+            new X500DistinguishedName("CN=Novolis Reach"),
+            rsa,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        var names = new SubjectAlternativeNameBuilder();
+        names.AddDnsName("localhost");
+        names.AddIpAddress(IPAddress.Loopback);
+        request.CertificateExtensions.Add(names.Build());
+        using var generated = request.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            DateTimeOffset.UtcNow.AddDays(30));
+        var password = Convert.ToBase64String(
+            RandomNumberGenerator.GetBytes(32));
+        var pfx = generated.Export(X509ContentType.Pfx, password);
+        try
+        {
+            return X509CertificateLoader.LoadPkcs12(
+                pfx,
+                password,
+                X509KeyStorageFlags.MachineKeySet
+                    | X509KeyStorageFlags.PersistKeySet,
+                null);
+        }
+        catch (CryptographicException)
+        {
+            return X509CertificateLoader.LoadPkcs12(
+                pfx,
+                password,
+                X509KeyStorageFlags.UserKeySet
+                    | X509KeyStorageFlags.PersistKeySet,
+                null);
+        }
+    }
+
     private static IReadOnlyList<IPAddress> GetReachableIPv4Addresses()
     {
         var addresses = new List<IPAddress>();
@@ -1060,22 +1521,45 @@ public sealed class ReachHostService : BackgroundService
 
     private sealed class ClientConnection : IAsyncDisposable
     {
-        private readonly TcpClient _client;
+        private readonly ITransportConnection _transport;
+        private readonly ITransportStream _controlTransportStream;
         private readonly SemaphoreSlim _sendGate = new(1, 1);
         private readonly SemaphoreSlim _mediaSendGate = new(1, 1);
-        private NetworkStream? _mediaStream;
+        private readonly object _mediaStateGate = new();
+        private ITransportStream? _mediaTransportStream;
+        private ITransportConnection? _mediaTransport;
+        private Stream? _mediaStream;
+        private ITransportDatagramChannel? _datagramChannel;
+        private IPEndPoint? _datagramEndpoint;
+        private ReachDatagramSession? _datagramSession;
+        private long _datagramSequence;
         private int _disposeStarted;
 
-        public ClientConnection(long id, TcpClient client)
+        private ClientConnection(
+            long id,
+            ITransportConnection transport,
+            ITransportStream controlTransportStream)
         {
             Id = id;
-            _client = client;
-            Stream = client.GetStream();
+            _transport = transport;
+            _controlTransportStream = controlTransportStream;
+        }
+
+        public static async ValueTask<ClientConnection> CreateAsync(
+            long id,
+            ITransportConnection transport,
+            CancellationToken cancellationToken)
+        {
+            var stream = await transport.AcceptInboundStreamAsync(
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return new ClientConnection(id, transport, stream);
         }
 
         public long Id { get; }
-        public NetworkStream Stream { get; }
-        public EndPoint? RemoteEndPoint => _client.Client.RemoteEndPoint;
+        public ITransportConnection Transport => _transport;
+        public Stream Stream => _controlTransportStream.Stream;
+        public EndPoint RemoteEndPoint => _transport.Info.RemoteEndPoint;
         public bool IsReady { get; set; }
         public ReachCapabilities? Capabilities { get; set; }
         public Guid SessionId { get; set; }
@@ -1084,21 +1568,79 @@ public sealed class ReachHostService : BackgroundService
         public bool EnableAudio { get; set; }
         public bool SessionCloseForwarded { get; set; }
         public bool HasMediaChannel => Volatile.Read(ref _mediaStream) is not null;
+        public ReachDatagramSession? DatagramSession =>
+            Volatile.Read(ref _datagramSession);
 
-        public void AttachMediaStream(NetworkStream stream)
+        public void SetDatagramSession(ReachDatagramSession session)
         {
-            var previous = Interlocked.Exchange(ref _mediaStream, stream);
-            previous?.Dispose();
+            ArgumentNullException.ThrowIfNull(session);
+            session.Validate();
+            ClearDatagram();
+            Volatile.Write(ref _datagramSession, session);
         }
 
-        public void DetachMediaStream(NetworkStream stream)
+        public void AttachDatagram(
+            ITransportDatagramChannel channel,
+            EndPoint remoteEndpoint)
         {
-            if (ReferenceEquals(
-                    Interlocked.CompareExchange(ref _mediaStream, null, stream),
-                    stream))
+            ArgumentNullException.ThrowIfNull(channel);
+            if (remoteEndpoint is not IPEndPoint ipEndpoint)
+                return;
+
+            Volatile.Write(ref _datagramChannel, channel);
+            Volatile.Write(
+                ref _datagramEndpoint,
+                new IPEndPoint(ipEndpoint.Address, ipEndpoint.Port));
+        }
+
+        public void ClearDatagram()
+        {
+            Volatile.Write(ref _datagramEndpoint, null);
+            Volatile.Write(ref _datagramChannel, null);
+            Volatile.Write(ref _datagramSession, null);
+        }
+
+        public void AttachMediaStream(
+            ITransportConnection owner,
+            ITransportStream stream)
+        {
+            ArgumentNullException.ThrowIfNull(owner);
+            ArgumentNullException.ThrowIfNull(stream);
+            ITransportStream? previousStream;
+            ITransportConnection? previousTransport;
+            lock (_mediaStateGate)
             {
-                stream.Dispose();
+                previousStream = _mediaTransportStream;
+                previousTransport = _mediaTransport;
+                _mediaTransportStream = stream;
+                _mediaTransport = ReferenceEquals(owner, _transport)
+                    ? null
+                    : owner;
+                _mediaStream = stream.Stream;
             }
+
+            previousStream?.Stream.Dispose();
+            DisposeSynchronously(previousTransport);
+        }
+
+        public void DetachMediaStream(Stream stream)
+        {
+            ITransportStream? transportStream = null;
+            ITransportConnection? transport = null;
+            lock (_mediaStateGate)
+            {
+                if (!ReferenceEquals(_mediaStream, stream))
+                    return;
+
+                _mediaStream = null;
+                transportStream = _mediaTransportStream;
+                transport = _mediaTransport;
+                _mediaTransportStream = null;
+                _mediaTransport = null;
+            }
+
+            transportStream?.Stream.Dispose();
+            DisposeSynchronously(transport);
         }
 
         public async ValueTask SendAsync<T>(
@@ -1141,6 +1683,38 @@ public sealed class ReachHostService : BackgroundService
             CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
+            var datagramSession = Volatile.Read(ref _datagramSession);
+            var datagramChannel = Volatile.Read(ref _datagramChannel);
+            var datagramEndpoint = Volatile.Read(ref _datagramEndpoint);
+            if (media
+                && datagramSession is not null
+                && datagramChannel is not null
+                && datagramEndpoint is not null)
+            {
+                try
+                {
+                    var sequence = Interlocked.Increment(ref _datagramSequence);
+                    foreach (var packet in ReachDatagramPacketCodec.EncodeData(
+                                 datagramSession,
+                                 sequence,
+                                 payload,
+                                 datagramChannel.MaximumPayloadSize))
+                    {
+                        await datagramChannel.SendAsync(
+                                packet,
+                                datagramEndpoint,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+
+                    return;
+                }
+                catch (Exception) when (!cancellationToken.IsCancellationRequested)
+                {
+                    ClearDatagram();
+                }
+            }
+
             var mediaStream = Volatile.Read(ref _mediaStream);
             if (!media || mediaStream is null)
             {
@@ -1174,11 +1748,24 @@ public sealed class ReachHostService : BackgroundService
             if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
                 return;
 
-            var mediaStream = Interlocked.Exchange(ref _mediaStream, null);
-            if (mediaStream is not null)
-                await mediaStream.DisposeAsync().ConfigureAwait(false);
-            await Stream.DisposeAsync().ConfigureAwait(false);
-            _client.Dispose();
+            ITransportStream? mediaTransportStream;
+            ITransportConnection? mediaTransport;
+            lock (_mediaStateGate)
+            {
+                mediaTransportStream = _mediaTransportStream;
+                mediaTransport = _mediaTransport;
+                _mediaTransportStream = null;
+                _mediaTransport = null;
+                _mediaStream = null;
+            }
+            ClearDatagram();
+
+            if (mediaTransportStream is not null)
+                await mediaTransportStream.DisposeAsync().ConfigureAwait(false);
+            if (mediaTransport is not null)
+                await mediaTransport.DisposeAsync().ConfigureAwait(false);
+            await _controlTransportStream.DisposeAsync().ConfigureAwait(false);
+            await _transport.DisposeAsync().ConfigureAwait(false);
             // The gates are intentionally left undisposed. A broadcast may
             // already be waiting on one while the client is being removed;
             // disposing it here races that waiter and tears down the service.
@@ -1188,6 +1775,21 @@ public sealed class ReachHostService : BackgroundService
         {
             if (Volatile.Read(ref _disposeStarted) != 0)
                 throw new ObjectDisposedException(nameof(ClientConnection));
+        }
+
+        private static void DisposeSynchronously(IAsyncDisposable? disposable)
+        {
+            if (disposable is null)
+                return;
+
+            try
+            {
+                disposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch
+            {
+                // The associated connection is already being detached.
+            }
         }
     }
 

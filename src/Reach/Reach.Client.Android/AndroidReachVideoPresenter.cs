@@ -315,6 +315,10 @@ public sealed class AndroidReachVideoPresenter :
             }
         }
 
+        ReachVideoFrameOrientation.NormalizeTopToBottom(
+            pixels,
+            width,
+            height);
         return new RawVideoFrame(
             width,
             height,

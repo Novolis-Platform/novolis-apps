@@ -37,6 +37,10 @@
     <PackageVersion Include="Novolis.Transports.LocalIpc" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Framing" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Datagrams" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Abstractions" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Tcp" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Udp" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Quic" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Discovery" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Tailscale" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Video.Abstractions" Version="2026.1.*" />

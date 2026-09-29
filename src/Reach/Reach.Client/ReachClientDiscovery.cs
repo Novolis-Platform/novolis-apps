@@ -160,6 +160,10 @@ public static class ReachClientDiscovery
             return false;
         }
 
+        var scheme = uri.Scheme.ToLowerInvariant();
+        if (scheme is not ("tcp" or "quic"))
+            return false;
+
         var host = uri.Host;
         if (OperatingSystem.IsAndroid()
             && (IPAddress.TryParse(host, out var address)
@@ -172,7 +176,7 @@ public static class ReachClientDiscovery
             host = "10.0.2.2";
         }
 
-        normalized = $"tcp://{host}:{uri.Port}";
+        normalized = $"{scheme}://{host}:{uri.Port}{uri.Query}";
         return true;
     }
 
