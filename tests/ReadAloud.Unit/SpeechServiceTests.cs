@@ -18,18 +18,19 @@ public sealed class SpeechServiceTests
     }
 
     [Test]
-    public async Task Device_provider_reads_without_mp3_playback()
+    public async Task Unconfigured_speech_does_not_fall_back_to_device_voice()
     {
         using var harness = Harness.Create();
-        await harness.Speech.SpeakAsync("Hello from Read Aloud.");
 
-        await Assert.That(harness.Voice.Spoken).IsEqualTo("Hello from Read Aloud.");
+        await Assert.That(async () =>
+                await harness.Speech.SpeakAsync("Hello from Read Aloud."))
+            .ThrowsExactly<SpeechCapabilityException>();
+        await Assert.That(harness.Voice.Spoken).IsNull();
         await Assert.That(harness.Player.PlayCount).IsEqualTo(0);
-        await Assert.That(harness.Speech.Provider).IsEqualTo(SpeechProvider.DeviceVoice);
     }
 
     [Test]
-    public async Task Device_provider_reports_mp3_capability_as_unavailable()
+    public async Task Unconfigured_speech_reports_mp3_capability_as_unavailable()
     {
         using var harness = Harness.Create();
 

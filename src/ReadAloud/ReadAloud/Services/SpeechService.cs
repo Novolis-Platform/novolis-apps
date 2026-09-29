@@ -47,9 +47,6 @@ public sealed class SpeechService : IDisposable
     /// <summary>Current speech settings used for Azure synthesis and planning.</summary>
     public VoiceSettings Voice { get; }
 
-    /// <summary>Current provider selected in the application front.</summary>
-    public SpeechProvider Provider => _front.Provider;
-
     /// <summary>Whether Azure MP3 output is currently available.</summary>
     public bool CanCreateMp3 => _front.Capabilities.CanCreateMp3;
 
@@ -68,12 +65,10 @@ public sealed class SpeechService : IDisposable
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         await _front.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        if (_front.IsAzureConfigured)
+            await _front.UseAzureSpeechAsync(cancellationToken).ConfigureAwait(false);
         Notify();
     }
-
-    /// <summary>Selects local device voice.</summary>
-    public Task UseDeviceVoiceAsync(CancellationToken cancellationToken = default) =>
-        _front.UseDeviceVoiceAsync(cancellationToken);
 
     /// <summary>Selects configured Azure Speech.</summary>
     public Task UseAzureSpeechAsync(CancellationToken cancellationToken = default) =>
@@ -98,6 +93,11 @@ public sealed class SpeechService : IDisposable
         var speechText = MarkdownSpeechPreParser.Normalize(text);
         if (string.IsNullOrWhiteSpace(speechText))
             return;
+        if (!_front.IsAzureConfigured)
+        {
+            throw new SpeechCapabilityException(
+                "Azure Speech is required for Read Aloud playback.");
+        }
 
         CancellationToken linked;
         lock (_gate)
@@ -115,7 +115,6 @@ public sealed class SpeechService : IDisposable
         try
         {
             var plan = SpeechPlanner.Create(speechText, Voice.ToSpeechOptions(), speakTitle: false);
-            var provider = _front.Provider;
             foreach (var segment in plan.Segments)
             {
                 linked.ThrowIfCancellationRequested();
@@ -130,16 +129,6 @@ public sealed class SpeechService : IDisposable
                     continue;
 
                 PlaybackStarted?.Invoke(this, EventArgs.Empty);
-                if (provider == SpeechProvider.DeviceVoice)
-                {
-                    await _front.ReadAsync(
-                        segment.Text,
-                        static (_, _) => Task.CompletedTask,
-                        BuildAzureOptions(),
-                        linked).ConfigureAwait(false);
-                    continue;
-                }
-
                 var mp3 = await GetOrSynthesizeAsync(segment.Text, linked).ConfigureAwait(false);
                 if (mp3.Length > 0)
                     await _player.PlayAsync(mp3, linked).ConfigureAwait(false);

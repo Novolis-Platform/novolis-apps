@@ -62,6 +62,8 @@ public sealed class MainView : DockPanel
         _resourcePicker = resourcePicker;
 
         LastChildFill = true;
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+        VerticalAlignment = VerticalAlignment.Top;
         Background = ReadAloudPalette.WindowBrush;
 
         _textBox = new TextBox
@@ -93,6 +95,7 @@ public sealed class MainView : DockPanel
 
         var actions = new WrapPanel
         {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 8, 0, 0),
         };
         foreach (var btn in new[] { openBtn, pasteBtn, _listenButton, _saveButton, diagnosticsBtn, clearBtn })
@@ -101,14 +104,13 @@ public sealed class MainView : DockPanel
             actions.Children.Add(btn);
         }
 
-        var providerRow = new WrapPanel
+        var providerRow = new StackPanel
         {
+            Spacing = 4,
             Margin = new Thickness(0, 4, 0, 0),
         };
-        providerRow.Children.Add(ReadAloudTheme.Muted("Voice source: Azure Speech", 14));
+        providerRow.Children.Add(ReadAloudTheme.Muted("Voice service: Azure Speech only", 14));
         providerRow.Children.Add(_configureButton);
-        foreach (var child in providerRow.Children)
-            child.Margin = new Thickness(0, 0, 8, 8);
 
         _status = ReadAloudTheme.Muted(
             "Azure Speech is required. Sign in or import credentials to begin.");
@@ -183,6 +185,7 @@ public sealed class MainView : DockPanel
 
         var chrome = new StackPanel
         {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Spacing = 4,
             Margin = new Thickness(16, 12, 16, 8),
             Children =
@@ -200,6 +203,8 @@ public sealed class MainView : DockPanel
         Children.Add(chrome);
         Children.Add(new Border
         {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 280,
             Margin = new Thickness(16, 0, 16, 16),
             Padding = new Thickness(12),
             Background = ReadAloudPalette.PanelBrush,
