@@ -51,7 +51,7 @@ public sealed class ReachClientView : UserControl
     private int _selectedDisplayHeight;
     private RawVideoFrame? _pendingFrame;
     private bool _frameUpdateScheduled;
-    private bool _androidVideoConfigured;
+    private bool _platformVideoConfigured;
     private bool _touchGestureActive;
     private bool _touchRemoteButtonDown;
     private bool _touchLongPressFired;
@@ -445,7 +445,7 @@ public sealed class ReachClientView : UserControl
         CancelReconnect();
         _sessionEnded = false;
         _connect.IsEnabled = false;
-        _androidVideoConfigured = false;
+        _platformVideoConfigured = false;
         _streamStatusShown = false;
         ResetStatusPriority();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -495,7 +495,7 @@ public sealed class ReachClientView : UserControl
             CancelReconnect();
         _connect.IsEnabled = false;
         _sessionEnded = false;
-        _androidVideoConfigured = false;
+        _platformVideoConfigured = false;
         _streamStatusShown = false;
         ResetStatusPriority();
         ClearVideoFrame();
@@ -902,7 +902,7 @@ public sealed class ReachClientView : UserControl
             _videoImage.Clear();
             _videoWidth = 0;
             _videoHeight = 0;
-            _androidVideoConfigured = false;
+            _platformVideoConfigured = false;
             _videoProfileController = null;
             _streamStatusShown = false;
             _touchPoints.Clear();
@@ -947,19 +947,31 @@ public sealed class ReachClientView : UserControl
         else
             Dispatcher.UIThread.Post(Apply);
 
-        if (OperatingSystem.IsAndroid() && !_androidVideoConfigured)
+        if ((OperatingSystem.IsAndroid() || OperatingSystem.IsWindows())
+            && !_platformVideoConfigured)
         {
-            _androidVideoConfigured = true;
-            _videoProfileController = new ReachVideoProfileController(
-                display,
-                ResolveInitialVideoProfileKind(
-                    Volatile.Read(ref _endpointValue)));
-            var profile = _videoProfileController.Current;
-            QueueInput(() => _session.ConfigureVideoAsync(
-                profile.Width,
-                profile.Height,
-                profile.FramesPerSecond,
-                profile.TargetBitrate));
+            _platformVideoConfigured = true;
+            if (OperatingSystem.IsWindows())
+            {
+                QueueInput(() => _session.ConfigureVideoAsync(
+                    display.Width,
+                    display.Height,
+                    30,
+                    8_000_000));
+            }
+            else
+            {
+                _videoProfileController = new ReachVideoProfileController(
+                    display,
+                    ResolveInitialVideoProfileKind(
+                        Volatile.Read(ref _endpointValue)));
+                var profile = _videoProfileController.Current;
+                QueueInput(() => _session.ConfigureVideoAsync(
+                    profile.Width,
+                    profile.Height,
+                    profile.FramesPerSecond,
+                    profile.TargetBitrate));
+            }
         }
     }
 
