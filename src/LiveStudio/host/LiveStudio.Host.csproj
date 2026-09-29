@@ -6,11 +6,11 @@
     <Description>Headless engine host for Novolis Audio Live IPC sessions.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Novolis.Audio.Live" />
-    <PackageReference Include="Novolis.Audio.Live.Protocol" />
-    <PackageReference Include="Novolis.Audio.Live.Render" />
-    <PackageReference Include="Novolis.Audio.MusicTheory" />
-    <PackageReference Include="Novolis.Audio.Patterns" />
-    <PackageReference Include="Novolis.Transports.LocalIpc" />
+    <LibraryReference Include="Novolis.Audio.Live" />
+    <LibraryReference Include="Novolis.Audio.Live.Protocol" />
+    <LibraryReference Include="Novolis.Audio.Live.Render" />
+    <LibraryReference Include="Novolis.Audio.MusicTheory" />
+    <LibraryReference Include="Novolis.Audio.Patterns" />
+    <LibraryReference Include="Novolis.Transports.LocalIpc" />
   </ItemGroup>
 </Project>

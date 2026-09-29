@@ -14,11 +14,11 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="MessagePack" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Novolis.Avalonia.Controls" />
-    <PackageReference Include="Novolis.Avalonia.Controls.Sketch" />
-    <PackageReference Include="Novolis.Avalonia.Agent" />
-    <PackageReference Include="Novolis.Avalonia.Agent.Protocol" />
-    <PackageReference Include="Novolis.Transports.LocalIpc" />
+    <LibraryReference Include="Novolis.Avalonia.Controls" />
+    <LibraryReference Include="Novolis.Avalonia.Controls.Sketch" />
+    <LibraryReference Include="Novolis.Avalonia.Agent" />
+    <LibraryReference Include="Novolis.Avalonia.Agent.Protocol" />
+    <LibraryReference Include="Novolis.Transports.LocalIpc" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

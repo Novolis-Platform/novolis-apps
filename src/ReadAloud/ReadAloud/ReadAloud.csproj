@@ -8,10 +8,10 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Novolis.Audio.Voice.AzureSpeech" />
-    <PackageReference Include="Novolis.Avalonia.Speech" />
-    <PackageReference Include="Novolis.Avalonia.Diagnostics" />
-    <PackageReference Include="Novolis.Avalonia.Mobile" />
-    <PackageReference Include="Novolis.Manuscript.Export.Audio" />
+    <LibraryReference Include="Novolis.Audio.Voice.AzureSpeech" />
+    <LibraryReference Include="Novolis.Avalonia.Speech" />
+    <LibraryReference Include="Novolis.Avalonia.Diagnostics" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile" />
+    <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
   </ItemGroup>
 </Project>

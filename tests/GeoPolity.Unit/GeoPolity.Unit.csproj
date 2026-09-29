@@ -8,11 +8,11 @@
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="MessagePack" />
-    <PackageReference Include="Novolis.Agent.Core" />
-    <PackageReference Include="Novolis.Agent.Surface" />
-    <PackageReference Include="Novolis.Avalonia.StarMap" />
-    <PackageReference Include="Novolis.Geopolitics.Core" />
-    <PackageReference Include="Novolis.Geopolitics.Scenarios" />
+    <LibraryReference Include="Novolis.Agent.Core" />
+    <LibraryReference Include="Novolis.Agent.Surface" />
+    <LibraryReference Include="Novolis.Avalonia.StarMap" />
+    <LibraryReference Include="Novolis.Geopolitics.Core" />
+    <LibraryReference Include="Novolis.Geopolitics.Scenarios" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\GeoPolity\GeoPolity.csproj" />

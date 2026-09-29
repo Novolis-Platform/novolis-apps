@@ -11,26 +11,26 @@
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Novolis.Avalonia.Controls" />
-    <PackageReference Include="Novolis.Avalonia.Layout" />
-    <PackageReference Include="Novolis.Avalonia.Markdown" />
-    <PackageReference Include="Novolis.Avalonia.Manuscript" />
+    <LibraryReference Include="Novolis.Avalonia.Controls" />
+    <LibraryReference Include="Novolis.Avalonia.Layout" />
+    <LibraryReference Include="Novolis.Avalonia.Markdown" />
+    <LibraryReference Include="Novolis.Avalonia.Manuscript" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Novolis.Avalonia.Studio" />
-    <PackageReference Include="Novolis.Audio.Voice.AzureSpeech" />
-    <PackageReference Include="Novolis.IO.Git" />
-    <PackageReference Include="Novolis.IO.Paths" />
-    <PackageReference Include="Novolis.IO.Recovery" />
-    <PackageReference Include="Novolis.IO.Watching" />
-    <PackageReference Include="Novolis.Manuscript" />
-    <PackageReference Include="Novolis.Manuscript.Editorial" />
-    <PackageReference Include="Novolis.Manuscript.Export.Audio" />
-    <PackageReference Include="Novolis.Manuscript.Export.Pdf" />
-    <PackageReference Include="Novolis.Manuscript.IO" />
-    <PackageReference Include="Novolis.Manuscript.Metrics" />
+    <LibraryReference Include="Novolis.Avalonia.Studio" />
+    <LibraryReference Include="Novolis.Audio.Voice.AzureSpeech" />
+    <LibraryReference Include="Novolis.IO.Git" />
+    <LibraryReference Include="Novolis.IO.Paths" />
+    <LibraryReference Include="Novolis.IO.Recovery" />
+    <LibraryReference Include="Novolis.IO.Watching" />
+    <LibraryReference Include="Novolis.Manuscript" />
+    <LibraryReference Include="Novolis.Manuscript.Editorial" />
+    <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
+    <LibraryReference Include="Novolis.Manuscript.Export.Pdf" />
+    <LibraryReference Include="Novolis.Manuscript.IO" />
+    <LibraryReference Include="Novolis.Manuscript.Metrics" />
     <PackageReference Include="WeCantSpell.Hunspell" />
   </ItemGroup>
 </Project>

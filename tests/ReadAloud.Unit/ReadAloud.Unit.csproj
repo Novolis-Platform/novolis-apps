@@ -7,8 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TUnit" />
-    <PackageReference Include="Novolis.Avalonia.Mobile" />
-    <PackageReference Include="Novolis.Manuscript.Export.Audio" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile" />
+    <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ReadAloud\ReadAloud\ReadAloud.csproj" />

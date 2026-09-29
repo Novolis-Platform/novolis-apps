@@ -18,9 +18,9 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Android" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Novolis.Audio.Voice.Platform.Android" />
-    <PackageReference Include="Novolis.Avalonia.Mobile.Android" />
-    <PackageReference Include="Novolis.Manuscript.Export.Audio" />
+    <LibraryReference Include="Novolis.Audio.Voice.Platform.Android" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile.Android" />
+    <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
     <PackageReference Include="Xamarin.AndroidX.AppCompat" />
     <PackageReference Include="Xamarin.AndroidX.Core.SplashScreen" />
   </ItemGroup>

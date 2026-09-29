@@ -19,11 +19,11 @@
     <PackageReference Include="Avalonia.Android" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Identity.Client" />
-    <PackageReference Include="Novolis.Audio.Voice.Platform.Android" />
-    <PackageReference Include="Novolis.Avalonia.Speech" />
-    <PackageReference Include="Novolis.Avalonia.Mobile.Android" />
-    <PackageReference Include="Novolis.Logging.Diagnostics" />
-    <PackageReference Include="Novolis.Manuscript.Export.Audio" />
+    <LibraryReference Include="Novolis.Audio.Voice.Platform.Android" />
+    <LibraryReference Include="Novolis.Avalonia.Speech" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile.Android" />
+    <LibraryReference Include="Novolis.Logging.Diagnostics" />
+    <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
     <PackageReference Include="Xamarin.AndroidX.AppCompat" />
     <PackageReference Include="Xamarin.AndroidX.Core.SplashScreen" />
   </ItemGroup>

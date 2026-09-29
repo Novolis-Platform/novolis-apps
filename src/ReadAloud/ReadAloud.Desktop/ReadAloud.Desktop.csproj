@@ -15,11 +15,11 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Novolis.Audio.Voice.Platform.Windows" />
-    <PackageReference Include="Novolis.Avalonia.Speech" />
-    <PackageReference Include="Novolis.Manuscript.Export.Audio" />
-    <PackageReference Include="Novolis.Avalonia.Mobile.Desktop" />
-    <PackageReference Include="Novolis.Logging.Diagnostics" />
+    <LibraryReference Include="Novolis.Audio.Voice.Platform.Windows" />
+    <LibraryReference Include="Novolis.Avalonia.Speech" />
+    <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile.Desktop" />
+    <LibraryReference Include="Novolis.Logging.Diagnostics" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

@@ -12,9 +12,9 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Spectre.Console" />
-    <PackageReference Include="Novolis.Avalonia.Git" />
-    <PackageReference Include="Novolis.Avalonia.Studio" />
-    <PackageReference Include="Novolis.IO.Git" />
+    <LibraryReference Include="Novolis.Avalonia.Git" />
+    <LibraryReference Include="Novolis.Avalonia.Studio" />
+    <LibraryReference Include="Novolis.IO.Git" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

@@ -7,13 +7,13 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TUnit" />
-    <PackageReference Include="Novolis.Avalonia.Cad" />
-    <PackageReference Include="Novolis.Avalonia.ThreeD" />
-    <PackageReference Include="Novolis.Cad.Primitives" />
-    <PackageReference Include="Novolis.Cad.SceneBridge" />
-    <PackageReference Include="Novolis.ThreeD.Scene" />
-    <PackageReference Include="Novolis.Agent.Core" />
-    <PackageReference Include="Novolis.Agent.Surface" />
+    <LibraryReference Include="Novolis.Avalonia.Cad" />
+    <LibraryReference Include="Novolis.Avalonia.ThreeD" />
+    <LibraryReference Include="Novolis.Cad.Primitives" />
+    <LibraryReference Include="Novolis.Cad.SceneBridge" />
+    <LibraryReference Include="Novolis.ThreeD.Scene" />
+    <LibraryReference Include="Novolis.Agent.Core" />
+    <LibraryReference Include="Novolis.Agent.Surface" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\CadStudio3D\CadStudio3D.csproj" />

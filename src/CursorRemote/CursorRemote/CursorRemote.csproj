@@ -9,6 +9,6 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Novolis.Avalonia.Mobile" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile" />
   </ItemGroup>
 </Project>

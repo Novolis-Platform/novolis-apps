@@ -36,7 +36,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
-    <PackageReference Include="Novolis.Maui.Markdown" />
+    <LibraryReference Include="Novolis.Maui.Markdown" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Merglyph.Core/Merglyph.Core.csproj" />

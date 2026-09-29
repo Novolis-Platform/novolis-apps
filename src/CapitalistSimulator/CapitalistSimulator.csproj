@@ -16,11 +16,11 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Controls.DataGrid" />
     <PackageReference Include="Spectre.Console" />
-    <PackageReference Include="Novolis.Avalonia.Briefing" />
-    <PackageReference Include="Novolis.Avalonia.Controls" />
-    <PackageReference Include="Novolis.Avalonia.Studio" />
-    <PackageReference Include="Novolis.Storage.Abstractions" />
-    <PackageReference Include="Novolis.Storage.Json" />
+    <LibraryReference Include="Novolis.Avalonia.Briefing" />
+    <LibraryReference Include="Novolis.Avalonia.Controls" />
+    <LibraryReference Include="Novolis.Avalonia.Studio" />
+    <LibraryReference Include="Novolis.Storage.Abstractions" />
+    <LibraryReference Include="Novolis.Storage.Json" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
