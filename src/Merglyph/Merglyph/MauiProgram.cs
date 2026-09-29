@@ -17,6 +17,7 @@ public static class MauiProgram
             .AddSingleton<MarkdownDocumentReader>()
             .AddSingleton<DocumentSession>()
             .AddSingleton<MarkdownDocumentPicker>()
+            .AddSingleton<RecentDocumentStore>()
             .AddSingleton<DocumentActivationInbox>()
             .AddSingleton<MainPage>();
 

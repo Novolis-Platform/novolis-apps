@@ -505,10 +505,7 @@ internal static class CampaignWorld
 
     ids.Mesh = SeedMesh(bridge, books, householdSeeds, sites);
     var world = builder.Build();
-    var sim = new EconomySimulation(
-      seed,
-      world,
-      new LegacySimulationModel(world.Specification));
+    var sim = new EconomySimulation(seed, world);
     SeedInventory(sim, ids);
     ApplyStoreLimits(sim, ids);
     SeedInvariants.Assert(ids, sim);

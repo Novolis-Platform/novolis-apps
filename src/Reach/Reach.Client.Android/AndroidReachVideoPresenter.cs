@@ -1,4 +1,5 @@
 using Android.Media;
+using System.Diagnostics;
 using System.Threading.Channels;
 using Novolis.Reach.Client;
 using Novolis.Reach.Protocol;
@@ -10,13 +11,15 @@ namespace Novolis.Reach.Client.Android;
 public sealed class AndroidReachVideoPresenter :
     IReachVideoPresenter,
     IReachKeyFrameRequester,
-    IReachVideoStreamResetter
+    IReachVideoStreamResetter,
+    IReachVideoPerformanceSource,
+    IReachVideoDropSource
 {
     private const int FlexibleYuv420ColorFormat = unchecked((int)0x7F420888);
     private const long KeyFrameRequestCooldownMilliseconds = 1_500;
     private readonly Channel<ReachVideoFrame> _frames =
         Channel.CreateBounded<ReachVideoFrame>(
-            new BoundedChannelOptions(16)
+            new BoundedChannelOptions(3)
             {
                 FullMode = BoundedChannelFullMode.Wait,
                 SingleReader = true,
@@ -44,6 +47,12 @@ public sealed class AndroidReachVideoPresenter :
 
     /// <inheritdoc />
     public event Action? KeyFrameRequested;
+
+    /// <inheritdoc />
+    public event Action<double>? DecodeCompleted;
+
+    /// <inheritdoc />
+    public event Action? FrameDropped;
 
     /// <inheritdoc />
     public void ResetStream()
@@ -76,6 +85,7 @@ public sealed class AndroidReachVideoPresenter :
         {
         }
 
+        FrameDropped?.Invoke();
         Interlocked.Exchange(ref _resetRequested, 1);
         _streamGate.RequireKeyFrame();
         RequestKeyFrame();
@@ -101,6 +111,8 @@ public sealed class AndroidReachVideoPresenter :
         _decodeCancellation.Dispose();
         FrameDecoded = null;
         KeyFrameRequested = null;
+        DecodeCompleted = null;
+        FrameDropped = null;
     }
 
     private async Task DecodeLoopAsync(CancellationToken cancellationToken)
@@ -120,6 +132,7 @@ public sealed class AndroidReachVideoPresenter :
                 if (frame.IsKeyFrame)
                     Interlocked.Exchange(ref _keyFrameRequestSent, 0);
                 RawVideoFrame? decoded = null;
+                var decodeStart = Stopwatch.GetTimestamp();
                 try
                 {
                     EnsureDecoder(frame.Width, frame.Height);
@@ -190,6 +203,8 @@ public sealed class AndroidReachVideoPresenter :
                 if (decoded is not null
                     && _streamGate.IsCurrent(generation))
                 {
+                    DecodeCompleted?.Invoke(
+                        Stopwatch.GetElapsedTime(decodeStart).TotalMilliseconds);
                     FrameDecoded?.Invoke(decoded);
                 }
             }

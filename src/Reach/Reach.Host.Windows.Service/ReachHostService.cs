@@ -4,6 +4,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Novolis.Reach.Protocol;
@@ -38,12 +39,14 @@ public sealed class ReachHostService : BackgroundService
     private readonly List<string> _messages = [];
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly ReachPerformanceMetrics _performance = new();
     private ILocalIpcConnection? _sessionConnection;
     private ITransportDatagramChannel? _datagramChannel;
     private long _clientSequence;
     private long _localSequence;
     private string[] _endpoints = [];
     private bool _sharingPaused;
+    private int _hostingStopped;
     private DateTimeOffset _nextSessionHelperLaunchAttempt =
         DateTimeOffset.MinValue;
 
@@ -66,6 +69,8 @@ public sealed class ReachHostService : BackgroundService
             return new ReachHostStatus(
                 _endpoints.Length == 0
                     ? "Waiting for LAN or Tailscale"
+                    : Volatile.Read(ref _hostingStopped) != 0
+                        ? "Stopped by operator"
                     : sessionConnection is null
                         ? "Waiting for interactive session"
                         : "Running",
@@ -75,7 +80,8 @@ public sealed class ReachHostService : BackgroundService
                 session?.DomainName is { Length: > 0 } domain
                     ? $"{domain}\\{session.UserName}"
                     : session?.UserName,
-                _messages.TakeLast(40).ToArray());
+                _messages.TakeLast(40).ToArray(),
+                _performance.Snapshot());
         }
     }
 
@@ -671,6 +677,9 @@ public sealed class ReachHostService : BackgroundService
             {
                 throw new InvalidDataException("Incompatible Reach client hello.");
             }
+            if (Volatile.Read(ref _hostingStopped) != 0)
+                throw new InvalidOperationException(
+                    "Reach hosting has been stopped by the operator.");
 
             var clientCapabilities = await ReadMessageAsync<ReachCapabilitiesMessage>(
                     ReachMessageType.ClientCapabilities,
@@ -710,10 +719,27 @@ public sealed class ReachHostService : BackgroundService
                         cancellationToken)
                     .ConfigureAwait(false);
                 if (envelope is null)
+                {
+                    Log($"Client {connection.Id} control channel closed by peer.");
                     return;
+                }
+
+                if (envelope.Type == ReachMessageType.LatencyProbe)
+                {
+                    var probe = ReachMessageCodec.ReadBody<ReachLatencyProbe>(envelope);
+                    await connection.SendAsync(
+                            ReachMessageType.LatencyResponse,
+                            new ReachLatencyResponse(
+                                probe.Id,
+                                probe.SentUtcTicks),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    continue;
+                }
 
                 if (envelope.Type == ReachMessageType.SessionClose)
                 {
+                    Log($"Client {connection.Id} sent SessionClose.");
                     var close = ReachMessageCodec.ReadBody<ReachSessionClose>(envelope);
                     connection.SessionId = close.SessionId;
                     if (!_clients.Values.Any(client =>
@@ -759,6 +785,10 @@ public sealed class ReachHostService : BackgroundService
                             },
                             cancellationToken)
                         .ConfigureAwait(false);
+                    await SendSharingStateAsync(
+                            connection,
+                            cancellationToken)
+                        .ConfigureAwait(false);
                     continue;
                 }
 
@@ -790,6 +820,10 @@ public sealed class ReachHostService : BackgroundService
                             {
                                 EnableAudio = connection.EnableAudio,
                             },
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    await SendSharingStateAsync(
+                            connection,
                             cancellationToken)
                         .ConfigureAwait(false);
                     continue;
@@ -919,7 +953,22 @@ public sealed class ReachHostService : BackgroundService
             case ReachHostCommand.SetSharingPaused:
                 _sharingPaused = request.Enabled ?? false;
                 Log(_sharingPaused ? "Sharing paused by operator." : "Sharing resumed by operator.");
+                _ = BroadcastSharingStateAsync(_sharingPaused);
                 return new ReachHostControlResponse(true, "Sharing state changed.", GetStatus());
+            case ReachHostCommand.ReconnectHelper:
+                _ = ReconnectInteractiveHelperAsync();
+                return new ReachHostControlResponse(
+                    true,
+                    "Interactive helper reconnect requested.",
+                    GetStatus());
+            case ReachHostCommand.StopHosting:
+                Interlocked.Exchange(ref _hostingStopped, 1);
+                _sharingPaused = true;
+                _ = StopHostingAsync();
+                return new ReachHostControlResponse(
+                    true,
+                    "Reach hosting stopped until the service restarts.",
+                    GetStatus());
             case ReachHostCommand.GetLogs:
             case ReachHostCommand.GetStatus:
                 return new ReachHostControlResponse(true, "Host status.", GetStatus());
@@ -927,6 +976,61 @@ public sealed class ReachHostService : BackgroundService
                 return new ReachHostControlResponse(false, "Unknown host command.", GetStatus());
         }
     }
+
+    private async Task ReconnectInteractiveHelperAsync()
+    {
+        var connection = Interlocked.Exchange(ref _sessionConnection, null);
+        if (connection is not null)
+            await connection.DisposeAsync().ConfigureAwait(false);
+        Log("Interactive helper reconnect requested by operator.");
+    }
+
+    private async Task StopHostingAsync()
+    {
+        try
+        {
+            await NotifySessionEndedAsync(
+                    "Reach hosting was stopped by the operator.",
+                    _lifetime.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task BroadcastSharingStateAsync(bool paused)
+    {
+        try
+        {
+            var sends = _clients.Values
+                .Where(static client => client.IsReady)
+                .Select(client => client.SendAsync(
+                    ReachMessageType.SharingState,
+                    new ReachSharingState(
+                        paused,
+                        paused
+                            ? "Sharing is paused by the host operator."
+                            : "Sharing is active."),
+                    _lifetime.Token).AsTask());
+            await Task.WhenAll(sends).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    private ValueTask SendSharingStateAsync(
+        ClientConnection connection,
+        CancellationToken cancellationToken) =>
+        connection.SendAsync(
+            ReachMessageType.SharingState,
+            new ReachSharingState(
+                _sharingPaused,
+                _sharingPaused
+                    ? "Sharing is paused by the host operator."
+                    : "Sharing is active."),
+            cancellationToken);
 
     private async Task RunSessionBridgeAsync(CancellationToken cancellationToken)
     {
@@ -978,14 +1082,30 @@ public sealed class ReachHostService : BackgroundService
 
                 await foreach (var frame in connection.ReadAllAsync(cancellationToken))
                 {
-                    var envelope = ReachMessageCodec.Deserialize(frame.Payload);
-                    if (!IsHostToClientFrame(frame.Kind, envelope.Type))
+                    if (!Enum.TryParse<ReachMessageType>(
+                            frame.Name,
+                            ignoreCase: true,
+                            out var messageType))
+                    {
+                        continue;
+                    }
+
+                    if (!IsHostToClientFrame(frame.Kind, messageType))
                         continue;
                     if (_sharingPaused && frame.Kind == "media")
                         continue;
 
+                    if (messageType == ReachMessageType.VideoFrame)
+                    {
+                        var video = ReachMessageCodec.ReadBody<ReachVideoFrame>(
+                            ReachMessageCodec.Deserialize(frame.Payload));
+                        _performance.RecordReceived(
+                            video.AccessUnit.Length,
+                            video.Timestamp);
+                    }
+
                     await BroadcastPayloadAsync(
-                            envelope,
+                            messageType,
                             frame.Payload,
                             cancellationToken)
                         .ConfigureAwait(false);
@@ -1073,6 +1193,9 @@ public sealed class ReachHostService : BackgroundService
 
     private void TryStartSessionHelper()
     {
+        if (Volatile.Read(ref _hostingStopped) != 0)
+            return;
+
         var now = DateTimeOffset.UtcNow;
         if (now < _nextSessionHelperLaunchAttempt)
             return;
@@ -1258,21 +1381,22 @@ public sealed class ReachHostService : BackgroundService
     }
 
     private async Task BroadcastPayloadAsync(
-        ReachMessageEnvelope envelope,
+        ReachMessageType messageType,
         byte[] payload,
         CancellationToken cancellationToken)
     {
         var sends = _clients.Values
             .Where(client =>
                 client.IsReady
-                && (envelope.Type is not ReachMessageType.AudioStreamStart
+                && (messageType is not ReachMessageType.AudioStreamStart
                     and not ReachMessageType.AudioFrame
                     || client.Capabilities?.Supports(ReachCapability.Audio) == true))
             .Select(client => BroadcastPayloadToClientAsync(
                 client,
                 payload,
-                envelope.Type is ReachMessageType.VideoFrame
+                messageType is ReachMessageType.VideoFrame
                     or ReachMessageType.AudioFrame,
+                messageType is ReachMessageType.VideoFrame,
                 cancellationToken));
         await Task.WhenAll(sends).ConfigureAwait(false);
     }
@@ -1281,15 +1405,21 @@ public sealed class ReachHostService : BackgroundService
         ClientConnection connection,
         byte[] payload,
         bool media,
+        bool latestFrame,
         CancellationToken cancellationToken)
     {
         try
         {
-            await connection.SendPayloadForChannelAsync(
+            var dropped = await connection.SendPayloadForChannelAsync(
                     payload,
                     media,
+                    latestFrame,
                     cancellationToken)
                 .ConfigureAwait(false);
+            if (media)
+                _performance.RecordSent(payload.Length);
+            if (dropped)
+                _performance.RecordDropped();
         }
         catch (Exception exception) when (
             exception is IOException
@@ -1526,6 +1656,16 @@ public sealed class ReachHostService : BackgroundService
         private readonly SemaphoreSlim _sendGate = new(1, 1);
         private readonly SemaphoreSlim _mediaSendGate = new(1, 1);
         private readonly object _mediaStateGate = new();
+        private readonly Channel<byte[]> _latestMedia =
+            Channel.CreateBounded<byte[]>(
+                new BoundedChannelOptions(1)
+                {
+                    FullMode = BoundedChannelFullMode.Wait,
+                    SingleReader = true,
+                    SingleWriter = false,
+                });
+        private readonly CancellationTokenSource _mediaLifetime = new();
+        private readonly Task _mediaSendTask;
         private ITransportStream? _mediaTransportStream;
         private ITransportConnection? _mediaTransport;
         private Stream? _mediaStream;
@@ -1543,6 +1683,8 @@ public sealed class ReachHostService : BackgroundService
             Id = id;
             _transport = transport;
             _controlTransportStream = controlTransportStream;
+            _mediaSendTask = Task.Run(
+                () => MediaSendLoopAsync(_mediaLifetime.Token));
         }
 
         public static async ValueTask<ClientConnection> CreateAsync(
@@ -1677,9 +1819,10 @@ public sealed class ReachHostService : BackgroundService
             }
         }
 
-        public async ValueTask SendPayloadForChannelAsync(
+        public async ValueTask<bool> SendPayloadForChannelAsync(
             byte[] payload,
             bool media,
+            bool latestFrame,
             CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
@@ -1707,7 +1850,7 @@ public sealed class ReachHostService : BackgroundService
                             .ConfigureAwait(false);
                     }
 
-                    return;
+                    return false;
                 }
                 catch (Exception) when (!cancellationToken.IsCancellationRequested)
                 {
@@ -1719,7 +1862,18 @@ public sealed class ReachHostService : BackgroundService
             if (!media || mediaStream is null)
             {
                 await SendPayloadAsync(payload, cancellationToken).ConfigureAwait(false);
-                return;
+                return false;
+            }
+
+            if (latestFrame)
+            {
+                if (_latestMedia.Writer.TryWrite(payload))
+                    return false;
+
+                var dropped = _latestMedia.Reader.TryRead(out _);
+                if (!_latestMedia.Writer.TryWrite(payload))
+                    dropped = true;
+                return dropped;
             }
 
             await _mediaSendGate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -1731,15 +1885,58 @@ public sealed class ReachHostService : BackgroundService
                         payload,
                         cancellationToken)
                     .ConfigureAwait(false);
+                return false;
             }
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
                 DetachMediaStream(mediaStream);
                 await SendPayloadAsync(payload, cancellationToken).ConfigureAwait(false);
+                return false;
             }
             finally
             {
                 _mediaSendGate.Release();
+            }
+        }
+
+        private async Task MediaSendLoopAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await foreach (var payload in _latestMedia.Reader.ReadAllAsync(
+                                   cancellationToken))
+                {
+                    var mediaStream = Volatile.Read(ref _mediaStream);
+                    if (mediaStream is null)
+                        continue;
+
+                    await _mediaSendGate.WaitAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    try
+                    {
+                        await LengthPrefixedFrameCodec.WriteAsync(
+                                mediaStream,
+                                payload,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception) when (
+                        !cancellationToken.IsCancellationRequested)
+                    {
+                        DetachMediaStream(mediaStream);
+                    }
+                    finally
+                    {
+                        _mediaSendGate.Release();
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (
+                cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception) when (cancellationToken.IsCancellationRequested)
+            {
             }
         }
 
@@ -1748,6 +1945,8 @@ public sealed class ReachHostService : BackgroundService
             if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
                 return;
 
+            _latestMedia.Writer.TryComplete();
+            _mediaLifetime.Cancel();
             ITransportStream? mediaTransportStream;
             ITransportConnection? mediaTransport;
             lock (_mediaStateGate)
@@ -1766,6 +1965,14 @@ public sealed class ReachHostService : BackgroundService
                 await mediaTransport.DisposeAsync().ConfigureAwait(false);
             await _controlTransportStream.DisposeAsync().ConfigureAwait(false);
             await _transport.DisposeAsync().ConfigureAwait(false);
+            try
+            {
+                await _mediaSendTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_mediaLifetime.IsCancellationRequested)
+            {
+            }
+            _mediaLifetime.Dispose();
             // The gates are intentionally left undisposed. A broadcast may
             // already be waiting on one while the client is being removed;
             // disposing it here races that waiter and tears down the service.

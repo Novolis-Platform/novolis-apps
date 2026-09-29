@@ -27,6 +27,20 @@ public interface IReachVideoStreamResetter
     void ResetStream();
 }
 
+/// <summary>Optional presenter diagnostics for decoder duration.</summary>
+public interface IReachVideoPerformanceSource
+{
+    /// <summary>Raised after one encoded frame has been decoded.</summary>
+    event Action<double>? DecodeCompleted;
+}
+
+/// <summary>Optional presenter diagnostics for dropped access units.</summary>
+public interface IReachVideoDropSource
+{
+    /// <summary>Raised when a decoded access unit is evicted for freshness.</summary>
+    event Action? FrameDropped;
+}
+
 /// <summary>Presenter used on platforms without a decoder in the current slice.</summary>
 public sealed class NullReachVideoPresenter : IReachVideoPresenter
 {

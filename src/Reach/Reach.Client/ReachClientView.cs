@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -17,13 +18,20 @@ public sealed class ReachClientView : UserControl
     private readonly TextBox _endpoint;
     private readonly TextBlock _status;
     private readonly TextBlock _capabilities;
+    private readonly TextBlock _sessionPhase;
+    private readonly TextBlock _performanceStatus;
+    private readonly ListBox _discoveredHosts;
     private readonly Button _discover;
     private readonly Button _connect;
+    private readonly Button _keyboardToggle;
+    private readonly Button _fitToScreen;
+    private readonly Button _resetZoom;
+    private readonly Button _scrollMode;
+    private readonly StackPanel _sessionToolbar;
     private readonly ReachVideoSurface _videoImage;
     private readonly Border _videoSurface;
     private readonly TextBox _remoteTextInput;
     private readonly Button _sendText;
-    private readonly DispatcherTimer _videoPresentTimer;
     private readonly IReachVideoPresenter _presenter;
     private readonly IReachAudioPresenter _audioPresenter;
     private readonly HashSet<Key> _pressedKeys = [];
@@ -46,15 +54,26 @@ public sealed class ReachClientView : UserControl
     private bool _androidVideoConfigured;
     private bool _touchGestureActive;
     private bool _touchRemoteButtonDown;
+    private bool _touchLongPressFired;
+    private Point _touchPressPoint;
+    private CancellationTokenSource? _touchLongPressCancellation;
     private double _gestureStartDistance;
     private double _gestureStartZoom;
     private double _gestureStartPanX;
     private double _gestureStartPanY;
     private Point _gestureStartCenter;
+    private Point _lastGestureCenter;
     private double _videoZoom = 1;
     private bool _discoveryActive;
     private bool _streamStatusShown;
+    private bool _keyboardMode;
+    private bool _scrollModeEnabled;
     private int _statusPriority;
+    private CancellationTokenSource? _reconnectCancellation;
+    private CancellationTokenSource? _connectCancellation;
+    private ReachVideoProfileController? _videoProfileController;
+    private bool _sessionEnded;
+    private readonly Dictionary<string, string> _discoveredHostEndpoints = [];
 
     /// <summary>Creates the shared client surface.</summary>
     public ReachClientView(
@@ -68,6 +87,9 @@ public sealed class ReachClientView : UserControl
         _session.SessionEnded += OnSessionEnded;
         _session.MediaConnectionLost += OnMediaConnectionLost;
         _session.ConnectionLost += OnConnectionLost;
+        _session.PhaseChanged += OnPhaseChanged;
+        _session.PerformanceChanged += OnPerformanceChanged;
+        _session.SharingStateChanged += OnSharingStateChanged;
         _session.DisplayTopologyReceived += OnDisplayTopology;
         _session.VideoStreamStarted += OnVideoStreamStarted;
         _session.VideoStreamReset += OnVideoStreamReset;
@@ -75,6 +97,12 @@ public sealed class ReachClientView : UserControl
         _presenter = presenter ?? new NullReachVideoPresenter();
         _session.VideoFrameReceived += _presenter.Present;
         _presenter.FrameDecoded += OnFrameDecoded;
+        if (_presenter is IReachVideoPerformanceSource performanceSource)
+            performanceSource.DecodeCompleted += _session.RecordDecodedFrame;
+        if (_presenter is IReachVideoDropSource dropSource)
+        {
+            dropSource.FrameDropped += _session.RecordDroppedFrame;
+        }
         if (_presenter is IReachKeyFrameRequester keyFrameRequester)
             keyFrameRequester.KeyFrameRequested += OnKeyFrameRequested;
         _audioPresenter = audioPresenter ?? new NullReachAudioPresenter();
@@ -82,6 +110,7 @@ public sealed class ReachClientView : UserControl
 
         _endpoint = new TextBox
         {
+            Name = "ReachEndpoint",
             Text = ResolveDefaultEndpoint(),
             PlaceholderText = "Searching for Reach hosts...",
             Width = OperatingSystem.IsAndroid() ? double.NaN : 260,
@@ -89,8 +118,11 @@ public sealed class ReachClientView : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         _endpoint.TextChanged += EndpointTextChanged;
+        if (LoadRememberedEndpoints().FirstOrDefault() is { } rememberedEndpoint)
+            _endpoint.Text = rememberedEndpoint;
         _discover = new Button
         {
+            Name = "ReachDiscover",
             Content = "Discover",
             HorizontalAlignment = HorizontalAlignment.Left,
             MinWidth = 0,
@@ -99,6 +131,7 @@ public sealed class ReachClientView : UserControl
         _discover.Click += DiscoverClicked;
         _connect = new Button
         {
+            Name = "ReachConnect",
             Content = "Connect",
             HorizontalAlignment = HorizontalAlignment.Left,
             IsEnabled = false,
@@ -106,6 +139,51 @@ public sealed class ReachClientView : UserControl
             Padding = new global::Avalonia.Thickness(8, 4),
         };
         _connect.Click += ConnectClicked;
+        _keyboardToggle = new Button
+        {
+            Name = "ReachKeyboard",
+            Content = "Keyboard",
+            IsVisible = OperatingSystem.IsAndroid(),
+            MinWidth = 0,
+        };
+        _keyboardToggle.Click += KeyboardToggleClicked;
+        _fitToScreen = new Button
+        {
+            Name = "ReachFitToScreen",
+            Content = "Fit",
+            IsVisible = OperatingSystem.IsAndroid(),
+            MinWidth = 0,
+        };
+        _fitToScreen.Click += (_, _) => ApplyVideoTransform(1, 0, 0);
+        _resetZoom = new Button
+        {
+            Name = "ReachResetZoom",
+            Content = "Reset zoom",
+            IsVisible = OperatingSystem.IsAndroid(),
+            MinWidth = 0,
+        };
+        _resetZoom.Click += (_, _) => ApplyVideoTransform(1, 0, 0);
+        _scrollMode = new Button
+        {
+            Name = "ReachScrollMode",
+            Content = "Scroll",
+            IsVisible = OperatingSystem.IsAndroid(),
+            MinWidth = 0,
+        };
+        _scrollMode.Click += ScrollModeClicked;
+        _sessionToolbar = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            IsVisible = OperatingSystem.IsAndroid(),
+            Children =
+            {
+                _keyboardToggle,
+                _fitToScreen,
+                _resetZoom,
+                _scrollMode,
+            },
+        };
         _status = new TextBlock
         {
             Text = "Searching for Reach hosts on LAN and Tailscale...",
@@ -116,6 +194,25 @@ public sealed class ReachClientView : UserControl
             Text = "Capabilities: not negotiated",
             TextWrapping = TextWrapping.Wrap,
         };
+        _sessionPhase = new TextBlock
+        {
+            Text = "Phase: Disconnected",
+            TextWrapping = TextWrapping.Wrap,
+        };
+        _performanceStatus = new TextBlock
+        {
+            Text = "Performance: waiting for frames",
+            TextWrapping = TextWrapping.Wrap,
+            IsVisible = false,
+        };
+        _discoveredHosts = new ListBox
+        {
+            Name = "ReachDiscoveredHosts",
+            Height = 72,
+            IsVisible = false,
+            SelectionMode = SelectionMode.Single,
+        };
+        _discoveredHosts.SelectionChanged += DiscoveredHostSelected;
 
         _videoImage = new ReachVideoSurface
         {
@@ -133,6 +230,7 @@ public sealed class ReachClientView : UserControl
         };
         _videoSurface = new Border
         {
+            Name = "ReachVideoSurface",
             Background = Brushes.Black,
             Focusable = true,
             IsHitTestVisible = true,
@@ -140,10 +238,6 @@ public sealed class ReachClientView : UserControl
             ClipToBounds = true,
             Child = _videoImage,
         };
-        _videoPresentTimer = new DispatcherTimer(
-            TimeSpan.FromMilliseconds(33),
-            DispatcherPriority.Background,
-            (_, _) => ApplyPendingFrame());
         _videoSurface.KeyDown += OnVideoKeyDown;
         _videoSurface.KeyUp += OnVideoKeyUp;
         _videoSurface.AddHandler(
@@ -165,16 +259,18 @@ public sealed class ReachClientView : UserControl
         _videoSurface.PointerWheelChanged += OnVideoPointerWheel;
         _remoteTextInput = new TextBox
         {
+            Name = "ReachRemoteTextInput",
             PlaceholderText = "Type to send to remote session",
             Width = double.NaN,
             MinWidth = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            IsVisible = OperatingSystem.IsAndroid(),
+            IsVisible = false,
         };
         _sendText = new Button
         {
+            Name = "ReachSendText",
             Content = "Send",
-            IsVisible = OperatingSystem.IsAndroid(),
+            IsVisible = false,
         };
         _sendText.Click += SendTextClicked;
         _remoteTextInput.KeyDown += RemoteTextKeyDown;
@@ -198,29 +294,53 @@ public sealed class ReachClientView : UserControl
 
         Content = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*"),
+            RowDefinitions = new RowDefinitions(
+                "Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*"),
             Margin = new global::Avalonia.Thickness(
                 OperatingSystem.IsAndroid() ? 12 : 24),
             RowSpacing = 12,
             Children =
             {
                 endpointRow,
+                _discoveredHosts,
                 _status,
                 _capabilities,
+                _sessionPhase,
+                _performanceStatus,
+                _sessionToolbar,
                 remoteTextRow,
                 _videoSurface,
             },
         };
-        Grid.SetRow(_status, 1);
-        Grid.SetRow(_capabilities, 2);
-        Grid.SetRow(remoteTextRow, 3);
-        Grid.SetRow(_videoSurface, 4);
+        Grid.SetRow(_discoveredHosts, 1);
+        Grid.SetRow(_status, 2);
+        Grid.SetRow(_capabilities, 3);
+        Grid.SetRow(_sessionPhase, 4);
+        Grid.SetRow(_performanceStatus, 5);
+        Grid.SetRow(_sessionToolbar, 6);
+        Grid.SetRow(remoteTextRow, 7);
+        Grid.SetRow(_videoSurface, 8);
 
         _ = DiscoverHostsAsync();
     }
 
     private void EndpointTextChanged(object? sender, TextChangedEventArgs args)
     {
+        UpdateConnectionControls();
+    }
+
+    private void DiscoveredHostSelected(
+        object? sender,
+        SelectionChangedEventArgs args)
+    {
+        if (_discoveredHosts.SelectedItem is not string label
+            || !_discoveredHostEndpoints.TryGetValue(label, out var endpoint))
+        {
+            return;
+        }
+
+        _endpoint.Text = endpoint;
+        OnStatusChanged($"Selected {label}.");
         UpdateConnectionControls();
     }
 
@@ -244,9 +364,21 @@ public sealed class ReachClientView : UserControl
             if (hosts.Count == 0)
             {
                 _status.Text = "No Reach hosts found on LAN or Tailscale.";
+                ApplyRememberedHostList();
                 return;
             }
 
+            _discoveredHostEndpoints.Clear();
+            var labels = new List<string>();
+            foreach (var host in hosts)
+            {
+                var label = $"{host.HostName} — {host.Endpoint}";
+                _discoveredHostEndpoints[label] = host.Endpoint;
+                labels.Add(label);
+            }
+
+            _discoveredHosts.ItemsSource = labels;
+            _discoveredHosts.IsVisible = labels.Count > 0;
             foreach (var host in hosts)
             {
                 _endpoint.Text = host.Endpoint;
@@ -268,10 +400,32 @@ public sealed class ReachClientView : UserControl
         }
     }
 
+    private void ApplyRememberedHostList()
+    {
+        var remembered = LoadRememberedEndpoints().ToArray();
+        _discoveredHostEndpoints.Clear();
+        var labels = new List<string>();
+        foreach (var endpoint in remembered)
+        {
+            var label = $"Remembered — {endpoint}";
+            _discoveredHostEndpoints[label] = endpoint;
+            labels.Add(label);
+        }
+
+        _discoveredHosts.ItemsSource = labels;
+        _discoveredHosts.IsVisible = labels.Count > 0;
+    }
+
     private async void ConnectClicked(
         object? sender,
         global::Avalonia.Interactivity.RoutedEventArgs args)
     {
+        if (_session.State == ReachSessionState.Connecting)
+        {
+            _connectCancellation?.Cancel();
+            return;
+        }
+
         if (_session.IsConnected || _session.State == ReachSessionState.Lost)
         {
             await ReconnectToEndpointAsync();
@@ -283,11 +437,14 @@ public sealed class ReachClientView : UserControl
 
     private async Task<bool> ConnectToEndpointAsync()
     {
+        CancelReconnect();
+        _sessionEnded = false;
         _connect.IsEnabled = false;
         _androidVideoConfigured = false;
         _streamStatusShown = false;
         ResetStatusPriority();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        _connectCancellation = timeout;
         try
         {
             await _session.ConnectAsync(
@@ -300,8 +457,15 @@ public sealed class ReachClientView : UserControl
                 ? "Capabilities: none"
                 : $"Capabilities: {capabilities.Features}; "
                   + $"video={string.Join(",", capabilities.OfferedVideoCodecs)}";
+            RememberEndpoint(_endpoint.Text);
+            _discoveredHosts.IsVisible = false;
             SetConnectedStatus();
             return true;
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            OnStatusChanged("Connection cancelled.");
+            return false;
         }
         catch (Exception exception)
         {
@@ -310,18 +474,29 @@ public sealed class ReachClientView : UserControl
         }
         finally
         {
+            _ = Interlocked.CompareExchange(
+                ref _connectCancellation,
+                null,
+                timeout);
             UpdateConnectionControls();
         }
     }
 
-    private async Task ReconnectToEndpointAsync()
+    private async Task<bool> ReconnectToEndpointAsync(
+        CancellationToken cancellationToken = default,
+        bool cancelExistingReconnect = true)
     {
+        if (cancelExistingReconnect)
+            CancelReconnect();
         _connect.IsEnabled = false;
+        _sessionEnded = false;
         _androidVideoConfigured = false;
         _streamStatusShown = false;
         ResetStatusPriority();
         ClearVideoFrame();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
         try
         {
             await _session.ReconnectAsync(timeout.Token);
@@ -330,10 +505,12 @@ public sealed class ReachClientView : UserControl
                   + $"video={string.Join(",", capabilities.OfferedVideoCodecs)}"
                 : "Capabilities: none";
             SetConnectedStatus(reconnected: true);
+            return true;
         }
         catch (Exception exception)
         {
             OnStatusChanged($"Reconnect failed: {exception.Message}");
+            return false;
         }
         finally
         {
@@ -365,6 +542,58 @@ public sealed class ReachClientView : UserControl
             _statusPriority = 0;
         else
             Dispatcher.UIThread.Post(() => _statusPriority = 0);
+    }
+
+    private void OnPhaseChanged(ReachConnectionPhase phase)
+    {
+        void Apply() => _sessionPhase.Text = $"Phase: {phase}";
+        if (Dispatcher.UIThread.CheckAccess())
+            Apply();
+        else
+            Dispatcher.UIThread.Post(Apply);
+    }
+
+    private void OnPerformanceChanged(ReachPerformanceSnapshot snapshot)
+    {
+        void Apply()
+        {
+            var frameAge = snapshot.FrameAgeP95Milliseconds is { } age
+                ? $"{age:0} ms"
+                : "n/a";
+            var roundTrip = snapshot.InputRoundTripP95Milliseconds is { } rtt
+                ? $"{rtt:0} ms"
+                : "n/a";
+            _performanceStatus.Text =
+                $"Transport: {_session.ActiveTransport}; "
+                + $"frame age p95: {frameAge}; input RTT p95: {roundTrip}; "
+                + $"drops: {snapshot.DroppedFrames}; "
+                + $"keyframes: {snapshot.KeyFrameRequests}";
+            _performanceStatus.IsVisible =
+                OperatingSystem.IsAndroid() && snapshot.ReceivedFrames > 0;
+        }
+
+        if (OperatingSystem.IsAndroid()
+            && _videoProfileController is { } profileController
+            && _session.IsConnected
+            && profileController.Observe(
+                    snapshot,
+                    DateTimeOffset.UtcNow)
+                is { } profile)
+        {
+            QueueInput(() => _session.ConfigureVideoAsync(
+                profile.Width,
+                profile.Height,
+                profile.FramesPerSecond,
+                profile.TargetBitrate));
+            OnStatusChanged(
+                $"Video quality adjusted to {profile.Kind} "
+                + $"({profile.FramesPerSecond} FPS).");
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Apply();
+        else
+            Dispatcher.UIThread.Post(Apply);
     }
 
     private void SetConnectedStatus(bool reconnected = false)
@@ -421,22 +650,115 @@ public sealed class ReachClientView : UserControl
 
     private void OnSessionEnded(string reason)
     {
+        _sessionEnded = true;
         ClearVideoFrame();
         OnStatusChanged($"Remote session ended: {reason}");
+    }
+
+    private void OnSharingStateChanged(ReachSharingState state)
+    {
+        OnStatusChanged(
+            state.IsPaused
+                ? $"Host paused sharing: {state.Reason}"
+                : "Host resumed sharing.");
     }
 
     private void OnMediaConnectionLost()
     {
         ClearVideoFrame();
-        OnStatusChanged("Remote video stream lost. Press Reconnect.");
+        OnStatusChanged("Video is recovering; input remains available.");
+        _ = RecoverMediaAsync();
         UpdateConnectionControls();
     }
 
     private void OnConnectionLost()
     {
         ClearVideoFrame();
-        OnStatusChanged("Reach connection lost. Press Connect to retry.");
+        if (_sessionEnded)
+        {
+            OnStatusChanged(
+                "The remote session ended. Reconnect when the host is ready.");
+            UpdateConnectionControls();
+            return;
+        }
+
+        OnStatusChanged("Connection lost. Reconnecting...");
+        BeginReconnectLoop();
         UpdateConnectionControls();
+    }
+
+    private async Task RecoverMediaAsync()
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(
+                TimeSpan.FromSeconds(5));
+            await _session.RecoverMediaAsync(timeout.Token);
+            OnStatusChanged("Video recovered; waiting for a fresh frame.");
+        }
+        catch (Exception exception)
+        {
+            OnStatusChanged($"Video recovery failed: {exception.Message}");
+        }
+    }
+
+    private void BeginReconnectLoop()
+    {
+        if (_reconnectCancellation is not null
+            || _session.State is not ReachSessionState.Lost)
+        {
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _reconnectCancellation = cancellation;
+        _ = ReconnectLoopAsync(cancellation);
+    }
+
+    private async Task ReconnectLoopAsync(CancellationTokenSource owner)
+    {
+        try
+        {
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                var delay = TimeSpan.FromSeconds(attempt);
+                OnStatusChanged(
+                    $"Reconnecting in {delay.TotalSeconds:0}s "
+                    + $"(attempt {attempt} of 3)...");
+                await Task.Delay(delay, owner.Token);
+                if (await ReconnectToEndpointAsync(
+                        owner.Token,
+                        cancelExistingReconnect: false))
+                    return;
+            }
+
+            OnStatusChanged(
+                "Reach is offline. Check the host and tap Reconnect.");
+        }
+        catch (OperationCanceledException) when (owner.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(
+                    Interlocked.CompareExchange(
+                        ref _reconnectCancellation,
+                        null,
+                        owner),
+                    owner))
+            {
+                owner.Dispose();
+            }
+        }
+    }
+
+    private void CancelReconnect()
+    {
+        var cancellation = Interlocked.Exchange(
+            ref _reconnectCancellation,
+            null);
+        cancellation?.Cancel();
+        cancellation?.Dispose();
     }
 
     private void OnVideoStreamReset(ReachVideoStreamReset reset)
@@ -459,6 +781,8 @@ public sealed class ReachClientView : UserControl
             _touchPoints.Clear();
             _touchGestureActive = false;
             _touchRemoteButtonDown = false;
+            CancelTouchLongPress();
+            _touchLongPressFired = false;
             _videoZoom = 1;
             _videoScale.ScaleX = 1;
             _videoScale.ScaleY = 1;
@@ -478,6 +802,13 @@ public sealed class ReachClientView : UserControl
     {
         void Apply()
         {
+            if (_session.State == ReachSessionState.Connecting)
+            {
+                _connect.Content = "Cancel";
+                _connect.IsEnabled = true;
+                return;
+            }
+
             _connect.IsEnabled = !_discoveryActive
                 && !string.IsNullOrWhiteSpace(_endpoint.Text)
                 && _session.State is not ReachSessionState.Connecting;
@@ -513,8 +844,8 @@ public sealed class ReachClientView : UserControl
         }
 
         Dispatcher.UIThread.Post(
-            () => _videoPresentTimer.Start(),
-            DispatcherPriority.Background);
+            ApplyPendingFrame,
+            DispatcherPriority.Render);
     }
 
     private void ApplyPendingFrame()
@@ -536,15 +867,22 @@ public sealed class ReachClientView : UserControl
             if (_pendingFrame is null)
             {
                 _frameUpdateScheduled = false;
-                _videoPresentTimer.Stop();
                 return;
             }
         }
+
+        Dispatcher.UIThread.Post(
+            ApplyPendingFrame,
+            DispatcherPriority.Render);
     }
 
     private void ApplyFrame(RawVideoFrame frame)
     {
+        var start = Stopwatch.GetTimestamp();
         _videoImage.Present(frame);
+        _session.RecordPresentedFrame(
+            frame.Timestamp,
+            Stopwatch.GetElapsedTime(start).TotalMilliseconds);
     }
 
     private void ClearVideoFrame()
@@ -556,16 +894,17 @@ public sealed class ReachClientView : UserControl
                 _pendingFrame = null;
                 _frameUpdateScheduled = false;
             }
-            _videoPresentTimer.Stop();
-
             _videoImage.Clear();
             _videoWidth = 0;
             _videoHeight = 0;
             _androidVideoConfigured = false;
+            _videoProfileController = null;
             _streamStatusShown = false;
             _touchPoints.Clear();
             _touchGestureActive = false;
             _touchRemoteButtonDown = false;
+            CancelTouchLongPress();
+            _touchLongPressFired = false;
             _videoZoom = 1;
             _videoScale.ScaleX = 1;
             _videoScale.ScaleY = 1;
@@ -606,12 +945,15 @@ public sealed class ReachClientView : UserControl
         if (OperatingSystem.IsAndroid() && !_androidVideoConfigured)
         {
             _androidVideoConfigured = true;
-            var (width, height) = GetAndroidVideoSize(display);
+            _videoProfileController = new ReachVideoProfileController(
+                display,
+                ResolveInitialVideoProfileKind(_endpoint.Text));
+            var profile = _videoProfileController.Current;
             QueueInput(() => _session.ConfigureVideoAsync(
-                width,
-                height,
-                10,
-                1_500_000));
+                profile.Width,
+                profile.Height,
+                profile.FramesPerSecond,
+                profile.TargetBitrate));
         }
     }
 
@@ -643,6 +985,7 @@ public sealed class ReachClientView : UserControl
             _touchPoints[args.Pointer.Id] = args.GetPosition(_videoSurface);
             if (_touchPoints.Count >= 2)
             {
+                CancelTouchLongPress();
                 if (_touchRemoteButtonDown)
                 {
                     QueuePointerButton("Left", false);
@@ -655,14 +998,11 @@ public sealed class ReachClientView : UserControl
                 return;
             }
 
-            if (TryGetRemotePoint(args, out var touchX, out var touchY))
+            if (TryGetRemotePoint(args, out _, out _))
             {
-                QueueInput(async () =>
-                {
-                    await _session.SendPointerMoveAsync(touchX, touchY);
-                    await _session.SendPointerButtonAsync("Left", true);
-                });
-                _touchRemoteButtonDown = true;
+                _touchPressPoint = args.GetPosition(_videoSurface);
+                _touchLongPressFired = false;
+                StartTouchLongPress();
             }
 
             args.Pointer.Capture(_videoSurface);
@@ -701,6 +1041,24 @@ public sealed class ReachClientView : UserControl
                 args.Handled = true;
                 return;
             }
+
+            if (!_touchLongPressFired
+                && !_touchRemoteButtonDown
+                && Distance(
+                    _touchPressPoint,
+                    _touchPoints[args.Pointer.Id]) > 8)
+            {
+                CancelTouchLongPress();
+                if (TryGetRemotePoint(args, out var pressX, out var pressY))
+                {
+                    QueueInput(async () =>
+                    {
+                        await _session.SendPointerMoveAsync(pressX, pressY);
+                        await _session.SendPointerButtonAsync("Left", true);
+                    });
+                    _touchRemoteButtonDown = true;
+                }
+            }
         }
 
         if (!TryGetRemotePoint(args, out var x, out var y))
@@ -714,12 +1072,20 @@ public sealed class ReachClientView : UserControl
     {
         if (args.Pointer.Type == PointerType.Touch)
         {
+            CancelTouchLongPress();
             _touchPoints.Remove(args.Pointer.Id);
             if (_touchPoints.Count == 0)
             {
                 if (_touchRemoteButtonDown)
                     QueuePointerButton("Left", false);
+                else if (!_touchLongPressFired
+                    && TryGetRemotePoint(args, out var tapX, out var tapY))
+                {
+                    QueueTouchTap(tapX, tapY);
+                }
+
                 _touchRemoteButtonDown = false;
+                _touchLongPressFired = false;
                 _touchGestureActive = false;
                 ResetVideoPanIfUnzoomed();
             }
@@ -728,7 +1094,8 @@ public sealed class ReachClientView : UserControl
                 _touchGestureActive = true;
             }
 
-            if (args.Pointer.Captured == _videoSurface)
+            if (args.Pointer.Captured == _videoSurface
+                || args.Pointer.Captured == _videoImage)
                 args.Pointer.Capture(null);
             args.Handled = true;
             return;
@@ -751,6 +1118,80 @@ public sealed class ReachClientView : UserControl
         args.Handled = true;
     }
 
+    private void StartTouchLongPress()
+    {
+        CancelTouchLongPress();
+        var cancellation = new CancellationTokenSource();
+        _touchLongPressCancellation = cancellation;
+        _ = FireTouchLongPressAsync(cancellation);
+    }
+
+    private async Task FireTouchLongPressAsync(
+        CancellationTokenSource owner)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(550), owner.Token)
+                .ConfigureAwait(false);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (!ReferenceEquals(_touchLongPressCancellation, owner)
+                    || _touchPoints.Count != 1
+                    || _touchGestureActive
+                    || _touchRemoteButtonDown)
+                {
+                    return;
+                }
+
+                if (!TryGetRemotePoint(
+                        _touchPressPoint,
+                        out var x,
+                        out var y))
+                {
+                    return;
+                }
+
+                _touchLongPressFired = true;
+                QueueInput(async () =>
+                {
+                    await _session.SendPointerMoveAsync(x, y);
+                    await _session.SendPointerButtonAsync("Right", true);
+                    await _session.SendPointerButtonAsync("Right", false);
+                });
+                OnStatusChanged("Right-click sent.");
+            });
+        }
+        catch (OperationCanceledException) when (owner.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            _ = Interlocked.CompareExchange(
+                ref _touchLongPressCancellation,
+                null,
+                owner);
+            owner.Dispose();
+        }
+    }
+
+    private void CancelTouchLongPress()
+    {
+        var cancellation = Interlocked.Exchange(
+            ref _touchLongPressCancellation,
+            null);
+        cancellation?.Cancel();
+    }
+
+    private void QueueTouchTap(double x, double y)
+    {
+        QueueInput(async () =>
+        {
+            await _session.SendPointerMoveAsync(x, y);
+            await _session.SendPointerButtonAsync("Left", true);
+            await _session.SendPointerButtonAsync("Left", false);
+        });
+    }
+
     private void BeginTouchGesture()
     {
         var points = _touchPoints.Values.Take(2).ToArray();
@@ -762,6 +1203,7 @@ public sealed class ReachClientView : UserControl
         if (_gestureStartDistance < 1)
             _gestureStartDistance = 1;
         _gestureStartCenter = Midpoint(points[0], points[1]);
+        _lastGestureCenter = _gestureStartCenter;
         _gestureStartZoom = _videoZoom;
         _gestureStartPanX = _videoTranslation.X;
         _gestureStartPanY = _videoTranslation.Y;
@@ -778,6 +1220,17 @@ public sealed class ReachClientView : UserControl
 
         var distance = Math.Max(1, Distance(points[0], points[1]));
         var center = Midpoint(points[0], points[1]);
+        if (_scrollModeEnabled)
+        {
+            var scrollDelta = center.Y - _lastGestureCenter.Y;
+            if (Math.Abs(scrollDelta) >= 2)
+            {
+                QueueInput(() => _session.SendPointerWheelAsync(
+                    (int)Math.Round(-scrollDelta * 6)));
+                _lastGestureCenter = center;
+            }
+        }
+
         _videoZoom = Math.Clamp(
             _gestureStartZoom * distance / _gestureStartDistance,
             1,
@@ -843,6 +1296,44 @@ public sealed class ReachClientView : UserControl
         _remoteTextInput.Focus();
     }
 
+    private void KeyboardToggleClicked(
+        object? sender,
+        RoutedEventArgs args)
+    {
+        _keyboardMode = !_keyboardMode;
+        _remoteTextInput.IsVisible = _keyboardMode;
+        _sendText.IsVisible = _keyboardMode;
+        _keyboardToggle.Content = _keyboardMode
+            ? "Hide keyboard"
+            : "Keyboard";
+        if (_keyboardMode)
+        {
+            _remoteTextInput.Focus();
+            _remoteTextInput.SelectAll();
+            OnStatusChanged(
+                "Keyboard mode active. Type, compose, then press Send.");
+        }
+        else
+        {
+            _videoSurface.Focus();
+            OnStatusChanged("Remote surface focused.");
+        }
+    }
+
+    private void ScrollModeClicked(
+        object? sender,
+        RoutedEventArgs args)
+    {
+        _scrollModeEnabled = !_scrollModeEnabled;
+        _scrollMode.Content = _scrollModeEnabled
+            ? "Scroll: on"
+            : "Scroll";
+        OnStatusChanged(
+            _scrollModeEnabled
+                ? "Two-finger scrolling is active."
+                : "Two-finger pan and pinch are active.");
+    }
+
     private void RemoteTextKeyDown(object? sender, KeyEventArgs args)
     {
         if (args.Key != Key.Return)
@@ -902,6 +1393,17 @@ public sealed class ReachClientView : UserControl
         out double x,
         out double y)
     {
+        return TryGetRemotePoint(
+            args.GetPosition(_videoSurface),
+            out x,
+            out y);
+    }
+
+    private bool TryGetRemotePoint(
+        Point point,
+        out double x,
+        out double y)
+    {
         x = 0;
         y = 0;
         if (_videoWidth <= 0 || _videoHeight <= 0)
@@ -911,7 +1413,6 @@ public sealed class ReachClientView : UserControl
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return false;
 
-        var point = args.GetPosition(_videoSurface);
         var fit = ReachVideoGeometry.CalculateFit(
             bounds.Width,
             bounds.Height,
@@ -949,18 +1450,13 @@ public sealed class ReachClientView : UserControl
         return null;
     }
 
-    private static (int Width, int Height) GetAndroidVideoSize(
-        ReachDisplay display)
-    {
-        const int maximumWidth = 480;
-        var scale = Math.Min(1d, maximumWidth / (double)display.Width);
-        var width = Math.Max(16, AlignToCodecBlock(display.Width * scale));
-        var height = Math.Max(16, AlignToCodecBlock(display.Height * scale));
-        return (width, height);
-    }
-
-    private static int AlignToCodecBlock(double value) =>
-        Math.Max(16, (int)Math.Round(value / 16d) * 16);
+    private static ReachVideoProfileKind ResolveInitialVideoProfileKind(
+        string? endpoint) =>
+        endpoint?.Contains("100.", StringComparison.Ordinal) == true
+            || endpoint?.Contains(".ts.net", StringComparison.OrdinalIgnoreCase)
+                == true
+            ? ReachVideoProfileKind.Routed
+            : ReachVideoProfileKind.Lan;
 
     private void QueueInput(Func<Task> input)
     {
@@ -1112,6 +1608,63 @@ public sealed class ReachClientView : UserControl
         OperatingSystem.IsAndroid()
             ? "10.0.2.2:19800"
             : "127.0.0.1:19800";
+
+    private static IReadOnlyList<string> LoadRememberedEndpoints()
+    {
+        try
+        {
+            var path = GetEndpointHistoryPath();
+            return File.Exists(path)
+                ? File.ReadAllLines(path)
+                    .Where(static endpoint => !string.IsNullOrWhiteSpace(endpoint))
+                    .Take(8)
+                    .ToArray()
+                : [];
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    private static void RememberEndpoint(string? endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint))
+            return;
+
+        try
+        {
+            var endpoints = LoadRememberedEndpoints()
+                .Where(item => !string.Equals(
+                    item,
+                    endpoint,
+                    StringComparison.OrdinalIgnoreCase))
+                .Prepend(endpoint)
+                .Take(8)
+                .ToArray();
+            var path = GetEndpointHistoryPath();
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllLines(path, endpoints);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static string GetEndpointHistoryPath() =>
+        Path.Combine(
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData),
+            "Novolis",
+            "Reach",
+            "endpoints.txt");
 
     private static ReachPlatform ResolvePlatform() =>
         OperatingSystem.IsAndroid()

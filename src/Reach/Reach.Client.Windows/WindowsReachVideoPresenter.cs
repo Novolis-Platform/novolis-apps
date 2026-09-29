@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Novolis.Reach.Client;
 using Novolis.Reach.Protocol;
 using Novolis.Video;
@@ -6,7 +7,9 @@ using Novolis.Video.Codecs.H264;
 namespace Novolis.Reach.Client.Windows;
 
 /// <summary>Decodes the negotiated Windows H.264 stream for the Avalonia client.</summary>
-public sealed class WindowsReachVideoPresenter : IReachVideoPresenter
+public sealed class WindowsReachVideoPresenter :
+    IReachVideoPresenter,
+    IReachVideoPerformanceSource
 {
     private readonly object _gate = new();
     private WindowsH264Decoder? _decoder;
@@ -18,6 +21,9 @@ public sealed class WindowsReachVideoPresenter : IReachVideoPresenter
     public event Action<RawVideoFrame>? FrameDecoded;
 
     /// <inheritdoc />
+    public event Action<double>? DecodeCompleted;
+
+    /// <inheritdoc />
     public void Present(ReachVideoFrame frame)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -25,6 +31,7 @@ public sealed class WindowsReachVideoPresenter : IReachVideoPresenter
             return;
 
         RawVideoFrame decoded;
+        var decodeStart = Stopwatch.GetTimestamp();
         lock (_gate)
         {
             if (_decoder is null || _width != frame.Width || _height != frame.Height)
@@ -55,6 +62,8 @@ public sealed class WindowsReachVideoPresenter : IReachVideoPresenter
             }
         }
 
+        DecodeCompleted?.Invoke(
+            Stopwatch.GetElapsedTime(decodeStart).TotalMilliseconds);
         FrameDecoded?.Invoke(decoded);
     }
 
@@ -72,5 +81,6 @@ public sealed class WindowsReachVideoPresenter : IReachVideoPresenter
         }
 
         FrameDecoded = null;
+        DecodeCompleted = null;
     }
 }

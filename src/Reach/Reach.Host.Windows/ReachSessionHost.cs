@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading.Channels;
 using System.Drawing;
 using Microsoft.Extensions.Hosting;
@@ -28,6 +29,7 @@ public sealed class ReachSessionHost : BackgroundService
     private readonly WindowsDisplayTopology _display;
     private readonly WindowsLoopbackAudioCapture _audioCapture;
     private readonly SemaphoreSlim _sendGate = new(1, 1);
+    private readonly ReachPerformanceMetrics _performance = new();
     private ILocalIpcConnection? _connection;
     private WindowsDesktopCaptureSource? _capture;
     private WindowsH264Encoder? _encoder;
@@ -44,6 +46,8 @@ public sealed class ReachSessionHost : BackgroundService
     private int _streamWidth;
     private int _streamHeight;
     private long _sequence;
+    private Channel<LocalIpcFrame>? _videoQueue;
+    private Task? _videoSenderTask;
 
     /// <summary>Creates the interactive-session helper.</summary>
     public ReachSessionHost(
@@ -72,6 +76,20 @@ public sealed class ReachSessionHost : BackgroundService
             await using var connection = await listener.AcceptAsync(stoppingToken)
                 .ConfigureAwait(false);
             _connection = connection;
+            var videoQueue = Channel.CreateBounded<LocalIpcFrame>(
+                new BoundedChannelOptions(1)
+                {
+                    FullMode = BoundedChannelFullMode.Wait,
+                    SingleReader = true,
+                    SingleWriter = true,
+                });
+            _videoQueue = videoQueue;
+            using var videoSenderCancellation =
+                CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            _videoSenderTask = VideoSendLoopAsync(
+                connection,
+                videoQueue.Reader,
+                videoSenderCancellation.Token);
             try
             {
                 await foreach (var frame in connection.ReadAllAsync(stoppingToken))
@@ -91,6 +109,22 @@ public sealed class ReachSessionHost : BackgroundService
             }
             finally
             {
+                videoQueue.Writer.TryComplete();
+                videoSenderCancellation.Cancel();
+                if (_videoSenderTask is not null)
+                {
+                    try
+                    {
+                        await _videoSenderTask.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (
+                        videoSenderCancellation.IsCancellationRequested)
+                    {
+                    }
+                }
+
+                _videoSenderTask = null;
+                _videoQueue = null;
                 await StopCaptureAsync().ConfigureAwait(false);
                 _connection = null;
             }
@@ -343,7 +377,9 @@ public sealed class ReachSessionHost : BackgroundService
                     monitor.Top,
                     monitor.Width,
                     monitor.Height)
-                : null);
+                : null,
+            targetWidth: _targetWidth,
+            targetHeight: _targetHeight);
 
     private WindowsMonitorInfo? GetSelectedMonitor()
     {
@@ -436,6 +472,7 @@ public sealed class ReachSessionHost : BackgroundService
         {
             try
             {
+                var encodeStart = Stopwatch.GetTimestamp();
                 var frame = ResizeFrame(captured);
                 _encoder ??= new WindowsH264Encoder(
                     frame.Width,
@@ -448,6 +485,8 @@ public sealed class ReachSessionHost : BackgroundService
                     continue;
                 }
 
+                _performance.RecordEncoded(
+                    Stopwatch.GetElapsedTime(encodeStart).TotalMilliseconds);
                 _streamWidth = encoded.Width;
                 _streamHeight = encoded.Height;
                 if (!_videoMetadataSent)
@@ -474,19 +513,72 @@ public sealed class ReachSessionHost : BackgroundService
                     encoded.Codec,
                     encoded.IsKeyFrame,
                     encoded.AccessUnit);
-                await SendAsync(
-                        connection,
-                        ReachMessageType.VideoFrame,
-                        packet,
+                var payload = ReachMessageCodec.Serialize(
+                    ReachMessageType.VideoFrame,
+                    Interlocked.Increment(ref _sequence),
+                    packet);
+                QueueVideoFrame(
+                    new LocalIpcFrame(
+                        Interlocked.Increment(ref _sequence),
                         "media",
-                        cancellationToken)
-                    .ConfigureAwait(false);
+                        ReachMessageType.VideoFrame.ToString(),
+                        payload));
             }
             catch (Exception exception)
             {
                 _log.LogWarning(exception, "Reach frame encoding failed.");
             }
         }
+    }
+
+    private async Task VideoSendLoopAsync(
+        ILocalIpcConnection connection,
+        ChannelReader<LocalIpcFrame> reader,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var frame in reader.ReadAllAsync(cancellationToken))
+            {
+                try
+                {
+                    await connection.SendAsync(frame, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception exception) when (
+                    exception is IOException
+                        or ObjectDisposedException
+                        or InvalidOperationException)
+                {
+                    _log.LogDebug(
+                        exception,
+                        "Reach video IPC sender stopped.");
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void QueueVideoFrame(LocalIpcFrame frame)
+    {
+        var queue = Volatile.Read(ref _videoQueue);
+        if (queue is null)
+        {
+            _performance.RecordDropped();
+            return;
+        }
+
+        if (queue.Writer.TryWrite(frame))
+            return;
+
+        if (queue.Reader.TryRead(out _))
+            _performance.RecordDropped();
+        if (!queue.Writer.TryWrite(frame))
+            _performance.RecordDropped();
     }
 
     private RawVideoFrame ResizeFrame(RawVideoFrame frame)
@@ -594,6 +686,7 @@ public sealed class ReachSessionHost : BackgroundService
 
     private void OnFrameCaptured(RawVideoFrame frame)
     {
+        _performance.RecordCaptured();
         _frames?.Writer.TryWrite(frame);
     }
 

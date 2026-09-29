@@ -18,6 +18,20 @@ public enum ReachSessionState
     Lost,
 }
 
+/// <summary>Detailed phase shown by the Reach client surface.</summary>
+public enum ReachConnectionPhase
+{
+    Disconnected,
+    Discovering,
+    Connecting,
+    Authenticating,
+    Starting,
+    Streaming,
+    Degraded,
+    Reconnecting,
+    Ended,
+}
+
 /// <summary>Owns one client-side Reach control connection.</summary>
 public sealed class ReachClientSession : IAsyncDisposable
 {
@@ -45,7 +59,12 @@ public sealed class ReachClientSession : IAsyncDisposable
     private long _lastVideoFrameTicks;
     private long _lastDatagramSequence = -1;
     private int _disconnectRequested;
+    private int _remoteSessionEnded;
     private int _state = (int)ReachSessionState.Disconnected;
+    private readonly ReachPerformanceMetrics _performance = new();
+    private CancellationTokenSource? _latencyCancellation;
+    private Task? _latencyTask;
+    private int _phase = (int)ReachConnectionPhase.Disconnected;
 
     /// <summary>Creates a Reach client session.</summary>
     /// <param name="mediaPort">
@@ -78,6 +97,12 @@ public sealed class ReachClientSession : IAsyncDisposable
     /// <summary>Raised for each encoded video frame received from the host.</summary>
     public event Action<ReachVideoFrame>? VideoFrameReceived;
 
+    /// <summary>Raised when bounded performance diagnostics change.</summary>
+    public event Action<ReachPerformanceSnapshot>? PerformanceChanged;
+
+    /// <summary>Raised when the user-facing connection phase changes.</summary>
+    public event Action<ReachConnectionPhase>? PhaseChanged;
+
     /// <summary>Raised when the host announces its display topology.</summary>
     public event Action<ReachDisplayTopology>? DisplayTopologyReceived;
 
@@ -96,6 +121,9 @@ public sealed class ReachClientSession : IAsyncDisposable
     /// <summary>Raised when the host sends clipboard content.</summary>
     public event Action<ReachClipboardContent>? ClipboardContentReceived;
 
+    /// <summary>Raised when the host pauses or resumes sharing.</summary>
+    public event Action<ReachSharingState>? SharingStateChanged;
+
     /// <summary>Gets negotiated capabilities after connection.</summary>
     public ReachCapabilities? NegotiatedCapabilities { get; private set; }
 
@@ -112,6 +140,40 @@ public sealed class ReachClientSession : IAsyncDisposable
     /// <summary>Gets the current session state.</summary>
     public ReachSessionState State =>
         (ReachSessionState)Volatile.Read(ref _state);
+
+    /// <summary>Gets the detailed user-facing connection phase.</summary>
+    public ReachConnectionPhase Phase =>
+        (ReachConnectionPhase)Volatile.Read(ref _phase);
+
+    /// <summary>Gets the selected transport kind.</summary>
+    public string ActiveTransport =>
+        _transport?.Info.Kind.ToString() ?? "Disconnected";
+
+    /// <summary>Gets the latest bounded performance snapshot.</summary>
+    public ReachPerformanceSnapshot Performance => _performance.Snapshot();
+
+    /// <summary>Records a frame after the UI presents it.</summary>
+    public void RecordPresentedFrame(
+        long sourceUtcTicks,
+        double durationMilliseconds)
+    {
+        _performance.RecordPresented(durationMilliseconds, sourceUtcTicks);
+        RaisePerformanceChanged();
+    }
+
+    /// <summary>Records a decoder duration from a platform presenter.</summary>
+    public void RecordDecodedFrame(double durationMilliseconds)
+    {
+        _performance.RecordDecoded(durationMilliseconds);
+        RaisePerformanceChanged();
+    }
+
+    /// <summary>Records a frame evicted by a platform decoder queue.</summary>
+    public void RecordDroppedFrame()
+    {
+        _performance.RecordDropped();
+        RaisePerformanceChanged();
+    }
 
     /// <summary>Gets the last received video sequence number.</summary>
     public long LastVideoSequence => Interlocked.Read(ref _lastVideoSequence);
@@ -144,7 +206,9 @@ public sealed class ReachClientSession : IAsyncDisposable
                 ? ReachProtocol.MediaPort
                 : checked(transportEndpoint.Address.Port + 1));
         Volatile.Write(ref _disconnectRequested, 0);
+        Volatile.Write(ref _remoteSessionEnded, 0);
         SetState(ReachSessionState.Connecting);
+        SetPhase(ReachConnectionPhase.Connecting);
         _lastEndpoint = endpoint;
         _platform = platform;
         _clientName = clientName;
@@ -199,6 +263,7 @@ public sealed class ReachClientSession : IAsyncDisposable
         _transport = transport;
         _stream = transport.ControlStream;
         SetState(ReachSessionState.Connected);
+        SetPhase(ReachConnectionPhase.Authenticating);
         RaiseStatus(
             $"Connected via {transport.Info.Kind} to "
             + $"{transportEndpoint.Address.Address}:{transportEndpoint.Address.Port}; "
@@ -238,6 +303,7 @@ public sealed class ReachClientSession : IAsyncDisposable
                 hostCapabilities.Capabilities,
                 GetCapabilities(platform));
             NegotiatedCapabilities = negotiatedCapabilities;
+            SetPhase(ReachConnectionPhase.Starting);
             if (_lastVideoSequence == 0)
             {
                 await SendAsync(
@@ -266,6 +332,11 @@ public sealed class ReachClientSession : IAsyncDisposable
                 () => ReceiveLoopAsync(
                     receiveCancellation,
                     receiveCancellation.Token),
+                CancellationToken.None);
+            var latencyCancellation = new CancellationTokenSource();
+            _latencyCancellation = latencyCancellation;
+            _latencyTask = Task.Run(
+                () => ProbeLatencyLoopAsync(latencyCancellation.Token),
                 CancellationToken.None);
             await TryConnectMediaAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -364,13 +435,29 @@ public sealed class ReachClientSession : IAsyncDisposable
             throw new InvalidOperationException("No previous Reach endpoint is available.");
 
         Volatile.Write(ref _disconnectRequested, 0);
-        await CloseTransportAsync(announce: true).ConfigureAwait(false);
+        SetPhase(ReachConnectionPhase.Reconnecting);
+        await CloseTransportAsync(
+                announce: true,
+                preserveVideoSequence: true)
+            .ConfigureAwait(false);
         await ConnectAsync(
                 _lastEndpoint,
                 _platform,
                 _clientName,
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>Reopens only the reliable media stream when control survives.</summary>
+    public async Task RecoverMediaAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsConnected)
+            throw new InvalidOperationException("Reach is not connected.");
+
+        if (!IsMediaConnected && _mediaPort != 0)
+            await TryConnectMediaAsync(cancellationToken).ConfigureAwait(false);
+        await RequestKeyFrameAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Sends a local file to the host in bounded chunks.</summary>
@@ -555,10 +642,19 @@ public sealed class ReachClientSession : IAsyncDisposable
     /// <summary>Requests a fresh intra frame after a decoder reset.</summary>
     public Task RequestKeyFrameAsync(
         CancellationToken cancellationToken = default) =>
-        SendAsync(
-            ReachMessageType.RequestKeyFrame,
-            new ReachRequestKeyFrame(_lastVideoSequence),
-            cancellationToken);
+        RequestKeyFrameCoreAsync(cancellationToken);
+
+    private async Task RequestKeyFrameCoreAsync(
+        CancellationToken cancellationToken)
+    {
+        _performance.RecordKeyFrameRequest();
+        RaisePerformanceChanged();
+        await SendAsync(
+                ReachMessageType.RequestKeyFrame,
+                new ReachRequestKeyFrame(_lastVideoSequence),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
@@ -654,7 +750,10 @@ public sealed class ReachClientSession : IAsyncDisposable
                 Interlocked.Exchange(
                     ref _lastVideoFrameTicks,
                     DateTimeOffset.UtcNow.UtcTicks);
+                _performance.RecordReceived(video.AccessUnit.Length, video.Timestamp);
+                RaisePerformanceChanged();
                 SetState(ReachSessionState.Streaming);
+                SetPhase(ReachConnectionPhase.Streaming);
                 VideoFrameReceived?.Invoke(video);
                 break;
             }
@@ -672,6 +771,23 @@ public sealed class ReachClientSession : IAsyncDisposable
                 await ActivateDatagramAsync(offer).ConfigureAwait(false);
                 break;
             }
+            case ReachMessageType.LatencyResponse:
+            {
+                var response = ReachMessageCodec.ReadBody<ReachLatencyResponse>(envelope);
+                var elapsedTicks = DateTime.UtcNow.Ticks - response.SentUtcTicks;
+                if (elapsedTicks >= 0)
+                {
+                    _performance.RecordInputRoundTrip(
+                        TimeSpan.FromTicks(elapsedTicks).TotalMilliseconds);
+                    RaisePerformanceChanged();
+                }
+
+                break;
+            }
+            case ReachMessageType.SharingState:
+                SharingStateChanged?.Invoke(
+                    ReachMessageCodec.ReadBody<ReachSharingState>(envelope));
+                break;
             case ReachMessageType.ClipboardContent:
                 ClipboardContentReceived?.Invoke(
                     ReachMessageCodec.ReadBody<ReachClipboardContent>(envelope));
@@ -680,6 +796,8 @@ public sealed class ReachClientSession : IAsyncDisposable
             {
                 var close = ReachMessageCodec.ReadBody<ReachSessionClose>(envelope);
                 RaiseStatus($"The Reach host closed the session: {close.Reason}");
+                Volatile.Write(ref _remoteSessionEnded, 1);
+                SetPhase(ReachConnectionPhase.Ended);
                 SessionEnded?.Invoke(close.Reason);
                 return false;
             }
@@ -764,6 +882,8 @@ public sealed class ReachClientSession : IAsyncDisposable
                         ReachDatagramPacketCodec.MaximumPacketSize,
                         offer.MaximumPacketSize),
                     ReceiveQueueCapacity = 128,
+                    ReceiveQueueFullMode =
+                        System.Threading.Channels.BoundedChannelFullMode.DropOldest,
                 });
             var remoteEndpoint = new IPEndPoint(
                 endpoint.Address.Address,
@@ -954,12 +1074,48 @@ public sealed class ReachClientSession : IAsyncDisposable
                 DetachMediaTransport(owner);
                 if (IsConnected)
                     SetState(ReachSessionState.Connected);
+                if (IsConnected)
+                    SetPhase(ReachConnectionPhase.Degraded);
                 if (!IsDatagramConnected)
                 {
                     RaiseStatus("The Reach media stream ended.");
                     MediaConnectionLost?.Invoke();
                 }
             }
+        }
+    }
+
+    private async Task ProbeLatencyLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+            while (await timer.WaitForNextTickAsync(cancellationToken)
+                       .ConfigureAwait(false))
+            {
+                if (!IsConnected)
+                    return;
+
+                var probe = new ReachLatencyProbe(
+                    Interlocked.Increment(ref _sequence),
+                    DateTime.UtcNow.Ticks);
+                try
+                {
+                    await SendAsync(
+                            ReachMessageType.LatencyProbe,
+                            probe,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception) when (
+                    !cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
     }
 
@@ -980,8 +1136,15 @@ public sealed class ReachClientSession : IAsyncDisposable
         owner.Dispose();
     }
 
-    private async Task CloseTransportAsync(bool announce)
+    private async Task CloseTransportAsync(
+        bool announce,
+        bool preserveVideoSequence = false)
     {
+        var latencyCancellation = Interlocked.Exchange(
+            ref _latencyCancellation,
+            null);
+        var latencyTask = Interlocked.Exchange(ref _latencyTask, null);
+        latencyCancellation?.Cancel();
         var transport = Interlocked.Exchange(ref _transport, null);
         var stream = Interlocked.Exchange(ref _stream, null);
         var receiveCancellation = Interlocked.Exchange(ref _receiveCancellation, null);
@@ -1002,6 +1165,19 @@ public sealed class ReachClientSession : IAsyncDisposable
         }
 
         receiveCancellation?.Dispose();
+        if (latencyTask is not null)
+        {
+            try
+            {
+                await latencyTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (
+                latencyCancellation?.IsCancellationRequested == true)
+            {
+            }
+        }
+
+        latencyCancellation?.Dispose();
         var datagramCancellation = Interlocked.Exchange(
             ref _datagramReceiveCancellation,
             null);
@@ -1053,10 +1229,13 @@ public sealed class ReachClientSession : IAsyncDisposable
         if (transport is not null)
             await transport.DisposeAsync().ConfigureAwait(false);
         NegotiatedCapabilities = null;
-        Interlocked.Exchange(ref _lastVideoSequence, 0);
+        if (!preserveVideoSequence)
+            Interlocked.Exchange(ref _lastVideoSequence, 0);
         Interlocked.Exchange(ref _lastVideoFrameTicks, 0);
         Interlocked.Exchange(ref _lastDatagramSequence, -1);
+        Volatile.Write(ref _remoteSessionEnded, 0);
         SetState(ReachSessionState.Disconnected);
+        SetPhase(ReachConnectionPhase.Disconnected);
         if (announce)
             RaiseStatus("Disconnected");
     }
@@ -1097,6 +1276,8 @@ public sealed class ReachClientSession : IAsyncDisposable
         var mediaOwner = Interlocked.Exchange(
             ref _mediaReceiveCancellation,
             null);
+        Interlocked.Exchange(ref _latencyCancellation, null)?.Cancel();
+        _ = Interlocked.Exchange(ref _latencyTask, null);
         mediaOwner?.Cancel();
         Interlocked.Exchange(ref _mediaStream, null)?.Dispose();
         try
@@ -1114,6 +1295,10 @@ public sealed class ReachClientSession : IAsyncDisposable
         owner.Dispose();
         mediaOwner?.Dispose();
         SetState(ReachSessionState.Lost);
+        SetPhase(
+            Volatile.Read(ref _remoteSessionEnded) != 0
+                ? ReachConnectionPhase.Ended
+                : ReachConnectionPhase.Reconnecting);
         RaiseStatus("Reach connection lost. Use reconnect to resume.");
         ConnectionLost?.Invoke();
     }
@@ -1126,9 +1311,23 @@ public sealed class ReachClientSession : IAsyncDisposable
         StateChanged?.Invoke(state);
     }
 
+    private void SetPhase(ReachConnectionPhase phase)
+    {
+        if (Interlocked.Exchange(ref _phase, (int)phase) == (int)phase)
+            return;
+
+        PhaseChanged?.Invoke(phase);
+    }
+
     private void RaiseStatus(string status)
     {
+        Console.WriteLine($"[Reach] {status}");
         StatusChanged?.Invoke(status);
+    }
+
+    private void RaisePerformanceChanged()
+    {
+        PerformanceChanged?.Invoke(_performance.Snapshot());
     }
 
     private static ReachCapabilities GetCapabilities(ReachPlatform platform) =>

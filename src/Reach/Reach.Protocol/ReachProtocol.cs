@@ -120,6 +120,9 @@ public enum ReachMessageType
     FileComplete,
     DatagramOffer,
     HostStatus,
+    LatencyProbe,
+    LatencyResponse,
+    SharingState,
 }
 
 /// <summary>Lifecycle state of a Reach session.</summary>

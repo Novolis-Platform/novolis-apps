@@ -158,6 +158,15 @@ public sealed record ReachFileChunk(Guid TransferId, long Offset, byte[] Data);
 /// <summary>Completes a file transfer.</summary>
 public sealed record ReachFileComplete(Guid TransferId, bool Succeeded, string? Error);
 
+/// <summary>Measures control-channel round-trip latency.</summary>
+public sealed record ReachLatencyProbe(long Id, long SentUtcTicks);
+
+/// <summary>Replies to a control-channel latency probe.</summary>
+public sealed record ReachLatencyResponse(long Id, long SentUtcTicks);
+
+/// <summary>Truthful host sharing state for the remote client surface.</summary>
+public sealed record ReachSharingState(bool IsPaused, string Reason);
+
 /// <summary>Operator-facing host status.</summary>
 public sealed record ReachHostStatus(
     string State,
@@ -165,7 +174,8 @@ public sealed record ReachHostStatus(
     int ConnectedClients,
     bool SharingPaused,
     string? InteractiveUser,
-    string[] RecentMessages);
+    string[] RecentMessages,
+    ReachPerformanceSnapshot? Performance = null);
 
 /// <summary>Command sent by the operator host app to the host service.</summary>
 public enum ReachHostCommand
@@ -173,6 +183,8 @@ public enum ReachHostCommand
     GetStatus,
     SetSharingPaused,
     GetLogs,
+    ReconnectHelper,
+    StopHosting,
 }
 
 /// <summary>Local IPC request from the operator host app.</summary>
