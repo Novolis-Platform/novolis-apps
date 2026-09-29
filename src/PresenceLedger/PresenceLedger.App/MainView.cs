@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Map;
 using Novolis.Avalonia.Mobile;
@@ -29,6 +30,7 @@ public sealed class MainView : UserControl
     TrackedLocation? _editingLocation;
     TextBox? _nameInput;
     TextBox? _ssidInput;
+    TextBox? _coordinateInput;
     Slider? _radiusInput;
     TextBlock? _radiusLabel;
     MapControl? _pickerMap;
@@ -226,6 +228,13 @@ public sealed class MainView : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
             MinHeight = 48,
         };
+        _coordinateInput = new TextBox
+        {
+            Text = FormatCoordinate(_selectedCoordinate ?? DefaultMapCenter),
+            PlaceholderText = "Latitude, longitude",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+        };
         _radiusInput = new Slider
         {
             Minimum = 50,
@@ -265,7 +274,7 @@ public sealed class MainView : UserControl
         };
         _pickerMap.PointSelected += coordinate =>
         {
-            _selectedCoordinate = coordinate;
+            SetSelectedCoordinate(coordinate);
             UpdatePickerOverlays();
         };
         UpdatePickerOverlays();
@@ -315,7 +324,7 @@ public sealed class MainView : UserControl
                     };
                     resultButton.Click += (_, _) =>
                     {
-                        _selectedCoordinate = result.Coordinate;
+                        SetSelectedCoordinate(result.Coordinate);
                         _pickerMap.Viewport = new MapViewport(result.Coordinate, 15);
                         UpdatePickerOverlays();
                     };
@@ -366,6 +375,18 @@ public sealed class MainView : UserControl
         stack.Children.Add(searchResults);
         stack.Children.Add(new TextBlock
         {
+            Text = "Selected coordinates",
+            Foreground = MutedBrush,
+        });
+        stack.Children.Add(_coordinateInput);
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Enter latitude, longitude in decimal degrees, or tap the map.",
+            Foreground = MutedBrush,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        stack.Children.Add(new TextBlock
+        {
             Text = "Tap the map to set the center, then adjust the radius.",
             Foreground = MutedBrush,
         });
@@ -402,12 +423,14 @@ public sealed class MainView : UserControl
             return;
         }
 
-        if (_selectedCoordinate is not { } coordinate)
+        if (_coordinateInput is null
+            || !TryParseCoordinate(_coordinateInput.Text, out var coordinate))
         {
-            SetStatus("Select a point on the map.");
+            SetStatus("Enter a valid latitude, longitude coordinate.");
             return;
         }
 
+        _selectedCoordinate = coordinate;
         var ssid = string.IsNullOrWhiteSpace(_ssidInput?.Text)
             ? null
             : new WifiEvidence(_ssidInput.Text.Trim());
@@ -458,13 +481,19 @@ public sealed class MainView : UserControl
         var locationSource = _services.GetService<ILocationReadingSource>();
         var wifiSource = _services.GetService<IWifiObservationSource>();
         var coordinator = _services.GetService<PresenceObservationCoordinator>();
+        var locationStatus = locationSource?.GetStatus();
+        var wifiStatus = wifiSource?.GetStatus();
         var stack = PageStack("Diagnostics", "Platform capability is reported separately from presence inference.");
         stack.Children.Add(DiagnosticLine(
             "Location source",
-            locationSource?.GetStatus().Status.ToString() ?? "Unavailable on this host"));
+            locationStatus is { } locationCapability
+                ? FormatSourceStatus(locationCapability)
+                : "Unavailable on this host"));
         stack.Children.Add(DiagnosticLine(
             "Wi-Fi source",
-            wifiSource?.GetStatus().Status.ToString() ?? "Unavailable on this host"));
+            wifiStatus is { } wifiCapability
+                ? FormatSourceStatus(wifiCapability)
+                : "Unavailable on this host"));
         stack.Children.Add(DiagnosticLine("Locations monitored", locations.Count.ToString()));
         stack.Children.Add(DiagnosticLine(
             "Pending candidates",
@@ -485,6 +514,51 @@ public sealed class MainView : UserControl
         stack.Children.Add(DiagnosticLine("Stored observations", "0 — observations are ephemeral"));
         _content.Content = new ScrollViewer { Content = stack };
         SetStatus("Diagnostics refreshed");
+    }
+
+    void SetSelectedCoordinate(GeoCoordinate coordinate)
+    {
+        _selectedCoordinate = coordinate;
+        if (_coordinateInput is not null)
+            _coordinateInput.Text = FormatCoordinate(coordinate);
+    }
+
+    static string FormatCoordinate(GeoCoordinate coordinate) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{coordinate.Latitude:F6}, {coordinate.Longitude:F6}");
+
+    static bool TryParseCoordinate(string? text, out GeoCoordinate coordinate)
+    {
+        coordinate = default;
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var parts = text.Split(
+            [',', ';', ' ', '\t', '\r', '\n'],
+            StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2
+            || !double.TryParse(
+                parts[0],
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var latitude)
+            || !double.TryParse(
+                parts[1],
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var longitude))
+            return false;
+
+        try
+        {
+            coordinate = new GeoCoordinate(latitude, longitude);
+            return true;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return false;
+        }
     }
 
     void UpdatePickerOverlays()
@@ -548,6 +622,11 @@ public sealed class MainView : UserControl
                 },
             },
         };
+
+    static string FormatSourceStatus(MobileSourceStatus status) =>
+        string.IsNullOrWhiteSpace(status.Detail)
+            ? status.Status.ToString()
+            : $"{status.Status}: {status.Detail}";
 
     void SetStatus(string text) => _status.Text = text;
 

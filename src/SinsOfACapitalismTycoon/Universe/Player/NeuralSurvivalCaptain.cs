@@ -69,9 +69,9 @@ internal static class NeuralSurvivalCaptain
 
     var hub = ResolveSystemId(ids, agent.CurrentHub);
     var board = CaptainJobBoard.ListSpot(
-      context.Simulation, ids, state.DefaultProfile, hub, dockOnly: true, mesh: ids.Mesh);
+      GetSimulation(context), ids, state.DefaultProfile, hub, dockOnly: true, mesh: ids.Mesh);
     var live = CaptainJobBoard.ListLiveFreight(
-      context.Simulation, ids, state.DefaultProfile, hub, take: 24);
+      GetSimulation(context), ids, state.DefaultProfile, hub, take: 24);
     var (offers, _) = BerthOfferBoard.Build(board, live, dockBoardOnly: true);
 
     var hasLocal = offers.Any(o => o.Kind == BerthOfferKind.Local && o.Spot is not null);
@@ -79,7 +79,7 @@ internal static class NeuralSurvivalCaptain
     var hasManifest = state.Manifest.Used >= 1m;
 
     Span<double> inputs = stackalloc double[NeuralCaptainBrain.InputSize];
-    NeuralCaptainCodec.Encode(inputs, context.Simulation, ids, state, agent, offers);
+    NeuralCaptainCodec.Encode(inputs, GetSimulation(context), ids, state, agent, offers);
     var eval = brain.Network.Evaluate(inputs);
     var action = NeuralCaptainCodec.PickLegalAction(
       eval.Output,
@@ -144,4 +144,7 @@ internal static class NeuralSurvivalCaptain
 
     return "sol";
   }
+
+  private static EconomySimulation GetSimulation(AgentContext context) =>
+    (EconomySimulation)context.Simulation!;
 }

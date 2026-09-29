@@ -107,7 +107,7 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
       return;
     }
 
-    var fail = context.Simulation.State.Events.OfType<ShipmentPlanFailed>()
+    var fail = GetSimulation(context).State.Events.OfType<ShipmentPlanFailed>()
       .LastOrDefault(e => e.FirmId.Equals(FirmId));
     if (fail is not null
         && fail.Hour.HourIndex >= context.Clock.HourIndex - 1
@@ -143,7 +143,7 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
           : "no standby offer";
         return;
       case PlayerOrderKind.RefuseStandby:
-        LastDecision = _state.Opportunities?.TryRefuse(FirmId, context.Simulation.State.Clock.Date.DayIndex) == true
+        LastDecision = _state.Opportunities?.TryRefuse(FirmId, GetSimulation(context).State.Clock.Date.DayIndex) == true
           ? "standby refused (≠ premium)"
           : "no standby to refuse";
         return;
@@ -302,7 +302,7 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
       goto LogCommit;
     }
 
-    var dockStock = CaptainJobBoard.DockStock(context.Simulation, _ids, order.OriginSystemId!);
+    var dockStock = CaptainJobBoard.DockStock(GetSimulation(context), _ids, order.OriginSystemId!);
     var physicalRoom = CampaignWorld.HullCargoCapacity - dockStock - _state.Manifest.Used;
     var qty = Math.Min(order.Quantity, Math.Min(_state.Manifest.Room, Math.Max(0m, physicalRoom)));
     if (qty < 1m)
@@ -388,9 +388,9 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
     }
 
     if (JumpBandGate.ShouldRefuse(
-          context.World, _ids, _ids.Reputation, _ids.Escrow, FirmId, lot.ProductId,
+          (EconomyWorld)context.World, _ids, _ids.Reputation, _ids.Escrow, FirmId, lot.ProductId,
           originSite.Hub.HubId, destSite.Hub.HubId, lot.Profile, null,
-          context.Simulation.State.Clock.Date.DayIndex))
+          GetSimulation(context).State.Clock.Date.DayIndex))
     {
       _state.Manifest.TryAdd(
         lot.OriginSystemId, lot.DestSystemId, lot.SkuLabel, lot.ProductId,
@@ -515,7 +515,7 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
       return;
     }
 
-    var stock = CaptainJobBoard.DockStock(context.Simulation, _ids, site.Hub.SystemId);
+    var stock = CaptainJobBoard.DockStock(GetSimulation(context), _ids, site.Hub.SystemId);
     var room = CampaignWorld.HullCargoCapacity - stock - _state.Manifest.Used;
     var qty = Math.Min(order.Quantity, Math.Max(0m, room));
     if (qty < 1m)
@@ -625,7 +625,7 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
       return false;
     }
 
-    return HullFinance.TrySettlePremium(firm, uw, entry, context.Simulation.State.Clock.Date);
+    return HullFinance.TrySettlePremium(firm, uw, entry, GetSimulation(context).State.Clock.Date);
   }
 
   private bool TryElectiveOverhaul(AgentContext context)
@@ -640,6 +640,9 @@ internal sealed class PlayerTrampAgent : IEconomicAgent
 
     var bill = Money.From(_ids.Registry.QuoteElectiveOverhaul(entry));
     return HullFinance.TryPayOverhaul(
-      firm, yard, _ids.Registry, entry, bill, context.Simulation.State.Clock.Date);
+      firm, yard, _ids.Registry, entry, bill, GetSimulation(context).State.Clock.Date);
   }
+
+  private static EconomySimulation GetSimulation(AgentContext context) =>
+    (EconomySimulation)context.Simulation!;
 }

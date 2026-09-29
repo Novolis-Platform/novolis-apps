@@ -48,7 +48,7 @@ internal static class SurvivalCaptain
 
     var hub = ResolveSystemId(ids, agent.CurrentHub);
     var live = CaptainJobBoard.ListLiveFreight(
-      context.Simulation, ids, state.DefaultProfile, hub, take: 32);
+      GetSimulation(context), ids, state.DefaultProfile, hub, take: 32);
 
     // Best positive-margin local that we can afford to lift.
     var budget = Math.Max(0m, cash - payable - haulReserve);
@@ -110,14 +110,15 @@ internal static class SurvivalCaptain
       return;
     }
 
-    var day = context.Simulation.State.Clock.Date;
+    var day = GetSimulation(context).State.Clock.Date;
+    var economyWorld = (EconomyWorld)context.World;
     var cash = firm.Cash.Amount;
     var payable = entry.PremiumPayable;
     // Mid-haul: float against CCA escrow so bunker + premium do not soft-lock the voyage.
     if (cash < Math.Max(250m, payable + 80m) && ids.Escrow.FirmHasOpen(agent.FirmId))
     {
       var need = Math.Max(250m, payable + 120m) - cash;
-      ids.Escrow.TryFloatWorkingCapital(context.World, ids, agent.FirmId, need, day);
+      ids.Escrow.TryFloatWorkingCapital(economyWorld, ids, agent.FirmId, need, day);
       cash = firm.Cash.Amount;
     }
 
@@ -193,7 +194,8 @@ internal static class SurvivalCaptain
       return true;
     }
 
-    var day = context.Simulation.State.Clock.Date;
+    var day = GetSimulation(context).State.Clock.Date;
+    var economyWorld = (EconomyWorld)context.World;
     if (context.World.Ledgers.TryGetValue(agent.FirmId, out var firm))
     {
       var entry = ids.Registry.TryGet(agent.FirmId);
@@ -201,7 +203,7 @@ internal static class SurvivalCaptain
       if (firm.Cash.Amount < payable + 80m && ids.Escrow.FirmHasOpen(agent.FirmId))
       {
         ids.Escrow.TryFloatWorkingCapital(
-          context.World, ids, agent.FirmId, Math.Max(200m, payable + 100m) - firm.Cash.Amount, day);
+          economyWorld, ids, agent.FirmId, Math.Max(200m, payable + 100m) - firm.Cash.Amount, day);
       }
 
       if (entry is not null
@@ -230,7 +232,7 @@ internal static class SurvivalCaptain
     }
 
     var queuedSell = false;
-    var bids = CaptainJobBoard.ListMarket(context.Simulation, ids, hub)
+    var bids = CaptainJobBoard.ListMarket(GetSimulation(context), ids, hub)
       .Where(l => !l.IsAsk)
       .OrderByDescending(l => l.UnitPrice)
       .Take(8)
@@ -277,4 +279,7 @@ internal static class SurvivalCaptain
 
     return "sol";
   }
+
+  private static EconomySimulation GetSimulation(AgentContext context) =>
+    (EconomySimulation)context.Simulation!;
 }

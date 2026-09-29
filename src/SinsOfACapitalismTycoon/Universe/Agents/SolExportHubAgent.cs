@@ -49,7 +49,9 @@ internal sealed class SolExportHubAgent : IEconomicAgent
     var surplus = limits.Surplus(world.Inventory, loc, _ids.Ore);
     var room = limits.Room(world.Inventory, loc, _ids.Ore);
     var rng = new DeterministicRandom(
-      context.Simulation.State.Seed ^ _rngSalt ^ (ulong)context.Clock.HourIndex);
+      ((EconomySimulation)context.Simulation!).State.Seed
+      ^ _rngSalt
+      ^ (ulong)context.Clock.HourIndex);
 
     // Overflow bid: fill toward soft only, at a price below Industry OreDelivered.
     if (onHand < soft * 0.85m && room >= CampaignWorld.ExportMinLot)

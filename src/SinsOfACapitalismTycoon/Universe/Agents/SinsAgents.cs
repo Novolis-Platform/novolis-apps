@@ -127,7 +127,7 @@ internal static class SinsAgents
         sim.State.World.MarketBook,
         p,
         Floor(p),
-        sim.State.World.Specification);
+        sim.State.World.Specification.Pricing);
 
     bool AvoidCongested(TransportHubId hub)
     {

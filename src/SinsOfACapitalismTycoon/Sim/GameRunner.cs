@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Novolis.Economy.Core;
 using Novolis.Economy.Core.Extensions;
 using Novolis.Economy.Core.Holdings;
-using Novolis.Economy.Core.Steps;
+using Novolis.Economy.Simulation.Bounded;
 
 namespace SinsOfACapitalismTycoon.Sim;
 
@@ -27,7 +27,8 @@ internal static class GameRunner
         var policy = pack.CreatePolicy(counters, pack.Knobs);
         var (state, ids, knobs) = SeedEconomy.Create(seed, pack.Knobs);
 
-        var engine = DefaultPeriodPipeline.CreateEngine();
+        var engine = DefaultBoundedPeriodPipeline.CreateEngine();
+        var bounded = new BoundedPeriodState(state);
         var sw = Stopwatch.StartNew();
 
         decimal cumProd = 0m;
@@ -55,8 +56,9 @@ internal static class GameRunner
 
         for (var i = 0; i < periods; i++)
         {
-            state = policy.ApplyIntents(state, ids, i, periods);
-            state = engine.Advance(state);
+            bounded = bounded.WithEconomy(policy.ApplyIntents(bounded.Economy, ids, i, periods));
+            bounded = engine.Advance(bounded);
+            state = bounded.Economy;
 
             var cash = state.TotalCash().Amount;
             if (cash > peakCash) peakCash = cash;
@@ -71,7 +73,7 @@ internal static class GameRunner
             cumTransfers += flows.TransfersPaid.Amount;
             cumObligationsPaid += flows.ObligationsPaid.Amount;
 
-            var factoryRuns = state.Scratch.ActualRuns.TryGetValue(ids.FactoryActivityId, out var fr) ? fr : 0m;
+            var factoryRuns = bounded.Scratch.ActualRuns.TryGetValue(ids.FactoryActivityId, out var fr) ? fr : 0m;
             if (factoryRuns > 0m)
             {
                 periodsWithProd++;

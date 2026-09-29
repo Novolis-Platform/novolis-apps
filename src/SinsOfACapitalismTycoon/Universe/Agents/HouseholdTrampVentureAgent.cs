@@ -84,7 +84,11 @@ internal sealed class HouseholdTrampVentureAgent : IEconomicAgent
       return;
     }
 
-    var world = context.World;
+    if (context.World is not EconomyWorld world)
+    {
+      LastDecision = "unsupported world";
+      return;
+    }
     if (!world.Ledgers.TryGetValue(_ids.Station, out var station)
         || station.Cash.Amount < HullLoan + 2_000m
         || world.IsCreditFrozen(_ids.Station))
@@ -94,7 +98,10 @@ internal sealed class HouseholdTrampVentureAgent : IEconomicAgent
     }
 
     var rng = new DeterministicRandom(
-      context.Simulation.State.Seed ^ _rngSalt ^ (ulong)_nextVenture ^ (ulong)context.Clock.HourIndex);
+      ((EconomySimulation)context.Simulation!).State.Seed
+      ^ _rngSalt
+      ^ (ulong)_nextVenture
+      ^ (ulong)context.Clock.HourIndex);
     var candidates = world.Cohorts
       .Where(c => c.Definition.HouseholdFirmId is not null
                   && world.IsAboveComfort(c)
