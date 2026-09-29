@@ -6,4 +6,5 @@
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\..\novolis-governance\build\Novolis.OneTypePerFile.props" Condition="Exists('$(MSBuildThisFileDirectory)..\..\novolis-governance\build\Novolis.OneTypePerFile.props')" />
 </Project>

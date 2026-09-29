@@ -6,6 +6,7 @@
 param(
     [string]$Serial = '',
     [string]$ClientId = $env:BOOKSMOBILE_GITHUB_CLIENT_ID,
+    [string]$AndroidTool = 'novolis-android',
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Debug'
 )
@@ -29,16 +30,19 @@ if (-not (Test-Path $adb)) {
     throw "adb not found at $adb"
 }
 
-if ($Serial) {
-    & $adb -s $Serial get-state
-    if ($LASTEXITCODE -ne 0) { throw "adb device $Serial is not ready." }
-    $env:ANDROID_SERIAL = $Serial
-} else {
-    $state = & $adb get-state 2>&1
-    if ($state -ne 'device') {
-        throw "adb get-state returned '$state' (expected 'device'). Authorize USB debugging and retry."
-    }
+$tool = Get-Command $AndroidTool -ErrorAction SilentlyContinue
+if ($null -eq $tool) {
+    throw "$AndroidTool was not found. Install Novolis.Tools.Android.Cli or pass -AndroidTool with an installed command."
 }
+
+if ($Serial) {
+    $env:ANDROID_SERIAL = $Serial
+}
+
+$toolArgs = @('info')
+if ($Serial) { $toolArgs += @('--serial', $Serial) }
+& $AndroidTool @toolArgs
+if ($LASTEXITCODE -ne 0) { throw "$AndroidTool could not select a ready Android device." }
 
 if (-not [string]::IsNullOrWhiteSpace($ClientId)) {
     $env:BOOKSMOBILE_GITHUB_CLIENT_ID = $ClientId
@@ -64,4 +68,9 @@ if (-not [string]::IsNullOrWhiteSpace($ClientId)) {
     }
 }
 
-Write-Host "Installed. Launch Books Mobile on the phone."
+$launchArgs = @()
+if ($Serial) { $launchArgs = @('--serial', $Serial) }
+& $AndroidTool app launch com.novolis.booksmobile @launchArgs
+if ($LASTEXITCODE -ne 0) { throw "Books Mobile installed but could not launch." }
+
+Write-Host "Installed and launched Books Mobile on the phone."

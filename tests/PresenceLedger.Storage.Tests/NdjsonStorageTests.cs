@@ -150,6 +150,34 @@ public sealed class NdjsonStorageTests
         }
     }
 
+    [Test]
+    public async Task Current_location_read_includes_an_effective_revision_that_is_already_active()
+    {
+        var root = CreateRoot();
+        try
+        {
+            var storage = new NdjsonPresenceStorage(root);
+            var location = new TrackedLocation(
+                Guid.NewGuid(),
+                "Home",
+                new GeoCircle(new GeoCoordinate(58, 8), 50),
+                null,
+                PresencePolicyDefaults.LocationOnly,
+                DateTimeOffset.UtcNow.AddMinutes(-1));
+
+            await storage.Locations.SaveAsync(location);
+
+            var current = await ReadAll(storage.Locations.ReadAsync());
+
+            await Assert.That(current).Count().IsEqualTo(1);
+            await Assert.That(current[0]).IsEqualTo(location);
+        }
+        finally
+        {
+            DeleteRoot(root);
+        }
+    }
+
     static TrackedLocation Location() =>
         new(
             Guid.Parse("5ad8d6e7-63f1-4d22-a5e4-0a972702b4d1"),
