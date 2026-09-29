@@ -13,7 +13,7 @@ using ReadAloud.Ui;
 
 namespace ReadAloud.Views;
 
-/// <summary>Paste or open text, listen with device voice or Azure Speech, or save an MP3.</summary>
+/// <summary>Paste or open text, listen with Azure Speech, or save an MP3.</summary>
 public sealed class MainView : DockPanel
 {
     readonly SpeechService _speech;
@@ -24,7 +24,6 @@ public sealed class MainView : DockPanel
     readonly Button _listenButton;
     readonly Button _saveButton;
     readonly TextBlock _status;
-    readonly ComboBox _providerPicker;
     readonly Button _configureButton;
     readonly Border _azureSetupPanel;
     readonly IAzureSpeechResourcePicker? _resourcePicker;
@@ -36,15 +35,16 @@ public sealed class MainView : DockPanel
     readonly Button _signOutButton;
     readonly TextBlock _credentialStatus;
     readonly TextBlock _resourceStatus;
+    readonly Button _usageRefreshButton;
+    readonly TextBlock _usageStatus;
     readonly ComboBox _subscriptionPicker;
     readonly ComboBox _resourceGroupPicker;
     readonly ComboBox _speechResourcePicker;
     IReadOnlyList<AzureSubscriptionChoice> _subscriptions = [];
     IReadOnlyList<AzureSpeechResourceGroupChoice> _resourceGroups = [];
     IReadOnlyList<AzureSpeechResourceChoice> _speechResources = [];
-    bool _providerRefresh;
-    bool _providerReady;
     bool _resourceRefresh;
+    bool _usageRefresh;
     IDisposable? _wake;
 
     public MainView(
@@ -83,14 +83,6 @@ public sealed class MainView : DockPanel
         _listenButton.Click += async (_, _) => await OnListenClickAsync();
         _saveButton = ReadAloudTheme.Button("Save MP3", ReadAloudButtonKind.Secondary);
         _saveButton.Click += async (_, _) => await SaveMp3Async();
-        _providerPicker = new ComboBox
-        {
-            ItemsSource = new[] { "Device voice", "Azure Speech" },
-            SelectedIndex = 0,
-            MinWidth = 150,
-            FontFamily = ReadAloudPalette.BodyFont,
-        };
-        _providerPicker.SelectionChanged += async (_, _) => await OnProviderChangedAsync();
         _configureButton = ReadAloudTheme.Button("Azure setup", ReadAloudButtonKind.Secondary);
         _configureButton.Click += (_, _) => ToggleAzureSetup();
         var diagnosticsBtn = ReadAloudTheme.Button(_diagnosticShare.ActionLabel, ReadAloudButtonKind.Quiet);
@@ -112,13 +104,13 @@ public sealed class MainView : DockPanel
         {
             Margin = new Thickness(0, 4, 0, 0),
         };
-        providerRow.Children.Add(ReadAloudTheme.Muted("Voice source:", 14));
-        providerRow.Children.Add(_providerPicker);
+        providerRow.Children.Add(ReadAloudTheme.Muted("Voice source: Azure Speech", 14));
         providerRow.Children.Add(_configureButton);
         foreach (var child in providerRow.Children)
             child.Margin = new Thickness(0, 0, 8, 8);
 
-        _status = ReadAloudTheme.Muted("Device voice works offline. Azure Speech adds MP3 export.");
+        _status = ReadAloudTheme.Muted(
+            "Azure Speech is required. Sign in or import credentials to begin.");
 
         _credentialVariantPicker = new ComboBox
         {
@@ -149,6 +141,14 @@ public sealed class MainView : DockPanel
         _resourceStatus = ReadAloudTheme.Muted(
             "Sign in to choose an Azure subscription.",
             13);
+        _usageStatus = ReadAloudTheme.Muted(
+            "Sign in and select an Azure Speech service to load the last 30 days.",
+            13);
+        _usageRefreshButton = ReadAloudTheme.Button(
+            "Refresh usage",
+            ReadAloudButtonKind.Secondary);
+        _usageRefreshButton.IsEnabled = false;
+        _usageRefreshButton.Click += async (_, _) => await RefreshUsageAsync();
         _subscriptionPicker = new ComboBox
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -234,9 +234,10 @@ public sealed class MainView : DockPanel
         try
         {
             await _speech.InitializeAsync();
+            if (_speech.CanCreateMp3)
+                await _speech.UseAzureSpeechAsync();
             Dispatcher.UIThread.Post(() =>
             {
-                _providerReady = true;
                 RefreshProviderUi();
                 RefreshListen();
             });
@@ -246,8 +247,7 @@ public sealed class MainView : DockPanel
             _logger.LogError(ex, "Read Aloud speech setup load failed.");
             Dispatcher.UIThread.Post(() =>
             {
-                _providerReady = true;
-                SetStatus("Device voice is ready; saved Azure setup needs attention.");
+                SetStatus("Azure Speech setup needs attention.");
                 RefreshProviderUi();
                 RefreshListen();
             });
@@ -318,6 +318,9 @@ public sealed class MainView : DockPanel
                 _resourceGroupPicker,
                 ReadAloudTheme.Muted("Speech service", 12),
                 _speechResourcePicker,
+                ReadAloudTheme.Muted("Azure usage — last 30 days", 12),
+                _usageStatus,
+                _usageRefreshButton,
             },
         };
     }
@@ -346,6 +349,9 @@ public sealed class MainView : DockPanel
                     13),
                 ReadAloudTheme.Muted(
                     "Required layout: schema, version, authentication, endpoint, subscriptionKey. Optional: voiceName and locale.",
+                    13),
+                ReadAloudTheme.Muted(
+                    "Azure Monitor usage requires Automatic — Microsoft sign-in. A manual key can synthesize but cannot read management metrics.",
                     13),
                 actions,
             },
@@ -383,37 +389,96 @@ public sealed class MainView : DockPanel
         _credentialStatus.Text = setup is null
             ? "Current credentials: not configured."
             : $"Current credentials: {DescribeCredentialSource(setup)}.";
+
+        var usageReady = automatic &&
+                         setup?.EffectiveCredentialSource ==
+                         AzureSpeechCredentialSource.Automatic;
+        _usageRefreshButton.IsEnabled = usageReady && !_usageRefresh;
+        if (!automatic)
+        {
+            _usageStatus.Text =
+                "Azure Monitor usage requires Automatic — Microsoft sign-in.";
+        }
+        else if (!usageReady)
+        {
+            _usageStatus.Text =
+                "Sign in and select an Azure Speech service to load the last 30 days.";
+        }
+        else if (string.IsNullOrWhiteSpace(_usageStatus.Text))
+        {
+            _usageStatus.Text = "Tap Refresh usage to load the last 30 days.";
+        }
     }
 
-    async Task OnProviderChangedAsync()
+    async Task RefreshUsageAsync()
     {
-        if (_providerRefresh || !_providerReady)
-            return;
-
-        if (_providerPicker.SelectedIndex == 0)
+        if (_resourcePicker is null)
         {
-            await _speech.UseDeviceVoiceAsync();
-            SetStatus("Device voice selected. It works without network access.");
-            RefreshListen();
+            _usageStatus.Text =
+                "Azure Monitor usage is available on Android automatic sign-in.";
             return;
         }
 
-        if (!_speech.CanCreateMp3)
+        var setup = _speech.AzureConfiguration;
+        if (setup is null ||
+            setup.EffectiveCredentialSource != AzureSpeechCredentialSource.Automatic)
         {
-            _providerRefresh = true;
-            _providerPicker.SelectedIndex = 0;
-            _providerRefresh = false;
-            _azureSetupPanel.IsVisible = true;
-            SetStatus(
-                _resourcePicker is null
-                    ? "Import the Azure Speech credentials JSON before selecting Azure playback."
-                    : "Sign in or import an Azure Speech credentials file.");
+            _usageStatus.Text =
+                "Switch to Automatic — Microsoft sign-in to view Azure Monitor usage.";
             return;
         }
 
-        await _speech.UseAzureSpeechAsync();
-        SetStatus("Azure Speech selected. Requests use your resource and quota.");
-        RefreshListen();
+        if (_usageRefresh)
+            return;
+
+        _usageRefresh = true;
+        RefreshCredentialVariant();
+        _usageStatus.Text = "Loading Azure Monitor usage…";
+        try
+        {
+            var usage = await _resourcePicker
+                .GetUsageAsync(setup.Endpoint)
+                .ConfigureAwait(true);
+            _usageStatus.Text = FormatUsage(usage);
+        }
+        catch (OperationCanceledException)
+        {
+            _usageStatus.Text = "Azure usage lookup cancelled.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud Azure usage lookup failed.");
+            _usageStatus.Text = $"Azure usage unavailable: {ex.Message}";
+        }
+        finally
+        {
+            _usageRefresh = false;
+            RefreshCredentialVariant();
+        }
+    }
+
+    static string FormatUsage(AzureSpeechUsageSnapshot usage)
+    {
+        var values = new List<string>();
+        if (usage.SynthesizedCharacters is { } characters)
+            values.Add($"Synthesized characters: {characters:N0}");
+        if (usage.TotalCalls is { } calls)
+            values.Add($"Calls: {calls:N0}");
+        if (usage.SuccessfulCalls is { } successful)
+            values.Add($"Successful: {successful:N0}");
+
+        var errors = (usage.ClientErrors ?? 0) + (usage.ServerErrors ?? 0);
+        if (usage.ClientErrors is not null || usage.ServerErrors is not null)
+            values.Add($"Errors: {errors:N0}");
+
+        if (values.Count == 0)
+            values.Add("No Azure Monitor data was returned.");
+
+        return string.Join(
+            " · ",
+            values) +
+            $"\nWindow: {usage.Start.UtcDateTime:yyyy-MM-dd} – " +
+            $"{usage.End.UtcDateTime:yyyy-MM-dd} UTC";
     }
 
     async Task SignInAzureAsync()
@@ -680,6 +745,8 @@ public sealed class MainView : DockPanel
             SetStatus($"Connected to {resource.Name} ({voices.Count:N0} voices available).");
             RefreshProviderUi();
             RefreshListen();
+            _usageStatus.Text = "Tap Refresh usage to load the last 30 days.";
+            await RefreshUsageAsync();
         }
         catch (OperationCanceledException)
         {
@@ -712,7 +779,7 @@ public sealed class MainView : DockPanel
             _resourceRefresh = false;
             _signOutButton.IsVisible = false;
             RefreshCredentialVariant();
-            SetStatus("Signed out. Device voice remains available.");
+            SetStatus("Signed out. Azure Speech setup is required to listen.");
             RefreshProviderUi();
             RefreshListen();
         }
@@ -764,7 +831,7 @@ public sealed class MainView : DockPanel
             RefreshCredentialVariant();
             RefreshProviderUi();
             RefreshListen();
-            SetStatus("Azure setup removed. Device voice remains available.");
+            SetStatus("Azure setup removed. Import credentials or sign in to listen.");
         }
         catch (Exception ex)
         {
@@ -775,9 +842,6 @@ public sealed class MainView : DockPanel
 
     void RefreshProviderUi()
     {
-        _providerRefresh = true;
-        _providerPicker.SelectedIndex = _speech.Provider == SpeechProvider.AzureSpeech ? 1 : 0;
-        _providerRefresh = false;
         _configureButton.Content = _speech.CanCreateMp3 ? "Azure settings" : "Azure setup";
         RefreshCredentialVariant();
     }
@@ -791,9 +855,9 @@ public sealed class MainView : DockPanel
     {
         _speech.Stop();
         _textBox.Text = string.Empty;
-        SetStatus(_speech.Provider == SpeechProvider.DeviceVoice
-            ? "Device voice works offline."
-            : "Azure Speech selected. Requests use your resource and quota.");
+        SetStatus(_speech.CanCreateMp3
+            ? "Azure Speech selected. Requests use your resource and quota."
+            : "Azure Speech setup is required to listen.");
         RefreshListen();
     }
 
@@ -860,6 +924,17 @@ public sealed class MainView : DockPanel
             ReleaseWake();
             SetStatus("Stopped.");
             RefreshListen();
+            return;
+        }
+
+        if (!_speech.CanCreateMp3)
+        {
+            _azureSetupPanel.IsVisible = true;
+            RefreshCredentialVariant();
+            SetStatus(
+                _resourcePicker is null
+                    ? "Import the Azure Speech credentials JSON before listening."
+                    : "Sign in or import an Azure Speech credentials file before listening.");
             return;
         }
 

@@ -1,6 +1,6 @@
 # Read Aloud
 
-Avalonia **Android + Windows desktop** scratch reader: paste or open text, **listen** with the device voice or a user-owned Azure Speech resource, or **save an MP3**.
+Avalonia **Android + Windows desktop** scratch reader: paste or open text, **listen** with a user-owned Azure Speech resource, or **save an MP3**.
 
 No GitHub, no library, no manuscript tree — just text in, speech out. Uses `Novolis.Avalonia.Speech` with local platform adapters and `Novolis.Audio.Voice.AzureSpeech`.
 
@@ -47,7 +47,7 @@ dotnet run --project d:\novolis\novolis-apps\src\ReadAloud\ReadAloud.Desktop
 pwsh -File d:\novolis\novolis-apps\scripts\deploy-readaloud-android.ps1 -Serial <device-serial>
 ```
 
-Requires Android SDK / workload and a connected device or emulator. APK is never uploaded to GitHub Releases. Device voice works offline; Azure Speech and MP3 export use the endpoint and quota supplied by the user.
+Requires Android SDK / workload and a connected device or emulator. APK is never uploaded to GitHub Releases. Read Aloud uses Azure Speech for playback and MP3 export; the endpoint and quota are supplied by the user.
 
 ## Android Azure sign-in
 
@@ -62,6 +62,12 @@ The selected resource is configured with Microsoft Entra data-plane access.
 MSAL owns the platform-native secure token cache. The
 single-tenant app registration uses the MSAL redirect
 `msalc8b938aa-2e5d-48b4-89c6-fc139733c44d://auth`.
+
+Automatic sign-in also enables the **Azure usage — last 30 days** view. It
+reads the `SynthesizedCharacters` and request/error totals from Azure Monitor
+through the management API. The signed-in account needs Reader or Monitoring
+Reader access to the selected resource. Manual subscription-key credentials
+can synthesize speech but cannot read management-plane usage metrics.
 
 For **Manual — JSON credentials file**, choose **Import credentials file…**
 and select a user-owned UTF-8 JSON file with this exact schema:
@@ -92,7 +98,7 @@ Consumes GitHub Packages `2026.1.*`:
 | `Novolis.Avalonia.Mobile` / `.Desktop` / `.Android` | Cross-platform shell + app-private storage |
 | `Novolis.Avalonia.Speech` | Provider selection, secure Azure setup, and capability-aware operations |
 | `Novolis.Audio.Voice.AzureSpeech` | Thin Azure Speech client returning MP3 |
-| `Novolis.Audio.Voice.Platform.Android` / `.Windows` | Local device voice playback |
+| `Novolis.Audio.Voice.Platform.Android` / `.Windows` | Host audio playback for Azure MP3 |
 | `Novolis.Manuscript.Export.Audio` | Speech planner, synthesizer, desktop MP3 player |
 
 ## Local development (ProjectReference mode)

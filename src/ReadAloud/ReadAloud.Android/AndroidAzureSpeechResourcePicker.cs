@@ -10,6 +10,15 @@ public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicke
     const string ManagementBase = "https://management.azure.com";
     const string CognitiveServicesApiVersion = "2023-05-01";
     const string SubscriptionsApiVersion = "2020-01-01";
+    const string MetricsApiVersion = "2023-10-01";
+    static readonly string[] UsageMetricNames =
+    [
+        "SynthesizedCharacters",
+        "TotalCalls",
+        "SuccessfulCalls",
+        "ClientErrors",
+        "ServerErrors",
+    ];
 
     readonly AndroidEntraAuthentication _authentication;
     readonly HttpClient _httpClient;
@@ -71,6 +80,65 @@ public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicke
             .ToArray();
     }
 
+    public async Task<AzureSpeechUsageSnapshot> GetUsageAsync(
+        Uri endpoint,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+
+        var resource = await FindResourceByEndpointAsync(endpoint, cancellationToken)
+            .ConfigureAwait(false);
+        var end = DateTimeOffset.UtcNow;
+        var start = end.AddDays(-30);
+        var resourceId = BuildResourceId(resource);
+        var metricNames = string.Join(
+            ',',
+            UsageMetricNames.Select(Uri.EscapeDataString));
+        var timespan = Uri.EscapeDataString($"{start:O}/{end:O}");
+        var url =
+            $"{ManagementBase}{resourceId}/providers/Microsoft.Insights/metrics" +
+            $"?metricnames={metricNames}" +
+            $"&aggregation=Total&interval=PT1H&timespan={timespan}" +
+            $"&metricnamespace=Microsoft.CognitiveServices/accounts" +
+            $"&api-version={MetricsApiVersion}";
+
+        using var request = await CreateRequestAsync(url, cancellationToken)
+            .ConfigureAwait(false);
+        using var response = await _httpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var message = response.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized =>
+                    "Azure sign-in expired. Sign in again.",
+                HttpStatusCode.Forbidden =>
+                    "This Azure account cannot read usage for the selected Speech resource. " +
+                    "Reader or Monitoring Reader access is required.",
+                _ =>
+                    $"Azure usage lookup failed ({(int)response.StatusCode}).",
+            };
+            throw new InvalidOperationException(message);
+        }
+
+        await using var stream = await response.Content
+            .ReadAsStreamAsync(cancellationToken)
+            .ConfigureAwait(false);
+        using var document = await JsonDocument
+            .ParseAsync(stream, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        return new AzureSpeechUsageSnapshot(
+            start,
+            end,
+            ReadMetricTotal(document.RootElement, "SynthesizedCharacters"),
+            ReadMetricTotal(document.RootElement, "TotalCalls"),
+            ReadMetricTotal(document.RootElement, "SuccessfulCalls"),
+            ReadMetricTotal(document.RootElement, "ClientErrors"),
+            ReadMetricTotal(document.RootElement, "ServerErrors"));
+    }
+
     public async Task SignOutAsync(CancellationToken cancellationToken = default)
     {
         _resourceCache.Clear();
@@ -125,6 +193,32 @@ public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicke
 
         _resourceCache[subscriptionId] = resources;
         return resources;
+    }
+
+    async Task<AzureSpeechResourceChoice> FindResourceByEndpointAsync(
+        Uri endpoint,
+        CancellationToken cancellationToken)
+    {
+        var target = NormalizeEndpoint(endpoint);
+        var subscriptions = await GetSubscriptionsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        foreach (var subscription in subscriptions)
+        {
+            var resources = await GetSpeechResourcesForSubscriptionAsync(
+                    subscription.Id,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            var resource = resources.FirstOrDefault(candidate =>
+                string.Equals(
+                    NormalizeEndpoint(candidate.Endpoint),
+                    target,
+                    StringComparison.OrdinalIgnoreCase));
+            if (resource is not null)
+                return resource;
+        }
+
+        throw new InvalidOperationException(
+            "The selected Azure Speech resource is no longer visible to this account.");
     }
 
     async Task<IReadOnlyList<JsonElement>> GetAllAsync(
@@ -183,6 +277,76 @@ public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicke
         request.Headers.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token.Token);
         return request;
+    }
+
+    static string BuildResourceId(AzureSpeechResourceChoice resource) =>
+        $"/subscriptions/{Uri.EscapeDataString(resource.SubscriptionId)}" +
+        $"/resourceGroups/{Uri.EscapeDataString(resource.ResourceGroupName)}" +
+        "/providers/Microsoft.CognitiveServices/accounts/" +
+        Uri.EscapeDataString(resource.Name);
+
+    static string NormalizeEndpoint(Uri endpoint) =>
+        endpoint.GetLeftPart(UriPartial.Path).TrimEnd('/');
+
+    static long? ReadMetricTotal(JsonElement root, string metricName)
+    {
+        if (!root.TryGetProperty("value", out var metrics) ||
+            metrics.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var metric in metrics.EnumerateArray())
+        {
+            if (!metric.TryGetProperty("name", out var name) ||
+                !name.TryGetProperty("value", out var value) ||
+                !string.Equals(value.GetString(), metricName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (metric.TryGetProperty("errorCode", out var errorCode) &&
+                !string.Equals(errorCode.GetString(), "Success", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            double total = 0;
+            var foundValue = false;
+            if (metric.TryGetProperty("timeseries", out var series) &&
+                series.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var timeSeries in series.EnumerateArray())
+                {
+                    if (!timeSeries.TryGetProperty("data", out var data) ||
+                        data.ValueKind != JsonValueKind.Array)
+                    {
+                        continue;
+                    }
+
+                    foreach (var point in data.EnumerateArray())
+                    {
+                        if (point.TryGetProperty("total", out var pointTotal) &&
+                            pointTotal.ValueKind == JsonValueKind.Number &&
+                            pointTotal.TryGetDouble(out var number))
+                        {
+                            total += number;
+                            foundValue = true;
+                        }
+                    }
+                }
+            }
+
+            if (!foundValue)
+                return 0;
+            if (total >= long.MaxValue)
+                return long.MaxValue;
+            if (total <= long.MinValue)
+                return long.MinValue;
+            return checked((long)Math.Round(total, MidpointRounding.AwayFromZero));
+        }
+
+        return null;
     }
 
     AzureSpeechResourceChoice? CreateResourceChoice(
