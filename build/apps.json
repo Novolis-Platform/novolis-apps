@@ -757,6 +757,7 @@
         "publishWindows": "src/Reach/Reach.Client.Windows/Reach.Client.Windows.csproj",
         "linuxCi": [
           "src/Reach/Reach.Protocol/Reach.Protocol.csproj",
+          "src/Reach/Reach.Transport/Reach.Transport.csproj",
           "src/Reach/Reach.Client/Reach.Client.csproj",
           "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",
           "tests/Reach.Unit/Reach.Unit.csproj"
@@ -766,6 +767,7 @@
         "tests": ["tests/Reach.Unit/Reach.Unit.csproj"],
         "all": [
           "src/Reach/Reach.Protocol/Reach.Protocol.csproj",
+          "src/Reach/Reach.Transport/Reach.Transport.csproj",
           "src/Reach/Reach.Client/Reach.Client.csproj",
           "src/Reach/Reach.Client.Windows/Reach.Client.Windows.csproj",
           "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",

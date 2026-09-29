@@ -26,6 +26,7 @@
     <Project Path="src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj" />
     <Project Path="src/Reach/Reach.Client/Reach.Client.csproj" />
     <Project Path="src/Reach/Reach.Protocol/Reach.Protocol.csproj" />
+    <Project Path="src/Reach/Reach.Transport/Reach.Transport.csproj" />
     <Project Path="src/ReadAloud/ReadAloud.Desktop/ReadAloud.Desktop.csproj" />
     <Project Path="src/ReadAloud/ReadAloud/ReadAloud.csproj" />
     <Project Path="src/RepoStudio/RepoStudio.csproj" />

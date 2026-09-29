@@ -20,8 +20,10 @@
   <Folder Name="/Reach.Protocol/">
     <Project Path="Reach.Protocol/Reach.Protocol.csproj" />
   </Folder>
+  <Folder Name="/Reach.Transport/">
+    <Project Path="Reach.Transport/Reach.Transport.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="../../tests/Reach.Unit/Reach.Unit.csproj" />
   </Folder>
-  <Project Path="Reach.Transport/Reach.Transport.csproj" />
 </Solution>
