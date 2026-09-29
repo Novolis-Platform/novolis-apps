@@ -35,7 +35,9 @@ public sealed class MainView : DockPanel
     readonly StackPanel _keyFields;
     readonly StackPanel _entraFields;
     readonly IAzureSpeechResourcePicker? _resourcePicker;
+    readonly IAzureSpeechFallbackProvider? _fallbackProvider;
     readonly Button _signInButton;
+    readonly Button _fallbackButton;
     readonly Button _signOutButton;
     readonly TextBlock _resourceStatus;
     readonly ComboBox _subscriptionPicker;
@@ -54,13 +56,15 @@ public sealed class MainView : DockPanel
         IScreenWakeLock wakeLock,
         IDiagnosticShare diagnosticShare,
         ILogger<MainView> logger,
-        IAzureSpeechResourcePicker? resourcePicker = null)
+        IAzureSpeechResourcePicker? resourcePicker = null,
+        IAzureSpeechFallbackProvider? fallbackProvider = null)
     {
         _speech = speech ?? throw new ArgumentNullException(nameof(speech));
         _wakeLock = wakeLock ?? throw new ArgumentNullException(nameof(wakeLock));
         _diagnosticShare = diagnosticShare ?? throw new ArgumentNullException(nameof(diagnosticShare));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resourcePicker = resourcePicker;
+        _fallbackProvider = fallbackProvider;
 
         LastChildFill = true;
         Background = ReadAloudPalette.WindowBrush;
@@ -172,6 +176,11 @@ public sealed class MainView : DockPanel
             "Sign in with Microsoft",
             ReadAloudButtonKind.Primary);
         _signInButton.Click += async (_, _) => await SignInAzureAsync();
+        _fallbackButton = ReadAloudTheme.Button(
+            "Use local fallback",
+            ReadAloudButtonKind.Secondary);
+        _fallbackButton.Click += async (_, _) => await UseLocalAzureFallbackAsync();
+        _fallbackButton.IsVisible = _fallbackProvider?.IsAvailable == true;
         _signOutButton = ReadAloudTheme.Button("Sign out", ReadAloudButtonKind.Quiet);
         _signOutButton.Click += async (_, _) => await SignOutAzureAsync();
         _signOutButton.IsVisible = false;
@@ -306,7 +315,7 @@ public sealed class MainView : DockPanel
                         13),
                     new WrapPanel
                     {
-                        Children = { _signInButton, _signOutButton },
+                        Children = { _signInButton, _fallbackButton, _signOutButton },
                     },
                     _resourceStatus,
                     ReadAloudTheme.Muted("Azure subscription", 12),
@@ -487,6 +496,34 @@ public sealed class MainView : DockPanel
         {
             _resourceRefresh = false;
             _signInButton.IsEnabled = true;
+        }
+    }
+
+    async Task UseLocalAzureFallbackAsync()
+    {
+        if (_fallbackProvider is null)
+            return;
+
+        _fallbackButton.IsEnabled = false;
+        SetStatus("Loading local Azure Speech fallback…");
+        try
+        {
+            var setup = await _fallbackProvider.LoadAsync();
+            await _speech.ConfigureAzureAsync(setup);
+            var voices = await _speech.TestAzureAsync();
+            _resourceStatus.Text = "Using the local developer fallback.";
+            SetStatus($"Azure Speech fallback connected ({voices.Count:N0} voices available).");
+            RefreshProviderUi();
+            RefreshListen();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud local Azure Speech fallback failed.");
+            SetStatus($"Local Azure fallback failed: {ex.Message}");
+        }
+        finally
+        {
+            _fallbackButton.IsEnabled = _fallbackProvider.IsAvailable;
         }
     }
 

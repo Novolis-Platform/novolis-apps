@@ -59,9 +59,25 @@ selects the only valid resource when there is one. No Speech key, endpoint, or
 client id is entered by the user or embedded as a secret in the APK.
 
 The selected resource is configured with Microsoft Entra data-plane access.
-The token cache is encrypted with Android Keystore-backed storage. The
+MSAL owns the platform-native secure token cache. The
 single-tenant app registration uses the MSAL redirect
 `msalc8b938aa-2e5d-48b4-89c6-fc139733c44d://auth`.
+
+For developer-only testing, an optional untracked fallback can be installed
+from `local/ReadAloud/azure-speech-fallback.json`. It must contain an HTTPS
+endpoint and Speech subscription key:
+
+```json
+{
+  "endpoint": "https://your-resource.cognitiveservices.azure.com/",
+  "subscriptionKey": "developer-only-key",
+  "voiceName": "en-US-AvaMultilingualNeural",
+  "locale": "en-US"
+}
+```
+
+The file is copied into Android app-private storage, never packaged into the
+APK, and loaded only after pressing **Use local fallback** in **Azure setup**.
 
 ## Packages
 

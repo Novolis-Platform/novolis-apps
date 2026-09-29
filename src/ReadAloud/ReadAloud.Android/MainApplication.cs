@@ -49,12 +49,12 @@ public class MainApplication : AvaloniaAndroidApplication<App>
                 services.AddNovolisVoiceAndroid();
                 services.AddSingleton<IScreenWakeLock, AndroidScreenWakeLock>();
                 services.AddReadAloudCore();
-                services.AddSingleton(sp => new AndroidEntraAuthentication(
-                    sp.GetRequiredService<Novolis.Avalonia.Mobile.ISecureTokenStore>(),
+                services.AddSingleton(_ => new AndroidEntraAuthentication(
                     SpeechService.DefaultAzureClientId,
                     SpeechService.DefaultAzureTenantId));
                 services.AddSingleton<HttpClient>();
                 services.AddSingleton<IAzureSpeechResourcePicker, AndroidAzureSpeechResourcePicker>();
+                services.AddSingleton<IAzureSpeechFallbackProvider, AndroidAzureSpeechFallbackProvider>();
                 services.AddSingleton<IAzureSpeechCredentialFactory, AndroidEntraSpeechCredentialFactory>();
             })
             .Build();

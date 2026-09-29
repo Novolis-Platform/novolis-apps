@@ -1,31 +1,24 @@
 using Azure.Core;
 using Microsoft.Identity.Client;
-using Novolis.Avalonia.Mobile;
 
 namespace ReadAloud.Android;
 
 /// <summary>
 /// Single-tenant public-client authentication for Android. MSAL owns the
-/// browser flow; its serialized cache is encrypted by the Android Keystore
-/// backed secure store.
+/// browser flow and the platform-native secure token cache.
 /// </summary>
 public sealed class AndroidEntraAuthentication
 {
     public const string ManagementScope = "https://management.azure.com/.default";
     public const string SpeechScope = "https://cognitiveservices.azure.com/.default";
 
-    const string CacheKey = "readaloud.entra.msal.cache";
-
-    readonly ISecureTokenStore _secureStore;
     readonly SemaphoreSlim _gate = new(1, 1);
     IPublicClientApplication? _application;
 
     public AndroidEntraAuthentication(
-        ISecureTokenStore secureStore,
         string clientId,
         string tenantId)
     {
-        _secureStore = secureStore ?? throw new ArgumentNullException(nameof(secureStore));
         ClientId = string.IsNullOrWhiteSpace(clientId)
             ? throw new ArgumentException("Client id is required.", nameof(clientId))
             : clientId;
@@ -107,8 +100,6 @@ public sealed class AndroidEntraAuthentication
                 foreach (var account in await _application.GetAccountsAsync().ConfigureAwait(false))
                     await _application.RemoveAsync(account).ConfigureAwait(false);
             }
-
-            await _secureStore.RemoveAsync(CacheKey, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -131,35 +122,6 @@ public sealed class AndroidEntraAuthentication
                 ?? throw new InvalidOperationException(
                     "Read Aloud must be visible before Azure sign-in can continue."))
             .Build();
-
-        application.UserTokenCache.SetBeforeAccessAsync(async args =>
-        {
-            var serialized = await _secureStore
-                .GetAsync(CacheKey, args.CancellationToken)
-                .ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(serialized))
-                return;
-
-            try
-            {
-                args.TokenCache.DeserializeMsalV3(Convert.FromBase64String(serialized));
-            }
-            catch (FormatException)
-            {
-                await _secureStore.RemoveAsync(CacheKey, args.CancellationToken)
-                    .ConfigureAwait(false);
-            }
-        });
-        application.UserTokenCache.SetAfterAccessAsync(async args =>
-        {
-            if (!args.HasStateChanged)
-                return;
-
-            var serialized = Convert.ToBase64String(args.TokenCache.SerializeMsalV3());
-            await _secureStore
-                .SetAsync(CacheKey, serialized, args.CancellationToken)
-                .ConfigureAwait(false);
-        });
 
         _application = application;
         return application;
