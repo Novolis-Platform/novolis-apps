@@ -16,7 +16,7 @@ public sealed class AndroidReachVideoPresenter :
     private const long KeyFrameRequestCooldownMilliseconds = 1_500;
     private readonly Channel<ReachVideoFrame> _frames =
         Channel.CreateBounded<ReachVideoFrame>(
-            new BoundedChannelOptions(2)
+            new BoundedChannelOptions(16)
             {
                 FullMode = BoundedChannelFullMode.Wait,
                 SingleReader = true,

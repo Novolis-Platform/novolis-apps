@@ -4,12 +4,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Avalonia.Threading;
 using Novolis.Reach.Protocol;
 using Novolis.Video;
-using System.Runtime.InteropServices;
 
 namespace Novolis.Reach.Client;
 
@@ -22,7 +19,7 @@ public sealed class ReachClientView : UserControl
     private readonly TextBlock _capabilities;
     private readonly Button _discover;
     private readonly Button _connect;
-    private readonly Image _videoImage;
+    private readonly ReachVideoSurface _videoImage;
     private readonly Border _videoSurface;
     private readonly TextBox _remoteTextInput;
     private readonly Button _sendText;
@@ -49,8 +46,6 @@ public sealed class ReachClientView : UserControl
     private bool _androidVideoConfigured;
     private bool _touchGestureActive;
     private bool _touchRemoteButtonDown;
-    private WriteableBitmap? _videoBitmap;
-    private WriteableBitmap? _videoBackBitmap;
     private double _gestureStartDistance;
     private double _gestureStartZoom;
     private double _gestureStartPanX;
@@ -122,13 +117,10 @@ public sealed class ReachClientView : UserControl
             TextWrapping = TextWrapping.Wrap,
         };
 
-        _videoImage = new Image
+        _videoImage = new ReachVideoSurface
         {
-            Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = OperatingSystem.IsAndroid()
-                ? VerticalAlignment.Top
-                : VerticalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
             IsHitTestVisible = true,
             RenderTransformOrigin = new RelativePoint(
                 0.5,
@@ -150,7 +142,7 @@ public sealed class ReachClientView : UserControl
         };
         _videoPresentTimer = new DispatcherTimer(
             TimeSpan.FromMilliseconds(33),
-            DispatcherPriority.Render,
+            DispatcherPriority.Background,
             (_, _) => ApplyPendingFrame());
         _videoSurface.KeyDown += OnVideoKeyDown;
         _videoSurface.KeyUp += OnVideoKeyUp;
@@ -522,7 +514,7 @@ public sealed class ReachClientView : UserControl
 
         Dispatcher.UIThread.Post(
             () => _videoPresentTimer.Start(),
-            DispatcherPriority.Render);
+            DispatcherPriority.Background);
     }
 
     private void ApplyPendingFrame()
@@ -552,48 +544,7 @@ public sealed class ReachClientView : UserControl
 
     private void ApplyFrame(RawVideoFrame frame)
     {
-        var front = _videoBitmap;
-        var back = _videoBackBitmap;
-        if (front is null
-            || back is null
-            || front.PixelSize.Width != frame.Width
-            || front.PixelSize.Height != frame.Height)
-        {
-            (front as IDisposable)?.Dispose();
-            (back as IDisposable)?.Dispose();
-            front = new WriteableBitmap(
-                new PixelSize(frame.Width, frame.Height),
-                new Vector(96, 96),
-                PixelFormats.Bgra8888,
-                AlphaFormat.Opaque);
-            back = new WriteableBitmap(
-                new PixelSize(frame.Width, frame.Height),
-                new Vector(96, 96),
-                PixelFormats.Bgra8888,
-                AlphaFormat.Opaque);
-            _videoBitmap = front;
-            _videoBackBitmap = back;
-            _videoImage.Source = front;
-        }
-
-        using (var locked = back.Lock())
-        {
-            var rowBytes = Math.Min(frame.Width * 4, frame.Stride);
-            for (var row = 0; row < frame.Height; row++)
-            {
-                if (locked.Address == IntPtr.Zero)
-                    throw new InvalidOperationException("Video bitmap was not writable.");
-                Marshal.Copy(
-                    frame.Pixels,
-                    row * frame.Stride,
-                    IntPtr.Add(locked.Address, row * locked.RowBytes),
-                    rowBytes);
-            }
-        }
-
-        _videoImage.Source = back;
-        _videoBitmap = back;
-        _videoBackBitmap = front;
+        _videoImage.Present(frame);
     }
 
     private void ClearVideoFrame()
@@ -607,13 +558,7 @@ public sealed class ReachClientView : UserControl
             }
             _videoPresentTimer.Stop();
 
-            var previous = _videoBitmap;
-            var back = _videoBackBitmap;
-            _videoBitmap = null;
-            _videoBackBitmap = null;
-            _videoImage.Source = null;
-            (previous as IDisposable)?.Dispose();
-            (back as IDisposable)?.Dispose();
+            _videoImage.Clear();
             _videoWidth = 0;
             _videoHeight = 0;
             _androidVideoConfigured = false;
@@ -665,8 +610,8 @@ public sealed class ReachClientView : UserControl
             QueueInput(() => _session.ConfigureVideoAsync(
                 width,
                 height,
-                15,
-                3_000_000));
+                10,
+                1_500_000));
         }
     }
 
@@ -1007,7 +952,7 @@ public sealed class ReachClientView : UserControl
     private static (int Width, int Height) GetAndroidVideoSize(
         ReachDisplay display)
     {
-        const int maximumWidth = 720;
+        const int maximumWidth = 480;
         var scale = Math.Min(1d, maximumWidth / (double)display.Width);
         var width = Math.Max(16, AlignToCodecBlock(display.Width * scale));
         var height = Math.Max(16, AlignToCodecBlock(display.Height * scale));
