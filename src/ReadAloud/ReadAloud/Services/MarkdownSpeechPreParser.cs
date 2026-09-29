@@ -87,9 +87,12 @@ public static class MarkdownSpeechPreParser
         string? fenceMarker = null;
         string language = string.Empty;
 
-        void FlushParagraph()
+        void FlushParagraph(bool sentenceBoundary = false)
         {
-            AddBlock(blocks, paragraph.ToString());
+            var value = paragraph.ToString().Trim();
+            if (sentenceBoundary)
+                value = EnsureSentence(value);
+            AddBlock(blocks, value);
             paragraph.Clear();
         }
 
@@ -137,7 +140,7 @@ public static class MarkdownSpeechPreParser
             var fence = Fence.Match(trimmed);
             if (fence.Success)
             {
-                FlushParagraph();
+                FlushParagraph(sentenceBoundary: true);
                 fenceMarker = fence.Groups["marker"].Value;
                 language = fence.Groups["language"].Value.Trim().Split(' ', 2)[0];
                 continue;
@@ -145,7 +148,7 @@ public static class MarkdownSpeechPreParser
 
             if (trimmed.Length == 0)
             {
-                FlushParagraph();
+                FlushParagraph(sentenceBoundary: true);
                 continue;
             }
 
@@ -154,7 +157,7 @@ public static class MarkdownSpeechPreParser
 
             if (HorizontalRule.IsMatch(trimmed))
             {
-                FlushParagraph();
+                FlushParagraph(sentenceBoundary: true);
                 blocks.Add("***");
                 continue;
             }
@@ -165,7 +168,7 @@ public static class MarkdownSpeechPreParser
                     trimmed,
                     out var tableBlocks))
             {
-                FlushParagraph();
+                FlushParagraph(sentenceBoundary: true);
                 blocks.AddRange(tableBlocks);
                 continue;
             }
@@ -173,7 +176,7 @@ public static class MarkdownSpeechPreParser
             var heading = Heading.Match(raw);
             if (heading.Success)
             {
-                FlushParagraph();
+                FlushParagraph(sentenceBoundary: true);
                 AddBlock(blocks, EnsureSentence(CleanInline(heading.Groups[1].Value)));
                 continue;
             }
@@ -181,7 +184,7 @@ public static class MarkdownSpeechPreParser
             var admonition = Admonition.Match(raw);
             if (admonition.Success)
             {
-                FlushParagraph();
+                FlushParagraph(sentenceBoundary: true);
                 var title = string.IsNullOrWhiteSpace(admonition.Groups["title"].Value)
                     ? admonition.Groups["kind"].Value
                     : admonition.Groups["title"].Value;
@@ -193,7 +196,7 @@ public static class MarkdownSpeechPreParser
             var alert = Alert.Match(line);
             if (alert.Success)
             {
-                FlushParagraph();
+                FlushParagraph(sentenceBoundary: true);
                 var label = CultureTitle(alert.Groups["kind"].Value);
                 var alertText = CleanInline(alert.Groups["text"].Value);
                 AddBlock(
@@ -206,7 +209,7 @@ public static class MarkdownSpeechPreParser
 
             if (!string.Equals(line, trimmed, StringComparison.Ordinal))
             {
-                FlushParagraph();
+                FlushParagraph(sentenceBoundary: true);
                 var quote = CleanInline(line);
                 if (quote.Length > 0)
                     AddBlock(blocks, $"Quote. {quote}");
@@ -216,7 +219,7 @@ public static class MarkdownSpeechPreParser
             var listItem = ListItem.Match(raw);
             if (listItem.Success)
             {
-                FlushParagraph();
+                FlushParagraph(sentenceBoundary: true);
                 var item = listItem.Groups["text"].Value;
                 var checkbox = Checkbox.Match(item);
                 var prefix = "List item.";
@@ -241,15 +244,55 @@ public static class MarkdownSpeechPreParser
             if (cleanLine.Length > 0)
             {
                 if (paragraph.Length > 0)
-                    paragraph.Append(' ');
+                    AppendSoftLineBreak(paragraph);
                 paragraph.Append(cleanLine);
             }
         }
 
         if (fenceMarker is not null)
             AddCodeBlock();
-        FlushParagraph();
-        return string.Join("\n\n", blocks).Trim();
+        FlushParagraph(sentenceBoundary: true);
+        return JoinSpeechBlocks(blocks);
+    }
+
+    static void AppendSoftLineBreak(StringBuilder paragraph)
+    {
+        var value = paragraph.ToString().TrimEnd();
+        paragraph.Clear().Append(value);
+        if (!value.EndsWith(",", StringComparison.Ordinal) &&
+            !value.EndsWith(";", StringComparison.Ordinal) &&
+            !value.EndsWith(":", StringComparison.Ordinal) &&
+            !value.EndsWith(".", StringComparison.Ordinal) &&
+            !value.EndsWith("!", StringComparison.Ordinal) &&
+            !value.EndsWith("?", StringComparison.Ordinal))
+        {
+            paragraph.Append(',');
+        }
+
+        paragraph.Append(' ');
+    }
+
+    static string JoinSpeechBlocks(IReadOnlyList<string> blocks)
+    {
+        var speech = new StringBuilder();
+        foreach (var block in blocks)
+        {
+            if (string.Equals(block, "***", StringComparison.Ordinal))
+            {
+                while (speech.Length > 0 && speech[^1] == ' ')
+                    speech.Length--;
+                speech.Append("\n\n***\n\n");
+                continue;
+            }
+
+            if (block.Length == 0)
+                continue;
+            if (speech.Length > 0 && speech[^1] != '\n')
+                speech.Append(' ');
+            speech.Append(block);
+        }
+
+        return speech.ToString().Trim();
     }
 
     static bool TryReadTable(

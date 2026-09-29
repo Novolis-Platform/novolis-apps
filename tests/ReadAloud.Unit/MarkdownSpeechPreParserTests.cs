@@ -14,7 +14,10 @@ public sealed class MarkdownSpeechPreParserTests
 
             # Welcome to **Read Aloud**
 
-            Read [this guide](https://example.com/docs), not the raw URL.
+            Read [this guide](https://example.com/docs), not the raw URL
+            This is a soft line break.
+
+            This starts a new paragraph.
 
             - [x] Finished item
             - [ ] Open item
@@ -34,7 +37,9 @@ public sealed class MarkdownSpeechPreParserTests
         var normalized = MarkdownSpeechPreParser.Normalize(markdown);
 
         await Assert.That(normalized).Contains("Welcome to Read Aloud.");
-        await Assert.That(normalized).Contains("Read this guide, not the raw URL.");
+        await Assert.That(normalized).Contains("Read this guide, not the raw URL,");
+        await Assert.That(normalized).Contains("raw URL, This is a soft line break.");
+        await Assert.That(normalized).Contains("soft line break. This starts a new paragraph.");
         await Assert.That(normalized).Contains("Completed list item. Finished item");
         await Assert.That(normalized).Contains("Todo list item. Open item");
         await Assert.That(normalized).Contains("Note. This is useful context.");

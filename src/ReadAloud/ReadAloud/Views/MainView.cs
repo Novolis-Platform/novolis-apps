@@ -45,6 +45,7 @@ public sealed class MainView : DockPanel
     IReadOnlyList<AzureSpeechResourceChoice> _speechResources = [];
     bool _resourceRefresh;
     bool _usageRefresh;
+    bool _listenPending;
     IDisposable? _wake;
 
     public MainView(
@@ -927,6 +928,9 @@ public sealed class MainView : DockPanel
             return;
         }
 
+        if (_listenPending)
+            return;
+
         if (!_speech.CanCreateMp3)
         {
             _azureSetupPanel.IsVisible = true;
@@ -946,6 +950,7 @@ public sealed class MainView : DockPanel
         }
 
         _wake = _wakeLock.Acquire("read-aloud-listen");
+        _listenPending = true;
         SetStatus("Synthesizing…");
         RefreshListen();
         try
@@ -965,6 +970,7 @@ public sealed class MainView : DockPanel
         }
         finally
         {
+            _listenPending = false;
             ReleaseWake();
             RefreshListen();
         }
@@ -1048,7 +1054,9 @@ public sealed class MainView : DockPanel
 
     void RefreshListen()
     {
-        var speaking = _speech.IsSpeaking;
+        var speaking = _speech.IsSpeaking || _listenPending;
+        _textBox.IsReadOnly = speaking;
+        _textBox.Opacity = speaking ? 0.62 : 1;
         _listenButton.Content = speaking ? "Stop" : (_speech.HasCachedAudio(DocumentText) ? "Listen ✓" : "Listen");
         ReadAloudTheme.StyleButton(_listenButton, ReadAloudButtonKind.Primary);
         _saveButton.IsEnabled = !speaking && _speech.CanCreateMp3;
