@@ -26,6 +26,7 @@ public sealed class MainView : UserControl
     readonly TextBlock _status = new();
 
     GeoCoordinate? _selectedCoordinate;
+    TrackedLocation? _editingLocation;
     TextBox? _nameInput;
     TextBox? _ssidInput;
     Slider? _radiusInput;
@@ -55,10 +56,10 @@ public sealed class MainView : UserControl
 
     void BuildShell()
     {
-        var header = new Grid
+        var header = new StackPanel
         {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto,Auto"),
             Margin = new Thickness(16, 14, 16, 8),
+            Spacing = 8,
         };
         var title = new TextBlock
         {
@@ -70,18 +71,16 @@ public sealed class MainView : UserControl
         };
         header.Children.Add(title);
 
-        var locations = NavigationButton("Locations", async () => await ShowLocationsAsync());
-        var history = NavigationButton("History", async () => await ShowHistoryAsync());
-        var diagnostics = NavigationButton("Diagnostics", async () => await ShowDiagnosticsAsync());
-        var add = NavigationButton("+ Add location", async () => await ShowAddLocationAsync());
-        Grid.SetColumn(locations, 1);
-        Grid.SetColumn(history, 2);
-        Grid.SetColumn(diagnostics, 3);
-        Grid.SetColumn(add, 4);
-        header.Children.Add(locations);
-        header.Children.Add(history);
-        header.Children.Add(diagnostics);
-        header.Children.Add(add);
+        var navigation = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        navigation.Children.Add(NavigationButton("Locations", async () => await ShowLocationsAsync()));
+        navigation.Children.Add(NavigationButton("History", async () => await ShowHistoryAsync()));
+        navigation.Children.Add(NavigationButton("Diagnostics", async () => await ShowDiagnosticsAsync()));
+        navigation.Children.Add(NavigationButton("+ Add location", async () => await ShowAddLocationAsync()));
+        header.Children.Add(navigation);
 
         _status.Text = "Local only";
         _status.Foreground = new SolidColorBrush(Color.Parse("#91a9b5"));
@@ -101,7 +100,8 @@ public sealed class MainView : UserControl
         var button = new Button
         {
             Content = label,
-            Margin = new Thickness(4, 0, 0, 0),
+            Margin = new Thickness(0, 0, 6, 6),
+            MinHeight = 44,
             Padding = new Thickness(10, 7),
             Background = new SolidColorBrush(Color.Parse("#17384a")),
             Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
@@ -134,7 +134,9 @@ public sealed class MainView : UserControl
             _content.Content = new ScrollViewer
             {
                 Content = stack,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             };
             SetStatus($"{locations.Count} location{(locations.Count == 1 ? string.Empty : "s")} configured");
         }
@@ -160,6 +162,7 @@ public sealed class MainView : UserControl
         var content = new StackPanel
         {
             Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Children =
             {
                 new TextBlock
@@ -169,14 +172,30 @@ public sealed class MainView : UserControl
                     FontWeight = FontWeight.SemiBold,
                     Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
                 },
-                new TextBlock { Text = stateText, Foreground = MutedBrush },
+                new TextBlock
+                {
+                    Text = stateText,
+                    Foreground = MutedBrush,
+                    TextWrapping = TextWrapping.Wrap,
+                },
                 new TextBlock
                 {
                     Text = $"{evidenceText} · {location.Area.RadiusMeters:0} m radius",
                     Foreground = MutedBrush,
+                    TextWrapping = TextWrapping.Wrap,
                 },
             },
         };
+        var edit = new Button
+        {
+            Content = "Edit location",
+            HorizontalAlignment = HorizontalAlignment.Left,
+            MinHeight = 44,
+            Margin = new Thickness(0, 8, 0, 0),
+            Padding = new Thickness(12, 7),
+        };
+        edit.Click += async (_, _) => await ShowAddLocationAsync(location);
+        content.Children.Add(edit);
         return new Border
         {
             Child = content,
@@ -189,17 +208,30 @@ public sealed class MainView : UserControl
         };
     }
 
-    async Task ShowAddLocationAsync()
+    async Task ShowAddLocationAsync(TrackedLocation? existing = null)
     {
-        _selectedCoordinate = null;
-        _nameInput = new TextBox { PlaceholderText = "Display name", MinWidth = 260 };
-        _ssidInput = new TextBox { PlaceholderText = "Optional Wi-Fi SSID", MinWidth = 260 };
+        _editingLocation = existing;
+        _selectedCoordinate = existing?.Area.Center;
+        _nameInput = new TextBox
+        {
+            Text = existing?.DisplayName ?? string.Empty,
+            PlaceholderText = "Display name",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+        };
+        _ssidInput = new TextBox
+        {
+            Text = existing?.Wifi?.Ssid ?? string.Empty,
+            PlaceholderText = "Optional Wi-Fi SSID",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+        };
         _radiusInput = new Slider
         {
             Minimum = 50,
             Maximum = 1_000,
-            Value = 200,
-            Width = 300,
+            Value = existing?.Area.RadiusMeters ?? 200,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         _radiusLabel = new TextBlock { Foreground = MutedBrush };
         _radiusInput.PropertyChanged += (_, e) =>
@@ -214,34 +246,72 @@ public sealed class MainView : UserControl
 
         _pickerMap = new MapControl
         {
-            Viewport = new MapViewport(DefaultMapCenter, 13),
+            Viewport = new MapViewport(existing?.Area.Center ?? DefaultMapCenter, existing is null ? 13 : 15),
             TileSource = _tileSource,
             Attribution = KartverketMap.Attribution,
-            Height = 380,
+            Height = 320,
+            MinHeight = 240,
+            MaxHeight = 420,
             HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        _pickerMap.SizeChanged += (_, e) =>
+        {
+            if (e.NewSize.Width <= 0)
+                return;
+
+            var height = global::System.Math.Clamp(e.NewSize.Width * 0.7, 240, 420);
+            if (global::System.Math.Abs(_pickerMap.Height - height) > 1)
+                _pickerMap.Height = height;
         };
         _pickerMap.PointSelected += coordinate =>
         {
             _selectedCoordinate = coordinate;
             UpdatePickerOverlays();
         };
+        UpdatePickerOverlays();
 
-        var searchInput = new TextBox { PlaceholderText = "Search an address (optional)", MinWidth = 280 };
+        var searchInput = new TextBox
+        {
+            PlaceholderText = "Search an address (optional)",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+        };
         var searchResults = new StackPanel { Spacing = 4 };
-        var searchButton = new Button { Content = "Search", Padding = new Thickness(12, 7) };
+        var searchButton = new Button
+        {
+            Content = "Search address",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+            Padding = new Thickness(12, 7),
+        };
         searchButton.Click += async (_, _) =>
         {
             searchResults.Children.Clear();
             if (string.IsNullOrWhiteSpace(searchInput.Text))
+            {
+                SetStatus("Enter an address to search.");
                 return;
+            }
             try
             {
-                foreach (var result in await _searchProvider.SearchAsync(searchInput.Text))
+                var results = await _searchProvider.SearchAsync(searchInput.Text);
+                if (results.Count == 0)
+                {
+                    searchResults.Children.Add(new TextBlock
+                    {
+                        Text = "No addresses found.",
+                        Foreground = MutedBrush,
+                    });
+                }
+
+                foreach (var result in results)
                 {
                     var resultButton = new Button
                     {
                         Content = result.DisplayName,
+                        HorizontalAlignment = HorizontalAlignment.Stretch,
                         HorizontalContentAlignment = HorizontalAlignment.Left,
+                        MinHeight = 48,
                     };
                     resultButton.Click += (_, _) =>
                     {
@@ -260,32 +330,57 @@ public sealed class MainView : UserControl
 
         var save = new Button
         {
-            Content = "Save location",
+            Content = existing is null ? "Save location" : "Update location",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
             Padding = new Thickness(14, 8),
             Background = new SolidColorBrush(Color.Parse("#b56f2b")),
             Foreground = Brushes.White,
         };
         save.Click += async (_, _) => await SaveLocationAsync();
 
-        var stack = PageStack("Add location", "Choose a point and radius. Map content is used only during setup.");
+        var cancel = new Button
+        {
+            Content = "Cancel",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+            Padding = new Thickness(14, 8),
+        };
+        cancel.Click += async (_, _) => await ShowLocationsAsync();
+
+        var stack = PageStack(
+            existing is null ? "Add location" : "Edit location",
+            "Choose a point and radius. Map content is used only during setup.");
+        stack.Children.Add(new TextBlock { Text = "Name", Foreground = MutedBrush });
+        stack.Children.Add(_nameInput);
+        stack.Children.Add(new TextBlock { Text = "Wi-Fi network (optional)", Foreground = MutedBrush });
+        stack.Children.Add(_ssidInput);
+        stack.Children.Add(new TextBlock { Text = "Address search", Foreground = MutedBrush });
         stack.Children.Add(new StackPanel
         {
-            Orientation = Orientation.Horizontal,
+            Orientation = Orientation.Vertical,
             Spacing = 8,
-            Children = { _nameInput, _ssidInput },
-        });
-        stack.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Children = { searchInput, searchButton },
         });
         stack.Children.Add(searchResults);
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Tap the map to set the center, then adjust the radius.",
+            Foreground = MutedBrush,
+        });
         stack.Children.Add(_pickerMap);
         stack.Children.Add(_radiusLabel);
         stack.Children.Add(_radiusInput);
         stack.Children.Add(save);
-        _content.Content = new ScrollViewer { Content = stack };
+        stack.Children.Add(cancel);
+        _content.Content = new ScrollViewer
+        {
+            Content = stack,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+        };
 
         try
         {
@@ -320,11 +415,12 @@ public sealed class MainView : UserControl
             ? PresencePolicyDefaults.LocationOnly
             : PresencePolicyDefaults.Standard;
         await _locations.SaveAsync(new TrackedLocation(
-            Guid.NewGuid(),
+            _editingLocation?.Id ?? Guid.NewGuid(),
             _nameInput.Text.Trim(),
             new GeoCircle(coordinate, _radiusInput.Value),
             ssid,
             policy));
+        _editingLocation = null;
         await ShowLocationsAsync();
     }
 
@@ -414,6 +510,7 @@ public sealed class MainView : UserControl
         {
             Margin = new Thickness(18, 10, 18, 24),
             Spacing = 10,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Children =
             {
                 new TextBlock
@@ -423,27 +520,31 @@ public sealed class MainView : UserControl
                     FontWeight = FontWeight.SemiBold,
                     Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
                 },
-                new TextBlock { Text = subtitle, Foreground = MutedBrush },
+                new TextBlock
+                {
+                    Text = subtitle,
+                    Foreground = MutedBrush,
+                    TextWrapping = TextWrapping.Wrap,
+                },
             },
         };
 
     static Control DiagnosticLine(string label, string value) =>
         new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 12,
+            Spacing = 4,
             Children =
             {
                 new TextBlock
                 {
                     Text = label,
-                    Width = 190,
                     Foreground = MutedBrush,
                 },
                 new TextBlock
                 {
                     Text = value,
                     Foreground = new SolidColorBrush(Color.Parse("#dce9ef")),
+                    TextWrapping = TextWrapping.Wrap,
                 },
             },
         };

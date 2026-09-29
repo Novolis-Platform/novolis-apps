@@ -109,7 +109,9 @@ public sealed class KartverketMapSearchProvider : IMapSearchProvider
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
-        var uri = $"{KartverketMap.SearchEndpoint}?tekst={Uri.EscapeDataString(query.Trim())}&limit=10";
+        var uri =
+            $"{KartverketMap.SearchEndpoint}?sok={Uri.EscapeDataString(query.Trim())}"
+            + "&treffPerSide=10&side=0";
 
         string json;
         try

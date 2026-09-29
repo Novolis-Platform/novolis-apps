@@ -3,7 +3,6 @@ using Android.Runtime;
 using Avalonia;
 using Avalonia.Android;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Novolis.Avalonia.Mobile.Android;
 using PresenceLedger.App;
 using PresenceLedgerApp = PresenceLedger.App.App;
@@ -14,8 +13,6 @@ namespace PresenceLedger.Android;
 [Application]
 public class MainApplication : AvaloniaAndroidApplication<PresenceLedgerApp>
 {
-    IHost? _host;
-
     /// <summary>JNI constructor.</summary>
     protected MainApplication(nint javaReference, JniHandleOwnership transfer)
         : base(javaReference, transfer)
@@ -25,15 +22,12 @@ public class MainApplication : AvaloniaAndroidApplication<PresenceLedgerApp>
     /// <inheritdoc />
     public override void OnCreate()
     {
-        _host = Host.CreateDefaultBuilder()
-            .ConfigureServices(services =>
-            {
-                services.AddNovolisMobileAndroid("PresenceLedger");
-                services.AddPresenceLedger();
-            })
-            .Build();
-        PresenceLedgerApp.Services = _host.Services;
-        _host.Start();
+        // Use the minimal container on Android so process startup does not
+        // synchronously load the generic host configuration pipeline.
+        var services = new ServiceCollection();
+        services.AddNovolisMobileAndroid("PresenceLedger");
+        services.AddPresenceLedger();
+        PresenceLedgerApp.Services = services.BuildServiceProvider();
         base.OnCreate();
     }
 
