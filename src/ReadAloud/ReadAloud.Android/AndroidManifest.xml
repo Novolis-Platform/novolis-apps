@@ -9,5 +9,14 @@
       android:supportsRtl="true"
       android:theme="@style/MainTheme"
       android:usesCleartextTraffic="false">
+    <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="${applicationId}.novolis.diagnostics"
+        android:exported="false"
+        android:grantUriPermissions="true">
+      <meta-data
+          android:name="android.support.FILE_PROVIDER_PATHS"
+          android:resource="@xml/novolis_diagnostics_paths" />
+    </provider>
   </application>
 </manifest>

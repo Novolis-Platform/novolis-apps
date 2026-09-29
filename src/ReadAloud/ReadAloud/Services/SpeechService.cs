@@ -6,7 +6,7 @@ using Novolis.Manuscript.Export.Audio;
 
 namespace ReadAloud.Services;
 
-/// <summary>Reads text with the selected device voice or user-owned Azure Speech.</summary>
+/// <summary>Reads text with the configured user-owned Azure Speech resource.</summary>
 public sealed class SpeechService : IDisposable
 {
     public const int MobileMaxChunkChars = 700;
@@ -95,7 +95,8 @@ public sealed class SpeechService : IDisposable
     public async Task SpeakAsync(string text, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(text);
-        if (string.IsNullOrWhiteSpace(text))
+        var speechText = MarkdownSpeechPreParser.Normalize(text);
+        if (string.IsNullOrWhiteSpace(speechText))
             return;
 
         CancellationToken linked;
@@ -113,7 +114,7 @@ public sealed class SpeechService : IDisposable
 
         try
         {
-            var plan = SpeechPlanner.Create(text, Voice.ToSpeechOptions(), speakTitle: false);
+            var plan = SpeechPlanner.Create(speechText, Voice.ToSpeechOptions(), speakTitle: false);
             var provider = _front.Provider;
             foreach (var segment in plan.Segments)
             {
@@ -158,13 +159,14 @@ public sealed class SpeechService : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(text);
-        if (string.IsNullOrWhiteSpace(text))
+        var speechText = MarkdownSpeechPreParser.Normalize(text);
+        if (string.IsNullOrWhiteSpace(speechText))
             return [];
         if (!_front.IsAzureConfigured)
             throw new SpeechCapabilityException(
-                "MP3 export requires Azure Speech setup. Device voice does not create files.");
+                "MP3 export requires Azure Speech setup.");
 
-        var plan = SpeechPlanner.Create(text, Voice.ToSpeechOptions(), speakTitle: false);
+        var plan = SpeechPlanner.Create(speechText, Voice.ToSpeechOptions(), speakTitle: false);
         using var output = new MemoryStream();
         foreach (var segment in plan.Segments)
         {
@@ -182,10 +184,11 @@ public sealed class SpeechService : IDisposable
     /// <summary>Returns whether all Azure segments for this text are cached.</summary>
     public bool HasCachedAudio(string text)
     {
-        if (string.IsNullOrWhiteSpace(text) || !_front.IsAzureConfigured)
+        var speechText = MarkdownSpeechPreParser.Normalize(text);
+        if (string.IsNullOrWhiteSpace(speechText) || !_front.IsAzureConfigured)
             return false;
 
-        var plan = SpeechPlanner.Create(text, Voice.ToSpeechOptions(), speakTitle: false);
+        var plan = SpeechPlanner.Create(speechText, Voice.ToSpeechOptions(), speakTitle: false);
         var any = false;
         foreach (var segment in plan.Segments)
         {
