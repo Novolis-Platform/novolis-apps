@@ -80,6 +80,15 @@ jobs:
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          gov="../novolis-governance"
+          if [ ! -f "$gov/build/Novolis.Version.targets" ]; then
+            git clone --depth 1 --branch main \
+              "https://github.com/${{ github.repository_owner }}/novolis-governance.git" "$gov"
+          fi
       - uses: Novolis-Platform/novolis-workflows/actions/setup-dotnet@main
         with:
           dotnet-version: 10.0.x
