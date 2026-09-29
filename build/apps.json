@@ -444,7 +444,11 @@
         ],
         "retention": "uninstall-preserves-user-data"
       },
-      "release": { "githubRelease": true, "checksums": true }
+      "release": {
+        "githubRelease": true,
+        "checksums": true,
+        "googlePlay": { "enabled": true }
+      }
     },
     {
       "key": "coverage-studio",

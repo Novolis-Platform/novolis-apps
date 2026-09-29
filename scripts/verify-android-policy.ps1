@@ -83,8 +83,12 @@ foreach ($app in $manifest.apps) {
 
 # Version code helper sanity
 $code = Get-NovolisAndroidVersionCode -PackageVersion '2026.1.0.42' -RunNumber 42
-if ($code -lt 2026000000) {
-    $errors.Add("Get-NovolisAndroidVersionCode produced unexpected value: $code")
+if ($code -ne 2026100042) {
+    $errors.Add("Get-NovolisAndroidVersionCode produced unexpected value: $code (expected 2026100042)")
+}
+$nextMinorCode = Get-NovolisAndroidVersionCode -PackageVersion '2026.1.1.0' -RunNumber 0
+if ($nextMinorCode -le $code) {
+    $errors.Add("Android versionCode is not monotonic across minor releases: $code -> $nextMinorCode")
 }
 
 if ($errors.Count -gt 0) {

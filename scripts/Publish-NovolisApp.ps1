@@ -59,8 +59,13 @@ function Get-NovolisAndroidAppCatalog {
 
     $manifest = Get-NovolisAppsManifest -RepoRoot $RepoRoot
     foreach ($app in $manifest.apps) {
-        if (-not ($app.ship -contains 'android-apk')) { continue }
-        if (-not $app.android) { throw "App $($app.key) ships android-apk without android metadata." }
+        $shipsApk = $app.ship -contains 'android-apk'
+        $playEnabled = $false
+        if ($app.release -and $app.release.googlePlay) {
+            $playEnabled = [bool]$app.release.googlePlay.enabled
+        }
+        if (-not ($shipsApk -or $playEnabled)) { continue }
+        if (-not $app.android) { throw "App $($app.key) declares Android delivery without android metadata." }
         [pscustomobject]@{
             Key               = $app.key
             Choice            = $app.choice
@@ -71,6 +76,7 @@ function Get-NovolisAndroidAppCatalog {
             SigningSecretKey  = $app.android.signingSecretKey
             Stack             = $app.stack
             IsMaui            = ($app.stack -eq 'maui')
+            GooglePlayEnabled = $playEnabled
         }
     }
 }
@@ -425,22 +431,27 @@ function New-NovolisAdhocAndroidKeystore {
     }
 }
 
-function Find-NovolisPublishedApk {
-    param([Parameter(Mandatory)][string]$RepoRoot)
+function Find-NovolisPublishedAndroidArtifact {
+    param(
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [Parameter(Mandatory)][ValidateSet('apk', 'aab')][string]$PackageFormat
+    )
 
-    $files = @(Get-ChildItem -Path $RepoRoot -Recurse -File -Filter '*-Signed.apk' -ErrorAction SilentlyContinue)
-    if ($files.Count -eq 0) {
-        $files = @(Get-ChildItem -Path $RepoRoot -Recurse -File -Filter '*.apk' -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notmatch 'unsigned' })
-    }
-
-    $files |
+    $extension = $PackageFormat.ToLowerInvariant()
+    @(Get-ChildItem -Path $RepoRoot -Recurse -File -Filter "*.$extension" -ErrorAction SilentlyContinue) |
         Where-Object {
             $_.FullName -notmatch '[\\/]obj[\\/]' -and
-            $_.FullName -match '(?i)[\\/]release'
+            $_.FullName -notmatch '[\\/]artifacts[\\/]' -and
+            $_.FullName -match '(?i)[\\/]bin[\\/]Release[\\/]' -and
+            $_.Name -notmatch '(?i)unsigned'
         } |
         Sort-Object LastWriteTimeUtc -Descending |
         Select-Object -First 1
+}
+
+function Find-NovolisPublishedApk {
+    param([Parameter(Mandatory)][string]$RepoRoot)
+    Find-NovolisPublishedAndroidArtifact -RepoRoot $RepoRoot -PackageFormat apk
 }
 
 function Get-NovolisAndroidVersionCode {
@@ -449,6 +460,8 @@ function Get-NovolisAndroidVersionCode {
         [int]$RunNumber = 0
     )
     # YEAR.MAJOR.MINOR.BUILD → monotonic int; prefer run number as BUILD when present.
+    # The four digit slots are YEAR / MAJOR / MINOR / BUILD with a base of
+    # 1,000,000. This avoids the old build % 100 collision at release 100.
     $parts = $PackageVersion.Split('.')
     if ($parts.Length -lt 3) { throw "PackageVersion '$PackageVersion' is not YEAR.MAJOR.MINOR[.BUILD]." }
     $year = [int]$parts[0]
@@ -456,11 +469,19 @@ function Get-NovolisAndroidVersionCode {
     $minor = [int]$parts[2]
     $build = if ($parts.Length -ge 4) { [int]$parts[3] } else { $RunNumber }
     if ($RunNumber -gt $build) { $build = $RunNumber }
-    # Fits comfortably under Android's 2100000000 limit for CalVer through 2099.
-    return ($year * 1000000) + ($major * 10000) + ($minor * 100) + ($build % 100)
+    if ($year -lt 2000 -or $year -gt 2099) { throw "YEAR '$year' is outside the Android versionCode range 2000..2099." }
+    if ($major -lt 0 -or $major -gt 9) { throw "MAJOR '$major' must fit the Android versionCode range 0..9." }
+    if ($minor -lt 0 -or $minor -gt 999) { throw "MINOR '$minor' must fit the Android versionCode range 0..999." }
+    if ($build -lt 0 -or $build -gt 999) { throw "BUILD '$build' must fit the Android versionCode range 0..999." }
+
+    $code = ($year * 1000000) + ($major * 100000) + ($minor * 1000) + $build
+    if ($code -gt 2100000000) {
+        throw "Computed Android versionCode '$code' exceeds Android's 2100000000 limit."
+    }
+    return $code
 }
 
-function Publish-NovolisAndroidApk {
+function Publish-NovolisAndroidArtifact {
     param(
         [Parameter(Mandatory)][string]$RepoRoot,
         [Parameter(Mandatory)][string]$AppKey,
@@ -469,12 +490,14 @@ function Publish-NovolisAndroidApk {
         [string]$KeystorePath,
         [string]$KeyAlias,
         [string]$KeystorePassword,
-        [string]$KeyPassword
+        [string]$KeyPassword,
+        [ValidateSet('apk', 'aab')][string]$PackageFormat = 'apk',
+        [switch]$RequirePersistentSigning
     )
 
     $ErrorActionPreference = 'Stop'
     $app = Get-NovolisAndroidAppCatalog -RepoRoot $RepoRoot | Where-Object { $_.Key -eq $AppKey } | Select-Object -First 1
-    if (-not $app) { throw "Unknown android-apk app key: $AppKey" }
+    if (-not $app) { throw "Unknown Android app key: $AppKey" }
 
     $project = Join-Path $RepoRoot $app.Project
     $stagingDir = Join-Path $RepoRoot "artifacts/$AppKey/android"
@@ -489,7 +512,8 @@ function Publish-NovolisAndroidApk {
         $project
         '-f', 'net10.0-android'
         '-c', 'Release'
-        '-p:AndroidPackageFormats=apk'
+        "-p:AndroidPackageFormat=$PackageFormat"
+        "-p:AndroidPackageFormats=$PackageFormat"
         '-p:AndroidBuildApplicationPackage=true'
         '-p:AndroidFastDeployment=false'
         '-p:EmbedAssembliesIntoApk=true'
@@ -504,6 +528,9 @@ function Publish-NovolisAndroidApk {
 
     $hasPersistentKey = $KeystorePath -and $KeyAlias -and $KeystorePassword -and $KeyPassword
     if (-not $hasPersistentKey) {
+        if ($RequirePersistentSigning) {
+            throw "Persistent Android signing secrets are required for Google Play delivery of $AppKey."
+        }
         Write-Warning "No persistent Android signing key for $AppKey. Generating an adhoc keystore for sideload testing — not upgrade-safe."
         $adhoc = New-NovolisAdhocAndroidKeystore -Path (Join-Path ([IO.Path]::GetTempPath()) "novolis-adhoc-$AppKey.keystore")
         $KeystorePath = $adhoc.Path
@@ -520,20 +547,87 @@ function Publish-NovolisAndroidApk {
         "-p:AndroidSigningKeyPass=$KeyPassword"
     )
 
-    Write-Host "Publishing Android APK for $AppKey (versionCode=$versionCode)..."
+    Write-Host "Publishing Android $PackageFormat for $AppKey (versionCode=$versionCode)..."
     & dotnet publish @publishArgs @cfgArgs | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "Android publish failed with exit code $LASTEXITCODE." }
+    if ($LASTEXITCODE -ne 0) { throw "Android $PackageFormat publish failed with exit code $LASTEXITCODE." }
 
-    $apk = Find-NovolisPublishedApk -RepoRoot $RepoRoot
-    if (-not $apk) { throw "No APK produced for $AppKey." }
+    $artifact = Find-NovolisPublishedAndroidArtifact -RepoRoot $RepoRoot -PackageFormat $PackageFormat
+    if (-not $artifact) { throw "No Android $PackageFormat produced for $AppKey." }
 
-    $dest = Join-Path $stagingDir "$($app.ArtifactPrefix)-$PackageVersion-android.apk"
-    Copy-Item -LiteralPath $apk.FullName -Destination $dest -Force
-    Write-Host "APK: $dest"
+    $dest = Join-Path $stagingDir "$($app.ArtifactPrefix)-$PackageVersion-android.$PackageFormat"
+    Copy-Item -LiteralPath $artifact.FullName -Destination $dest -Force
+    Write-Host "Android $PackageFormat`: $dest"
     return [pscustomobject]@{
-        AppKey      = $AppKey
-        ApkPath     = $dest
-        ApkName     = Split-Path $dest -Leaf
-        VersionCode = $versionCode
+        AppKey         = $AppKey
+        ApplicationId  = $app.ApplicationId
+        ArtifactPath   = $dest
+        ArtifactName   = Split-Path $dest -Leaf
+        PackageFormat  = $PackageFormat
+        VersionCode    = $versionCode
+    }
+}
+
+function Publish-NovolisAndroidApk {
+    param(
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [Parameter(Mandatory)][string]$AppKey,
+        [Parameter(Mandatory)][string]$PackageVersion,
+        [int]$RunNumber = 0,
+        [string]$KeystorePath,
+        [string]$KeyAlias,
+        [string]$KeystorePassword,
+        [string]$KeyPassword
+    )
+
+    $item = Publish-NovolisAndroidArtifact `
+        -RepoRoot $RepoRoot `
+        -AppKey $AppKey `
+        -PackageVersion $PackageVersion `
+        -RunNumber $RunNumber `
+        -KeystorePath $KeystorePath `
+        -KeyAlias $KeyAlias `
+        -KeystorePassword $KeystorePassword `
+        -KeyPassword $KeyPassword `
+        -PackageFormat apk
+
+    [pscustomobject]@{
+        AppKey        = $item.AppKey
+        ApplicationId = $item.ApplicationId
+        ApkPath       = $item.ArtifactPath
+        ApkName       = $item.ArtifactName
+        VersionCode   = $item.VersionCode
+    }
+}
+
+function Publish-NovolisAndroidBundle {
+    param(
+        [Parameter(Mandatory)][string]$RepoRoot,
+        [Parameter(Mandatory)][string]$AppKey,
+        [Parameter(Mandatory)][string]$PackageVersion,
+        [int]$RunNumber = 0,
+        [string]$KeystorePath,
+        [string]$KeyAlias,
+        [string]$KeystorePassword,
+        [string]$KeyPassword
+    )
+
+    $item = Publish-NovolisAndroidArtifact `
+        -RepoRoot $RepoRoot `
+        -AppKey $AppKey `
+        -PackageVersion $PackageVersion `
+        -RunNumber $RunNumber `
+        -KeystorePath $KeystorePath `
+        -KeyAlias $KeyAlias `
+        -KeystorePassword $KeystorePassword `
+        -KeyPassword $KeyPassword `
+        -PackageFormat aab `
+        -RequirePersistentSigning
+
+    [pscustomobject]@{
+        AppKey        = $item.AppKey
+        ApplicationId = $item.ApplicationId
+        AabPath       = $item.ArtifactPath
+        AabName       = $item.ArtifactName
+        VersionCode   = $item.VersionCode
     }
 }

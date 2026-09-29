@@ -76,6 +76,18 @@ public sealed class CiMatrixPlannerTests
     }
 
     [Test]
+    public async Task ReadAloudEnablesGooglePlayDeliveryWithoutChangingGitHubChannels()
+    {
+        var readAloud = LoadManifest().Apps.Single(app => app.Key == "read-aloud");
+
+        await Assert.That(readAloud.Ship).Contains("android-apk");
+        await Assert.That(readAloud.Release?.GithubRelease).IsTrue();
+        await Assert.That(readAloud.Release?.GooglePlay?.Enabled).IsTrue();
+        await Assert.That(readAloud.Android?.ApplicationId)
+            .IsEqualTo("com.novolis.readaloud");
+    }
+
+    [Test]
     public async Task BrandingAssetsExistAtRepoRoot()
     {
         var root = FindRepoRoot();

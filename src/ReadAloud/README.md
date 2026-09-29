@@ -4,7 +4,7 @@ Avalonia **Android + Windows desktop** scratch reader: paste or open text, **lis
 
 No GitHub, no library, no manuscript tree — just text in, speech out. Uses `Novolis.Avalonia.Speech` with local platform adapters and `Novolis.Audio.Voice.AzureSpeech`.
 
-**Windows** ships on [GitHub Releases](https://github.com/Novolis-Platform/novolis-apps/releases) as a per-user Inno installer and portable zip. **Android APK** is local deploy only (not CI-released).
+**Windows** ships on [GitHub Releases](https://github.com/Novolis-Platform/novolis-apps/releases) as a per-user Inno installer and portable zip. The **Android APK** remains a GitHub Release/sideload artifact, and the matching signed **Android App Bundle** can be delivered to Google Play through the separate Play Store workflow.
 
 ## Projects
 
@@ -12,14 +12,14 @@ No GitHub, no library, no manuscript tree — just text in, speech out. Uses `No
 |---------|------|------|
 | `ReadAloud` | `ReadAloud/` | Shared UI + speech service |
 | `ReadAloud.Desktop` | `ReadAloud.Desktop/` | Windows desktop head (`WinExe`) — release catalog |
-| `ReadAloud.Android` | `ReadAloud.Android/` | Android APK (`net10.0-android`, API 23+) — local only |
+| `ReadAloud.Android` | `ReadAloud.Android/` | Android APK/AAB (`net10.0-android`, API 23+) |
 
 ## Platforms
 
 | Target | SDK / RID | Notes |
 |--------|-----------|-------|
 | Windows desktop | Avalonia Desktop | Installer + portable zip on merge to `main` |
-| Android | `net10.0-android` | Deploy via `adb`; APK not CI-released |
+| Android | `net10.0-android` | Deploy via `adb`, GitHub Release APK, or Google Play AAB |
 
 ## Releases (Windows)
 
@@ -47,7 +47,14 @@ dotnet run --project d:\novolis\novolis-apps\src\ReadAloud\ReadAloud.Desktop
 pwsh -File d:\novolis\novolis-apps\scripts\deploy-readaloud-android.ps1 -Serial <device-serial>
 ```
 
-Requires Android SDK / workload and a connected device or emulator. APK is never uploaded to GitHub Releases. Read Aloud uses Azure Speech for playback and MP3 export; the endpoint and quota are supplied by the user.
+Requires Android SDK / workload and a connected device or emulator. Read Aloud
+uses Azure Speech for playback and MP3 export; the endpoint and quota are
+supplied by the user.
+
+The Google Play workflow starts from an existing `vYEAR.MAJOR.MINOR.BUILD`
+GitHub Release tag and uploads the matching signed AAB to the selected Play
+track. See [`docs/release.md`](../../docs/release.md) for the required upload
+key and service-account setup.
 
 ## Android Azure sign-in
 

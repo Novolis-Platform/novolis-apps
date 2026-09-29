@@ -25,7 +25,7 @@ internal static class Program
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Usage: AppsManifest <validate|generate-solutions|ci-matrix|release-matrix|list> [options]");
+            Console.Error.WriteLine("Usage: AppsManifest <validate|generate-solutions|ci-matrix|release-matrix|play-matrix|list> [options]");
             return 2;
         }
 
@@ -41,6 +41,7 @@ internal static class Program
                 "generate-solutions" => GenerateSolutions(manifestPath, repoRoot, write: true),
                 "ci-matrix" => EmitCiMatrix(manifestPath, repoRoot, args),
                 "release-matrix" => EmitReleaseMatrix(manifestPath, args),
+                "play-matrix" => EmitGooglePlayMatrix(manifestPath, args),
                 "list" => ListApps(manifestPath),
                 _ => Unknown(command),
             };
@@ -201,6 +202,23 @@ internal static class Program
                 && !app.Android.Project.Equals(app.Projects.Android, StringComparison.OrdinalIgnoreCase))
             {
                 errors.Add($"App '{app.Key}' has different Android projects in projects.android and android.project.");
+            }
+
+            if (app.Release?.GooglePlay?.Enabled == true)
+            {
+                if (app.Android is null)
+                {
+                    errors.Add($"App '{app.Key}' enables Google Play delivery without Android metadata.");
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(app.Android.Project))
+                        errors.Add($"App '{app.Key}' enables Google Play delivery without an Android project.");
+                    if (string.IsNullOrWhiteSpace(app.Android.ApplicationId))
+                        errors.Add($"App '{app.Key}' enables Google Play delivery without an applicationId.");
+                    if (string.IsNullOrWhiteSpace(app.Android.SigningSecretKey))
+                        errors.Add($"App '{app.Key}' enables Google Play delivery without a signingSecretKey.");
+                }
             }
         }
 
@@ -566,6 +584,39 @@ internal static class Program
         return 0;
     }
 
+    private static int EmitGooglePlayMatrix(string manifestPath, string[] args)
+    {
+        var doc = Load(manifestPath);
+        var appChoice = GetOption(args, "--app") ?? "All";
+        var allAppsSelected = string.Equals(appChoice, "All", StringComparison.OrdinalIgnoreCase);
+
+        IEnumerable<AppEntry> apps = doc.Apps.Where(app => app.Release?.GooglePlay?.Enabled == true);
+        if (!allAppsSelected)
+        {
+            apps = apps.Where(app =>
+                app.Choice.Equals(appChoice, StringComparison.OrdinalIgnoreCase)
+                || app.Key.Equals(appChoice, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var selectedApps = apps.ToList();
+        if (selectedApps.Count == 0 && !allAppsSelected)
+            throw new InvalidOperationException($"No Google Play-enabled app matches '{appChoice}'.");
+
+        var include = selectedApps.Select(app => new
+        {
+            key = app.Key,
+            choice = app.Choice,
+            stack = app.Stack,
+            android_project = app.Android?.Project ?? app.Projects.Android ?? app.Projects.Maui,
+            application_id = app.Android?.ApplicationId,
+            artifact_prefix = app.ArtifactPrefix,
+            signing_secret_key = app.Android?.SigningSecretKey,
+        });
+
+        Console.WriteLine(JsonSerializer.Serialize(new { include }, CompactJsonOptions));
+        return 0;
+    }
+
     private static int ListApps(string manifestPath)
     {
         var doc = Load(manifestPath);
@@ -806,4 +857,5 @@ internal sealed class ReleaseConfig
 {
     public bool GithubRelease { get; set; } = true;
     public bool Checksums { get; set; } = true;
+    public GooglePlayConfig? GooglePlay { get; set; }
 }

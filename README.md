@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <strong>Desktop products on NuGet only</strong><br/>
-  Production Avalonia apps and installers composed entirely from Novolis packages.
+  <strong>Production products on NuGet only</strong><br/>
+  Production Avalonia apps, Android bundles, and installers composed entirely from Novolis packages.
 </p>
 
 <p align="center">
@@ -59,7 +59,7 @@ dotnet run --project d:\novolis\novolis-apps\tools\AppsManifest\AppsManifest.csp
 | | Meaning |
 |---|---|
 | **Local** | Platforms you can restore/build/debug (may include Linux or Windows MAUI without shipping them) |
-| **Ship** | Release channels that produce artifacts (`windows-inno`, `android-apk`) |
+| **Ship** | GitHub Release channels that produce artifacts (`windows-inno`, `android-apk`) |
 
 Phase one does **not** ship Linux installers. Linux remains a local/PR capability where the stack supports it.
 
@@ -73,6 +73,15 @@ PR/merge CI validates **changed apps only** (scoped solutions + tests; Android c
 | `android-apk` | Installable APK + SHA-256 (adhoc signing allowed for testing) |
 
 Version format: `YEAR.MAJOR.MINOR.BUILD` from `build/version.json` plus workflow run number.
+
+Google Play delivery is intentionally separate from these GitHub Release
+channels. Apps opt in with `release.googlePlay.enabled` in
+[`build/apps.json`](build/apps.json). Run
+`.github/workflows/play-store.yml` with an existing release tag to build and
+upload the matching signed AAB to an internal, closed, open, or production
+track. Play delivery requires persistent upload-key secrets and the
+`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` GitHub Environment secret; it never uses the
+adhoc APK fallback.
 
 ```powershell
 pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio
