@@ -41,10 +41,10 @@ public class MainActivity : AvaloniaMainActivity
 
     protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
     {
+        base.OnActivityResult(requestCode, resultCode, data);
         AuthenticationContinuationHelper.SetAuthenticationContinuationEventArgs(
             requestCode,
             resultCode,
-            data!);
-        base.OnActivityResult(requestCode, resultCode, data);
+            data);
     }
 }
