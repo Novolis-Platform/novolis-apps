@@ -182,7 +182,8 @@ internal static class AppPublishCommand
         IReadOnlyList<string> versionArgs)
     {
         var arguments = new List<string> { "restore", projectPath, "-r", runtime };
-        arguments.AddRange(MauiWindowsFrameworkArgs(projectPath));
+        // dotnet restore treats -f as --force and then as a second project (MSB1008).
+        arguments.AddRange(MauiWindowsRestoreArgs(projectPath));
         arguments.AddRange(configArgs);
         arguments.AddRange(versionArgs);
         ProcessRunner.Run("dotnet", repoRoot, arguments);
@@ -209,13 +210,25 @@ internal static class AppPublishCommand
         ProcessRunner.Run("dotnet", repoRoot, arguments);
     }
 
+    private static bool IsMauiWindowsProject(string projectPath) =>
+        projectPath.EndsWith("NovolisPdfReader.csproj", StringComparison.OrdinalIgnoreCase)
+        || File.ReadAllText(projectPath).Contains("<UseMaui>true</UseMaui>", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Restore has no <c>--framework</c> switch. Pass the Windows TFM as a property only.
+    /// </summary>
+    private static IEnumerable<string> MauiWindowsRestoreArgs(string projectPath)
+    {
+        if (!IsMauiWindowsProject(projectPath))
+            return [];
+
+        return ["-p:NovolisMauiTargetFrameworks=net10.0-windows10.0.19041.0"];
+    }
+
     private static IEnumerable<string> MauiWindowsFrameworkArgs(string projectPath)
     {
-        if (!projectPath.EndsWith("NovolisPdfReader.csproj", StringComparison.OrdinalIgnoreCase)
-            && !File.ReadAllText(projectPath).Contains("<UseMaui>true</UseMaui>", StringComparison.Ordinal))
-        {
+        if (!IsMauiWindowsProject(projectPath))
             return [];
-        }
 
         return
         [
