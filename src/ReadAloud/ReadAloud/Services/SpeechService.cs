@@ -10,6 +10,8 @@ namespace ReadAloud.Services;
 public sealed class SpeechService : IDisposable
 {
     public const int MobileMaxChunkChars = 700;
+    public const string DefaultVoiceName = "en-US-AvaMultilingualNeural";
+    public const string DefaultLocale = "en-US";
     public const string DefaultAzureClientId = "c8b938aa-2e5d-48b4-89c6-fc139733c44d";
     public const string DefaultAzureTenantId = "25427e56-8e11-4e5a-b8e6-d7645bdc27b1";
 
@@ -31,21 +33,11 @@ public sealed class SpeechService : IDisposable
         Directory.CreateDirectory(_cacheDir);
 
         _front.Changed += OnFrontChanged;
-        Voice = new VoiceSettings
-        {
-            Voice = "en-US-AvaMultilingualNeural",
-            RatePercent = -4,
-            PitchHertz = 0,
-            VolumePercent = 0,
-            SceneBreakMs = 1200,
-            PauseMs = 500,
-            MaxChunkChars = MobileMaxChunkChars,
-            Pronunciation = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-        };
+        Voice = CreateVoice(DefaultVoiceName);
     }
 
     /// <summary>Current speech settings used for Azure synthesis and planning.</summary>
-    public VoiceSettings Voice { get; }
+    public VoiceSettings Voice { get; private set; }
 
     /// <summary>Whether Azure MP3 output is currently available.</summary>
     public bool CanCreateMp3 => _front.Capabilities.CanCreateMp3;
@@ -66,19 +58,59 @@ public sealed class SpeechService : IDisposable
     {
         await _front.InitializeAsync(cancellationToken).ConfigureAwait(false);
         if (_front.IsAzureConfigured)
+        {
             await _front.UseAzureSpeechAsync(cancellationToken).ConfigureAwait(false);
+            var setup = _front.AzureConfiguration;
+            if (setup is not null && !string.IsNullOrWhiteSpace(setup.VoiceName))
+                SetVoice(setup.VoiceName, setup.Locale);
+        }
+
         Notify();
     }
+
+    /// <summary>Updates the in-memory voice used for synthesis. Does not persist.</summary>
+    public void SetVoice(string voiceName, string? locale = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(voiceName);
+        _ = locale;
+        Voice = CreateVoice(voiceName.Trim(), Voice);
+    }
+
+    /// <summary>Updates the in-memory voice and persists it on the Azure setup when configured.</summary>
+    public async Task UpdateVoiceAsync(
+        string voiceName,
+        string? locale = null,
+        CancellationToken cancellationToken = default)
+    {
+        SetVoice(voiceName, locale);
+        if (_front.IsAzureConfigured)
+        {
+            await _front
+                .UpdateAzureVoiceAsync(Voice.Voice, locale, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        Notify();
+    }
+
+    /// <summary>Lists every voice available at the configured Speech resource.</summary>
+    public Task<IReadOnlyList<AzureSpeechVoice>> ListVoicesAsync(
+        CancellationToken cancellationToken = default) =>
+        _front.ListVoicesAsync(cancellationToken);
 
     /// <summary>Selects configured Azure Speech.</summary>
     public Task UseAzureSpeechAsync(CancellationToken cancellationToken = default) =>
         _front.UseAzureSpeechAsync(cancellationToken);
 
     /// <summary>Stores and tests are deliberately separate so setup UI can report both steps.</summary>
-    public Task ConfigureAzureAsync(
+    public async Task ConfigureAzureAsync(
         AzureSpeechSetup setup,
-        CancellationToken cancellationToken = default) =>
-        _front.ConfigureAzureAsync(setup, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        await _front.ConfigureAzureAsync(setup, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(setup.VoiceName))
+            SetVoice(setup.VoiceName, setup.Locale);
+    }
 
     public Task<IReadOnlyList<AzureSpeechVoice>> TestAzureAsync(
         CancellationToken cancellationToken = default) =>
@@ -259,6 +291,19 @@ public sealed class SpeechService : IDisposable
             .ToLowerInvariant();
         return Path.Combine(_cacheDir, hash + ".mp3");
     }
+
+    static VoiceSettings CreateVoice(string voiceName, VoiceSettings? current = null) => new()
+    {
+        Voice = voiceName,
+        RatePercent = current?.RatePercent ?? -4,
+        PitchHertz = current?.PitchHertz ?? 0,
+        VolumePercent = current?.VolumePercent ?? 0,
+        SceneBreakMs = current?.SceneBreakMs ?? 1200,
+        PauseMs = current?.PauseMs ?? 500,
+        MaxChunkChars = current?.MaxChunkChars ?? MobileMaxChunkChars,
+        Pronunciation = current?.Pronunciation
+            ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+    };
 
     void OnFrontChanged(object? sender, EventArgs e) => Notify();
 

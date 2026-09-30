@@ -32,6 +32,31 @@ internal static class ReadAloudTheme
         return block;
     }
 
+    public static TextBox Field(string? placeholder = null, bool secret = false)
+    {
+        var box = new TextBox
+        {
+            FontFamily = GraphicalProfile.BodyFont,
+            FontSize = 14,
+            PlaceholderText = placeholder,
+            PasswordChar = secret ? '•' : default,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        GraphicalProfileBinding.Bind(
+            box,
+            TextBox.ForegroundProperty,
+            GraphicalProfile.TextResourceKey);
+        GraphicalProfileBinding.Bind(
+            box,
+            TextBox.BackgroundProperty,
+            GraphicalProfile.RaisedResourceKey);
+        GraphicalProfileBinding.Bind(
+            box,
+            TextBox.CaretBrushProperty,
+            GraphicalProfile.AccentResourceKey);
+        return box;
+    }
+
     public static TextBlock Muted(string text, double size = 14)
     {
         var block = new TextBlock

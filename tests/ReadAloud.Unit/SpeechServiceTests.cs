@@ -39,9 +39,66 @@ public sealed class SpeechServiceTests
             .ThrowsExactly<SpeechCapabilityException>();
     }
 
+    [Test]
+    public async Task Default_voice_is_ava_and_set_voice_replaces_it()
+    {
+        using var harness = Harness.Create();
+
+        await Assert.That(harness.Speech.Voice.Voice)
+            .IsEqualTo(SpeechService.DefaultVoiceName);
+
+        harness.Speech.SetVoice("en-US-JennyNeural", "en-US");
+
+        await Assert.That(harness.Speech.Voice.Voice).IsEqualTo("en-US-JennyNeural");
+    }
+
+    [Test]
+    public async Task Initialize_applies_the_saved_azure_voice()
+    {
+        using var harness = Harness.Create();
+        await harness.Front.ConfigureAzureAsync(new AzureSpeechSetup
+        {
+            Endpoint = new Uri("https://speech.example.test/"),
+            ApiKey = "secret",
+            VoiceName = "en-US-JennyNeural",
+            Locale = "en-US",
+        });
+
+        using var speech = new SpeechService(
+            harness.Front,
+            harness.Player,
+            new TempPaths(harness.Root));
+        await speech.InitializeAsync();
+
+        await Assert.That(speech.Voice.Voice).IsEqualTo("en-US-JennyNeural");
+    }
+
+    [Test]
+    public async Task Update_voice_persists_without_dropping_the_key()
+    {
+        using var harness = Harness.Create();
+        await harness.Speech.ConfigureAzureAsync(new AzureSpeechSetup
+        {
+            Endpoint = new Uri("https://speech.example.test/"),
+            ApiKey = "secret",
+            VoiceName = SpeechService.DefaultVoiceName,
+        });
+
+        await harness.Speech.UpdateVoiceAsync("en-US-JennyNeural", "en-US");
+
+        await Assert.That(harness.Speech.Voice.Voice).IsEqualTo("en-US-JennyNeural");
+        await Assert.That(harness.Front.AzureConfiguration!.VoiceName)
+            .IsEqualTo("en-US-JennyNeural");
+        await Assert.That(harness.Front.AzureConfiguration.ApiKey).IsNull();
+        await Assert.That(harness.Store.Values.Single()).Contains("secret");
+        await Assert.That(harness.Store.Values.Single()).Contains("en-US-JennyNeural");
+    }
+
     sealed class Harness : IDisposable
     {
         public required SpeechService Speech { get; init; }
+        public required SpeechFront Front { get; init; }
+        public required MemoryTokenStore Store { get; init; }
         public required CapturingVoice Voice { get; init; }
         public required FakePlayer Player { get; init; }
         public required string Root { get; init; }
@@ -52,11 +109,14 @@ public sealed class SpeechServiceTests
             Directory.CreateDirectory(root);
             var voice = new CapturingVoice();
             var player = new FakePlayer();
-            var front = new SpeechFront(voice, new MemoryTokenStore());
+            var store = new MemoryTokenStore();
+            var front = new SpeechFront(voice, store);
             var speech = new SpeechService(front, player, new TempPaths(root));
             return new Harness
             {
                 Speech = speech,
+                Front = front,
+                Store = store,
                 Voice = voice,
                 Player = player,
                 Root = root,
@@ -105,6 +165,8 @@ public sealed class SpeechServiceTests
     sealed class MemoryTokenStore : ISecureTokenStore
     {
         readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
+
+        public IReadOnlyCollection<string> Values => _values.Values;
 
         public Task<string?> GetAsync(string key, CancellationToken cancellationToken = default) =>
             Task.FromResult(_values.GetValueOrDefault(key));

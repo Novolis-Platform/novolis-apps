@@ -76,8 +76,17 @@ through the management API. The signed-in account needs Reader or Monitoring
 Reader access to the selected resource. Manual subscription-key credentials
 can synthesize speech but cannot read management-plane usage metrics.
 
-For **Manual — JSON credentials file**, choose **Import credentials file…**
-and select a user-owned UTF-8 JSON file with this exact schema:
+The main chrome **Voice** list is populated from the connected Speech resource
+after sign-in, typed save, import, or Test. The default selection is
+`en-US-AvaMultilingualNeural`. Changing the list persists that voice with the
+saved Azure setup so the next launch restores it.
+
+For **Manual — JSON credentials file**, type the Speech **endpoint** and
+**subscription key** and choose **Save credentials**, or choose
+**Import credentials file…** and select a user-owned UTF-8 JSON file with this
+exact schema. Typed fields stay on the Manual panel even when import is
+available. Import fills the endpoint and stores the key; the key box stays
+empty after a successful save or import.
 
 ```json
 {

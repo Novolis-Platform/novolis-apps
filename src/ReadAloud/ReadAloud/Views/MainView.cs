@@ -1,3 +1,4 @@
+using System.Collections;
 using Novolis.Avalonia.GraphicalProfile;
 using Avalonia;
 using Avalonia.Controls;
@@ -38,13 +39,19 @@ public sealed class MainView : DockPanel
     readonly TextBlock _resourceStatus;
     readonly Button _usageRefreshButton;
     readonly TextBlock _usageStatus;
+    readonly ComboBox _voicePicker;
+    readonly TextBox _endpointBox;
+    readonly TextBox _keyBox;
+    readonly Button _saveCredentialsButton;
     readonly ComboBox _subscriptionPicker;
     readonly ComboBox _resourceGroupPicker;
     readonly ComboBox _speechResourcePicker;
     IReadOnlyList<AzureSubscriptionChoice> _subscriptions = [];
     IReadOnlyList<AzureSpeechResourceGroupChoice> _resourceGroups = [];
     IReadOnlyList<AzureSpeechResourceChoice> _speechResources = [];
+    IReadOnlyList<VoiceListItem> _voices = [];
     bool _resourceRefresh;
+    bool _voiceRefresh;
     bool _usageRefresh;
     bool _listenPending;
     IDisposable? _wake;
@@ -105,6 +112,15 @@ public sealed class MainView : DockPanel
             actions.Children.Add(btn);
         }
 
+        _voicePicker = new ComboBox
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            IsEnabled = false,
+            FontFamily = GraphicalProfile.BodyFont,
+        };
+        ResetVoicePickerCore();
+        _voicePicker.SelectionChanged += async (_, _) => await OnVoiceSelectedAsync();
+
         var providerRow = new StackPanel
         {
             Spacing = 4,
@@ -112,6 +128,8 @@ public sealed class MainView : DockPanel
         };
         providerRow.Children.Add(ReadAloudTheme.Muted("Voice service: Azure Speech only", 14));
         providerRow.Children.Add(_configureButton);
+        providerRow.Children.Add(ReadAloudTheme.Muted("Voice", 12));
+        providerRow.Children.Add(_voicePicker);
 
         _status = ReadAloudTheme.Muted(
             "Azure Speech is required. Sign in or import credentials to begin.");
@@ -132,6 +150,12 @@ public sealed class MainView : DockPanel
             "Sign in with Microsoft",
             ReadAloudButtonKind.Primary);
         _signInButton.Click += async (_, _) => await SignInAzureAsync();
+        _endpointBox = ReadAloudTheme.Field("https://your-resource.cognitiveservices.azure.com/");
+        _keyBox = ReadAloudTheme.Field("Subscription key", secret: true);
+        _saveCredentialsButton = ReadAloudTheme.Button(
+            "Save credentials",
+            ReadAloudButtonKind.Primary);
+        _saveCredentialsButton.Click += async (_, _) => await SaveManualCredentialsAsync();
         _importButton = ReadAloudTheme.Button(
             "Import credentials file…",
             ReadAloudButtonKind.Secondary);
@@ -245,9 +269,12 @@ public sealed class MainView : DockPanel
                 await _speech.UseAzureSpeechAsync();
             Dispatcher.UIThread.Post(() =>
             {
+                RefreshManualCredentialFields();
                 RefreshProviderUi();
                 RefreshListen();
             });
+            if (_speech.CanCreateMp3)
+                await RefreshVoiceListAsync();
         }
         catch (Exception ex)
         {
@@ -339,7 +366,7 @@ public sealed class MainView : DockPanel
         var remove = ReadAloudTheme.Button("Remove Azure setup", ReadAloudButtonKind.Danger);
         remove.Click += async (_, _) => await RemoveAzureSetupAsync();
         var actions = new WrapPanel();
-        foreach (var button in new[] { _importButton, test, remove })
+        foreach (var button in new[] { _saveCredentialsButton, _importButton, test, remove })
         {
             button.Margin = new Thickness(0, 0, 8, 8);
             actions.Children.Add(button);
@@ -352,14 +379,18 @@ public sealed class MainView : DockPanel
             Children =
             {
                 ReadAloudTheme.Muted(
-                    "Manual import reads a versioned JSON file. The file is not packaged or copied; its key is stored only in platform secure storage.",
+                    "Enter the Speech endpoint and subscription key, or import a versioned JSON file. The key is stored only in platform secure storage.",
                     13),
                 ReadAloudTheme.Muted(
-                    "Required layout: schema, version, authentication, endpoint, subscriptionKey. Optional: voiceName and locale.",
+                    "JSON layout: schema, version, authentication, endpoint, subscriptionKey. Optional: voiceName and locale.",
                     13),
                 ReadAloudTheme.Muted(
                     "Azure Monitor usage requires Automatic — Microsoft sign-in. A manual key can synthesize but cannot read management metrics.",
                     13),
+                ReadAloudTheme.Muted("Endpoint", 12),
+                _endpointBox,
+                ReadAloudTheme.Muted("Subscription key", 12),
+                _keyBox,
                 actions,
             },
         };
@@ -378,11 +409,12 @@ public sealed class MainView : DockPanel
                 setup.EffectiveCredentialSource == AzureSpeechCredentialSource.Automatic ? 0 : 1;
         }
 
+        RefreshManualCredentialFields();
         RefreshCredentialVariant();
         SetStatus(_resourcePicker is not null &&
                   _credentialVariantPicker.SelectedIndex == 0
             ? "Automatic Azure sign-in: choose a Speech resource."
-            : "Manual Azure credentials: import the JSON file.");
+            : "Manual Azure credentials: enter the endpoint and key, or import a JSON file.");
     }
 
     void RefreshCredentialVariant()
@@ -565,13 +597,18 @@ public sealed class MainView : DockPanel
         try
         {
             await using var stream = await files[0].OpenReadAsync();
-            var setup = await AzureSpeechCredentialFile.ReadAsync(stream);
+            var setup = await AzureSpeechCredentialFile.ReadAsync(
+                stream,
+                _speech.Voice.Voice,
+                LocaleFromVoice(_speech.Voice.Voice));
             await _speech.ConfigureAzureAsync(setup);
-            var voices = await _speech.TestAzureAsync();
+            _endpointBox.Text = setup.Endpoint.AbsoluteUri;
+            _keyBox.Text = string.Empty;
             if (_resourcePicker is not null)
                 _credentialVariantPicker.SelectedIndex = 1;
             RefreshCredentialVariant();
-            SetStatus($"Manual Azure Speech credentials imported ({voices.Count:N0} voices available).");
+            await RefreshVoiceListAsync();
+            SetStatus($"Manual Azure Speech credentials imported ({_voices.Count:N0} voices available).");
             RefreshProviderUi();
             RefreshListen();
         }
@@ -745,11 +782,11 @@ public sealed class MainView : DockPanel
                 ClientId = resource.ClientId,
                 TenantId = resource.TenantId,
                 VoiceName = _speech.Voice.Voice,
-                Locale = "en-US",
+                Locale = LocaleFromVoice(_speech.Voice.Voice),
             });
-            var voices = await _speech.TestAzureAsync();
             _azureSetupPanel.IsVisible = false;
-            SetStatus($"Connected to {resource.Name} ({voices.Count:N0} voices available).");
+            await RefreshVoiceListAsync();
+            SetStatus($"Connected to {resource.Name} ({_voices.Count:N0} voices available).");
             RefreshProviderUi();
             RefreshListen();
             _usageStatus.Text = "Tap Refresh usage to load the last 30 days.";
@@ -785,6 +822,9 @@ public sealed class MainView : DockPanel
             ResetResourcePickersCore();
             _resourceRefresh = false;
             _signOutButton.IsVisible = false;
+            _keyBox.Text = string.Empty;
+            RefreshManualCredentialFields();
+            ResetVoicePickerCore();
             RefreshCredentialVariant();
             SetStatus("Signed out. Azure Speech setup is required to listen.");
             RefreshProviderUi();
@@ -814,13 +854,189 @@ public sealed class MainView : DockPanel
         _speechResourcePicker.IsEnabled = false;
     }
 
+    async Task SaveManualCredentialsAsync()
+    {
+        _saveCredentialsButton.IsEnabled = false;
+        SetStatus("Saving manual Azure credentials…");
+        try
+        {
+            var setup = AzureSpeechCredentialFile.FromManualEntry(
+                _endpointBox.Text ?? string.Empty,
+                _keyBox.Text,
+                _speech.Voice.Voice,
+                LocaleFromVoice(_speech.Voice.Voice));
+            await _speech.ConfigureAzureAsync(setup);
+            _endpointBox.Text = setup.Endpoint.AbsoluteUri;
+            _keyBox.Text = string.Empty;
+            if (_resourcePicker is not null)
+                _credentialVariantPicker.SelectedIndex = 1;
+            RefreshCredentialVariant();
+            await RefreshVoiceListAsync();
+            SetStatus($"Manual Azure Speech credentials saved ({_voices.Count:N0} voices available).");
+            RefreshProviderUi();
+            RefreshListen();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud manual Azure Speech credential save failed.");
+            SetStatus($"Credential save failed: {ex.Message}");
+        }
+        finally
+        {
+            _saveCredentialsButton.IsEnabled = true;
+        }
+    }
+
+    async Task OnVoiceSelectedAsync()
+    {
+        if (_voiceRefresh ||
+            _voicePicker.SelectedItem is not VoiceListItem item ||
+            string.Equals(item.ShortName, _speech.Voice.Voice, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            await _speech.UpdateVoiceAsync(item.ShortName, item.Locale);
+            SetStatus($"Voice set to {item.Display}.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud voice selection failed.");
+            SetStatus($"Voice selection failed: {ex.Message}");
+        }
+    }
+
+    async Task RefreshVoiceListAsync()
+    {
+        if (!_speech.CanCreateMp3)
+        {
+            ResetVoicePickerCore();
+            return;
+        }
+
+        try
+        {
+            var voices = await _speech.ListVoicesAsync().ConfigureAwait(true);
+            var items = voices
+                .Select(voice => new VoiceListItem(
+                    voice.ShortName,
+                    voice.Locale,
+                    $"{voice.Locale} — {voice.LocalName} ({voice.Gender})"))
+                .OrderBy(item => item.Locale, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.Display, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var current = _speech.Voice.Voice;
+            if (!items.Exists(item =>
+                    string.Equals(item.ShortName, current, StringComparison.OrdinalIgnoreCase)))
+            {
+                var locale = _speech.AzureConfiguration?.Locale
+                    ?? LocaleFromVoice(current);
+                items.Insert(
+                    0,
+                    new VoiceListItem(current, locale, $"{locale} — {current}"));
+            }
+
+            if (!items.Exists(item =>
+                    string.Equals(
+                        item.ShortName,
+                        SpeechService.DefaultVoiceName,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                items.Insert(
+                    0,
+                    new VoiceListItem(
+                        SpeechService.DefaultVoiceName,
+                        SpeechService.DefaultLocale,
+                        $"{SpeechService.DefaultLocale} — Ava (Female)"));
+            }
+
+            var selected = items.FindIndex(item =>
+                string.Equals(item.ShortName, current, StringComparison.OrdinalIgnoreCase));
+            ApplyVoiceItems(items, selected >= 0 ? selected : 0, enabled: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud voice list failed.");
+            var current = new VoiceListItem(
+                _speech.Voice.Voice,
+                LocaleFromVoice(_speech.Voice.Voice),
+                $"{LocaleFromVoice(_speech.Voice.Voice)} — {_speech.Voice.Voice}");
+            ApplyVoiceItems([current], selectedIndex: 0, enabled: false);
+        }
+    }
+
+    void ResetVoicePickerCore()
+    {
+        _voices = [];
+        ApplyVoicePicker(
+            new[] { "Connect Azure Speech to list voices" },
+            selectedIndex: 0,
+            enabled: false);
+    }
+
+    void ApplyVoiceItems(
+        IReadOnlyList<VoiceListItem> items,
+        int selectedIndex,
+        bool enabled)
+    {
+        _voices = items;
+        ApplyVoicePicker(items, selectedIndex, enabled);
+    }
+
+    void ApplyVoicePicker(IEnumerable items, int selectedIndex, bool enabled)
+    {
+        void apply()
+        {
+            _voiceRefresh = true;
+            _voicePicker.ItemsSource = items;
+            _voicePicker.SelectedIndex = selectedIndex;
+            _voicePicker.IsEnabled = enabled;
+            _voiceRefresh = false;
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            apply();
+        else
+            Dispatcher.UIThread.Post(apply);
+    }
+
+    void RefreshManualCredentialFields()
+    {
+        var setup = _speech.AzureConfiguration;
+        if (setup is null)
+        {
+            if (string.IsNullOrWhiteSpace(_endpointBox.Text))
+                _endpointBox.Text = string.Empty;
+            return;
+        }
+
+        _endpointBox.Text = setup.Endpoint.AbsoluteUri;
+    }
+
+    static string LocaleFromVoice(string voiceName)
+    {
+        var parts = voiceName.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0]}-{parts[1]}"
+            : SpeechService.DefaultLocale;
+    }
+
+    sealed record VoiceListItem(string ShortName, string Locale, string Display)
+    {
+        public override string ToString() => Display;
+    }
+
     async Task TestAzureAsync()
     {
         try
         {
             SetStatus("Testing saved Azure Speech connection…");
-            var voices = await _speech.TestAzureAsync();
-            SetStatus($"Azure Speech connected ({voices.Count:N0} voices available).");
+            await _speech.TestAzureAsync();
+            await RefreshVoiceListAsync();
+            SetStatus($"Azure Speech connected ({_voices.Count:N0} voices available).");
         }
         catch (Exception ex)
         {
@@ -835,10 +1051,13 @@ public sealed class MainView : DockPanel
         {
             await _speech.RemoveAzureAsync();
             _azureSetupPanel.IsVisible = false;
+            _keyBox.Text = string.Empty;
+            RefreshManualCredentialFields();
+            ResetVoicePickerCore();
             RefreshCredentialVariant();
             RefreshProviderUi();
             RefreshListen();
-            SetStatus("Azure setup removed. Import credentials or sign in to listen.");
+            SetStatus("Azure setup removed. Enter credentials or sign in to listen.");
         }
         catch (Exception ex)
         {
@@ -856,7 +1075,7 @@ public sealed class MainView : DockPanel
     static string DescribeCredentialSource(AzureSpeechSetup setup) =>
         setup.EffectiveCredentialSource == AzureSpeechCredentialSource.Automatic
             ? "Automatic — Microsoft sign-in"
-            : "Manual — imported JSON credentials";
+            : "Manual — endpoint and subscription key";
 
     void Clear()
     {
@@ -943,8 +1162,8 @@ public sealed class MainView : DockPanel
             RefreshCredentialVariant();
             SetStatus(
                 _resourcePicker is null
-                    ? "Import the Azure Speech credentials JSON before listening."
-                    : "Sign in or import an Azure Speech credentials file before listening.");
+                    ? "Enter Azure Speech credentials or import a JSON file before listening."
+                    : "Sign in or enter Azure Speech credentials before listening.");
             return;
         }
 
@@ -1021,8 +1240,8 @@ public sealed class MainView : DockPanel
             _azureSetupPanel.IsVisible = true;
             SetStatus(
                 _resourcePicker is null
-                    ? "MP3 export needs a manual Azure credentials file."
-                    : "MP3 export needs automatic sign-in or a manual Azure credentials file.");
+                    ? "MP3 export needs typed or imported Azure credentials."
+                    : "MP3 export needs automatic sign-in or typed/imported Azure credentials.");
             RefreshCredentialVariant();
             return;
         }

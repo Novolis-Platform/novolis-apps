@@ -22,8 +22,19 @@ public static class AzureSpeechCredentialFile
     };
 
     /// <summary>Loads and validates a manual credential file from an opened stream.</summary>
+    public static Task<AzureSpeechSetup> ReadAsync(
+        Stream stream,
+        CancellationToken cancellationToken = default) =>
+        ReadAsync(stream, fallbackVoiceName: null, fallbackLocale: null, cancellationToken);
+
+    /// <summary>
+    /// Loads a credential file, using the remembered voice when the file omits
+    /// <c>voiceName</c> or <c>locale</c>.
+    /// </summary>
     public static async Task<AzureSpeechSetup> ReadAsync(
         Stream stream,
+        string? fallbackVoiceName,
+        string? fallbackLocale,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -76,20 +87,48 @@ public static class AzureSpeechCredentialFile
                 "The Azure credentials file needs a subscriptionKey.");
         }
 
+        return FromManualEntry(
+            endpoint.AbsoluteUri,
+            document.SubscriptionKey,
+            string.IsNullOrWhiteSpace(document.VoiceName) ? fallbackVoiceName : document.VoiceName,
+            string.IsNullOrWhiteSpace(document.Locale) ? fallbackLocale : document.Locale);
+    }
+
+    /// <summary>
+    /// Builds a manual Azure setup from typed endpoint and subscription-key fields.
+    /// </summary>
+    public static AzureSpeechSetup FromManualEntry(
+        string endpointText,
+        string? subscriptionKey,
+        string? voiceName = null,
+        string? locale = null)
+    {
+        if (!Uri.TryCreate(endpointText?.Trim(), UriKind.Absolute, out var endpoint) ||
+            !string.Equals(endpoint.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "The Azure Speech endpoint must be an absolute HTTPS URI.");
+        }
+
+        if (string.IsNullOrWhiteSpace(subscriptionKey))
+        {
+            throw new InvalidOperationException(
+                "The Azure Speech subscription key is required.");
+        }
+
         return new AzureSpeechSetup
         {
             Endpoint = endpoint,
             CredentialSource = AzureSpeechCredentialSource.Manual,
             AuthenticationMode = AzureSpeechAuthenticationMode.ApiKey,
-            ApiKey = document.SubscriptionKey,
-            VoiceName = string.IsNullOrWhiteSpace(document.VoiceName)
-                ? "en-US-AvaMultilingualNeural"
-                : document.VoiceName.Trim(),
-            Locale = string.IsNullOrWhiteSpace(document.Locale)
-                ? "en-US"
-                : document.Locale.Trim(),
+            ApiKey = subscriptionKey.Trim(),
+            VoiceName = FirstNonEmpty(voiceName, SpeechService.DefaultVoiceName),
+            Locale = FirstNonEmpty(locale, SpeechService.DefaultLocale),
         };
     }
+
+    static string FirstNonEmpty(string? value, string fallback) =>
+        string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
 
     sealed class AzureSpeechCredentialDocument
     {
