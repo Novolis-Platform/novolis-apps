@@ -56,7 +56,7 @@ public sealed class MainActivity : MauiAppCompatActivity
             _ => null,
         };
         if (key is not null
-            && Window?.Page is MainPage page
+            && TryGetMainPage() is { } page
             && page.TryHandleKey(key, control))
         {
             return true;
@@ -73,12 +73,15 @@ public sealed class MainActivity : MauiAppCompatActivity
         {
             var control = (e.MetaState & MetaKeyStates.CtrlOn) != 0;
             var delta = e.GetAxisValue(Axis.Vscroll);
-            if (Window?.Page is MainPage page && page.TryHandleWheel(delta, control))
+            if (TryGetMainPage() is { } page && page.TryHandleWheel(delta, control))
                 return true;
         }
 
         return base.DispatchGenericMotionEvent(e);
     }
+
+    private static MainPage? TryGetMainPage() =>
+        Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault()?.Page as MainPage;
 
     /// <inheritdoc />
     protected override void OnNewIntent(Intent? intent)
