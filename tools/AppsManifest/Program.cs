@@ -25,7 +25,7 @@ internal static class Program
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Usage: AppsManifest <validate|generate-solutions|ci-matrix|release-matrix|play-matrix|list> [options]");
+            Console.Error.WriteLine("Usage: AppsManifest <validate|generate-solutions|ci-matrix|release-matrix|play-matrix|list|publish> [options]");
             return 2;
         }
 
@@ -43,6 +43,7 @@ internal static class Program
                 "release-matrix" => EmitReleaseMatrix(manifestPath, args),
                 "play-matrix" => EmitGooglePlayMatrix(manifestPath, args),
                 "list" => ListApps(manifestPath),
+                "publish" => AppPublishCommand.Publish(manifestPath, repoRoot, args.Skip(1).ToArray()),
                 _ => Unknown(command),
             };
         }
@@ -816,6 +817,7 @@ internal sealed class ValidationConfig
 internal sealed class WindowsConfig
 {
     public string ExeName { get; set; } = "";
+    public List<string> AdditionalProjects { get; set; } = [];
     public string AppId { get; set; } = "";
     public string InstallDir { get; set; } = "";
     public string GroupName { get; set; } = "";

@@ -1,5 +1,5 @@
 #Requires -Version 7.0
-# Publish novolis-apps windows-inno products from build/apps.json.
+# Publish novolis-apps windows-inno products from build/apps.json via AppsManifest.
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
     [string]$App = 'All',
@@ -8,7 +8,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'Publish-NovolisApp.ps1')
+$manifestTool = Join-Path $RepoRoot 'tools/AppsManifest/AppsManifest.csproj'
 
 $versionFile = Join-Path $RepoRoot 'build/version.json'
 if (-not (Test-Path $versionFile)) {
@@ -27,34 +27,46 @@ $packageVersion = "$platform.$BuildNumber"
 $assemblyVersion = "$year.$major.0.0"
 $fileVersion = $packageVersion
 
-$catalog = @(Get-NovolisAppCatalog -RepoRoot $RepoRoot)
+$manifestJson = Join-Path $RepoRoot 'build/apps.json'
+$manifest = Get-Content -LiteralPath $manifestJson -Raw | ConvertFrom-Json
+$catalog = @($manifest.apps | Where-Object { $_.ship -contains 'windows-inno' })
 $selected = if ($App -eq 'All') {
     $catalog
 }
 else {
-    @($catalog | Where-Object { $_.Choice -eq $App -or $_.Key -eq $App })
+    @($catalog | Where-Object { $_.choice -eq $App -or $_.key -eq $App })
 }
 if ($selected.Count -eq 0) {
-    $choices = ($catalog | ForEach-Object { $_.Choice }) -join ', '
+    $choices = ($catalog | ForEach-Object { $_.choice }) -join ', '
     throw "Unknown app selection: $App. Known windows-inno apps: $choices"
 }
 
 $published = [System.Collections.Generic.List[object]]::new()
 foreach ($entry in $selected) {
-    $item = Publish-NovolisApp `
-        -RepoRoot $RepoRoot `
-        -AppKey $entry.Key `
-        -ProjectRelativePath $entry.Project `
-        -PackageVersion $packageVersion `
-        -AssemblyVersion $assemblyVersion `
-        -FileVersion $fileVersion `
-        -SkipInstaller:$SkipInstaller |
-        Where-Object { $_.ZipPath } |
-        Select-Object -Last 1
-    if (-not $item -or -not $item.ZipPath) {
-        throw "Publish-NovolisApp did not return a ZipPath for $($entry.Key)."
+    $publishArgs = @(
+        'run', '--project', $manifestTool, '--no-launch-profile', '--', 'publish',
+        '--repo', $RepoRoot,
+        '--app', $entry.key,
+        '--channel', 'windows-inno',
+        '--version', $packageVersion,
+        '--assembly-version', $assemblyVersion,
+        '--file-version', $fileVersion
+    )
+    if ($SkipInstaller) {
+        $publishArgs += '--skip-installer'
     }
-    $published.Add($item)
+    $json = & dotnet @publishArgs
+    if ($LASTEXITCODE -ne 0) { throw "AppsManifest publish failed for $($entry.key) with exit code $LASTEXITCODE." }
+    $item = $json | ConvertFrom-Json
+    if (-not $item.zipPath) {
+        throw "AppsManifest publish did not return zipPath for $($entry.key)."
+    }
+    $published.Add([pscustomobject]@{
+        ZipPath       = $item.zipPath
+        ZipName       = Split-Path $item.zipPath -Leaf
+        InstallerPath = $item.installerPath
+        InstallerName = if ($item.installerPath) { Split-Path $item.installerPath -Leaf } else { $null }
+    })
 }
 
 if ($SkipInstaller) {

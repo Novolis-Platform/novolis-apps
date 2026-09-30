@@ -117,19 +117,17 @@ jobs:
           FILE_VERSION: ${{ needs.plan.outputs.file_version }}
         run: |
           $ErrorActionPreference = 'Stop'
-          . ./scripts/Publish-NovolisApp.ps1
-          $item = Publish-NovolisApp `
-            -RepoRoot $env:GITHUB_WORKSPACE `
-            -AppKey '${{ matrix.key }}' `
-            -ProjectRelativePath '${{ matrix.publish_windows }}' `
-            -PackageVersion $env:PACKAGE_VERSION `
-            -AssemblyVersion $env:ASSEMBLY_VERSION `
-            -FileVersion $env:FILE_VERSION |
-            Where-Object { $_.ZipPath } |
-            Select-Object -Last 1
-          if (-not $item) { throw "Publish failed for ${{ matrix.key }}" }
+          $json = dotnet run --project tools/AppsManifest/AppsManifest.csproj --no-launch-profile -- publish `
+            --repo $env:GITHUB_WORKSPACE `
+            --app '${{ matrix.key }}' `
+            --channel windows-inno `
+            --version $env:PACKAGE_VERSION `
+            --assembly-version $env:ASSEMBLY_VERSION `
+            --file-version $env:FILE_VERSION
+          $item = $json | ConvertFrom-Json
+          if (-not $item.zipPath) { throw "Publish failed for ${{ matrix.key }}" }
           $paths = @()
-          if ($item.InstallerPath) { $paths += $item.InstallerPath }
+          if ($item.installerPath) { $paths += $item.installerPath }
           "assets<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           $paths | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -182,15 +180,15 @@ jobs:
           FILE_VERSION: ${{ needs.plan.outputs.file_version }}
         run: |
           $ErrorActionPreference = 'Stop'
-          . ./scripts/Publish-NovolisApp.ps1
-          $item = Publish-NovolisLinuxApp `
-            -RepoRoot $env:GITHUB_WORKSPACE `
-            -AppKey '${{ matrix.key }}' `
-            -ProjectRelativePath '${{ matrix.publish_linux }}' `
-            -PackageVersion $env:PACKAGE_VERSION `
-            -AssemblyVersion $env:ASSEMBLY_VERSION `
-            -FileVersion $env:FILE_VERSION
-          if (-not $item) { throw "Linux publish failed for ${{ matrix.key }}" }
+          $json = dotnet run --project tools/AppsManifest/AppsManifest.csproj --no-launch-profile -- publish `
+            --repo $env:GITHUB_WORKSPACE `
+            --app '${{ matrix.key }}' `
+            --channel linux-tar `
+            --version $env:PACKAGE_VERSION `
+            --assembly-version $env:ASSEMBLY_VERSION `
+            --file-version $env:FILE_VERSION
+          $item = $json | ConvertFrom-Json
+          if (-not $item.tarPath) { throw "Linux publish failed for ${{ matrix.key }}" }
       - uses: actions/upload-artifact@v4
         if: matrix.channel == 'linux-tar'
         with:
