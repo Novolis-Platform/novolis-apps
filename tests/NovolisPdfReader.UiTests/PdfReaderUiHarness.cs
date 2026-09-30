@@ -55,20 +55,7 @@ internal static class PdfReaderUiHarness
             "android",
             StringComparison.OrdinalIgnoreCase);
 
-    public static string? TryResolveCalypsoPdf()
-    {
-        foreach (var candidate in new[]
-                 {
-                     Environment.GetEnvironmentVariable("NOVOLIS_PDFREADER_UI_PDF"),
-                     @"C:\Users\frank\Downloads\the-calypso-cycle-calypso (9).pdf",
-                 })
-        {
-            if (!string.IsNullOrWhiteSpace(candidate) && File.Exists(candidate))
-                return Path.GetFullPath(candidate);
-        }
-
-        return null;
-    }
+    public static string? TryResolveCalypsoPdf() => PublishedBooksPdf.TryResolveCalypso();
 
     private static IEnumerable<string> EnumerateWindowsCandidates()
     {

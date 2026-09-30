@@ -66,7 +66,9 @@ public sealed class PdfReaderWindowsUiTests
         var exe = PdfReaderUiHarness.TryResolveWindowsExe();
         Skip.Unless(exe is not null, "Build NovolisPdfReader or set NOVOLIS_PDFREADER_UI_APP to the unpackaged exe.");
         var pdf = PdfReaderUiHarness.TryResolveCalypsoPdf();
-        Skip.Unless(pdf is not null, "Calypso PDF is not on this machine.");
+        Skip.Unless(
+            pdf is not null,
+            "Print Calypso with manuscript-cli into D:\\repos\\books\\out\\the-calypso-cycle\\calypso\\calypso.pdf (or set NOVOLIS_BOOKS_PDF / NOVOLIS_BOOKS_ROOT).");
 
         using var session = WindowsAppiumSession.Connect(new WindowsAppiumSessionOptions
         {

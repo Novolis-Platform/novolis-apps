@@ -15,6 +15,9 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder.UseMauiApp<App>();
         builder.UseGraphicalProfile();
+#if WINDOWS
+        builder.ConfigureMauiHandlers(static handlers => WinUiButtonChrome.Map(handlers));
+#endif
         builder.Services
             .AddSingleton(_ => PdfReaderDiagnosticsLog.Shared)
             .AddSingleton<PdfActivationInbox>()

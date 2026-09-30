@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls.Shapes;
+using Novolis.Maui.GraphicalProfile;
 using Profile = Novolis.Maui.GraphicalProfile.GraphicalProfile;
 using Novolis.Maui.PdfViewer;
 using Novolis.Pdf.Abstractions;
@@ -20,6 +21,11 @@ public sealed class MainPage : ContentPage
     private readonly Label _documentName;
     private readonly Label _documentMeta;
     private readonly Label _privacyNote;
+    private readonly Label _brandTitle;
+    private readonly Label _tagline;
+    private readonly Border _brandMark;
+    private readonly Grid _header;
+    private readonly Grid _body;
     private readonly Button _openButton;
     private readonly Button _heroOpenButton;
     private readonly Button _registerButton;
@@ -85,18 +91,30 @@ public sealed class MainPage : ContentPage
             RegisterAssociationAsync);
         _registerButton.IsVisible = OperatingSystem.IsWindows();
 
-        var brandMark = new Border
+        _brandMark = new Border
         {
             WidthRequest = 52,
             HeightRequest = 52,
             Padding = 7,
-            StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(17) },
+            StrokeThickness = GraphicalProfileColors.Stroke,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(GraphicalProfileColors.MarkRadius) },
             Content = new Image
             {
                 Source = "appiconfg.png",
                 Aspect = Aspect.AspectFit,
             },
+        };
+        _brandTitle = new Label
+        {
+            Text = "Novolis PDF Reader",
+            FontAttributes = FontAttributes.Bold,
+            FontFamily = Profile.FontFamily,
+            FontSize = 18,
+        };
+        _tagline = new Label
+        {
+            Text = "A quiet home for your documents",
+            FontSize = GraphicalProfileColors.CaptionSize,
         };
         var brand = new VerticalStackLayout
         {
@@ -104,22 +122,12 @@ public sealed class MainPage : ContentPage
             VerticalOptions = LayoutOptions.Center,
             Children =
             {
-                new Label
-                {
-                    Text = "NOVOLIS PDF READER",
-                    FontAttributes = FontAttributes.Bold,
-                    FontSize = 18,
-                    CharacterSpacing = 1.8,
-                },
+                _brandTitle,
                 _documentName,
-                new Label
-                {
-                    Text = "A quiet home for your documents",
-                    FontSize = 10,
-                },
+                _tagline,
             },
         };
-        var header = new Grid
+        _header = new Grid
         {
             Padding = new Thickness(18, 16, 18, 12),
             ColumnDefinitions =
@@ -130,9 +138,9 @@ public sealed class MainPage : ContentPage
             },
             ColumnSpacing = 12,
         };
-        header.Add(brandMark, 0, 0);
-        header.Add(brand, 1, 0);
-        header.Add(_openButton, 2, 0);
+        _header.Add(_brandMark, 0, 0);
+        _header.Add(brand, 1, 0);
+        _header.Add(_openButton, 2, 0);
 
         _welcomeCard = CreateCard(
             new VerticalStackLayout
@@ -188,12 +196,12 @@ public sealed class MainPage : ContentPage
             Content = _welcomeCard,
             VerticalScrollBarVisibility = ScrollBarVisibility.Never,
         };
-        var body = new Grid
+        _body = new Grid
         {
             Padding = new Thickness(16, 0, 16, 16),
         };
-        body.Add(_welcomeScroll);
-        body.Add(_viewerCard);
+        _body.Add(_welcomeScroll);
+        _body.Add(_viewerCard);
 
         var layout = new Grid
         {
@@ -203,9 +211,10 @@ public sealed class MainPage : ContentPage
                 new RowDefinition(GridLength.Star),
             },
         };
-        layout.Add(header, 0, 0);
-        layout.Add(body, 0, 1);
+        layout.Add(_header, 0, 0);
+        layout.Add(_body, 0, 1);
         Content = layout;
+        SizeChanged += (_, _) => ApplyShellLayout();
         ShowWelcome();
     }
 
@@ -341,6 +350,7 @@ public sealed class MainPage : ContentPage
                 _viewerCard.IsVisible = true;
                 _diagnosticsEditor.IsVisible = false;
                 ApplyTheme();
+                ApplyShellLayout();
             });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -407,6 +417,34 @@ public sealed class MainPage : ContentPage
     {
         _welcomeScroll.IsVisible = true;
         _viewerCard.IsVisible = false;
+        ApplyShellLayout();
+    }
+
+    private bool IsCompact => Width > 0 && Width < 800;
+
+    private void ApplyShellLayout()
+    {
+        var reading = _viewerCard.IsVisible;
+        var compact = IsCompact;
+        _tagline.IsVisible = !reading;
+        _brandTitle.FontSize = compact ? GraphicalProfileColors.IntervalTitleSize : 18;
+        _documentName.FontSize = compact ? GraphicalProfileColors.CaptionSize : 13;
+        var mark = compact && reading ? 36 : 52;
+        _brandMark.WidthRequest = mark;
+        _brandMark.HeightRequest = mark;
+        _header.Padding = compact
+            ? new Thickness(12, 8, 12, 6)
+            : new Thickness(18, 16, 18, 12);
+        _body.Padding = compact && reading
+            ? new Thickness(0)
+            : new Thickness(16, 0, 16, 16);
+        _viewerCard.StrokeThickness = compact && reading ? 0 : GraphicalProfileColors.Stroke;
+        _openButton.Padding = compact
+            ? new Thickness(12, 8)
+            : new Thickness(16, 9);
+        _openButton.CornerRadius = compact
+            ? (int)GraphicalProfileColors.ControlRadius
+            : (int)GraphicalProfileColors.PrimaryRadius;
     }
 
     private void OnRequestedThemeChanged(object? sender, AppThemeChangedEventArgs args) =>
@@ -416,6 +454,8 @@ public sealed class MainPage : ContentPage
     {
         BackgroundColor = Profile.Background;
         _documentName.TextColor = Profile.Text;
+        _brandTitle.TextColor = Profile.Text;
+        _tagline.TextColor = Profile.Muted;
         _documentMeta.TextColor = Profile.Muted;
         _privacyNote.TextColor = Profile.Muted;
         _diagnosticsEditor.TextColor = Profile.Text;
@@ -430,6 +470,8 @@ public sealed class MainPage : ContentPage
         _welcomeCard.Stroke = new SolidColorBrush(Profile.Border);
         _viewerCard.Background = new SolidColorBrush(Profile.Surface);
         _viewerCard.Stroke = new SolidColorBrush(Profile.Border);
+        _brandMark.Stroke = new SolidColorBrush(Profile.Border);
+        _brandMark.Background = new SolidColorBrush(Profile.Raised);
     }
 
     private static Label CreateEyebrow(string text) =>
@@ -451,9 +493,15 @@ public sealed class MainPage : ContentPage
         {
             Text = text,
             AutomationId = automationId,
+            FontFamily = Profile.FontFamily,
             FontAttributes = FontAttributes.Bold,
-            FontSize = 13,
-            CornerRadius = 18,
+            FontSize = GraphicalProfileColors.ButtonSize,
+            BackgroundColor = Profile.Raised,
+            TextColor = Profile.Text,
+            BorderColor = Profile.Border,
+            BorderWidth = GraphicalProfileColors.Stroke,
+            CornerRadius = (int)GraphicalProfileColors.PrimaryRadius,
+            MinimumHeightRequest = GraphicalProfileColors.TouchTarget,
             Padding = new Thickness(16, 9),
         };
         SemanticProperties.SetDescription(button, text);
@@ -464,9 +512,9 @@ public sealed class MainPage : ContentPage
     private static Border CreateCard(View content) =>
         new()
         {
-            Padding = new Thickness(22),
-            StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(26) },
+            Padding = new Thickness(GraphicalProfileColors.CardPadding),
+            StrokeThickness = GraphicalProfileColors.Stroke,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(GraphicalProfileColors.CardRadius) },
             Content = content,
         };
 
