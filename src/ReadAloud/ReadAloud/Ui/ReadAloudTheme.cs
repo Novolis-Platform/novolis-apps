@@ -6,14 +6,6 @@ using Novolis.Avalonia.GraphicalProfile;
 
 namespace ReadAloud.Ui;
 
-internal enum ReadAloudButtonKind
-{
-    Primary,
-    Secondary,
-    Quiet,
-    Danger,
-}
-
 internal static class ReadAloudTheme
 {
     public static TextBlock BrandTitle(string text, double size = 28)

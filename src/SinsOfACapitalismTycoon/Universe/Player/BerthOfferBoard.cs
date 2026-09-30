@@ -2,25 +2,6 @@ using Novolis.Economy.Logistics;
 
 namespace SinsOfACapitalismTycoon.Universe;
 
-/// <summary>Tramp berth wagers: Local / Rumor / Wait — never an empty board face.</summary>
-internal enum BerthOfferKind
-{
-  Local,
-  Rumor,
-  Wait,
-}
-
-/// <summary>One playable berth bet for the captain bridge.</summary>
-internal sealed record BerthOffer(
-  BerthOfferKind Kind,
-  string Title,
-  string Band,
-  string Hook,
-  string Detail,
-  CaptainJobBoard.SpotCandidate? Spot,
-  int SpotIndex,
-  int? WaitDaysHint = null);
-
 /// <summary>Build Fat/Fair/Thin berth offers from dock/mesh spots + live freight.</summary>
 internal static class BerthOfferBoard
 {

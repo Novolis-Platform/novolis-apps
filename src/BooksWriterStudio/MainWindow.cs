@@ -1738,17 +1738,3 @@ internal sealed class MainWindow : Window
 
     sealed record SearchHit(string Title, string FilePath, int Occurrences);
 }
-
-internal static class EditorSelectionHelper
-{
-    static readonly FieldInfo? EditorField =
-        typeof(MarkdownSourceEditor).GetField("_editor", BindingFlags.Instance | BindingFlags.NonPublic);
-
-    public static string? GetSelectedText(MarkdownSourceEditor editor)
-    {
-        if (EditorField?.GetValue(editor) is not TextEditor textEditor)
-            return null;
-
-        return textEditor.SelectionLength > 0 ? textEditor.SelectedText : null;
-    }
-}

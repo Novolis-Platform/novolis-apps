@@ -4,6 +4,7 @@ using Android.Content.PM;
 using Android.Database;
 using Android.OS;
 using Android.Provider;
+using Android.Views;
 using Novolis.Pdf.Abstractions;
 using Novolis.Pdf.Platform;
 
@@ -33,6 +34,50 @@ public sealed class MainActivity : MauiAppCompatActivity
     {
         base.OnCreate(savedInstanceState);
         PublishPdfIntent(Intent);
+    }
+
+    /// <inheritdoc />
+    public override bool OnKeyDown(Keycode keyCode, KeyEvent? e)
+    {
+        var control = e is not null && (e.MetaState & MetaKeyStates.CtrlOn) != 0;
+        var key = keyCode switch
+        {
+            Keycode.PageUp => "PageUp",
+            Keycode.PageDown => "PageDown",
+            Keycode.DpadLeft => "Left",
+            Keycode.DpadRight => "Right",
+            Keycode.MoveHome or Keycode.Home => "Home",
+            Keycode.MoveEnd => "End",
+            Keycode.Plus or Keycode.NumpadAdd => "Add",
+            Keycode.Minus or Keycode.NumpadSubtract => "Subtract",
+            Keycode.F => "F",
+            Keycode.R => "R",
+            Keycode.G => "G",
+            _ => null,
+        };
+        if (key is not null
+            && Window?.Page is MainPage page
+            && page.TryHandleKey(key, control))
+        {
+            return true;
+        }
+
+        return base.OnKeyDown(keyCode, e);
+    }
+
+    /// <inheritdoc />
+    public override bool DispatchGenericMotionEvent(MotionEvent? e)
+    {
+        if (e is { Action: MotionEventActions.Scroll }
+            && (e.Source & InputSourceType.ClassPointer) != 0)
+        {
+            var control = (e.MetaState & MetaKeyStates.CtrlOn) != 0;
+            var delta = e.GetAxisValue(Axis.Vscroll);
+            if (Window?.Page is MainPage page && page.TryHandleWheel(delta, control))
+                return true;
+        }
+
+        return base.DispatchGenericMotionEvent(e);
     }
 
     /// <inheritdoc />

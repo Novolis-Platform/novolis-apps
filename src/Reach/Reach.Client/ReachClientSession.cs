@@ -8,30 +8,6 @@ using Novolis.Transports.Udp;
 
 namespace Novolis.Reach.Client;
 
-/// <summary>Describes the observable state of a Reach client session.</summary>
-public enum ReachSessionState
-{
-    Disconnected,
-    Connecting,
-    Connected,
-    Streaming,
-    Lost,
-}
-
-/// <summary>Detailed phase shown by the Reach client surface.</summary>
-public enum ReachConnectionPhase
-{
-    Disconnected,
-    Discovering,
-    Connecting,
-    Authenticating,
-    Starting,
-    Streaming,
-    Degraded,
-    Reconnecting,
-    Ended,
-}
-
 /// <summary>Owns one client-side Reach control connection.</summary>
 public sealed class ReachClientSession : IAsyncDisposable
 {

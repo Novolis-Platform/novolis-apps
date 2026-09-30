@@ -6,14 +6,6 @@ using Novolis.Avalonia.GraphicalProfile;
 
 namespace BooksMobile.Ui;
 
-internal enum BooksButtonKind
-{
-    Primary,
-    Secondary,
-    Quiet,
-    Danger,
-}
-
 internal static class BooksTheme
 {
     public static void ApplyRoot(Panel root)

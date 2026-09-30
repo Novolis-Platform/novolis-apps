@@ -209,6 +209,14 @@ public sealed class MainPage : ContentPage
         ShowWelcome();
     }
 
+    /// <summary>Forwards hardware keys from Windows or Android into the viewer.</summary>
+    public bool TryHandleKey(string key, bool control) =>
+        _viewer.TryHandleKey(key, control);
+
+    /// <summary>Forwards Ctrl+wheel zoom from Windows or Android into the viewer.</summary>
+    public bool TryHandleWheel(double delta, bool control) =>
+        _viewer.TryHandleWheel(delta, control);
+
     /// <inheritdoc />
     protected override void OnHandlerChanged()
     {
@@ -218,6 +226,8 @@ public sealed class MainPage : ContentPage
         {
             element.KeyDown -= OnWindowsKeyDown;
             element.KeyDown += OnWindowsKeyDown;
+            element.PointerWheelChanged -= OnWindowsWheel;
+            element.PointerWheelChanged += OnWindowsWheel;
         }
 #endif
     }
@@ -253,7 +263,20 @@ public sealed class MainPage : ContentPage
 #if WINDOWS
     private void OnWindowsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs args)
     {
-        if (_viewer.TryHandleKey(args.Key.ToString()))
+        var control = Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (_viewer.TryHandleKey(args.Key.ToString(), control))
+            args.Handled = true;
+    }
+
+    private void OnWindowsWheel(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    {
+        var control = Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var delta = args.GetCurrentPoint((Microsoft.UI.Xaml.UIElement)sender).Properties.MouseWheelDelta;
+        if (_viewer.TryHandleWheel(delta, control))
             args.Handled = true;
     }
 #endif

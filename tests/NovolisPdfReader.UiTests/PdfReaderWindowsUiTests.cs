@@ -57,4 +57,27 @@ public sealed class PdfReaderWindowsUiTests
         await Assert.That(ids.Contains("PdfReaderOpen")).IsTrue();
         await Assert.That(ids.Contains("PdfReaderHeroOpen")).IsTrue();
     }
+
+    [Test]
+    public async Task OpensDocumentChromeWhenCalypsoFileIsPresent()
+    {
+        Skip.Unless(OperatingSystem.IsWindows(), "Windows Appium driver is required.");
+        Skip.Unless(PdfReaderUiHarness.AppiumIsListening(), "Start Appium on APPIUM_HOST (default http://127.0.0.1:4723/).");
+        var exe = PdfReaderUiHarness.TryResolveWindowsExe();
+        Skip.Unless(exe is not null, "Build NovolisPdfReader or set NOVOLIS_PDFREADER_UI_APP to the unpackaged exe.");
+        var pdf = PdfReaderUiHarness.TryResolveCalypsoPdf();
+        Skip.Unless(pdf is not null, "Calypso PDF is not on this machine.");
+
+        using var session = WindowsAppiumSession.Connect(new WindowsAppiumSessionOptions
+        {
+            App = exe!,
+            AppArguments = $"\"{pdf}\"",
+        });
+
+        session.Driver.FindElement(MobileBy.AccessibilityId("PdfPageRail"));
+        session.Driver.FindElement(MobileBy.AccessibilityId("PdfPageEntry"));
+        var pageLabel = session.Driver.FindElement(MobileBy.AccessibilityId("PdfPageLabel"));
+        await Assert.That(pageLabel.Displayed).IsTrue();
+        await Assert.That(pageLabel.Text).Contains("/");
+    }
 }

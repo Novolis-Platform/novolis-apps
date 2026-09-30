@@ -72,7 +72,7 @@ jobs:
   validate:
     needs: detect
     if: needs.detect.outputs.skip_build != 'true'
-    uses: ./.github/workflows/apps-ci.yml
+    uses: Novolis-Platform/novolis-apps/.github/workflows/apps-ci.yml@main
     with:
       linux_matrix: ${{ needs.detect.outputs.linux_matrix }}
       android_matrix: ${{ needs.detect.outputs.android_matrix }}

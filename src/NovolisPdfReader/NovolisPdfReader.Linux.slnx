@@ -1,2 +1,5 @@
 <Solution>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/NovolisPdfReader.UiTests/NovolisPdfReader.UiTests.csproj" />
+  </Folder>
 </Solution>

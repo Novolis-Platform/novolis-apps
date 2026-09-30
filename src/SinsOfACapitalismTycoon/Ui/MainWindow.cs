@@ -1689,24 +1689,3 @@ internal sealed class MainWindow : Window
     _flashClear.Start();
   }
 }
-
-/// <summary>Simple post-run text viewer for Core smoke engine.</summary>
-internal sealed class CoreReportWindow : Window
-{
-  public CoreReportWindow(string reportText)
-  {
-    Title = "Sins — Core smoke";
-    Width = 900;
-    Height = 700;
-    Content = new TextBox
-    {
-      Text = reportText,
-      IsReadOnly = true,
-      AcceptsReturn = true,
-      TextWrapping = TextWrapping.NoWrap,
-      FontFamily = new FontFamily("Consolas, Cascadia Mono, Courier New, monospace"),
-      FontSize = 13,
-      Margin = new Thickness(16),
-    };
-  }
-}

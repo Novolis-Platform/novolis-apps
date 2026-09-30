@@ -9,14 +9,6 @@ using Novolis.Avalonia.GraphicalProfile;
 
 namespace SinsOfACapitalismTycoon.Ui;
 
-internal enum CalypsoButtonKind
-{
-  Primary,
-  Secondary,
-  Danger,
-  Quiet,
-}
-
 internal static class CalypsoTheme
 {
   public static void ApplyWindowChrome(Window window)
@@ -302,21 +294,3 @@ internal static class CalypsoTheme
     };
   }
 }
-
-/// <summary>ListBox row model for spot freight / berth offers.</summary>
-internal sealed record SpotContractRow(
-  string Title,
-  string Detail,
-  bool AtDock,
-  int Index,
-  string Badge = "AT DOCK",
-  bool IsRumor = false,
-  bool IsWait = false,
-  string Band = "");
-
-/// <summary>ListBox row model for goods charters / standby.</summary>
-internal sealed record CharterContractRow(
-  string Title,
-  string Detail,
-  bool CanAccept,
-  int Index);

@@ -3,7 +3,7 @@
 Thin MAUI host for local PDF reading via `Novolis.Maui.PdfViewer`. Product home
 is **novolis-apps** (`src/NovolisPdfReader`).
 
-- **Ship:** Android APK (`android-apk`) via the **Release** workflow (`NovolisPdfReader`)
+- **Ship:** Windows Inno (`windows-inno`) and Android APK (`android-apk`) via the **Release** workflow (`NovolisPdfReader`)
 - **Local:** Windows MAUI + Android
 - **Branding:** Novolis mark (`MauiIcon` / splash PNG rasters)
 - **Privacy:** [PRIVACY.md](PRIVACY.md)

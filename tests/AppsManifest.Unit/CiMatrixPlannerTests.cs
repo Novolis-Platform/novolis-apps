@@ -10,12 +10,12 @@ public sealed class CiMatrixPlannerTests
         var document = LoadManifest();
         var plan = Program.CreateCiMatrix(document, [], forceAll: false, fullCoverage: false);
 
-        await Assert.That(document.Apps).Count().IsEqualTo(12);
-        await Assert.That(plan.Linux).Count().IsEqualTo(12);
-        await Assert.That(plan.Android).Count().IsEqualTo(5);
+        await Assert.That(document.Apps).Count().IsEqualTo(13);
+        await Assert.That(plan.Linux).Count().IsEqualTo(13);
+        await Assert.That(plan.Android).Count().IsEqualTo(6);
         await Assert.That(plan.Windows).Count().IsEqualTo(2);
-        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(20);
-        await Assert.That(plan.Summary.EstimatedWorkloadInstalls).IsEqualTo(5);
+        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(22);
+        await Assert.That(plan.Summary.EstimatedWorkloadInstalls).IsEqualTo(6);
     }
 
     [Test]
@@ -58,9 +58,9 @@ public sealed class CiMatrixPlannerTests
             forceAll: false,
             fullCoverage: true);
 
-        await Assert.That(plan.Summary.SelectedApps).IsEqualTo(12);
-        await Assert.That(plan.Linux).Count().IsEqualTo(12);
-        await Assert.That(plan.Android).Count().IsEqualTo(5);
+        await Assert.That(plan.Summary.SelectedApps).IsEqualTo(13);
+        await Assert.That(plan.Linux).Count().IsEqualTo(13);
+        await Assert.That(plan.Android).Count().IsEqualTo(6);
     }
 
     [Test]
@@ -98,6 +98,18 @@ public sealed class CiMatrixPlannerTests
         await Assert.That(File.Exists(Path.Combine(root, "src", "Merglyph", "Merglyph", "Resources", "AppIcon", "appicon.png"))).IsTrue();
         await Assert.That(File.Exists(Path.Combine(root, "src", "Merglyph", "Merglyph", "Resources", "AppIcon", "appiconfg.png"))).IsTrue();
         await Assert.That(File.Exists(Path.Combine(root, "src", "Merglyph", "Merglyph", "Resources", "Splash", "splash.png"))).IsTrue();
+    }
+
+    [Test]
+    public async Task NovolisPdfReaderShipsWindowsAndAndroid()
+    {
+        var reader = LoadManifest().Apps.Single(app => app.Key == "novolis-pdf-reader");
+        await Assert.That(reader.Stack).IsEqualTo("maui");
+        await Assert.That(reader.Ship.Contains("windows-inno")).IsTrue();
+        await Assert.That(reader.Ship.Contains("android-apk")).IsTrue();
+        await Assert.That(reader.Android?.ApplicationId).IsEqualTo("com.novolis.pdfreader");
+        await Assert.That(reader.Data?.AppDataRoot).Contains("pdf-reader");
+        await Assert.That(reader.Windows?.FileAssociationsAllowed).IsTrue();
     }
 
     [Test]
@@ -169,8 +181,15 @@ public sealed class CiMatrixPlannerTests
             "Merglyph",
             "Merglyph.Linux.slnx"));
 
+        var pdfLinux = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "NovolisPdfReader",
+            "NovolisPdfReader.Linux.slnx"));
+
         await Assert.That(booksLinux).DoesNotContain(".Android.csproj");
         await Assert.That(merglyphLinux).DoesNotContain("Merglyph/Merglyph.csproj");
+        await Assert.That(pdfLinux).DoesNotContain("NovolisPdfReader.csproj");
     }
 
     private static AppsManifestDocument LoadManifest() =>

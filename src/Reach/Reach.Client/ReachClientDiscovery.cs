@@ -7,12 +7,6 @@ using Novolis.Transports.Tailscale;
 
 namespace Novolis.Reach.Client;
 
-/// <summary>One Reach host returned by a local-network discovery scan.</summary>
-public sealed record ReachDiscoveredHost(
-    string HostName,
-    string ProtocolVersion,
-    string Endpoint);
-
 /// <summary>Finds Reach hosts on LAN broadcast and Tailscale interfaces.</summary>
 public static class ReachClientDiscovery
 {

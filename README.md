@@ -102,6 +102,7 @@ pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio
 | Presence Ledger | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Ship Designer | avalonia-desktop | windows-inno | windows, linux |
 | Merglyph | maui | android-apk | windows, android |
+| Novolis PDF Reader | maui | windows-inno, android-apk | windows, android |
 
 List programmatically: `dotnet run --project d:\novolis\novolis-apps\tools\AppsManifest\AppsManifest.csproj -- list`
 

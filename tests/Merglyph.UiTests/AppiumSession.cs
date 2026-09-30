@@ -4,12 +4,6 @@ using OpenQA.Selenium.Appium.Windows;
 
 namespace Merglyph.UiTests;
 
-internal enum UiTestPlatform
-{
-    Android,
-    Windows,
-}
-
 internal sealed class AppiumSession : IDisposable
 {
     private readonly AppiumDriver _driver;

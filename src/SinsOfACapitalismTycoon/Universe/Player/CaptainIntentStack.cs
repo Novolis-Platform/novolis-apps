@@ -1,28 +1,5 @@
 namespace SinsOfACapitalismTycoon.Universe;
 
-/// <summary>Lifecycle of one captain intent / compound step.</summary>
-internal enum IntentStepStatus
-{
-  Pending,
-  Active,
-  WaitingFuel,
-  WaitingCargo,
-  Blocked,
-  Failed,
-  Done,
-}
-
-/// <summary>One visible entry on the captain action stack.</summary>
-internal sealed class IntentStep
-{
-  public required Guid Id { get; init; }
-  public required string Label { get; init; }
-  public IntentStepStatus Status { get; set; } = IntentStepStatus.Pending;
-  public string? Detail { get; set; }
-  public PlayerOrder? Order { get; init; }
-  public bool IsCompound { get; init; }
-}
-
 /// <summary>
 /// Per-actor (Calypso) action stack: ordered intents drained as atomic <see cref="PlayerOrder"/>s.
 /// Compound recipes expand into named sub-steps; bunker/lift surface as Waiting* statuses.

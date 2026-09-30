@@ -176,6 +176,7 @@ internal static class AppPublishCommand
         IReadOnlyList<string> versionArgs)
     {
         var arguments = new List<string> { "restore", projectPath, "-r", runtime };
+        arguments.AddRange(MauiWindowsFrameworkArgs(projectPath));
         arguments.AddRange(configArgs);
         arguments.AddRange(versionArgs);
         ProcessRunner.Run("dotnet", repoRoot, arguments);
@@ -197,8 +198,25 @@ internal static class AppPublishCommand
             "--no-restore",
             "-o", outputDir,
         };
+        arguments.AddRange(MauiWindowsFrameworkArgs(projectPath));
         arguments.AddRange(versionArgs);
         ProcessRunner.Run("dotnet", repoRoot, arguments);
+    }
+
+    private static IEnumerable<string> MauiWindowsFrameworkArgs(string projectPath)
+    {
+        if (!projectPath.EndsWith("NovolisPdfReader.csproj", StringComparison.OrdinalIgnoreCase)
+            && !File.ReadAllText(projectPath).Contains("<UseMaui>true</UseMaui>", StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        return
+        [
+            "-f",
+            "net10.0-windows10.0.19041.0",
+            "-p:NovolisMauiTargetFrameworks=net10.0-windows10.0.19041.0",
+        ];
     }
 
     private static List<string> BuildVersionMsBuildArgs(string packageVersion, string assemblyVersion, string fileVersion) =>

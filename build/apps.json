@@ -724,6 +724,65 @@
         "retention": "uninstall-preserves-user-data"
       },
       "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "novolis-pdf-reader",
+      "choice": "NovolisPdfReader",
+      "displayName": "Novolis PDF Reader",
+      "sourceRoot": "src/NovolisPdfReader",
+      "solution": "src/NovolisPdfReader/NovolisPdfReader.slnx",
+      "artifactPrefix": "NovolisPdfReader",
+      "stack": "maui",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/NovolisPdfReader/NovolisPdfReader.csproj",
+        "linuxCi": ["tests/NovolisPdfReader.UiTests/NovolisPdfReader.UiTests.csproj"],
+        "android": "src/NovolisPdfReader/NovolisPdfReader.csproj",
+        "maui": "src/NovolisPdfReader/NovolisPdfReader.csproj",
+        "tests": ["tests/NovolisPdfReader.UiTests/NovolisPdfReader.UiTests.csproj"],
+        "all": [
+          "src/NovolisPdfReader/NovolisPdfReader.csproj",
+          "tests/NovolisPdfReader.UiTests/NovolisPdfReader.UiTests.csproj"
+        ]
+      },
+      "local": ["windows", "android"],
+      "ship": ["windows-inno", "android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/NovolisPdfReader/**", "tests/NovolisPdfReader.UiTests/**"],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["maui", "android"]
+      },
+      "windows": {
+        "exeName": "NovolisPdfReader.exe",
+        "appId": "Novolis.PdfReader",
+        "installDir": "Novolis\\PDF Reader",
+        "groupName": "Novolis PDF Reader",
+        "setupBase": "NovolisPdfReaderSetup",
+        "scriptFile": "novolis-pdf-reader.iss",
+        "closeApplicationsFilter": "NovolisPdfReader.exe",
+        "fileAssociationsAllowed": true
+      },
+      "android": {
+        "project": "src/NovolisPdfReader/NovolisPdfReader.csproj",
+        "applicationId": "com.novolis.pdfreader",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "PDFREADER_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [],
+        "networkPolicy": "none"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\pdf-reader",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\pdf-reader\\cache",
+        "credentialsNamespace": "Novolis.PdfReader",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
     }
   ]
 }
