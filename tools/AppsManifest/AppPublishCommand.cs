@@ -112,6 +112,10 @@ internal static class AppPublishCommand
 
         var inno = BuildInnoProfile(repoRoot, app, packageVersion, publishDir, installerDir);
         var msbuildArgs = new List<string> { "msbuild", appProject, "-t:NovolisGenerateInnoScript" };
+        // Multi-targeted MAUI hosts import the Inno target only inside the Windows TFM build.
+        msbuildArgs.AddRange(MauiWindowsRestoreArgs(appProject));
+        if (IsMauiWindowsProject(appProject))
+            msbuildArgs.Add("-p:TargetFramework=net10.0-windows10.0.19041.0");
         msbuildArgs.AddRange(FormatMsBuildProperties(inno.MsBuildArgs));
         ProcessRunner.Run("dotnet", repoRoot, msbuildArgs);
 
