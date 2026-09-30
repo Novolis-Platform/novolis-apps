@@ -3,17 +3,17 @@
 ## Model
 
 1. Push/PR validates only affected apps from `build/apps.json` (no installers, no APKs).
-2. Operators run **Release** (`workflow_dispatch`) with:
-   - `app`: a fixed dropdown of catalog apps, or `All`
-   - `channel`: a fixed dropdown of `All`, `windows-inno`, or `android-apk`; with `All` apps selected, a specific channel filters to apps declaring it
-3. Artifacts land on a GitHub Release tagged `vYEAR.MAJOR.MINOR.BUILD` with `SHA256SUMS.txt`.
-4. `scripts/prune-github-releases.ps1` keeps the newest 5 releases.
+2. Operators run **Release** (`workflow_dispatch`) with no inputs. The file calls `novolis-workflows` `apps-release.yml`, which builds every app on every channel declared in `ship`. One installer is a local publish (`scripts/build-installer.ps1`), not a GitHub Release.
+3. Artifacts from that run land on a GitHub Release tagged `vYEAR.MAJOR.MINOR.BUILD` with `SHA256SUMS.txt`. Nothing is copied from an older tag. A release asset is the build for that commit.
+4. `scripts/prune-github-releases.ps1` keeps the newest 5 releases. Each kept tag is a full drop, so deleting an older tag does not remove an installer that the latest tag lacks.
 
-Google Play delivery is a separate manual workflow. It starts from an existing
-GitHub Release tag and builds the matching signed Android App Bundle, so adding
-Play Store delivery does not remove or change GitHub Release assets.
+Google Play and nuget.org are not part of this release. Play stays
+`play-store.yml`, started by hand from an existing tag. nuget.org stays the
+library workflow `dotnet-release-publish`. Either can become an input on this
+release later. Neither runs now, and neither copies or replaces the GitHub
+Release assets.
 
-Undeclared channels fail before workloads install. There is **no Linux release artifact** in phase one.
+A full release builds only channels listed in `ship`. Reach is the only `linux-tar`. Apps that do not declare a channel do not get that artifact.
 
 ## Channels
 

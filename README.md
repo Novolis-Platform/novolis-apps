@@ -61,16 +61,17 @@ dotnet run --project d:\novolis\novolis-apps\tools\AppsManifest\AppsManifest.csp
 | **Local** | Platforms you can restore/build/debug (may include Linux or Windows MAUI without shipping them) |
 | **Ship** | GitHub Release channels that produce artifacts (`windows-inno`, `android-apk`) |
 
-Phase one does **not** ship Linux installers. Linux remains a local/PR capability where the stack supports it.
+Reach is the only app that ships `linux-tar`. Other apps keep Linux as a local or PR capability where the stack supports it.
 
 ## Releases
 
-PR/merge CI validates **changed apps only** (scoped solutions + tests; Android compile when declared). Packaging is **manual** via the **Release** workflow: select an app and channel from fixed dropdowns.
+PR/merge CI validates **changed apps only** (scoped solutions + tests; Android compile when declared). Packaging is **manual** via the **Release** workflow, which publishes every app on every channel declared in `ship`. One installer is `scripts/build-installer.ps1`, not a GitHub Release.
 
 | Channel | Artifacts |
 |---------|-----------|
 | `windows-inno` | Per-user Inno under `%LocalAppData%\Programs\Novolis\…` + one installer `.exe` per app + SHA-256 |
-| `android-apk` | Installable APK + SHA-256 (adhoc signing allowed for testing) |
+| `android-apk` | Installable APK + SHA-256 |
+| `linux-tar` | Self-contained `linux-x64` tarball. Declared only by Reach |
 
 Version format: `YEAR.MAJOR.MINOR.BUILD` from `build/version.json` plus workflow run number.
 

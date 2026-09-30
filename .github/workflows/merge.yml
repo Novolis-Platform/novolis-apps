@@ -13,68 +13,12 @@ concurrency:
   group: apps-merge-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  packages: read
-
 jobs:
-  detect:
-    runs-on: ubuntu-latest
-    outputs:
-      linux_matrix: ${{ steps.matrix.outputs.linux_matrix }}
-      android_matrix: ${{ steps.matrix.outputs.android_matrix }}
-      windows_matrix: ${{ steps.matrix.outputs.windows_matrix }}
-      skip_build: ${{ steps.matrix.outputs.skip_build }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: Novolis-Platform/novolis-workflows/actions/setup-dotnet@main
-        with:
-          dotnet-version: 10.0.x
-      - name: Validate apps manifest and generated solutions
-        shell: pwsh
-        run: pwsh -NoProfile -File scripts/verify-apps-manifest.ps1 -RepoRoot "$env:GITHUB_WORKSPACE"
-      - name: Test AppsManifest planner
-        shell: bash
-        run: dotnet test tests/AppsManifest.Unit/AppsManifest.Unit.csproj -c Release
-      - name: Resolve changed-app matrix
-        id: matrix
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            dotnet run --project tools/AppsManifest/AppsManifest.csproj --no-launch-profile -- \
-                ci-matrix --repo "$GITHUB_WORKSPACE" --all --coverage full > /tmp/matrix.json
-          else
-            before="${{ github.event.before }}"
-            if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
-              dotnet run --project tools/AppsManifest/AppsManifest.csproj --no-launch-profile -- \
-                ci-matrix --repo "$GITHUB_WORKSPACE" --all > /tmp/matrix.json
-            else
-              git diff --name-only "$before...${{ github.sha }}" > /tmp/changed-files.txt || true
-              dotnet run --project tools/AppsManifest/AppsManifest.csproj --no-launch-profile -- \
-                ci-matrix --repo "$GITHUB_WORKSPACE" --changed-files /tmp/changed-files.txt \
-                --coverage fast \
-                > /tmp/matrix.json
-            fi
-          fi
-          echo "linux_matrix=$(jq -c '.linux' /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
-          echo "android_matrix=$(jq -c '.android' /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
-          echo "windows_matrix=$(jq -c '.windows' /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
-          echo "skip_build=$(jq -r '.skip_build' /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
-          {
-            echo "## App CI plan"
-            jq -r '"Coverage: \(.summary.coverage)\nSelected apps: \(.summary.selected_apps)\nLinux rows: \(.summary.linux_rows)\nAndroid rows: \(.summary.android_rows)\nWindows rows: \(.summary.windows_rows)\nEstimated checkouts: \(.summary.estimated_checkouts)\nEstimated workload installs: \(.summary.estimated_workload_installs)"' /tmp/matrix.json
-          } >> "$GITHUB_STEP_SUMMARY"
-          cat /tmp/matrix.json
-
   validate:
-    needs: detect
-    if: needs.detect.outputs.skip_build != 'true'
-    uses: Novolis-Platform/novolis-apps/.github/workflows/apps-ci.yml@main
-    with:
-      linux_matrix: ${{ needs.detect.outputs.linux_matrix }}
-      android_matrix: ${{ needs.detect.outputs.android_matrix }}
-      windows_matrix: ${{ needs.detect.outputs.windows_matrix }}
+    uses: Novolis-Platform/novolis-workflows/.github/workflows/apps-ci.yml@main
     secrets: inherit
+    with:
+      mode: ${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'merge' }}
+    permissions:
+      contents: read
+      packages: read
