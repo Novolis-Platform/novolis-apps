@@ -168,26 +168,14 @@ public sealed class MainPage : ContentPage
                 },
             });
 
-        var viewerHeader = new VerticalStackLayout
-        {
-            Padding = new Thickness(20, 18, 20, 14),
-            Spacing = 3,
-            Children =
-            {
-                CreateEyebrow("OPEN DOCUMENT"),
-                _documentMeta,
-            },
-        };
         var viewerLayout = new Grid
         {
             RowDefinitions =
             {
-                new RowDefinition(GridLength.Auto),
                 new RowDefinition(GridLength.Star),
             },
         };
-        viewerLayout.Add(viewerHeader, 0, 0);
-        viewerLayout.Add(_viewer, 0, 1);
+        viewerLayout.Add(_viewer, 0, 0);
         _viewerCard = CreateCard(viewerLayout);
         _viewerCard.Padding = new Thickness(0);
 
