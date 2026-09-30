@@ -1,3 +1,4 @@
+using Novolis.Avalonia.GraphicalProfile;
 using Avalonia.Controls;
 using BooksMobile.Ui;
 
@@ -12,8 +13,8 @@ public sealed class MainWindow : Window
         Width = 1100;
         Height = 720;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = BooksPalette.WindowBrush;
-        FontFamily = BooksPalette.BodyFont;
-        Foreground = BooksPalette.BodyBrush;
+        Background = GraphicalProfile.BackgroundBrush;
+        FontFamily = GraphicalProfile.BodyFont;
+        Foreground = GraphicalProfile.TextBrush;
     }
 }

@@ -1,3 +1,4 @@
+using Novolis.Avalonia.GraphicalProfile;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -30,29 +31,29 @@ internal static class PresenceTodayView
         {
             Text = "YOUR DAY",
             Classes = { "eyebrow" },
-            Foreground = PresencePalette.TealBrush,
+            Foreground = GraphicalProfile.AccentBrush,
         };
         content.Children.Add(eyebrow);
         content.Children.Add(new TextBlock
         {
             Text = FormatDate(day.DisplayDate),
             Classes = { "page-title" },
-            Foreground = PresencePalette.TextBrush,
+            Foreground = GraphicalProfile.TextBrush,
         });
         content.Children.Add(new TextBlock
         {
             Text = "A private, explainable record of where your configured locations saw you.",
             Classes = { "body-copy" },
-            Foreground = PresencePalette.MutedBrush,
+            Foreground = GraphicalProfile.MutedBrush,
         });
         content.Children.Add(Card(
             new TextBlock
             {
                 Text = observationStatus,
-                Foreground = PresencePalette.MutedBrush,
+                Foreground = GraphicalProfile.MutedBrush,
                 TextWrapping = TextWrapping.Wrap,
             },
-            PresencePalette.SurfaceBrush));
+            GraphicalProfile.SurfaceBrush));
 
         content.Children.Add(BuildDateBar(
             day.DisplayDate,
@@ -73,8 +74,8 @@ internal static class PresenceTodayView
             Content = "Open day map",
             Classes = { "primary-button" },
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = PresencePalette.TealDeepBrush,
-            Foreground = PresencePalette.TextBrush,
+            Background = GraphicalProfile.AccentFillBrush,
+            Foreground = GraphicalProfile.TextBrush,
         };
         mapButton.Click += (_, _) => openMap();
         content.Children.Add(mapButton);
@@ -84,14 +85,14 @@ internal static class PresenceTodayView
         {
             Text = "TIMELINE",
             Classes = { "eyebrow" },
-            Foreground = PresencePalette.TealBrush,
+            Foreground = GraphicalProfile.AccentBrush,
         };
         DockPanel.SetDock(timelineTitle, Dock.Left);
         timelineHeader.Children.Add(timelineTitle);
         var count = new TextBlock
         {
             Text = $"{day.Intervals.Count} segment{(day.Intervals.Count == 1 ? string.Empty : "s")}",
-            Foreground = PresencePalette.MutedBrush,
+            Foreground = GraphicalProfile.MutedBrush,
             HorizontalAlignment = HorizontalAlignment.Right,
         };
         DockPanel.SetDock(count, Dock.Right);
@@ -148,7 +149,7 @@ internal static class PresenceTodayView
         row.Children.Add(new TextBlock
         {
             Text = date.ToString("yyyy-MM-dd"),
-            Foreground = PresencePalette.MutedBrush,
+            Foreground = GraphicalProfile.MutedBrush,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
         });
@@ -175,14 +176,14 @@ internal static class PresenceTodayView
         {
             Padding = new Thickness(10, 6),
             Background = current is null
-                ? PresencePalette.CopperSoftBrush
-                : PresencePalette.TealDeepBrush,
+                ? GraphicalProfile.ActionSoftBrush
+                : GraphicalProfile.AccentFillBrush,
             CornerRadius = new CornerRadius(14),
             Child = new TextBlock
             {
                 Text = current is null ? "BETWEEN PLACES" : "PRESENT",
                 Classes = { "eyebrow" },
-                Foreground = PresencePalette.TextBrush,
+                Foreground = GraphicalProfile.TextBrush,
             },
         };
         var stack = new StackPanel
@@ -196,18 +197,18 @@ internal static class PresenceTodayView
                     Text = title,
                     FontSize = 24,
                     FontWeight = FontWeight.Bold,
-                    Foreground = PresencePalette.TextBrush,
+                    Foreground = GraphicalProfile.TextBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },
                 new TextBlock
                 {
                     Text = detail,
                     Classes = { "body-copy" },
-                    Foreground = PresencePalette.MutedBrush,
+                    Foreground = GraphicalProfile.MutedBrush,
                 },
             },
         };
-        return Card(stack, PresencePalette.SurfaceBrush);
+        return Card(stack, GraphicalProfile.SurfaceBrush);
     }
 
     static Control BuildInterval(PresenceInterval interval, TimeZoneInfo timeZone)
@@ -223,7 +224,7 @@ internal static class PresenceTodayView
         {
             Width = 8,
             MinHeight = 72,
-            Background = PresencePalette.CopperBrush,
+            Background = GraphicalProfile.ActionBrush,
             CornerRadius = new CornerRadius(4),
             Margin = new Thickness(0, 0, 12, 0),
         };
@@ -237,17 +238,17 @@ internal static class PresenceTodayView
                     Text = interval.DisplayName,
                     FontSize = 17,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = PresencePalette.TextBrush,
+                    Foreground = GraphicalProfile.TextBrush,
                 },
                 new TextBlock
                 {
                     Text = time,
-                    Foreground = PresencePalette.MutedBrush,
+                    Foreground = GraphicalProfile.MutedBrush,
                 },
                 new TextBlock
                 {
                     Text = $"{duration} · {interval.Confidence}",
-                    Foreground = PresencePalette.MutedBrush,
+                    Foreground = GraphicalProfile.MutedBrush,
                 },
             },
         };
@@ -256,7 +257,7 @@ internal static class PresenceTodayView
             Orientation = Orientation.Horizontal,
             Children = { marker, copy },
         };
-        return Card(row, PresencePalette.SurfaceBrush);
+        return Card(row, GraphicalProfile.SurfaceBrush);
     }
 
     static Control BuildEmptyState(PresenceDayProjection day, Action addLocation)
@@ -266,7 +267,7 @@ internal static class PresenceTodayView
             Content = "Add your first location",
             Classes = { "primary-button" },
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = PresencePalette.CopperBrush,
+            Background = GraphicalProfile.ActionBrush,
             Foreground = Brushes.White,
         };
         add.Click += (_, _) => addLocation();
@@ -283,19 +284,19 @@ internal static class PresenceTodayView
                             : "Evidence is still collecting.",
                         FontSize = 18,
                         FontWeight = FontWeight.SemiBold,
-                        Foreground = PresencePalette.TextBrush,
+                        Foreground = GraphicalProfile.TextBrush,
                         TextWrapping = TextWrapping.Wrap,
                     },
                     new TextBlock
                     {
                         Text = "Presence Ledger keeps the raw samples local and only turns sustained evidence into a segment.",
                         Classes = { "body-copy" },
-                        Foreground = PresencePalette.MutedBrush,
+                        Foreground = GraphicalProfile.MutedBrush,
                     },
                     add,
                 },
             },
-            PresencePalette.RaisedBrush);
+            GraphicalProfile.RaisedBrush);
     }
 
     static Control BuildEvidenceSummary(PresenceDayProjection day)
@@ -303,7 +304,7 @@ internal static class PresenceTodayView
         var expander = new Expander
         {
             Header = $"Evidence details · {day.Observations.Count} local sample{(day.Observations.Count == 1 ? string.Empty : "s")}",
-            Foreground = PresencePalette.MutedBrush,
+            Foreground = GraphicalProfile.MutedBrush,
             Content = new TextBlock
             {
                 Text = day.Observations.Count == 0
@@ -315,7 +316,7 @@ internal static class PresenceTodayView
                             + (item.Position is { } position
                                 ? $"{position.Latitude:F5}, {position.Longitude:F5}"
                                 : "no position"))),
-                Foreground = PresencePalette.MutedBrush,
+                Foreground = GraphicalProfile.MutedBrush,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 8, 0, 0),
             },
@@ -331,8 +332,8 @@ internal static class PresenceTodayView
             MinWidth = 42,
             MinHeight = 42,
             Padding = new Thickness(10, 6),
-            Background = PresencePalette.SurfaceBrush,
-            Foreground = PresencePalette.TextBrush,
+            Background = GraphicalProfile.SurfaceBrush,
+            Foreground = GraphicalProfile.TextBrush,
         };
         button.Click += (_, _) => action();
         return button;
@@ -344,7 +345,7 @@ internal static class PresenceTodayView
             Child = child,
             Padding = new Thickness(18),
             Background = background,
-            BorderBrush = PresencePalette.BorderBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(18),
         };

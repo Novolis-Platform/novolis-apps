@@ -1,3 +1,4 @@
+using Novolis.Avalonia.GraphicalProfile;
 using Avalonia.Controls;
 using ReadAloud.Ui;
 
@@ -12,8 +13,8 @@ public sealed class MainWindow : Window
         Width = 720;
         Height = 900;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = ReadAloudPalette.WindowBrush;
-        FontFamily = ReadAloudPalette.BodyFont;
-        Foreground = ReadAloudPalette.BodyBrush;
+        Background = GraphicalProfile.BackgroundBrush;
+        FontFamily = GraphicalProfile.BodyFont;
+        Foreground = GraphicalProfile.TextBrush;
     }
 }

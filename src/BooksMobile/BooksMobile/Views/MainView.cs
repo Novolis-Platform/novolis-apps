@@ -1,3 +1,4 @@
+using Novolis.Avalonia.GraphicalProfile;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -85,7 +86,7 @@ public sealed class MainView : UserControl
         _speech = speech;
         _importer = importer;
         _wakeLock = wakeLock;
-        Background = BooksPalette.WindowBrush;
+        Background = GraphicalProfile.BackgroundBrush;
         Focusable = true;
 
         _signIn = BooksTheme.Button("Sign in with GitHub", BooksButtonKind.Primary);
@@ -93,12 +94,12 @@ public sealed class MainView : UserControl
         {
             FontSize = 26,
             FontWeight = FontWeight.Bold,
-            FontFamily = BooksPalette.DisplayFont,
+            FontFamily = GraphicalProfile.BodyFont,
             IsReadOnly = true,
             IsVisible = false,
             PlaceholderText = "Device code",
-            Foreground = BooksPalette.AccentBrush,
-            Background = BooksPalette.PanelRaisedBrush,
+            Foreground = GraphicalProfile.AccentBrush,
+            Background = GraphicalProfile.RaisedBrush,
         };
         _copyCode = BooksTheme.Button("Copy code", BooksButtonKind.Secondary);
         _copyCode.IsVisible = false;
@@ -139,7 +140,7 @@ public sealed class MainView : UserControl
 
         _editorHost = new Border
         {
-            Background = BooksPalette.PanelBrush,
+            Background = GraphicalProfile.SurfaceBrush,
             Focusable = true,
             IsHitTestVisible = true,
         };
@@ -237,7 +238,7 @@ public sealed class MainView : UserControl
         };
         return new Border
         {
-            Background = BooksPalette.WindowBrush,
+            Background = GraphicalProfile.BackgroundBrush,
             Child = stack,
         };
     }
@@ -246,7 +247,7 @@ public sealed class MainView : UserControl
     {
         var row = new Grid
         {
-            Background = BooksPalette.PanelBrush,
+            Background = GraphicalProfile.SurfaceBrush,
             Margin = new Thickness(0),
             MinHeight = 56,
             ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
@@ -264,7 +265,7 @@ public sealed class MainView : UserControl
             },
         };
         _chromeTitle.VerticalAlignment = VerticalAlignment.Center;
-        _chromeTitle.FontFamily = BooksPalette.DisplayFont;
+        _chromeTitle.FontFamily = GraphicalProfile.BodyFont;
         _chromeTitle.FontWeight = FontWeight.SemiBold;
         _chromeTitle.Margin = new Thickness(8, 0);
         var right = new StackPanel
@@ -870,7 +871,7 @@ public sealed class MainView : UserControl
     Control MakeBookCard(BookInfo book, string? seriesTitle)
     {
         var title = BooksTheme.Body(book.Title, 17);
-        title.FontFamily = BooksPalette.DisplayFont;
+        title.FontFamily = GraphicalProfile.BodyFont;
         title.FontWeight = FontWeight.SemiBold;
         var unit = _session.IsReviewMode ? "selection" : "chapter";
         var meta = BooksTheme.Muted(
@@ -883,7 +884,7 @@ public sealed class MainView : UserControl
         var btn = new Button
         {
             Content = stack,
-            Background = BooksPalette.PanelBrush,
+            Background = GraphicalProfile.SurfaceBrush,
             BorderBrush = new SolidColorBrush(Color.FromArgb(40, 47, 223, 255)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
@@ -922,7 +923,7 @@ public sealed class MainView : UserControl
             var btn = new Button
             {
                 Content = row,
-                Background = BooksPalette.PanelBrush,
+                Background = GraphicalProfile.SurfaceBrush,
                 BorderBrush = new SolidColorBrush(Color.FromArgb(40, 47, 223, 255)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),

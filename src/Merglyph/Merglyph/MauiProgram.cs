@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Hosting;
 using Merglyph.Core;
+using Novolis.Maui.GraphicalProfile;
 
 namespace Merglyph;
 
@@ -12,6 +13,7 @@ public static class MauiProgram
 
         var builder = MauiApp.CreateBuilder();
         builder.UseMauiApp<App>();
+        builder.UseGraphicalProfile();
 
         builder.Services
             .AddSingleton<MarkdownDocumentReader>()

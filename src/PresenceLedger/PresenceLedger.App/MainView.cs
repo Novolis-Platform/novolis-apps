@@ -1,3 +1,4 @@
+using Novolis.Avalonia.GraphicalProfile;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -60,7 +61,7 @@ public sealed class MainView : UserControl
         _searchProvider = searchProvider ?? throw new ArgumentNullException(nameof(searchProvider));
         _services = services ?? throw new ArgumentNullException(nameof(services));
 
-        Background = PresencePalette.BackgroundBrush;
+        Background = GraphicalProfile.BackgroundBrush;
         BuildShell();
         AttachedToVisualTree += async (_, _) => await ShowTodayAsync();
     }
@@ -77,8 +78,8 @@ public sealed class MainView : UserControl
         {
             Width = 48,
             Height = 48,
-            Background = PresencePalette.TealDeepBrush,
-            BorderBrush = PresencePalette.TealBrush,
+            Background = GraphicalProfile.AccentFillBrush,
+            BorderBrush = GraphicalProfile.AccentBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(16),
             Child = new TextBlock
@@ -86,7 +87,7 @@ public sealed class MainView : UserControl
                 Text = "P",
                 FontSize = 25,
                 FontWeight = FontWeight.Bold,
-                Foreground = PresencePalette.TextBrush,
+                Foreground = GraphicalProfile.TextBrush,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             },
@@ -102,21 +103,21 @@ public sealed class MainView : UserControl
                     Text = "PRESENCE LEDGER",
                     FontSize = 17,
                     FontWeight = FontWeight.Bold,
-                    Foreground = PresencePalette.TextBrush,
+                    Foreground = GraphicalProfile.TextBrush,
                 },
                 new TextBlock
                 {
                     Text = "A quiet record of your places",
                     FontSize = 11,
-                    Foreground = PresencePalette.MutedBrush,
+                    Foreground = GraphicalProfile.MutedBrush,
                 },
             },
         };
         var localBadge = new Border
         {
             Padding = new Thickness(10, 6),
-            Background = PresencePalette.SurfaceBrush,
-            BorderBrush = PresencePalette.BorderBrush,
+            Background = GraphicalProfile.SurfaceBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14),
             HorizontalAlignment = HorizontalAlignment.Right,
@@ -125,7 +126,7 @@ public sealed class MainView : UserControl
             {
                 Text = "LOCAL",
                 Classes = { "eyebrow" },
-                Foreground = PresencePalette.TealBrush,
+                Foreground = GraphicalProfile.AccentBrush,
             },
         };
         var brandRow = new Grid
@@ -166,7 +167,7 @@ public sealed class MainView : UserControl
         header.Children.Add(navigationScroll);
 
         _status.Text = "Local storage · map and address search use Kartverket services";
-        _status.Foreground = PresencePalette.MutedBrush;
+        _status.Foreground = GraphicalProfile.MutedBrush;
         _status.FontSize = 11;
         _status.Margin = new Thickness(16, 4);
 
@@ -185,8 +186,8 @@ public sealed class MainView : UserControl
         {
             Content = label,
             Classes = { "nav-button" },
-            Background = PresencePalette.SurfaceBrush,
-            Foreground = PresencePalette.TextBrush,
+            Background = GraphicalProfile.SurfaceBrush,
+            Foreground = GraphicalProfile.TextBrush,
         };
         button.Click += async (_, _) => await action();
         return button;
@@ -290,7 +291,7 @@ public sealed class MainView : UserControl
         {
             Content = "Try again",
             Classes = { "primary-button" },
-            Background = PresencePalette.CopperBrush,
+            Background = GraphicalProfile.ActionBrush,
             Foreground = Brushes.White,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
@@ -307,18 +308,18 @@ public sealed class MainView : UserControl
                     {
                         Text = title,
                         Classes = { "page-title" },
-                        Foreground = PresencePalette.TextBrush,
+                        Foreground = GraphicalProfile.TextBrush,
                     },
                     new TextBlock
                     {
                         Text = subtitle,
                         Classes = { "body-copy" },
-                        Foreground = PresencePalette.MutedBrush,
+                        Foreground = GraphicalProfile.MutedBrush,
                     },
                     new TextBlock
                     {
                         Text = detail,
-                        Foreground = PresencePalette.DangerBrush,
+                        Foreground = GraphicalProfile.DangerBrush,
                         TextWrapping = TextWrapping.Wrap,
                     },
                     button,
@@ -344,7 +345,7 @@ public sealed class MainView : UserControl
             {
                 Content = "Add location",
                 Classes = { "primary-button" },
-                Background = PresencePalette.CopperBrush,
+                Background = GraphicalProfile.ActionBrush,
                 Foreground = Brushes.White,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
             };
@@ -363,17 +364,17 @@ public sealed class MainView : UserControl
                                 Text = "Nothing configured yet.",
                                 FontSize = 18,
                                 FontWeight = FontWeight.SemiBold,
-                                Foreground = PresencePalette.TextBrush,
+                                Foreground = GraphicalProfile.TextBrush,
                             },
                             new TextBlock
                             {
                                 Text = "Add a place with a map point, radius, and optional Wi-Fi evidence.",
-                                Foreground = PresencePalette.MutedBrush,
+                                Foreground = GraphicalProfile.MutedBrush,
                                 TextWrapping = TextWrapping.Wrap,
                             },
                         },
                     },
-                    PresencePalette.SurfaceBrush));
+                    GraphicalProfile.SurfaceBrush));
             }
             else
             {
@@ -407,7 +408,7 @@ public sealed class MainView : UserControl
             Child = child,
             Padding = new Thickness(18),
             Background = background,
-            BorderBrush = PresencePalette.BorderBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(18),
         };
@@ -431,7 +432,7 @@ public sealed class MainView : UserControl
                 Height = 360,
                 MinHeight = 260,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                BackgroundBrush = PresencePalette.SurfaceBrush,
+                BackgroundBrush = GraphicalProfile.SurfaceBrush,
             };
             map.Markers = locations
                 .Select(location => new MapMarker(
@@ -465,8 +466,8 @@ public sealed class MainView : UserControl
                 Content = "+",
                 MinWidth = 44,
                 MinHeight = 44,
-                Background = PresencePalette.SurfaceBrush,
-                Foreground = PresencePalette.TextBrush,
+                Background = GraphicalProfile.SurfaceBrush,
+                Foreground = GraphicalProfile.TextBrush,
             };
             zoomIn.Click += (_, _) => map.ZoomIn();
             var zoomOut = new Button
@@ -474,16 +475,16 @@ public sealed class MainView : UserControl
                 Content = "−",
                 MinWidth = 44,
                 MinHeight = 44,
-                Background = PresencePalette.SurfaceBrush,
-                Foreground = PresencePalette.TextBrush,
+                Background = GraphicalProfile.SurfaceBrush,
+                Foreground = GraphicalProfile.TextBrush,
             };
             zoomOut.Click += (_, _) => map.ZoomOut();
             var fit = new Button
             {
                 Content = "Fit",
                 MinHeight = 44,
-                Background = PresencePalette.SurfaceBrush,
-                Foreground = PresencePalette.TextBrush,
+                Background = GraphicalProfile.SurfaceBrush,
+                Foreground = GraphicalProfile.TextBrush,
             };
             fit.Click += (_, _) => map.FitToContent(
                 locations
@@ -510,8 +511,8 @@ public sealed class MainView : UserControl
             {
                 Content = "Refresh map",
                 Classes = { "primary-button" },
-                Background = PresencePalette.TealDeepBrush,
-                Foreground = PresencePalette.TextBrush,
+                Background = GraphicalProfile.AccentFillBrush,
+                Foreground = GraphicalProfile.TextBrush,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
             };
             refresh.Click += async (_, _) =>
@@ -537,26 +538,26 @@ public sealed class MainView : UserControl
                     {
                         Text = "DAY MAP",
                         Classes = { "eyebrow" },
-                        Foreground = PresencePalette.TealBrush,
+                        Foreground = GraphicalProfile.AccentBrush,
                     },
                     new TextBlock
                     {
                         Text = "Where the day took shape",
                         Classes = { "page-title" },
-                        Foreground = PresencePalette.TextBrush,
+                        Foreground = GraphicalProfile.TextBrush,
                     },
                     new TextBlock
                     {
                         Text = $"{_displayDate:yyyy-MM-dd} · configured places and local samples",
                         Classes = { "body-copy" },
-                        Foreground = PresencePalette.MutedBrush,
+                        Foreground = GraphicalProfile.MutedBrush,
                     },
                     mapFrame,
                     refresh,
                     new TextBlock
                     {
                         Text = "Map tiles and address search may use Kartverket/Geonorge. Your locations and samples stay in the app’s private storage.",
-                        Foreground = PresencePalette.MutedBrush,
+                        Foreground = GraphicalProfile.MutedBrush,
                         TextWrapping = TextWrapping.Wrap,
                     },
                 },
@@ -615,20 +616,20 @@ public sealed class MainView : UserControl
                     Text = location.DisplayName,
                     FontSize = 18,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = PresencePalette.TextBrush,
+                    Foreground = GraphicalProfile.TextBrush,
                 },
                 new TextBlock
                 {
                     Text = stateText,
                     Foreground = state.State == PresenceState.Present
-                        ? PresencePalette.TealBrush
-                        : PresencePalette.MutedBrush,
+                        ? GraphicalProfile.AccentBrush
+                        : GraphicalProfile.MutedBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },
                 new TextBlock
                 {
                     Text = $"{evidenceText} · {location.Area.RadiusMeters:0} m radius",
-                    Foreground = PresencePalette.MutedBrush,
+                    Foreground = GraphicalProfile.MutedBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },
             },
@@ -640,8 +641,8 @@ public sealed class MainView : UserControl
             MinHeight = 44,
             Margin = new Thickness(0, 8, 0, 0),
             Padding = new Thickness(12, 7),
-            Background = PresencePalette.RaisedBrush,
-            Foreground = PresencePalette.TextBrush,
+            Background = GraphicalProfile.RaisedBrush,
+            Foreground = GraphicalProfile.TextBrush,
         };
         edit.Click += async (_, _) => await ShowAddLocationAsync(location);
         content.Children.Add(edit);
@@ -650,8 +651,8 @@ public sealed class MainView : UserControl
             Child = content,
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 10),
-            Background = PresencePalette.SurfaceBrush,
-            BorderBrush = PresencePalette.BorderBrush,
+            Background = GraphicalProfile.SurfaceBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
         };
@@ -697,7 +698,7 @@ public sealed class MainView : UserControl
             Value = existing?.Area.RadiusMeters ?? 200,
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        _radiusLabel = new TextBlock { Foreground = PresencePalette.MutedBrush };
+        _radiusLabel = new TextBlock { Foreground = GraphicalProfile.MutedBrush };
         _radiusInput.PropertyChanged += (_, e) =>
         {
             if (e.Property == Slider.ValueProperty && _radiusLabel is not null)
@@ -746,8 +747,8 @@ public sealed class MainView : UserControl
             Content = "Search address",
             Classes = { "primary-button" },
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = PresencePalette.TealDeepBrush,
-            Foreground = PresencePalette.TextBrush,
+            Background = GraphicalProfile.AccentFillBrush,
+            Foreground = GraphicalProfile.TextBrush,
         };
         searchButton.Click += async (_, _) =>
         {
@@ -765,7 +766,7 @@ public sealed class MainView : UserControl
                     searchResults.Children.Add(new TextBlock
                     {
                         Text = "No addresses found.",
-                        Foreground = PresencePalette.MutedBrush,
+                        Foreground = GraphicalProfile.MutedBrush,
                     });
                 }
 
@@ -798,7 +799,7 @@ public sealed class MainView : UserControl
             Content = existing is null ? "Save location" : "Update location",
             Classes = { "primary-button" },
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = PresencePalette.CopperBrush,
+            Background = GraphicalProfile.ActionBrush,
             Foreground = Brushes.White,
         };
         save.Click += async (_, _) => await SaveLocationAsync();
@@ -809,31 +810,31 @@ public sealed class MainView : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
             MinHeight = 48,
             Padding = new Thickness(14, 8),
-            Background = PresencePalette.SurfaceBrush,
-            Foreground = PresencePalette.TextBrush,
+            Background = GraphicalProfile.SurfaceBrush,
+            Foreground = GraphicalProfile.TextBrush,
         };
         cancel.Click += async (_, _) => await ShowLocationsAsync();
 
         var stack = PageStack(
             existing is null ? "Add location" : "Edit location",
             "Choose a point and radius. Map content is used only during setup.");
-        stack.Children.Add(new TextBlock { Text = "Name", Foreground = PresencePalette.MutedBrush });
+        stack.Children.Add(new TextBlock { Text = "Name", Foreground = GraphicalProfile.MutedBrush });
         stack.Children.Add(_nameInput);
         stack.Children.Add(new TextBlock
         {
             Text = "Effective from (UTC)",
-            Foreground = PresencePalette.MutedBrush,
+            Foreground = GraphicalProfile.MutedBrush,
         });
         stack.Children.Add(_effectiveFromInput);
         stack.Children.Add(new TextBlock
         {
             Text = "Use this to introduce a place retroactively without rewriting later revisions.",
-            Foreground = PresencePalette.MutedBrush,
+            Foreground = GraphicalProfile.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
         });
-        stack.Children.Add(new TextBlock { Text = "Wi-Fi network (optional)", Foreground = PresencePalette.MutedBrush });
+        stack.Children.Add(new TextBlock { Text = "Wi-Fi network (optional)", Foreground = GraphicalProfile.MutedBrush });
         stack.Children.Add(_ssidInput);
-        stack.Children.Add(new TextBlock { Text = "Address search", Foreground = PresencePalette.MutedBrush });
+        stack.Children.Add(new TextBlock { Text = "Address search", Foreground = GraphicalProfile.MutedBrush });
         stack.Children.Add(new StackPanel
         {
             Orientation = Orientation.Vertical,
@@ -845,19 +846,19 @@ public sealed class MainView : UserControl
         stack.Children.Add(new TextBlock
         {
             Text = "Selected coordinates",
-            Foreground = PresencePalette.MutedBrush,
+            Foreground = GraphicalProfile.MutedBrush,
         });
         stack.Children.Add(_coordinateInput);
         stack.Children.Add(new TextBlock
         {
             Text = "Enter latitude, longitude in decimal degrees, or tap the map.",
-            Foreground = PresencePalette.MutedBrush,
+            Foreground = GraphicalProfile.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
         });
         stack.Children.Add(new TextBlock
         {
             Text = "Tap the map to set the center, then adjust the radius.",
-            Foreground = PresencePalette.MutedBrush,
+            Foreground = GraphicalProfile.MutedBrush,
         });
         stack.Children.Add(_pickerMap);
         stack.Children.Add(_radiusLabel);
@@ -948,8 +949,8 @@ public sealed class MainView : UserControl
                     ? "ARRIVED"
                     : "LEFT";
                 var color = presenceEvent.Transition == PresenceTransition.Arrived
-                    ? PresencePalette.TealBrush
-                    : PresencePalette.CopperBrush;
+                    ? GraphicalProfile.AccentBrush
+                    : GraphicalProfile.ActionBrush;
                 stack.Children.Add(Card(
                     new StackPanel
                     {
@@ -967,24 +968,24 @@ public sealed class MainView : UserControl
                                 Text = name,
                                 FontSize = 18,
                                 FontWeight = FontWeight.SemiBold,
-                                Foreground = PresencePalette.TextBrush,
+                                Foreground = GraphicalProfile.TextBrush,
                             },
                             new TextBlock
                             {
                                 Text = $"{presenceEvent.At.ToLocalTime():g} · "
                                     + $"{presenceEvent.Evidence.Confidence} evidence",
-                                Foreground = PresencePalette.MutedBrush,
+                                Foreground = GraphicalProfile.MutedBrush,
                             },
                         },
                     },
-                    PresencePalette.SurfaceBrush));
+                    GraphicalProfile.SurfaceBrush));
             }
 
             if (events.Count == 0)
                 stack.Children.Add(new TextBlock
                 {
                     Text = "No presence events yet.",
-                    Foreground = PresencePalette.MutedBrush,
+                    Foreground = GraphicalProfile.MutedBrush,
                 });
             _content.Content = new ScrollViewer
             {
@@ -1150,12 +1151,12 @@ public sealed class MainView : UserControl
                     Text = title,
                     FontSize = 26,
                     FontWeight = FontWeight.SemiBold,
-                    Foreground = PresencePalette.TextBrush,
+                    Foreground = GraphicalProfile.TextBrush,
                 },
                 new TextBlock
                 {
                     Text = subtitle,
-                    Foreground = PresencePalette.MutedBrush,
+                    Foreground = GraphicalProfile.MutedBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },
             },
@@ -1170,12 +1171,12 @@ public sealed class MainView : UserControl
                 new TextBlock
                 {
                     Text = label,
-                    Foreground = PresencePalette.MutedBrush,
+                    Foreground = GraphicalProfile.MutedBrush,
                 },
                 new TextBlock
                 {
                     Text = value,
-                    Foreground = PresencePalette.TextBrush,
+                    Foreground = GraphicalProfile.TextBrush,
                     TextWrapping = TextWrapping.Wrap,
                 },
             },

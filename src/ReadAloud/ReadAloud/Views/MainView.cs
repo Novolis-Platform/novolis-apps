@@ -1,3 +1,4 @@
+using Novolis.Avalonia.GraphicalProfile;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
@@ -64,18 +65,18 @@ public sealed class MainView : DockPanel
         LastChildFill = true;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Top;
-        Background = ReadAloudPalette.WindowBrush;
+        Background = GraphicalProfile.BackgroundBrush;
 
         _textBox = new TextBox
         {
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             PlaceholderText = "Paste or type anything to hear…",
-            FontFamily = ReadAloudPalette.BodyFont,
+            FontFamily = GraphicalProfile.BodyFont,
             FontSize = 16,
-            Foreground = ReadAloudPalette.BodyBrush,
-            Background = ReadAloudPalette.PanelRaisedBrush,
-            CaretBrush = ReadAloudPalette.AccentBrush,
+            Foreground = GraphicalProfile.TextBrush,
+            Background = GraphicalProfile.RaisedBrush,
+            CaretBrush = GraphicalProfile.AccentBrush,
         };
 
         var openBtn = ReadAloudTheme.Button("Open file…", ReadAloudButtonKind.Secondary);
@@ -124,7 +125,7 @@ public sealed class MainView : DockPanel
             },
             SelectedIndex = _resourcePicker is null ? 1 : 0,
             IsEnabled = _resourcePicker is not null,
-            FontFamily = ReadAloudPalette.BodyFont,
+            FontFamily = GraphicalProfile.BodyFont,
         };
         _credentialVariantPicker.SelectionChanged += (_, _) => RefreshCredentialVariant();
         _signInButton = ReadAloudTheme.Button(
@@ -156,7 +157,7 @@ public sealed class MainView : DockPanel
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             IsEnabled = false,
-            FontFamily = ReadAloudPalette.BodyFont,
+            FontFamily = GraphicalProfile.BodyFont,
         };
         _subscriptionPicker.SelectionChanged += async (_, _) =>
             await OnSubscriptionSelectedAsync();
@@ -165,7 +166,7 @@ public sealed class MainView : DockPanel
             HorizontalAlignment = HorizontalAlignment.Stretch,
             IsVisible = false,
             IsEnabled = false,
-            FontFamily = ReadAloudPalette.BodyFont,
+            FontFamily = GraphicalProfile.BodyFont,
         };
         _resourceGroupPicker.SelectionChanged += async (_, _) =>
             await OnResourceGroupSelectedAsync();
@@ -174,7 +175,7 @@ public sealed class MainView : DockPanel
             HorizontalAlignment = HorizontalAlignment.Stretch,
             IsVisible = false,
             IsEnabled = false,
-            FontFamily = ReadAloudPalette.BodyFont,
+            FontFamily = GraphicalProfile.BodyFont,
         };
         _speechResourcePicker.SelectionChanged += async (_, _) =>
             await OnSpeechResourceSelectedAsync();
@@ -207,7 +208,7 @@ public sealed class MainView : DockPanel
             MinHeight = 280,
             Margin = new Thickness(16, 0, 16, 16),
             Padding = new Thickness(12),
-            Background = ReadAloudPalette.PanelBrush,
+            Background = GraphicalProfile.SurfaceBrush,
             CornerRadius = new CornerRadius(6),
             BorderBrush = new SolidColorBrush(Color.FromArgb(40, 47, 223, 255)),
             BorderThickness = new Thickness(1),
@@ -290,9 +291,9 @@ public sealed class MainView : DockPanel
             IsVisible = false,
             Margin = new Thickness(0, 8, 0, 0),
             Padding = new Thickness(10),
-            Background = ReadAloudPalette.PanelBrush,
+            Background = GraphicalProfile.SurfaceBrush,
             CornerRadius = new CornerRadius(4),
-            BorderBrush = ReadAloudPalette.AccentBrush,
+            BorderBrush = GraphicalProfile.AccentBrush,
             BorderThickness = new Thickness(1),
             Child = content,
         };

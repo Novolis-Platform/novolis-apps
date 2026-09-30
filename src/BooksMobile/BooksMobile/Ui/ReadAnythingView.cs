@@ -1,3 +1,4 @@
+using Novolis.Avalonia.GraphicalProfile;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -29,10 +30,10 @@ internal sealed class ReadAnythingView : DockPanel
         TextWrapping = TextWrapping.Wrap,
         PlaceholderText = "Paste or type any text / markdown…",
         MinHeight = 160,
-        FontFamily = BooksPalette.BodyFont,
+        FontFamily = GraphicalProfile.BodyFont,
         FontSize = 15,
-        Foreground = BooksPalette.BodyBrush,
-        Background = BooksPalette.PanelRaisedBrush,
+        Foreground = GraphicalProfile.TextBrush,
+        Background = GraphicalProfile.RaisedBrush,
     };
 
     readonly TextBlock _sourceLabel = BooksTheme.Muted(string.Empty, 12);
@@ -43,7 +44,7 @@ internal sealed class ReadAnythingView : DockPanel
     public ReadAnythingView()
     {
         LastChildFill = true;
-        Background = BooksPalette.WindowBrush;
+        Background = GraphicalProfile.BackgroundBrush;
 
         var openBtn = BooksTheme.Button("Open file…", BooksButtonKind.Secondary);
         openBtn.Click += async (_, _) => await OpenFileAsync();

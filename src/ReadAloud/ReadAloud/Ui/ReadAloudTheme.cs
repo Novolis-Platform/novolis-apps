@@ -6,31 +6,6 @@ using Novolis.Avalonia.GraphicalProfile;
 
 namespace ReadAloud.Ui;
 
-/// <summary>Novolis brand tokens for Read Aloud — navy + cyan, reading-first (not Inter / purple SaaS).</summary>
-internal static class ReadAloudPalette
-{
-    public static Color Window => GraphicalProfile.Background;
-    public static Color Panel => GraphicalProfile.Surface;
-    public static Color PanelRaised => GraphicalProfile.Raised;
-    public static Color Accent => GraphicalProfile.Accent;
-    public static Color AccentDeep => GraphicalProfile.AccentFill;
-    public static Color Body => GraphicalProfile.Text;
-    public static Color Muted => GraphicalProfile.Muted;
-    public static Color Danger => GraphicalProfile.Danger;
-
-    public static IBrush WindowBrush => GraphicalProfile.BackgroundBrush;
-    public static IBrush PanelBrush => GraphicalProfile.SurfaceBrush;
-    public static IBrush PanelRaisedBrush => GraphicalProfile.RaisedBrush;
-    public static IBrush AccentBrush => GraphicalProfile.AccentBrush;
-    public static IBrush AccentDeepBrush => GraphicalProfile.AccentFillBrush;
-    public static IBrush BodyBrush => GraphicalProfile.TextBrush;
-    public static IBrush MutedBrush => GraphicalProfile.MutedBrush;
-    public static IBrush DangerBrush => GraphicalProfile.DangerBrush;
-
-    public static FontFamily DisplayFont => GraphicalProfile.BodyFont;
-    public static FontFamily BodyFont => GraphicalProfile.BodyFont;
-}
-
 internal enum ReadAloudButtonKind
 {
     Primary,
@@ -44,18 +19,18 @@ internal static class ReadAloudTheme
     public static TextBlock BrandTitle(string text, double size = 28) => new()
     {
         Text = text,
-        FontFamily = ReadAloudPalette.DisplayFont,
+        FontFamily = GraphicalProfile.BodyFont,
         FontSize = size,
         FontWeight = FontWeight.SemiBold,
-        Foreground = ReadAloudPalette.AccentBrush,
+        Foreground = GraphicalProfile.AccentBrush,
     };
 
     public static TextBlock Muted(string text, double size = 14) => new()
     {
         Text = text,
-        FontFamily = ReadAloudPalette.BodyFont,
+        FontFamily = GraphicalProfile.BodyFont,
         FontSize = size,
-        Foreground = ReadAloudPalette.MutedBrush,
+        Foreground = GraphicalProfile.MutedBrush,
         TextWrapping = TextWrapping.Wrap,
     };
 
@@ -64,7 +39,7 @@ internal static class ReadAloudTheme
         var btn = new Button
         {
             Content = text,
-            FontFamily = ReadAloudPalette.BodyFont,
+            FontFamily = GraphicalProfile.BodyFont,
             FontSize = kind == ReadAloudButtonKind.Primary ? 15 : 14,
             FontWeight = kind == ReadAloudButtonKind.Primary ? FontWeight.SemiBold : FontWeight.Normal,
             Padding = new Thickness(16, 10),
@@ -82,24 +57,24 @@ internal static class ReadAloudTheme
         switch (kind)
         {
             case ReadAloudButtonKind.Primary:
-                btn.Background = ReadAloudPalette.AccentDeepBrush;
-                btn.Foreground = ReadAloudPalette.WindowBrush;
+                btn.Background = GraphicalProfile.AccentFillBrush;
+                btn.Foreground = GraphicalProfile.BackgroundBrush;
                 btn.BorderThickness = new Thickness(0);
                 break;
             case ReadAloudButtonKind.Danger:
-                btn.Background = ReadAloudPalette.PanelRaisedBrush;
-                btn.Foreground = ReadAloudPalette.DangerBrush;
-                btn.BorderBrush = ReadAloudPalette.DangerBrush;
+                btn.Background = GraphicalProfile.RaisedBrush;
+                btn.Foreground = GraphicalProfile.DangerBrush;
+                btn.BorderBrush = GraphicalProfile.DangerBrush;
                 btn.BorderThickness = new Thickness(1);
                 break;
             case ReadAloudButtonKind.Quiet:
                 btn.Background = Brushes.Transparent;
-                btn.Foreground = ReadAloudPalette.MutedBrush;
+                btn.Foreground = GraphicalProfile.MutedBrush;
                 btn.BorderThickness = new Thickness(0);
                 break;
             default:
-                btn.Background = ReadAloudPalette.PanelRaisedBrush;
-                btn.Foreground = ReadAloudPalette.BodyBrush;
+                btn.Background = GraphicalProfile.RaisedBrush;
+                btn.Foreground = GraphicalProfile.TextBrush;
                 btn.BorderThickness = new Thickness(1);
                 btn.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 47, 223, 255));
                 break;

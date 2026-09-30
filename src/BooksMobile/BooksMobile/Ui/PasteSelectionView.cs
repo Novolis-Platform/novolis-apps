@@ -1,3 +1,4 @@
+using Novolis.Avalonia.GraphicalProfile;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
@@ -16,10 +17,10 @@ internal sealed class PasteSelectionView : DockPanel
         TextWrapping = TextWrapping.Wrap,
         PlaceholderText = "Paste full selection markdown (YAML + masthead + ## Article)…",
         MinHeight = 220,
-        FontFamily = BooksPalette.BodyFont,
+        FontFamily = GraphicalProfile.BodyFont,
         FontSize = 14,
-        Foreground = BooksPalette.BodyBrush,
-        Background = BooksPalette.PanelRaisedBrush,
+        Foreground = GraphicalProfile.TextBrush,
+        Background = GraphicalProfile.RaisedBrush,
     };
 
     readonly TextBlock _status = BooksTheme.Muted(string.Empty, 13);
@@ -27,7 +28,7 @@ internal sealed class PasteSelectionView : DockPanel
     public PasteSelectionView()
     {
         LastChildFill = true;
-        Background = BooksPalette.WindowBrush;
+        Background = GraphicalProfile.BackgroundBrush;
 
         var pasteBtn = BooksTheme.Button("Paste clipboard", BooksButtonKind.Secondary);
         pasteBtn.Click += async (_, _) => await PasteClipboardAsync();
