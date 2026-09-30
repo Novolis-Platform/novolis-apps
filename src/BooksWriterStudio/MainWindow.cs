@@ -1155,7 +1155,8 @@ internal sealed class MainWindow : Window
             await Task.Run(() =>
             {
                 ct.ThrowIfCancellationRequested();
-                ManuscriptBookPdfExporter.ExportBook(book, output, _printSettings);
+                var document = BookDocument.Open(book.DirectoryPath);
+                BookPdfWriter.Write(document, outDir, book.Id, BookPdfOutput.Combine, _printSettings);
             }, ct).ConfigureAwait(false);
             job.OutputPath = output;
             job.Log = $"Wrote {output}";

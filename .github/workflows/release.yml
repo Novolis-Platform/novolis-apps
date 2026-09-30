@@ -16,6 +16,7 @@ on:
           - LiveStudio
           - BooksMobile
           - ReadAloud
+          - NovolisPdfReader
           - ShipDesigner
           - PresenceLedger
           - Merglyph

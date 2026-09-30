@@ -103,10 +103,27 @@ public sealed class MainActivity : MauiAppCompatActivity
             cancellationToken =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var stream = ContentResolver?.OpenInputStream(uri)
-                    ?? throw new IOException("Android did not provide a readable PDF stream.");
-                return ValueTask.FromResult<Stream>(stream);
+                return ValueTask.FromResult(OpenPdfStream(uri));
             }));
+    }
+
+    private Stream OpenPdfStream(Android.Net.Uri uri)
+    {
+        if (string.Equals(uri.Scheme, "file", StringComparison.OrdinalIgnoreCase)
+            && uri.Path is { Length: > 0 } path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                    return File.OpenRead(path);
+            }
+            catch (IOException)
+            {
+            }
+        }
+
+        return ContentResolver?.OpenInputStream(uri)
+            ?? throw new IOException("Android did not provide a readable PDF stream.");
     }
 
     private void TryPersistReadPermission(Intent intent, Android.Net.Uri uri)

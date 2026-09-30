@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.Devices;
 using Novolis.Maui.GraphicalProfile;
 using Profile = Novolis.Maui.GraphicalProfile.GraphicalProfile;
 using Novolis.Maui.PdfViewer;
@@ -45,6 +46,7 @@ public sealed class MainPage : ContentPage
         _activationInbox = activationInbox;
         _diagnosticsLog = diagnosticsLog;
         _viewer.Error += OnViewerError;
+        _viewer.OpenRequested += (_, _) => _ = PickAndOpenAsync();
         Title = "Novolis PDF Reader";
         _diagnosticsEditor = new Editor
         {
@@ -420,21 +422,28 @@ public sealed class MainPage : ContentPage
         ApplyShellLayout();
     }
 
-    private bool IsCompact => Width > 0 && Width < 800;
+    private bool IsCompact => PdfViewerLayout.IsCompact(Width);
 
     private void ApplyShellLayout()
     {
         var reading = _viewerCard.IsVisible;
         var compact = IsCompact;
+        var readingPhone = compact && reading;
+        _header.IsVisible = !readingPhone;
+        _brandMark.IsVisible = !readingPhone;
+        _brandTitle.IsVisible = !readingPhone;
+        _documentName.IsVisible = !readingPhone;
         _tagline.IsVisible = !reading;
         _brandTitle.FontSize = compact ? GraphicalProfileColors.IntervalTitleSize : 18;
         _documentName.FontSize = compact ? GraphicalProfileColors.CaptionSize : 13;
-        var mark = compact && reading ? 36 : 52;
+        var mark = compact ? 40 : 52;
         _brandMark.WidthRequest = mark;
         _brandMark.HeightRequest = mark;
-        _header.Padding = compact
-            ? new Thickness(12, 8, 12, 6)
-            : new Thickness(18, 16, 18, 12);
+        _header.Padding = compact && reading
+            ? new Thickness(8, 4, 8, 4)
+            : compact
+                ? new Thickness(12, 8, 12, 6)
+                : new Thickness(18, 16, 18, 12);
         _body.Padding = compact && reading
             ? new Thickness(0)
             : new Thickness(16, 0, 16, 16);
@@ -445,6 +454,7 @@ public sealed class MainPage : ContentPage
         _openButton.CornerRadius = compact
             ? (int)GraphicalProfileColors.ControlRadius
             : (int)GraphicalProfileColors.PrimaryRadius;
+        _viewer.RefreshChrome();
     }
 
     private void OnRequestedThemeChanged(object? sender, AppThemeChangedEventArgs args) =>

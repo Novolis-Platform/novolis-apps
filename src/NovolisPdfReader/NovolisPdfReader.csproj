@@ -2,6 +2,8 @@
   <PropertyGroup>
     <TargetFrameworks>net10.0-android;net10.0-windows10.0.19041.0</TargetFrameworks>
     <TargetFrameworks Condition="'$(NovolisMauiTargetFrameworks)' != ''">$(NovolisMauiTargetFrameworks)</TargetFrameworks>
+    <!-- Repo default TargetFramework is net10.0; a multi-target MAUI host must not keep it. -->
+    <TargetFramework></TargetFramework>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <OutputType>Exe</OutputType>
     <RootNamespace>NovolisPdfReader</RootNamespace>
