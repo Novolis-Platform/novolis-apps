@@ -13,6 +13,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Avalonia.Desktop" />
+    <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
     <LibraryReference Include="Novolis.Avalonia.Mobile.Desktop" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno" />
     <LibraryReference Include="Novolis.Video.Abstractions" />

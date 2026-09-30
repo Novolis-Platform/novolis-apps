@@ -2,36 +2,33 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Novolis.Avalonia.GraphicalProfile;
 
 namespace BooksMobile.Ui;
 
 /// <summary>Novolis brand tokens for Books Mobile — navy + cyan, reading-first (not Inter / purple SaaS).</summary>
 internal static class BooksPalette
 {
-    // Org brand canvas + mark cyan → blue (.github/brand).
-    public static readonly Color Window = Color.Parse("#05070d");
-    public static readonly Color Panel = Color.Parse("#0b1522");
-    public static readonly Color PanelRaised = Color.Parse("#122033");
-    public static readonly Color Accent = Color.Parse("#2fdfff");
-    public static readonly Color AccentDeep = Color.Parse("#0997ff");
-    public static readonly Color Body = Color.Parse("#e8eef6");
-    public static readonly Color Muted = Color.Parse("#8a9bb0");
-    public static readonly Color Danger = Color.Parse("#e07070");
+    public static Color Window => GraphicalProfile.Background;
+    public static Color Panel => GraphicalProfile.Surface;
+    public static Color PanelRaised => GraphicalProfile.Raised;
+    public static Color Accent => GraphicalProfile.Accent;
+    public static Color AccentDeep => GraphicalProfile.AccentFill;
+    public static Color Body => GraphicalProfile.Text;
+    public static Color Muted => GraphicalProfile.Muted;
+    public static Color Danger => GraphicalProfile.Danger;
 
-    public static readonly IBrush WindowBrush = new SolidColorBrush(Window);
-    public static readonly IBrush PanelBrush = new SolidColorBrush(Panel);
-    public static readonly IBrush PanelRaisedBrush = new SolidColorBrush(PanelRaised);
-    public static readonly IBrush AccentBrush = new SolidColorBrush(Accent);
-    public static readonly IBrush AccentDeepBrush = new SolidColorBrush(AccentDeep);
-    public static readonly IBrush BodyBrush = new SolidColorBrush(Body);
-    public static readonly IBrush MutedBrush = new SolidColorBrush(Muted);
-    public static readonly IBrush DangerBrush = new SolidColorBrush(Danger);
+    public static IBrush WindowBrush => GraphicalProfile.BackgroundBrush;
+    public static IBrush PanelBrush => GraphicalProfile.SurfaceBrush;
+    public static IBrush PanelRaisedBrush => GraphicalProfile.RaisedBrush;
+    public static IBrush AccentBrush => GraphicalProfile.AccentBrush;
+    public static IBrush AccentDeepBrush => GraphicalProfile.AccentFillBrush;
+    public static IBrush BodyBrush => GraphicalProfile.TextBrush;
+    public static IBrush MutedBrush => GraphicalProfile.MutedBrush;
+    public static IBrush DangerBrush => GraphicalProfile.DangerBrush;
 
-    public static readonly FontFamily DisplayFont =
-        new("Georgia, Palatino Linotype, Book Antiqua, Times New Roman, serif");
-
-    public static readonly FontFamily BodyFont =
-        new("Segoe UI, Candara, Calibri, sans-serif");
+    public static FontFamily DisplayFont => GraphicalProfile.BodyFont;
+    public static FontFamily BodyFont => GraphicalProfile.BodyFont;
 }
 
 internal enum BooksButtonKind

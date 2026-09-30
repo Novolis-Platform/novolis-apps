@@ -16,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia.Android" />
+    <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <LibraryReference Include="Novolis.Avalonia.Mobile.Android" />
     <PackageReference Include="Xamarin.AndroidX.AppCompat" />

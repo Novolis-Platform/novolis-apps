@@ -1,6 +1,16 @@
+using Novolis.Maui.GraphicalProfile;
+
 namespace Merglyph;
 
-public sealed class App(MainPage mainPage) : Application
+public sealed class App : Application
 {
-    protected override Window CreateWindow(IActivationState? activationState) => new(mainPage);
+    private readonly MainPage _mainPage;
+
+    public App(MainPage mainPage, GraphicalProfileInstaller profileInstaller)
+    {
+        _mainPage = mainPage;
+        profileInstaller.Install(this);
+    }
+
+    protected override Window CreateWindow(IActivationState? activationState) => new(_mainPage);
 }

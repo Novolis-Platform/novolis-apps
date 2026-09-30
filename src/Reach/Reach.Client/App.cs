@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
+using Novolis.Avalonia.GraphicalProfile;
 
 namespace Novolis.Reach.Client;
 
@@ -12,7 +13,11 @@ public sealed class App : Application
     public static IServiceProvider Services { get; set; } = null!;
 
     /// <inheritdoc />
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+        GraphicalProfile.Install(this);
+    }
 
     /// <inheritdoc />
     public override void OnFrameworkInitializationCompleted()

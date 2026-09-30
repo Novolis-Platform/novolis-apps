@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
+using Novolis.Avalonia.GraphicalProfile;
 
 namespace LiveStudio;
 
@@ -10,6 +11,7 @@ internal sealed class App : Application
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
+        GraphicalProfile.Install(this);
     }
 
     public override void OnFrameworkInitializationCompleted()

@@ -5,6 +5,7 @@ using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
 using Novolis.Avalonia.Agent;
 using Novolis.Avalonia.Agent.Protocol;
+using Novolis.Avalonia.GraphicalProfile;
 using SinsOfACapitalismTycoon.Cli;
 
 namespace SinsOfACapitalismTycoon.Ui;
@@ -26,8 +27,8 @@ public sealed class App : Application
 
     public override void Initialize()
     {
-        RequestedThemeVariant = ThemeVariant.Dark;
         Styles.Add(new FluentTheme());
+        GraphicalProfile.Install(this);
     }
 
     public override void OnFrameworkInitializationCompleted()

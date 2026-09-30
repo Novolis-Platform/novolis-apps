@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using BooksMobile.Views;
 using Microsoft.Extensions.DependencyInjection;
+using Novolis.Avalonia.GraphicalProfile;
 
 namespace BooksMobile;
 
@@ -13,7 +14,11 @@ public sealed class App : Application
 {
     public static IServiceProvider Services { get; set; } = null!;
 
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+        GraphicalProfile.Install(this);
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {

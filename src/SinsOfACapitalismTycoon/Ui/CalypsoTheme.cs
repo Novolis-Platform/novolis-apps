@@ -5,45 +5,43 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Novolis.Avalonia.Agent;
 using Novolis.Avalonia.Agent.Protocol;
+using Novolis.Avalonia.GraphicalProfile;
 
 namespace SinsOfACapitalismTycoon.Ui;
 
 /// <summary>Tramp freighter bridge tokens — navy / teal atmosphere, copper–amber accent.</summary>
 internal static class CalypsoPalette
 {
-  public static readonly Color Window = Color.Parse("#071018");
-  public static readonly Color Panel = Color.Parse("#0e1824");
-  public static readonly Color PanelRaised = Color.Parse("#152434");
-  public static readonly Color Accent = Color.Parse("#d4a017");
-  public static readonly Color AccentSoft = Color.Parse("#c8b060");
-  public static readonly Color Body = Color.Parse("#e8e4d8");
-  public static readonly Color Muted = Color.Parse("#8a96a8");
-  public static readonly Color Success = Color.Parse("#6ecf8e");
-  public static readonly Color Danger = Color.Parse("#c45c4a");
-  public static readonly Color PrimaryFace = Color.Parse("#1a2838");
+  public static Color Window => GraphicalProfile.Background;
+  public static Color Panel => GraphicalProfile.Surface;
+  public static Color PanelRaised => GraphicalProfile.Raised;
+  public static Color Accent => GraphicalProfile.Action;
+  public static Color AccentSoft => GraphicalProfile.Accent;
+  public static Color Body => GraphicalProfile.Text;
+  public static Color Muted => GraphicalProfile.Muted;
+  public static Color Success => GraphicalProfile.ActionSoft;
+  public static Color Danger => GraphicalProfile.Danger;
+  public static Color PrimaryFace => GraphicalProfile.OnAction;
   public static readonly Color MapField = Color.Parse("#0a1524");
 
-  public static readonly IBrush WindowBrush = new SolidColorBrush(Window);
-  public static readonly IBrush PanelBrush = new SolidColorBrush(Panel);
-  public static readonly IBrush PanelRaisedBrush = new SolidColorBrush(PanelRaised);
-  public static readonly IBrush AccentBrush = new SolidColorBrush(Accent);
-  public static readonly IBrush AccentSoftBrush = new SolidColorBrush(AccentSoft);
-  public static readonly IBrush BodyBrush = new SolidColorBrush(Body);
-  public static readonly IBrush MutedBrush = new SolidColorBrush(Muted);
-  public static readonly IBrush SuccessBrush = new SolidColorBrush(Success);
-  public static readonly IBrush DangerBrush = new SolidColorBrush(Danger);
+  public static IBrush WindowBrush => GraphicalProfile.BackgroundBrush;
+  public static IBrush PanelBrush => GraphicalProfile.SurfaceBrush;
+  public static IBrush PanelRaisedBrush => GraphicalProfile.RaisedBrush;
+  public static IBrush AccentBrush => GraphicalProfile.ActionBrush;
+  public static IBrush AccentSoftBrush => GraphicalProfile.AccentBrush;
+  public static IBrush BodyBrush => GraphicalProfile.TextBrush;
+  public static IBrush MutedBrush => GraphicalProfile.MutedBrush;
+  public static IBrush SuccessBrush => GraphicalProfile.ActionSoftBrush;
+  public static IBrush DangerBrush => GraphicalProfile.DangerBrush;
   public static readonly IBrush MapFieldBrush = new SolidColorBrush(MapField);
 
   /// <summary>Display face for brand / voyage (serif tramp chart energy).</summary>
-  public static readonly FontFamily DisplayFont =
-    new("Georgia, Palatino Linotype, Book Antiqua, Times New Roman, serif");
+  public static FontFamily DisplayFont => GraphicalProfile.BodyFont;
 
   /// <summary>Readable UI body — not Inter.</summary>
-  public static readonly FontFamily BodyFont =
-    new("Segoe UI, Candara, Calibri, sans-serif");
+  public static FontFamily BodyFont => GraphicalProfile.BodyFont;
 
-  public static readonly FontFamily MonoFont =
-    new("Consolas, Cascadia Mono, Courier New, monospace");
+  public static FontFamily MonoFont => GraphicalProfile.MonoFont;
 }
 
 internal enum CalypsoButtonKind

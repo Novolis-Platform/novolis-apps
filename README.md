@@ -100,12 +100,7 @@ pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio
 | Books Mobile | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Read Aloud | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Presence Ledger | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
-| Coverage Studio | avalonia-desktop | windows-inno | windows, linux |
-| Capitalist Simulator | avalonia-desktop | windows-inno | windows, linux |
-| GeoPolity | avalonia-desktop | windows-inno | windows, linux |
-| Repo Studio | avalonia-desktop | windows-inno | windows, linux |
 | Ship Designer | avalonia-desktop | windows-inno | windows, linux |
-| Space Fleet: Survey Team | avalonia-mobile | windows-inno | windows, linux, android |
 | Merglyph | maui | android-apk | windows, android |
 
 List programmatically: `dotnet run --project d:\novolis\novolis-apps\tools\AppsManifest\AppsManifest.csproj -- list`

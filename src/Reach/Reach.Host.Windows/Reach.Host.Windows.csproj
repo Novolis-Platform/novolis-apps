@@ -14,6 +14,7 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <LibraryReference Include="Novolis.Avalonia.Mobile.Desktop" />
     <LibraryReference Include="Novolis.Transports.Framing" />

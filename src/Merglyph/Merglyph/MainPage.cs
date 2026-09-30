@@ -3,25 +3,12 @@ using System.Text;
 using Merglyph.Core;
 using Novolis.Maui.Markdown;
 using Microsoft.Maui.Controls.Shapes;
+using Novolis.Maui.GraphicalProfile;
 
 namespace Merglyph;
 
 public sealed class MainPage : ContentPage
 {
-    private static readonly Color AccentCyan = Color.FromArgb("#2FDFFF");
-    private static readonly Color AccentBlue = Color.FromArgb("#258BFF");
-    private static readonly Color AccentPurple = Color.FromArgb("#914BFF");
-    private static readonly Color DarkBackground = Color.FromArgb("#080D1C");
-    private static readonly Color DarkSurface = Color.FromArgb("#111B31");
-    private static readonly Color DarkBorder = Color.FromArgb("#263A60");
-    private static readonly Color DarkText = Color.FromArgb("#F4F7FF");
-    private static readonly Color DarkMuted = Color.FromArgb("#9AAECD");
-    private static readonly Color LightBackground = Color.FromArgb("#F5F7FC");
-    private static readonly Color LightSurface = Colors.White;
-    private static readonly Color LightBorder = Color.FromArgb("#D7E0F0");
-    private static readonly Color LightText = Color.FromArgb("#17213A");
-    private static readonly Color LightMuted = Color.FromArgb("#5B6B86");
-
     private readonly DocumentSession _session;
     private readonly MarkdownDocumentPicker _picker;
     private readonly RecentDocumentStore _recentStore;
@@ -213,9 +200,9 @@ public sealed class MainPage : ContentPage
                         Spacing = 8,
                         Children =
                         {
-                            CreateBadge("OFFLINE", AccentBlue),
-                            CreateBadge("MERMAID", AccentPurple),
-                            CreateBadge("PRIVATE", Color.FromArgb("#167C88")),
+                            CreateBadge("OFFLINE", GraphicalProfile.AccentFill),
+                            CreateBadge("MERMAID", GraphicalProfile.Action),
+                            CreateBadge("PRIVATE", GraphicalProfile.ActionSoft),
                         },
                     },
                     _heroOpenButton,
@@ -443,31 +430,29 @@ public sealed class MainPage : ContentPage
     {
         var theme = CurrentTheme();
         _viewer.Theme = theme;
-        var dark = theme is not MarkdownViewTheme.GitHubLight;
-        var background = dark ? DarkBackground : LightBackground;
-        var surface = dark ? DarkSurface : LightSurface;
-        var border = dark ? DarkBorder : LightBorder;
-        var text = dark ? DarkText : LightText;
-        var muted = dark ? DarkMuted : LightMuted;
+        var background = GraphicalProfile.Background;
+        var surface = GraphicalProfile.Surface;
+        var border = GraphicalProfile.Border;
+        var text = GraphicalProfile.Text;
+        var muted = GraphicalProfile.Muted;
 
         BackgroundColor = background;
         _brandName.TextColor = text;
         _brandTagline.TextColor = muted;
         _documentName.TextColor = text;
-        _welcomeEyebrow.TextColor = AccentCyan;
+        _welcomeEyebrow.TextColor = GraphicalProfile.Accent;
         _welcomeTitle.TextColor = text;
         _welcomeDescription.TextColor = muted;
         _privacyNote.TextColor = muted;
-        _documentEyebrow.TextColor = AccentCyan;
+        _documentEyebrow.TextColor = GraphicalProfile.Accent;
         _documentMeta.TextColor = muted;
-        _recentDocumentsTitle.TextColor = AccentCyan;
+        _recentDocumentsTitle.TextColor = GraphicalProfile.Accent;
         _recentDocumentsEmpty.TextColor = muted;
-        _openButton.BackgroundColor = AccentBlue;
-        _openButton.TextColor = Colors.White;
-        _heroOpenButton.BackgroundColor = AccentPurple;
-        _heroOpenButton.TextColor = Colors.White;
-        _brandMarkFrame.Background = new SolidColorBrush(
-            dark ? Color.FromArgb("#172440") : Color.FromArgb("#EAF1FF"));
+        _openButton.BackgroundColor = GraphicalProfile.AccentFill;
+        _openButton.TextColor = GraphicalProfile.OnAccentFill;
+        _heroOpenButton.BackgroundColor = GraphicalProfile.Action;
+        _heroOpenButton.TextColor = GraphicalProfile.OnAction;
+        _brandMarkFrame.Background = new SolidColorBrush(GraphicalProfile.Raised);
         _brandMarkFrame.Stroke = new SolidColorBrush(border);
         _welcomeCard.Background = new SolidColorBrush(surface);
         _welcomeCard.Stroke = new SolidColorBrush(border);
@@ -485,7 +470,6 @@ public sealed class MainPage : ContentPage
             return;
         }
 
-        var dark = CurrentTheme() is not MarkdownViewTheme.GitHubLight;
         foreach (var recentDocument in _recentDocuments.Take(RecentDocumentStore.MaximumRecentDocuments))
         {
             var document = recentDocument;
@@ -496,8 +480,8 @@ public sealed class MainPage : ContentPage
                 HorizontalOptions = LayoutOptions.Fill,
                 Padding = new Thickness(14, 10),
                 CornerRadius = 14,
-                BackgroundColor = dark ? Color.FromArgb("#172440") : Color.FromArgb("#EEF3FF"),
-                TextColor = dark ? DarkText : LightText,
+                BackgroundColor = GraphicalProfile.Raised,
+                TextColor = GraphicalProfile.Text,
             };
             button.Clicked += async (_, _) => await OpenRecentAsync(document);
             _recentDocumentsList.Children.Add(button);
@@ -523,7 +507,7 @@ public sealed class MainPage : ContentPage
             Content = new Label
             {
                 Text = text,
-                TextColor = Colors.White,
+                TextColor = GraphicalProfile.OnAction,
                 FontAttributes = FontAttributes.Bold,
                 FontSize = 10,
                 CharacterSpacing = 0.8,

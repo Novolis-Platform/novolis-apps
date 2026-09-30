@@ -5,6 +5,7 @@ using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Agent;
+using Novolis.Avalonia.GraphicalProfile;
 
 namespace SketchStudio;
 
@@ -17,7 +18,7 @@ public class App : Application
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
-        RequestedThemeVariant = ThemeVariant.Light;
+        GraphicalProfile.Install(this);
     }
 
     public override void OnFrameworkInitializationCompleted()

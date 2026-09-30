@@ -5,7 +5,7 @@ trusted networks. It attaches to an existing logged-in Windows interactive
 session and transports live video, input, clipboard, audio, and later files.
 
 Reach is deliberately separate from
-[CursorRemote](d:\novolis\novolis-apps\src\CursorRemote). CursorRemote remains a
+[CursorRemote](https://github.com/Novolis-Platform/novolis-lab/tree/main/labs/CursorRemote). CursorRemote remains a
 narrow Android controller for the Cursor window: it uses its own discovery,
 HTTP, PNG, and input contract. Reach does not rename, migrate, or reuse that
 implementation.

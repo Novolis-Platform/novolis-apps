@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
+using Novolis.Avalonia.GraphicalProfile;
 using Microsoft.Extensions.DependencyInjection;
 using ReadAloud.Views;
 
@@ -13,7 +14,11 @@ public sealed class App : Application
 {
     public static IServiceProvider Services { get; set; } = null!;
 
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+        GraphicalProfile.Install(this);
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {
