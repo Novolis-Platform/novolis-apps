@@ -37,6 +37,8 @@
     <PackageReference Include="Microsoft.Maui.Controls" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
     <LibraryReference Include="Novolis.Maui.PdfViewer" />
+    <LibraryReference Include="Novolis.Maui.Agent" />
+    <LibraryReference Include="Novolis.Maui.Agent.Protocol" />
     <LibraryReference Include="Novolis.Windows.Pdf"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
   </ItemGroup>

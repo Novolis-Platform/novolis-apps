@@ -149,6 +149,9 @@
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.101" />
     <PackageVersion Include="Novolis.Maui.Markdown" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Maui.GraphicalProfile" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Maui.PdfViewer" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Maui.Agent" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Maui.Agent.Protocol" Version="2026.1.*" />
     <PackageVersion Include="Appium.WebDriver" Version="8.4.0" />
     <PackageVersion Include="Novolis.Raylib" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Raylib.Bindings" Version="2026.1.*" />
