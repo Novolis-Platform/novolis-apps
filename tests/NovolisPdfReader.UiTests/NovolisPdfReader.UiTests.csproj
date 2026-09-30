@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NovolisPdfReader.UiTests</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <LibraryReference Include="Novolis.Testing.Appium" />
+    <LibraryReference Include="Novolis.Maui.Agent.Protocol" />
+  </ItemGroup>
+</Project>

@@ -53,6 +53,7 @@ public sealed class MainPage : ContentPage
 
         _documentName = new Label
         {
+            AutomationId = "PdfReaderDocumentName",
             Text = "No document open",
             FontAttributes = FontAttributes.Bold,
             FontSize = 13,
@@ -61,11 +62,13 @@ public sealed class MainPage : ContentPage
         };
         _documentMeta = new Label
         {
+            AutomationId = "PdfReaderDocumentMeta",
             Text = "Choose a local PDF to begin",
             FontSize = 12,
         };
         _privacyNote = new Label
         {
+            AutomationId = "PdfReaderPrivacy",
             Text = "Private by design · local files only",
             FontSize = 12,
             HorizontalTextAlignment = TextAlignment.Center,
@@ -181,6 +184,7 @@ public sealed class MainPage : ContentPage
 
         _welcomeScroll = new ScrollView
         {
+            AutomationId = "PdfReaderWelcome",
             Content = _welcomeCard,
             VerticalScrollBarVisibility = ScrollBarVisibility.Never,
         };
