@@ -107,7 +107,7 @@ internal static class AppPublishCommand
             return result;
 
         var inno = BuildInnoProfile(repoRoot, app, packageVersion, publishDir, installerDir);
-        var msbuildArgs = new List<string> { appProject, "-t:NovolisGenerateInnoScript" };
+        var msbuildArgs = new List<string> { "msbuild", appProject, "-t:NovolisGenerateInnoScript" };
         msbuildArgs.AddRange(FormatMsBuildProperties(inno.MsBuildArgs));
         ProcessRunner.Run("dotnet", repoRoot, msbuildArgs);
 
