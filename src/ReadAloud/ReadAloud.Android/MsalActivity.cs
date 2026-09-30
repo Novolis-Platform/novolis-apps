@@ -5,7 +5,7 @@ using Microsoft.Identity.Client;
 
 namespace ReadAloud.Android;
 
-/// <summary>Receives the MSAL browser redirect and returns it to MainActivity.</summary>
+/// <summary>Receives the embedded WebView redirect and returns it to MSAL.</summary>
 [Activity(
     Exported = true,
     LaunchMode = LaunchMode.SingleTask,

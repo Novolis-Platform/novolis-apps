@@ -32,11 +32,11 @@ public class MainActivity : AvaloniaMainActivity
         base.OnResume();
     }
 
-    protected override void OnPause()
+    protected override void OnDestroy()
     {
         if (ReferenceEquals(Current, this))
             Current = null;
-        base.OnPause();
+        base.OnDestroy();
     }
 
     protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)

@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Novolis.Avalonia.Speech;
 using Novolis.Avalonia.Diagnostics;
+using Novolis.Logging.Diagnostics;
 using ReadAloud.Services;
 using ReadAloud.Ui;
 
@@ -21,6 +22,7 @@ public sealed class MainView : DockPanel
     readonly SpeechService _speech;
     readonly IScreenWakeLock _wakeLock;
     readonly IDiagnosticShare _diagnosticShare;
+    readonly IDiagnosticJournal _journal;
     readonly ILogger<MainView> _logger;
     readonly TextBox _textBox;
     readonly Button _listenButton;
@@ -38,7 +40,9 @@ public sealed class MainView : DockPanel
     readonly TextBlock _credentialStatus;
     readonly TextBlock _resourceStatus;
     readonly Button _usageRefreshButton;
+    readonly TextBlock _deviceUsage;
     readonly TextBlock _usageStatus;
+    readonly TextBlock _diagnosticsView;
     readonly ComboBox _voicePicker;
     readonly TextBox _endpointBox;
     readonly TextBox _keyBox;
@@ -53,6 +57,7 @@ public sealed class MainView : DockPanel
     bool _resourceRefresh;
     bool _voiceRefresh;
     bool _usageRefresh;
+    bool _azureUsageLoaded;
     bool _listenPending;
     IDisposable? _wake;
 
@@ -60,12 +65,14 @@ public sealed class MainView : DockPanel
         SpeechService speech,
         IScreenWakeLock wakeLock,
         IDiagnosticShare diagnosticShare,
+        IDiagnosticJournal journal,
         ILogger<MainView> logger,
         IAzureSpeechResourcePicker? resourcePicker = null)
     {
         _speech = speech ?? throw new ArgumentNullException(nameof(speech));
         _wakeLock = wakeLock ?? throw new ArgumentNullException(nameof(wakeLock));
         _diagnosticShare = diagnosticShare ?? throw new ArgumentNullException(nameof(diagnosticShare));
+        _journal = journal ?? throw new ArgumentNullException(nameof(journal));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _resourcePicker = resourcePicker;
 
@@ -169,9 +176,11 @@ public sealed class MainView : DockPanel
         _resourceStatus = ReadAloudTheme.Muted(
             "Sign in to choose an Azure subscription.",
             13);
+        _deviceUsage = ReadAloudTheme.Muted(_speech.DeviceUsageSummary, 13);
         _usageStatus = ReadAloudTheme.Muted(
             "Sign in and select an Azure Speech service to load the last 30 days.",
             13);
+        _diagnosticsView = ReadAloudTheme.Muted("Diagnostics appear here after listen, save, and usage refresh.", 12);
         _usageRefreshButton = ReadAloudTheme.Button(
             "Refresh usage",
             ReadAloudButtonKind.Secondary);
@@ -220,6 +229,12 @@ public sealed class MainView : DockPanel
                 providerRow,
                 actions,
                 _status,
+                _deviceUsage,
+                ReadAloudTheme.Muted("Azure usage — last 30 days", 12),
+                _usageStatus,
+                _usageRefreshButton,
+                ReadAloudTheme.Muted("Diagnostics", 12),
+                _diagnosticsView,
                 _azureSetupPanel,
             },
         };
@@ -275,6 +290,13 @@ public sealed class MainView : DockPanel
             });
             if (_speech.CanCreateMp3)
                 await RefreshVoiceListAsync();
+            Dispatcher.UIThread.Post(() =>
+            {
+                RefreshDeviceUsage();
+                RefreshDiagnosticsView();
+                if (CanRefreshAzureUsage())
+                    _ = RefreshUsageAsync();
+            });
         }
         catch (Exception ex)
         {
@@ -352,9 +374,6 @@ public sealed class MainView : DockPanel
                 _resourceGroupPicker,
                 ReadAloudTheme.Muted("Speech service", 12),
                 _speechResourcePicker,
-                ReadAloudTheme.Muted("Azure usage — last 30 days", 12),
-                _usageStatus,
-                _usageRefreshButton,
             },
         };
     }
@@ -429,24 +448,39 @@ public sealed class MainView : DockPanel
             ? "Current credentials: not configured."
             : $"Current credentials: {DescribeCredentialSource(setup)}.";
 
-        var usageReady = automatic &&
-                         setup?.EffectiveCredentialSource ==
-                         AzureSpeechCredentialSource.Automatic;
+        var usageReady = CanRefreshAzureUsage();
         _usageRefreshButton.IsEnabled = usageReady && !_usageRefresh;
-        if (!automatic)
+        if (!usageReady)
         {
-            _usageStatus.Text =
-                "Azure Monitor usage requires Automatic — Microsoft sign-in.";
+            _azureUsageLoaded = false;
+            _usageStatus.Text = _resourcePicker is null
+                ? "Azure Monitor totals need Android Microsoft sign-in. Characters sent, calls, and failures on this device are listed above."
+                : automatic
+                    ? "Sign in and select an Azure Speech service to load the last 30 days."
+                    : "Azure Monitor usage requires Automatic — Microsoft sign-in. A subscription key can synthesize but cannot read management metrics.";
         }
-        else if (!usageReady)
-        {
-            _usageStatus.Text =
-                "Sign in and select an Azure Speech service to load the last 30 days.";
-        }
-        else if (string.IsNullOrWhiteSpace(_usageStatus.Text))
+        else if (!_azureUsageLoaded && !_usageRefresh)
         {
             _usageStatus.Text = "Tap Refresh usage to load the last 30 days.";
         }
+    }
+
+    bool CanRefreshAzureUsage()
+    {
+        var setup = _speech.AzureConfiguration;
+        return _resourcePicker is not null &&
+               _credentialVariantPicker.SelectedIndex == 0 &&
+               setup is { EffectiveCredentialSource: AzureSpeechCredentialSource.Automatic };
+    }
+
+    void RefreshDeviceUsage() => _deviceUsage.Text = _speech.DeviceUsageSummary;
+
+    void RefreshDiagnosticsView()
+    {
+        var summary = _journal.ReadRecentSummary();
+        _diagnosticsView.Text = string.IsNullOrWhiteSpace(summary)
+            ? "No diagnostic events yet."
+            : summary;
     }
 
     async Task RefreshUsageAsync()
@@ -479,13 +513,23 @@ public sealed class MainView : DockPanel
                 .GetUsageAsync(setup.Endpoint)
                 .ConfigureAwait(true);
             _usageStatus.Text = FormatUsage(usage);
+            _azureUsageLoaded = true;
+            _logger.LogInformation(
+                "Azure usage loaded. Characters {Characters}. Calls {Calls}. Successful {Successful}. ClientErrors {ClientErrors}. ServerErrors {ServerErrors}.",
+                usage.SynthesizedCharacters,
+                usage.TotalCalls,
+                usage.SuccessfulCalls,
+                usage.ClientErrors,
+                usage.ServerErrors);
         }
         catch (OperationCanceledException)
         {
+            _azureUsageLoaded = true;
             _usageStatus.Text = "Azure usage lookup cancelled.";
         }
         catch (Exception ex)
         {
+            _azureUsageLoaded = true;
             _logger.LogError(ex, "Read Aloud Azure usage lookup failed.");
             _usageStatus.Text = $"Azure usage unavailable: {ex.Message}";
         }
@@ -493,6 +537,7 @@ public sealed class MainView : DockPanel
         {
             _usageRefresh = false;
             RefreshCredentialVariant();
+            RefreshDiagnosticsView();
         }
     }
 
@@ -513,11 +558,12 @@ public sealed class MainView : DockPanel
         if (values.Count == 0)
             values.Add("No Azure Monitor data was returned.");
 
-        return string.Join(
-            " · ",
-            values) +
+        var text = string.Join(" · ", values) +
             $"\nWindow: {usage.Start.UtcDateTime:yyyy-MM-dd} – " +
             $"{usage.End.UtcDateTime:yyyy-MM-dd} UTC";
+        if (!string.IsNullOrWhiteSpace(usage.Notice))
+            text += $"\n{usage.Notice}";
+        return text;
     }
 
     async Task SignInAzureAsync()
@@ -1198,6 +1244,7 @@ public sealed class MainView : DockPanel
             _listenPending = false;
             ReleaseWake();
             RefreshListen();
+            RefreshDiagnosticsView();
         }
     }
 
@@ -1274,6 +1321,7 @@ public sealed class MainView : DockPanel
         {
             _saveButton.IsEnabled = true;
             RefreshListen();
+            RefreshDiagnosticsView();
         }
     }
 
@@ -1285,6 +1333,7 @@ public sealed class MainView : DockPanel
         _listenButton.Content = speaking ? "Stop" : (_speech.HasCachedAudio(DocumentText) ? "Listen ✓" : "Listen");
         ReadAloudTheme.StyleButton(_listenButton, ReadAloudButtonKind.Primary);
         _saveButton.IsEnabled = !speaking && _speech.CanCreateMp3;
+        RefreshDeviceUsage();
         RefreshProviderUi();
     }
 
@@ -1292,8 +1341,9 @@ public sealed class MainView : DockPanel
     {
         try
         {
+            RefreshDiagnosticsView();
             await _diagnosticShare.ShareLatestAsync();
-            SetStatus("Diagnostics are ready.");
+            SetStatus("Diagnostics are on screen. The latest file is ready to share.");
         }
         catch (Exception ex)
         {

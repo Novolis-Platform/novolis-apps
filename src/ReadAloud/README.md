@@ -58,23 +58,37 @@ key and service-account setup.
 
 ## Android Azure sign-in
 
-The Android host uses a single-tenant Microsoft Entra public client and the
-system browser. Open **Azure setup**, choose **Automatic — Microsoft sign-in**,
-then choose a subscription only when more than one is available. Read Aloud
+Open **Azure setup**, choose **Automatic — Microsoft sign-in**. The signed-in
+directory user is the personal Microsoft account `frank.haugen@gmail.com`,
+present in the tenant as a guest (`#EXT#`), not a work account. Sign-in
+therefore does not call the Android broker and does not show the work-account
+picker. The embedded WebView opens with `domain_hint=consumers` and that
+login hint, so a corporate account already on the device is left unused.
+Later token requests reuse that personal account. The redirect remains
+`msalc8b938aa-2e5d-48b4-89c6-fc139733c44d://auth`.
+
+Then choose a subscription only when more than one is available. Read Aloud
 filters resource groups and services to compatible Speech resources and
 automatically selects the only valid resource when there is one. The automatic
 path does not ask for a Speech key or embed one as a secret in the APK.
 
 The selected resource is configured with Microsoft Entra data-plane access.
-MSAL owns the platform-native secure token cache. The
-single-tenant app registration uses the MSAL redirect
-`msalc8b938aa-2e5d-48b4-89c6-fc139733c44d://auth`.
+MSAL owns the platform-native secure token cache.
 
-Automatic sign-in also enables the **Azure usage — last 30 days** view. It
-reads the `SynthesizedCharacters` and request/error totals from Azure Monitor
-through the management API. The signed-in account needs Reader or Monitoring
-Reader access to the selected resource. Manual subscription-key credentials
-can synthesize speech but cannot read management-plane usage metrics.
+The main screen shows two usage lines. **This device** counts characters sent,
+Azure calls, cache replays, and failures for this install. **Azure usage —
+last 30 days** is the resource total from Azure Monitor. It is loaded after
+automatic sign-in and when you choose Refresh usage. Character totals and
+call totals are separate Monitor queries (`interval=FULL`) because those
+metrics do not share dimensions. The signed-in account needs Reader or
+Monitoring Reader access. A subscription key can synthesize speech but cannot
+read management-plane metrics, so desktop and manual setups still show the
+device line only.
+
+**Diagnostics** on the main screen are the recent journal lines for speech
+activity and failures (character counts, voice, elapsed time, errors). The
+spoken text is not written there. Open or share diagnostics also reveals the
+underlying NDJSON file.
 
 The main chrome **Voice** list is populated from the connected Speech resource
 after sign-in, typed save, import, or Test. The default selection is

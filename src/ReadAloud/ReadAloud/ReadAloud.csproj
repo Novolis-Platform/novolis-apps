@@ -12,6 +12,7 @@
     <LibraryReference Include="Novolis.Audio.Voice.AzureSpeech" />
     <LibraryReference Include="Novolis.Avalonia.Speech" />
     <LibraryReference Include="Novolis.Avalonia.Diagnostics" />
+    <LibraryReference Include="Novolis.Logging.Diagnostics" />
     <LibraryReference Include="Novolis.Avalonia.Mobile" />
     <LibraryReference Include="Novolis.Markup.Markdown" />
     <LibraryReference Include="Novolis.Manuscript.Export.Audio" />

@@ -51,7 +51,8 @@ public class MainApplication : AvaloniaAndroidApplication<App>
                 services.AddReadAloudCore();
                 services.AddSingleton(_ => new AndroidEntraAuthentication(
                     SpeechService.DefaultAzureClientId,
-                    SpeechService.DefaultAzureTenantId));
+                    SpeechService.DefaultAzureTenantId,
+                    SpeechService.DefaultAzureLoginHint));
                 services.AddSingleton<HttpClient>();
                 services.AddSingleton<IAzureSpeechResourcePicker, AndroidAzureSpeechResourcePicker>();
                 services.AddSingleton<IAzureSpeechCredentialFactory, AndroidEntraSpeechCredentialFactory>();

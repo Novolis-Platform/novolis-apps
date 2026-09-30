@@ -10,15 +10,6 @@ public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicke
     const string ManagementBase = "https://management.azure.com";
     const string CognitiveServicesApiVersion = "2023-05-01";
     const string SubscriptionsApiVersion = "2020-01-01";
-    const string MetricsApiVersion = "2023-10-01";
-    static readonly string[] UsageMetricNames =
-    [
-        "SynthesizedCharacters",
-        "TotalCalls",
-        "SuccessfulCalls",
-        "ClientErrors",
-        "ServerErrors",
-    ];
 
     readonly AndroidEntraAuthentication _authentication;
     readonly HttpClient _httpClient;
@@ -91,53 +82,41 @@ public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicke
         var end = DateTimeOffset.UtcNow;
         var start = end.AddDays(-30);
         var resourceId = BuildResourceId(resource);
-        var metricNames = string.Join(
-            ',',
-            UsageMetricNames.Select(Uri.EscapeDataString));
-        var timespan = Uri.EscapeDataString($"{start:O}/{end:O}");
-        var url =
-            $"{ManagementBase}{resourceId}/providers/Microsoft.Insights/metrics" +
-            $"?metricnames={metricNames}" +
-            $"&aggregation=Total&interval=PT1H&timespan={timespan}" +
-            $"&metricnamespace=Microsoft.CognitiveServices/accounts" +
-            $"&api-version={MetricsApiVersion}";
-
-        using var request = await CreateRequestAsync(url, cancellationToken)
-            .ConfigureAwait(false);
-        using var response = await _httpClient
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-            .ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
+        var totals = new Dictionary<string, long?>(StringComparer.OrdinalIgnoreCase);
+        var notices = new List<string>();
+        var failures = new List<string>();
+        foreach (var group in AzureSpeechMonitorQuery.MetricGroups)
         {
-            var message = response.StatusCode switch
+            var url = AzureSpeechMonitorQuery.BuildMetricsUrl(resourceId, group, start, end);
+            try
             {
-                HttpStatusCode.Unauthorized =>
-                    "Azure sign-in expired. Sign in again.",
-                HttpStatusCode.Forbidden =>
-                    "This Azure account cannot read usage for the selected Speech resource. " +
-                    "Reader or Monitoring Reader access is required.",
-                _ =>
-                    $"Azure usage lookup failed ({(int)response.StatusCode}).",
-            };
-            throw new InvalidOperationException(message);
+                using var document = await GetJsonAsync(url, cancellationToken)
+                    .ConfigureAwait(false);
+                AzureSpeechMonitorQuery.ReadMetrics(document.RootElement, totals, notices);
+            }
+            catch (InvalidOperationException ex)
+            {
+                failures.Add(ex.Message);
+            }
         }
 
-        await using var stream = await response.Content
-            .ReadAsStreamAsync(cancellationToken)
-            .ConfigureAwait(false);
-        using var document = await JsonDocument
-            .ParseAsync(stream, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        if (totals.Count == 0 && failures.Count > 0)
+            throw new InvalidOperationException(string.Join(" ", failures));
 
+        var notice = string.Join(" ", notices.Concat(failures));
         return new AzureSpeechUsageSnapshot(
             start,
             end,
-            ReadMetricTotal(document.RootElement, "SynthesizedCharacters"),
-            ReadMetricTotal(document.RootElement, "TotalCalls"),
-            ReadMetricTotal(document.RootElement, "SuccessfulCalls"),
-            ReadMetricTotal(document.RootElement, "ClientErrors"),
-            ReadMetricTotal(document.RootElement, "ServerErrors"));
+            ValueOrNull(totals, "SynthesizedCharacters"),
+            ValueOrNull(totals, "TotalCalls"),
+            ValueOrNull(totals, "SuccessfulCalls"),
+            ValueOrNull(totals, "ClientErrors"),
+            ValueOrNull(totals, "ServerErrors"),
+            string.IsNullOrWhiteSpace(notice) ? null : notice);
     }
+
+    static long? ValueOrNull(IReadOnlyDictionary<string, long?> totals, string name) =>
+        totals.TryGetValue(name, out var value) ? value : null;
 
     public async Task SignOutAsync(CancellationToken cancellationToken = default)
     {
@@ -248,11 +227,7 @@ public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicke
                 throw new InvalidOperationException(message);
             }
 
-            await using var stream = await response.Content
-                .ReadAsStreamAsync(cancellationToken)
-                .ConfigureAwait(false);
-            using var document = await JsonDocument
-                .ParseAsync(stream, cancellationToken: cancellationToken)
+            using var document = await ReadJsonAsync(response, cancellationToken)
                 .ConfigureAwait(false);
             if (document.RootElement.TryGetProperty("value", out var value) &&
                 value.ValueKind == JsonValueKind.Array)
@@ -279,6 +254,53 @@ public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicke
         return request;
     }
 
+    async Task<JsonDocument> GetJsonAsync(string url, CancellationToken cancellationToken)
+    {
+        using var request = await CreateRequestAsync(url, cancellationToken)
+            .ConfigureAwait(false);
+        using var response = await _httpClient
+            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(await DescribeFailureAsync(response, cancellationToken)
+                .ConfigureAwait(false));
+        return await ReadJsonAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    static async Task<JsonDocument> ReadJsonAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = await response.Content
+            .ReadAsStreamAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return await JsonDocument
+            .ParseAsync(stream, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    static async Task<string> DescribeFailureAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        var message = response.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized =>
+                "Azure sign-in expired. Sign in again.",
+            HttpStatusCode.Forbidden =>
+                "This Azure account cannot read usage for the selected Speech resource. " +
+                "Reader or Monitoring Reader access is required.",
+            _ =>
+                $"Azure usage lookup failed ({(int)response.StatusCode}).",
+        };
+        var body = await response.Content.ReadAsStringAsync(cancellationToken)
+            .ConfigureAwait(false);
+        body = body.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (body.Length > 280)
+            body = body[..280];
+        return string.IsNullOrWhiteSpace(body) ? message : $"{message} {body}";
+    }
+
     static string BuildResourceId(AzureSpeechResourceChoice resource) =>
         $"/subscriptions/{Uri.EscapeDataString(resource.SubscriptionId)}" +
         $"/resourceGroups/{Uri.EscapeDataString(resource.ResourceGroupName)}" +
@@ -287,67 +309,6 @@ public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicke
 
     static string NormalizeEndpoint(Uri endpoint) =>
         endpoint.GetLeftPart(UriPartial.Path).TrimEnd('/');
-
-    static long? ReadMetricTotal(JsonElement root, string metricName)
-    {
-        if (!root.TryGetProperty("value", out var metrics) ||
-            metrics.ValueKind != JsonValueKind.Array)
-        {
-            return null;
-        }
-
-        foreach (var metric in metrics.EnumerateArray())
-        {
-            if (!metric.TryGetProperty("name", out var name) ||
-                !name.TryGetProperty("value", out var value) ||
-                !string.Equals(value.GetString(), metricName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (metric.TryGetProperty("errorCode", out var errorCode) &&
-                !string.Equals(errorCode.GetString(), "Success", StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            double total = 0;
-            var foundValue = false;
-            if (metric.TryGetProperty("timeseries", out var series) &&
-                series.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var timeSeries in series.EnumerateArray())
-                {
-                    if (!timeSeries.TryGetProperty("data", out var data) ||
-                        data.ValueKind != JsonValueKind.Array)
-                    {
-                        continue;
-                    }
-
-                    foreach (var point in data.EnumerateArray())
-                    {
-                        if (point.TryGetProperty("total", out var pointTotal) &&
-                            pointTotal.ValueKind == JsonValueKind.Number &&
-                            pointTotal.TryGetDouble(out var number))
-                        {
-                            total += number;
-                            foundValue = true;
-                        }
-                    }
-                }
-            }
-
-            if (!foundValue)
-                return 0;
-            if (total >= long.MaxValue)
-                return long.MaxValue;
-            if (total <= long.MinValue)
-                return long.MinValue;
-            return checked((long)Math.Round(total, MidpointRounding.AwayFromZero));
-        }
-
-        return null;
-    }
 
     AzureSpeechResourceChoice? CreateResourceChoice(
         JsonElement element,

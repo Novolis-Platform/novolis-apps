@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Novolis.Audio.Voice.AzureSpeech;
 using Novolis.Avalonia.Speech;
 using Novolis.Manuscript.Export.Audio;
@@ -14,9 +16,12 @@ public sealed class SpeechService : IDisposable
     public const string DefaultLocale = "en-US";
     public const string DefaultAzureClientId = "c8b938aa-2e5d-48b4-89c6-fc139733c44d";
     public const string DefaultAzureTenantId = "25427e56-8e11-4e5a-b8e6-d7645bdc27b1";
+    public const string DefaultAzureLoginHint = "frank.haugen@gmail.com";
 
     readonly SpeechFront _front;
     readonly IAudioPlayer _player;
+    readonly ILogger<SpeechService>? _logger;
+    readonly SpeechUsageLedger _usage;
     readonly string _cacheDir;
     readonly object _gate = new();
     CancellationTokenSource? _cts;
@@ -24,11 +29,14 @@ public sealed class SpeechService : IDisposable
     public SpeechService(
         SpeechFront front,
         IAudioPlayer player,
-        Novolis.Avalonia.Mobile.IAppDataPaths paths)
+        Novolis.Avalonia.Mobile.IAppDataPaths paths,
+        ILogger<SpeechService>? logger = null)
     {
         _front = front ?? throw new ArgumentNullException(nameof(front));
         _player = player ?? throw new ArgumentNullException(nameof(player));
         ArgumentNullException.ThrowIfNull(paths);
+        _logger = logger;
+        _usage = new SpeechUsageLedger(Path.Combine(paths.RootDirectory, "speech-usage.json"));
         _cacheDir = Path.Combine(paths.RootDirectory, "tts-cache");
         Directory.CreateDirectory(_cacheDir);
 
@@ -41,6 +49,9 @@ public sealed class SpeechService : IDisposable
 
     /// <summary>Whether Azure MP3 output is currently available.</summary>
     public bool CanCreateMp3 => _front.Capabilities.CanCreateMp3;
+
+    /// <summary>Characters, calls, cache replays, and failures recorded on this device.</summary>
+    public string DeviceUsageSummary => _usage.Format();
 
     /// <summary>Redacted Azure setup for the provider settings UI.</summary>
     public AzureSpeechSetup? AzureConfiguration => _front.AzureConfiguration;
@@ -249,14 +260,45 @@ public sealed class SpeechService : IDisposable
         {
             var cached = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
             if (cached.Length > 0)
+            {
+                _usage.RecordCacheReplay();
+                _logger?.LogInformation(
+                    "Replayed cached audio. Characters {Characters}. Voice {Voice}. Bytes {Bytes}.",
+                    text.Length,
+                    Voice.Voice,
+                    cached.Length);
                 return cached;
+            }
         }
 
-        var mp3 = await _front.CreateMp3Async(
-                text,
-                BuildAzureOptions(),
-                cancellationToken)
-            .ConfigureAwait(false);
+        var started = Stopwatch.GetTimestamp();
+        byte[] mp3;
+        try
+        {
+            mp3 = await _front.CreateMp3Async(
+                    text,
+                    BuildAzureOptions(),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _usage.RecordFailure(ex.GetType().Name);
+            _logger?.LogError(
+                ex,
+                "Azure synthesis failed. Characters {Characters}. Voice {Voice}.",
+                text.Length,
+                Voice.Voice);
+            throw;
+        }
+
+        _usage.RecordAzureCall(text.Length);
+        _logger?.LogInformation(
+            "Synthesized audio. Characters {Characters}. Voice {Voice}. ElapsedMs {ElapsedMs}. Bytes {Bytes}.",
+            text.Length,
+            Voice.Voice,
+            (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+            mp3.Length);
         try
         {
             await File.WriteAllBytesAsync(path, mp3, cancellationToken).ConfigureAwait(false);

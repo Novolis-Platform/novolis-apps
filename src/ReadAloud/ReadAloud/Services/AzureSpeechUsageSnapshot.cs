@@ -8,4 +8,5 @@ public sealed record AzureSpeechUsageSnapshot(
     long? TotalCalls,
     long? SuccessfulCalls,
     long? ClientErrors,
-    long? ServerErrors);
+    long? ServerErrors,
+    string? Notice = null);
