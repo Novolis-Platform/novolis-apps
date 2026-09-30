@@ -577,6 +577,7 @@ internal static class Program
                     close_applications_filter = app.Windows?.CloseApplicationsFilter,
                     linux_exe_name = app.Linux?.ExeName,
                     display_name = app.DisplayName,
+                    signing_secret_key = app.Android?.SigningSecretKey,
                 });
             }
         }

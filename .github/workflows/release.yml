@@ -249,10 +249,10 @@ jobs:
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ needs.plan.outputs.package_version }}
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets[format('{0}_KEYSTORE_BASE64', matrix.signing_secret_key)] }}
+          ANDROID_KEY_ALIAS: ${{ secrets[format('{0}_KEY_ALIAS', matrix.signing_secret_key)] }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets[format('{0}_KEYSTORE_PASSWORD', matrix.signing_secret_key)] }}
+          ANDROID_KEY_PASSWORD: ${{ secrets[format('{0}_KEY_PASSWORD', matrix.signing_secret_key)] }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
           $ErrorActionPreference = 'Stop'
@@ -273,7 +273,7 @@ jobs:
             $publishArgs.KeyPassword = $env:ANDROID_KEY_PASSWORD
           }
           else {
-            throw "ANDROID_KEYSTORE_* secrets are not set. Refusing an adhoc key for ${{ matrix.key }} because a new certificate cannot update the installed app."
+            throw "Signing secrets for ${{ matrix.signing_secret_key }} are not set. Refusing an adhoc key for ${{ matrix.key }} because a new certificate cannot update the installed app."
           }
           $item = Publish-NovolisAndroidApk @publishArgs
           if (-not $item) { throw "APK publish failed for ${{ matrix.key }}" }

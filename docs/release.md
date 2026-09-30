@@ -28,7 +28,9 @@ Undeclared channels fail before workloads install. There is **no Linux release a
 ### android-apk
 
 - Installable APK for apps with `android-apk` in `ship`
-- Persistent `ANDROID_KEYSTORE_*` secrets sign every GitHub Release APK
+- Each app is signed with its own self-signed keystore. No certificate authority is involved
+- GitHub secrets are named from `signingSecretKey`, for example `READALOUD_ANDROID_KEYSTORE_BASE64`, `READALOUD_ANDROID_KEY_ALIAS`, `READALOUD_ANDROID_KEYSTORE_PASSWORD`, and `READALOUD_ANDROID_KEY_PASSWORD`
+- The same values live in the 1Password Environment **Novolis Android signing**, which is the recoverable copy
 - Missing secrets fail the Android job. A freshly generated certificate cannot update an app already on a device
 - Monotonic `versionCode` via `NovolisAndroidVersionCode` / `Get-NovolisAndroidVersionCode`
 
@@ -59,12 +61,9 @@ pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio 
 
 ## Signing notes
 
-- Persistent `ANDROID_KEYSTORE_*` secrets sign GitHub Release APKs so later downloads update the installed app.
+- GitHub Release APKs and Play upload bundles both use the app-specific key named from `signingSecretKey`.
 - When those secrets are absent, the Android release job fails instead of minting a one-off certificate.
-- Google Play never uses the adhoc fallback. It requires the app-specific upload
-  key named from the manifest `signingSecretKey`, for example
-  `READALOUD_ANDROID_KEYSTORE_BASE64`, `READALOUD_ANDROID_KEY_ALIAS`,
-  `READALOUD_ANDROID_KEYSTORE_PASSWORD`, and `READALOUD_ANDROID_KEY_PASSWORD`.
+- Recover the keystore, alias, and passwords from the 1Password Environment **Novolis Android signing**. The certificate is self-signed.
 - The selected GitHub Environment must contain
   `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`. The service account must also be granted
   app-level release permissions in Play Console.
