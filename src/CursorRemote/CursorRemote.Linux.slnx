@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/CursorRemote/">
-    <Project Path="CursorRemote/CursorRemote.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="../../tests/CursorRemote.Unit/CursorRemote.Unit.csproj" />
-  </Folder>
-</Solution>
