@@ -10,7 +10,7 @@
     <AssemblyName>BrandAssets</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SkiaSharp" Version="3.119.1" />
-    <PackageReference Include="Svg.Skia" Version="3.2.1" />
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <PackageReference Include="Svg.Skia" Version="3.7.0" />
   </ItemGroup>
 </Project>
