@@ -28,8 +28,8 @@ Undeclared channels fail before workloads install. There is **no Linux release a
 ### android-apk
 
 - Installable APK for apps with `android-apk` in `ship`
-- Persistent `ANDROID_KEYSTORE_*` secrets are used when present
-- Missing secrets produce an **adhoc-signed** APK for sideload testing (not upgrade-safe)
+- Persistent `ANDROID_KEYSTORE_*` secrets sign every GitHub Release APK
+- Missing secrets fail the Android job. A freshly generated certificate cannot update an app already on a device
 - Monotonic `versionCode` via `NovolisAndroidVersionCode` / `Get-NovolisAndroidVersionCode`
 
 ### Google Play
@@ -59,8 +59,8 @@ pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio 
 
 ## Signing notes
 
-- Persistent `ANDROID_KEYSTORE_*` org secrets are preferred for upgrade-safe APKs.
-- When those secrets are absent, Release still publishes an adhoc-signed APK for sideload testing. Uninstall/reinstall is expected between adhoc builds.
+- Persistent `ANDROID_KEYSTORE_*` secrets sign GitHub Release APKs so later downloads update the installed app.
+- When those secrets are absent, the Android release job fails instead of minting a one-off certificate.
 - Google Play never uses the adhoc fallback. It requires the app-specific upload
   key named from the manifest `signingSecretKey`, for example
   `READALOUD_ANDROID_KEYSTORE_BASE64`, `READALOUD_ANDROID_KEY_ALIAS`,

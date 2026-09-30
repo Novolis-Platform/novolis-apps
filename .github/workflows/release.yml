@@ -273,7 +273,7 @@ jobs:
             $publishArgs.KeyPassword = $env:ANDROID_KEY_PASSWORD
           }
           else {
-            Write-Warning "ANDROID_KEYSTORE_* secrets are not set. Publishing an adhoc-signed APK for sideload testing of ${{ matrix.key }}."
+            throw "ANDROID_KEYSTORE_* secrets are not set. Refusing an adhoc key for ${{ matrix.key }} because a new certificate cannot update the installed app."
           }
           $item = Publish-NovolisAndroidApk @publishArgs
           if (-not $item) { throw "APK publish failed for ${{ matrix.key }}" }
