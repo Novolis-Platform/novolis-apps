@@ -1,8 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Novolis.Avalonia.GraphicalProfile;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,17 +36,7 @@ public sealed class App : Application
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
         {
-            single.MainView = new ScrollViewer
-            {
-                // Keep the mobile surface constrained to the display width so
-                // WrapPanel rows can wrap instead of creating a wider canvas
-                // whose left edge is clipped on Android.
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                VerticalContentAlignment = VerticalAlignment.Top,
-                Content = mainView,
-            };
+            single.MainView = mainView;
         }
 
         base.OnFrameworkInitializationCompleted();

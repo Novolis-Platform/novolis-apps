@@ -2,6 +2,7 @@ using System.Collections;
 using Novolis.Avalonia.GraphicalProfile;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Novolis.Avalonia.Speech;
 using Novolis.Avalonia.Diagnostics;
 using Novolis.Logging.Diagnostics;
+using ReadAloud.Reading;
 using ReadAloud.Services;
 using ReadAloud.Ui;
 
@@ -24,10 +26,15 @@ public sealed class MainView : DockPanel
     readonly IDiagnosticShare _diagnosticShare;
     readonly IDiagnosticJournal _journal;
     readonly ILogger<MainView> _logger;
-    readonly TextBox _textBox;
+    readonly PassageSurface _passage;
     readonly Button _listenButton;
+    readonly Button _openButton;
+    readonly Button _pasteButton;
     readonly Button _saveButton;
+    readonly Button _clearButton;
     readonly TextBlock _status;
+    readonly TextBlock _credentialLine;
+    readonly TextBlock _savedCredential;
     readonly Button _configureButton;
     readonly Border _azureSetupPanel;
     readonly IAzureSpeechResourcePicker? _resourcePicker;
@@ -78,45 +85,37 @@ public sealed class MainView : DockPanel
 
         LastChildFill = true;
         HorizontalAlignment = HorizontalAlignment.Stretch;
-        VerticalAlignment = VerticalAlignment.Top;
+        VerticalAlignment = VerticalAlignment.Stretch;
         Background = GraphicalProfile.BackgroundBrush;
 
-        _textBox = new TextBox
-        {
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
-            PlaceholderText = "Paste or type anything to hear…",
-            FontFamily = GraphicalProfile.BodyFont,
-            FontSize = 16,
-            Foreground = GraphicalProfile.TextBrush,
-            Background = GraphicalProfile.RaisedBrush,
-            CaretBrush = GraphicalProfile.AccentBrush,
-        };
-
-        var openBtn = ReadAloudTheme.Button("Open file…", ReadAloudButtonKind.Secondary);
-        openBtn.Click += async (_, _) => await OpenFileAsync();
-        var pasteBtn = ReadAloudTheme.Button("Paste", ReadAloudButtonKind.Secondary);
-        pasteBtn.Click += async (_, _) => await PasteClipboardAsync();
+        _passage = new PassageSurface();
         _listenButton = ReadAloudTheme.Button("Listen", ReadAloudButtonKind.Primary);
+        _listenButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _listenButton.HorizontalContentAlignment = HorizontalAlignment.Center;
+        _listenButton.MinHeight = 48;
         _listenButton.Click += async (_, _) => await OnListenClickAsync();
-        _saveButton = ReadAloudTheme.Button("Save MP3", ReadAloudButtonKind.Secondary);
+        _openButton = ReadAloudTheme.Button("Open", ReadAloudButtonKind.Secondary);
+        _openButton.Click += async (_, _) => await OpenFileAsync();
+        _pasteButton = ReadAloudTheme.Button("Paste", ReadAloudButtonKind.Secondary);
+        _pasteButton.Click += async (_, _) => await PasteClipboardAsync();
+        _saveButton = ReadAloudTheme.Button("Save", ReadAloudButtonKind.Secondary);
         _saveButton.Click += async (_, _) => await SaveMp3Async();
-        _configureButton = ReadAloudTheme.Button("Azure setup", ReadAloudButtonKind.Secondary);
+        _clearButton = ReadAloudTheme.Button("Clear passage", ReadAloudButtonKind.Quiet);
+        _clearButton.Click += (_, _) => ClearPassage();
+        _configureButton = ReadAloudTheme.Button("Azure settings", ReadAloudButtonKind.Quiet);
         _configureButton.Click += (_, _) => ToggleAzureSetup();
         var diagnosticsBtn = ReadAloudTheme.Button(_diagnosticShare.ActionLabel, ReadAloudButtonKind.Quiet);
         diagnosticsBtn.Click += async (_, _) => await ShareDiagnosticsAsync();
-        var clearBtn = ReadAloudTheme.Button("Clear", ReadAloudButtonKind.Quiet);
-        clearBtn.Click += (_, _) => Clear();
 
-        var actions = new WrapPanel
+        var secondary = new WrapPanel
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 8, 0, 0),
+            Margin = new Thickness(0, 4, 0, 0),
         };
-        foreach (var btn in new[] { openBtn, pasteBtn, _listenButton, _saveButton, diagnosticsBtn, clearBtn })
+        foreach (var btn in new[] { _openButton, _pasteButton, _saveButton, _clearButton, _configureButton })
         {
             btn.Margin = new Thickness(0, 0, 8, 8);
-            actions.Children.Add(btn);
+            secondary.Children.Add(btn);
         }
 
         _voicePicker = new ComboBox
@@ -128,18 +127,9 @@ public sealed class MainView : DockPanel
         ResetVoicePickerCore();
         _voicePicker.SelectionChanged += async (_, _) => await OnVoiceSelectedAsync();
 
-        var providerRow = new StackPanel
-        {
-            Spacing = 4,
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-        providerRow.Children.Add(ReadAloudTheme.Muted("Voice service: Azure Speech only", 14));
-        providerRow.Children.Add(_configureButton);
-        providerRow.Children.Add(ReadAloudTheme.Muted("Voice", 12));
-        providerRow.Children.Add(_voicePicker);
-
-        _status = ReadAloudTheme.Muted(
-            "Azure Speech is required. Sign in or import credentials to begin.");
+        _status = ReadAloudTheme.Muted("Ready. Listen starts at the beginning.");
+        _credentialLine = ReadAloudTheme.Muted(CredentialSummary.Describe(null), 14);
+        _savedCredential = ReadAloudTheme.Muted(CredentialSummary.Describe(null), 13);
 
         _credentialVariantPicker = new ComboBox
         {
@@ -217,61 +207,111 @@ public sealed class MainView : DockPanel
         _azureSetupPanel = BuildAzureSetupPanel();
         RefreshCredentialVariant();
 
-        var chrome = new StackPanel
+        var passageCard = new Border
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Spacing = 4,
-            Margin = new Thickness(16, 12, 16, 8),
-            Children =
+            VerticalAlignment = VerticalAlignment.Stretch,
+            MinHeight = 160,
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(GraphicalProfileColors.CardRadius),
+            BorderThickness = new Thickness(1),
+            Child = _passage,
+        };
+        GraphicalProfileBinding.Bind(passageCard, Border.BackgroundProperty, GraphicalProfile.SurfaceResourceKey);
+        GraphicalProfileBinding.Bind(passageCard, Border.BorderBrushProperty, GraphicalProfile.BorderResourceKey);
+
+        var passageScroll = new ScrollViewer
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Margin = new Thickness(16, 8, 16, 8),
+            Content = passageCard,
+        };
+
+        var details = new Expander
+        {
+            Header = "Usage and diagnostics",
+            IsExpanded = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Content = new StackPanel
             {
-                ReadAloudTheme.BrandTitle("Read Aloud", 26),
-                ReadAloudTheme.Muted("Scratch reader — listen now, or write an MP3."),
-                providerRow,
-                actions,
-                _status,
-                _deviceUsage,
-                ReadAloudTheme.Muted("Azure usage — last 30 days", 12),
-                _usageStatus,
-                _usageRefreshButton,
-                ReadAloudTheme.Muted("Diagnostics", 12),
-                _diagnosticsView,
-                _azureSetupPanel,
+                Spacing = 4,
+                Margin = new Thickness(0, 8, 0, 0),
+                Children =
+                {
+                    _deviceUsage,
+                    ReadAloudTheme.Muted("Azure usage — last 30 days", 12),
+                    _usageStatus,
+                    _usageRefreshButton,
+                    ReadAloudTheme.Muted("Last operation", 12),
+                    _diagnosticsView,
+                    diagnosticsBtn,
+                },
             },
         };
 
-        SetDock(chrome, Dock.Top);
-        Children.Add(chrome);
-        Children.Add(new Border
+        var header = new StackPanel
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 280,
-            Margin = new Thickness(16, 0, 16, 16),
-            Padding = new Thickness(12),
-            Background = GraphicalProfile.SurfaceBrush,
-            CornerRadius = new CornerRadius(GraphicalProfileColors.CardRadius),
-            BorderBrush = GraphicalProfile.BorderBrush,
-            BorderThickness = new Thickness(1),
-            Child = _textBox,
-        });
+            Spacing = 4,
+            Margin = new Thickness(16, 12, 16, 0),
+            Children =
+            {
+                ReadAloudTheme.BrandTitle("Read Aloud", 26),
+                _credentialLine,
+                ReadAloudTheme.Muted("Voice", 12),
+                _voicePicker,
+            },
+        };
+        var footer = new StackPanel
+        {
+            Spacing = 4,
+            Margin = new Thickness(16, 0, 16, 12),
+            Children =
+            {
+                _status,
+                _listenButton,
+                secondary,
+                details,
+                new ScrollViewer
+                {
+                    MaxHeight = 240,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Content = _azureSetupPanel,
+                },
+            },
+        };
+
+        SetDock(header, Dock.Top);
+        SetDock(footer, Dock.Bottom);
+        Children.Add(header);
+        Children.Add(footer);
+        Children.Add(passageScroll);
 
         _speech.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshListen);
-        _speech.PlaybackStarted += (_, _) => Dispatcher.UIThread.Post(() =>
-        {
-            if (_speech.IsSpeaking)
-                SetStatus("Playing…");
-        });
+        SharedTextInbox.Received += text =>
+            Dispatcher.UIThread.Post(() => ApplySharedText(text));
+        BaselineLaunch.Requested += path =>
+            Dispatcher.UIThread.Post(() => _ = RunBaselineAsync(path));
         DetachedFromVisualTree += (_, _) =>
         {
             _speech.Stop();
             ReleaseWake();
         };
 
+        if (SharedTextInbox.TryTake(out var shared))
+            ApplySharedText(shared);
+
         RefreshProviderUi();
         RefreshListen();
         _ = InitializeSpeechAsync();
     }
 
-    string DocumentText => _textBox.Text ?? string.Empty;
+    string DocumentText => _passage.Text;
 
     bool HasDocument => !string.IsNullOrWhiteSpace(DocumentText);
 
@@ -294,9 +334,12 @@ public sealed class MainView : DockPanel
             {
                 RefreshDeviceUsage();
                 RefreshDiagnosticsView();
+                ShowCredentialSummary();
                 if (CanRefreshAzureUsage())
                     _ = RefreshUsageAsync();
             });
+            if (BaselineLaunch.TryTake(out var baselinePath))
+                await RunBaselineAsync(baselinePath);
         }
         catch (Exception ex)
         {
@@ -408,6 +451,7 @@ public sealed class MainView : DockPanel
                     13),
                 ReadAloudTheme.Muted("Endpoint", 12),
                 _endpointBox,
+                _savedCredential,
                 ReadAloudTheme.Muted("Subscription key", 12),
                 _keyBox,
                 actions,
@@ -477,10 +521,18 @@ public sealed class MainView : DockPanel
 
     void RefreshDiagnosticsView()
     {
+        var operation = _speech.LastOperation is null
+            ? null
+            : OperationReportText.Format(_speech.LastOperation);
         var summary = _journal.ReadRecentSummary();
-        _diagnosticsView.Text = string.IsNullOrWhiteSpace(summary)
-            ? "No diagnostic events yet."
-            : summary;
+        if (!string.IsNullOrWhiteSpace(operation) && !string.IsNullOrWhiteSpace(summary))
+            _diagnosticsView.Text = operation + Environment.NewLine + Environment.NewLine + summary;
+        else if (!string.IsNullOrWhiteSpace(operation))
+            _diagnosticsView.Text = operation;
+        else
+            _diagnosticsView.Text = string.IsNullOrWhiteSpace(summary)
+                ? "No diagnostic events yet."
+                : summary;
     }
 
     async Task RefreshUsageAsync()
@@ -1052,6 +1104,10 @@ public sealed class MainView : DockPanel
     void RefreshManualCredentialFields()
     {
         var setup = _speech.AzureConfiguration;
+        ShowCredentialSummary();
+        _keyBox.PlaceholderText = setup is { EffectiveCredentialSource: AzureSpeechCredentialSource.Manual }
+            ? "New subscription key"
+            : "Subscription key";
         if (setup is null)
         {
             if (string.IsNullOrWhiteSpace(_endpointBox.Text))
@@ -1060,6 +1116,14 @@ public sealed class MainView : DockPanel
         }
 
         _endpointBox.Text = setup.Endpoint.AbsoluteUri;
+        _keyBox.Text = string.Empty;
+    }
+
+    void ShowCredentialSummary()
+    {
+        var text = CredentialSummary.Describe(_speech.AzureConfiguration);
+        _credentialLine.Text = text;
+        _savedCredential.Text = text;
     }
 
     static string LocaleFromVoice(string voiceName)
@@ -1115,6 +1179,7 @@ public sealed class MainView : DockPanel
     void RefreshProviderUi()
     {
         _configureButton.Content = _speech.CanCreateMp3 ? "Azure settings" : "Azure setup";
+        ShowCredentialSummary();
         RefreshCredentialVariant();
     }
 
@@ -1123,14 +1188,58 @@ public sealed class MainView : DockPanel
             ? "Automatic — Microsoft sign-in"
             : "Manual — endpoint and subscription key";
 
-    void Clear()
+    void ClearPassage()
     {
         _speech.Stop();
-        _textBox.Text = string.Empty;
-        SetStatus(_speech.CanCreateMp3
-            ? "Azure Speech selected. Requests use your resource and quota."
-            : "Azure Speech setup is required to listen.");
+        _passage.Text = string.Empty;
+        SetStatus("Passage cleared.");
         RefreshListen();
+    }
+
+    void ApplySharedText(string text)
+    {
+        if (_speech.IsSpeaking)
+        {
+            _speech.Stop();
+            ReleaseWake();
+        }
+
+        _passage.Text = text;
+        SetStatus("Shared text is ready to listen.");
+        RefreshListen();
+    }
+
+    async Task RunBaselineAsync(string credentialPath)
+    {
+        if (_listenPending)
+            return;
+
+        _listenPending = true;
+        _wake = _wakeLock.Acquire("read-aloud-baseline");
+        SetStatus("Baseline…");
+        RefreshListen();
+        try
+        {
+            var line = await BaselineRun.ExecuteAsync(
+                _speech,
+                credentialPath,
+                passage => Dispatcher.UIThread.Post(() => _passage.Text = passage));
+            _logger.LogInformation("{Baseline}", line);
+            SetStatus(line);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud baseline failed with {ExceptionType}.", ex.GetType().Name);
+            SetStatus($"Baseline failed ({ex.GetType().Name}).");
+        }
+        finally
+        {
+            _listenPending = false;
+            ReleaseWake();
+            RefreshListen();
+            RefreshDiagnosticsView();
+            ShowCredentialSummary();
+        }
     }
 
     async Task OpenFileAsync()
@@ -1162,7 +1271,7 @@ public sealed class MainView : DockPanel
 
         await using var stream = await files[0].OpenReadAsync();
         using var reader = new StreamReader(stream);
-        _textBox.Text = await reader.ReadToEndAsync();
+        _passage.Text = await reader.ReadToEndAsync();
         var label = files[0].Name;
         if (string.IsNullOrWhiteSpace(label))
             label = files[0].TryGetLocalPath() ?? "Opened file";
@@ -1183,7 +1292,7 @@ public sealed class MainView : DockPanel
             return;
         }
 
-        _textBox.Text = text;
+        _passage.Text = text;
         SetStatus("Pasted clipboard.");
         RefreshListen();
     }
@@ -1194,8 +1303,9 @@ public sealed class MainView : DockPanel
         {
             _speech.Stop();
             ReleaseWake();
-            SetStatus("Stopped.");
+            SetStatus("Ready. Listen starts at the beginning.");
             RefreshListen();
+            RefreshDiagnosticsView();
             return;
         }
 
@@ -1232,7 +1342,7 @@ public sealed class MainView : DockPanel
         }
         catch (OperationCanceledException)
         {
-            SetStatus("Stopped.");
+            SetStatus("Ready. Listen starts at the beginning.");
         }
         catch (Exception ex)
         {
@@ -1328,10 +1438,14 @@ public sealed class MainView : DockPanel
     void RefreshListen()
     {
         var speaking = _speech.IsSpeaking || _listenPending;
-        _textBox.IsReadOnly = speaking;
-        _textBox.Opacity = speaking ? 0.62 : 1;
-        _listenButton.Content = speaking ? "Stop" : (_speech.HasCachedAudio(DocumentText) ? "Listen ✓" : "Listen");
+        _passage.Locked = speaking;
+        if (speaking && _speech.Progress.Reading)
+            _status.Text = _speech.Progress.StatusText;
+        _listenButton.Content = speaking ? "Stop" : "Listen";
         ReadAloudTheme.StyleButton(_listenButton, ReadAloudButtonKind.Primary);
+        _openButton.IsEnabled = !speaking;
+        _pasteButton.IsEnabled = !speaking;
+        _clearButton.IsEnabled = !speaking;
         _saveButton.IsEnabled = !speaking && _speech.CanCreateMp3;
         RefreshDeviceUsage();
         RefreshProviderUi();

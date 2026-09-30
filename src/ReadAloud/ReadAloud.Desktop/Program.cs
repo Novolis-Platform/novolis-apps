@@ -9,6 +9,7 @@ using Novolis.Avalonia.Mobile.Desktop;
 using Novolis.Logging.Diagnostics;
 using Novolis.Manuscript.Export.Audio;
 using ReadAloud;
+using ReadAloud.Reading;
 
 namespace ReadAloud.Desktop;
 
@@ -18,6 +19,16 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        var forwarded = new List<string>(args.Length);
+        foreach (var arg in args)
+        {
+            const string prefix = "--baseline=";
+            if (arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && arg.Length > prefix.Length)
+                BaselineLaunch.Request(arg[prefix.Length..].Trim('"'));
+            else
+                forwarded.Add(arg);
+        }
+
         using var diagnostics = new DiagnosticJournal(new DiagnosticJournalOptions
         {
             DirectoryPath = Path.Combine(
@@ -26,6 +37,11 @@ internal static class Program
                 "ReadAloud",
                 "diagnostics"),
             ApplicationName = "ReadAloud",
+            StartupState = new Dictionary<string, object?>
+            {
+                ["platform"] = "Windows",
+                ["app.version"] = typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0",
+            },
         });
         AvaloniaDiagnostics.InstallEarly(diagnostics);
         try
@@ -48,7 +64,7 @@ internal static class Program
             host.Start();
             try
             {
-                BuildAvaloniaApp(diagnostics).StartWithClassicDesktopLifetime(args);
+                BuildAvaloniaApp(diagnostics).StartWithClassicDesktopLifetime(forwarded.ToArray());
             }
             finally
             {

@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using Novolis.Audio.Voice.AzureSpeech;
 using Novolis.Avalonia.Speech;
 using Novolis.Manuscript.Export.Audio;
+using Novolis.Logging.Diagnostics;
+using ReadAloud.Reading;
 
 namespace ReadAloud.Services;
 
@@ -25,6 +27,7 @@ public sealed class SpeechService : IDisposable
     readonly string _cacheDir;
     readonly object _gate = new();
     CancellationTokenSource? _cts;
+    int _listen;
 
     public SpeechService(
         SpeechFront front,
@@ -57,6 +60,18 @@ public sealed class SpeechService : IDisposable
     public AzureSpeechSetup? AzureConfiguration => _front.AzureConfiguration;
 
     public bool IsSpeaking { get; private set; }
+
+    /// <summary>Segment position for the current listen. Stop returns this to the start.</summary>
+    public SpeechProgress Progress { get; private set; } = SpeechProgress.Ready;
+
+    /// <summary>The latest listen, without the spoken text.</summary>
+    public SpeechOperationReport? LastOperation { get; private set; }
+
+    /// <summary>Test seam. Production listens leave this unset and call Azure Speech.</summary>
+    internal Func<string, CancellationToken, Task<byte[]>>? SynthesisOverride { get; set; }
+
+    int _azureCalls;
+    int _cacheReplays;
 
     /// <summary>Raised when speaking or provider state changes.</summary>
     public event EventHandler? Changed;
@@ -143,21 +158,38 @@ public sealed class SpeechService : IDisposable
         }
 
         CancellationToken linked;
+        var listen = 0;
         lock (_gate)
         {
             _cts?.Cancel();
             _cts?.Dispose();
             _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             linked = _cts.Token;
+            listen = ++_listen;
             _player.Stop();
             IsSpeaking = true;
         }
 
         Notify();
+        var started = Stopwatch.GetTimestamp();
+        _azureCalls = 0;
+        _cacheReplays = 0;
+        var completed = 0;
+        var segmentCount = 0;
+        using var operation = DiagnosticLog.BeginOperation(_logger);
 
         try
         {
             var plan = SpeechPlanner.Create(speechText, Voice.ToSpeechOptions(), speakTitle: false);
+            segmentCount = CountSpokenSegments(plan);
+            SetProgress(0, segmentCount, reading: true);
+            DiagnosticLog.Information(
+                _logger,
+                "Speech synthesis started.",
+                new DiagnosticProperties()
+                    .Set("characters", speechText.Length)
+                    .Set("voice", Voice.Voice)
+                    .Set("segments", segmentCount));
             foreach (var segment in plan.Segments)
             {
                 linked.ThrowIfCancellationRequested();
@@ -171,16 +203,90 @@ public sealed class SpeechService : IDisposable
                 if (string.IsNullOrWhiteSpace(segment.Text))
                     continue;
 
+                completed++;
+                SetProgress(completed, segmentCount, reading: true);
                 PlaybackStarted?.Invoke(this, EventArgs.Empty);
                 var mp3 = await GetOrSynthesizeAsync(segment.Text, linked).ConfigureAwait(false);
                 if (mp3.Length > 0)
-                    await _player.PlayAsync(mp3, linked).ConfigureAwait(false);
+                {
+                    DiagnosticLog.Information(
+                        _logger,
+                        "Audio playback started.",
+                        new DiagnosticProperties()
+                            .Set("segment", completed)
+                            .Set("segments", segmentCount));
+                    try
+                    {
+                        await _player.PlayAsync(mp3, linked).ConfigureAwait(false);
+                        DiagnosticLog.Information(
+                            _logger,
+                            "Audio playback completed.",
+                            new DiagnosticProperties()
+                                .Set("segment", completed)
+                                .Set("segments", segmentCount));
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        DiagnosticLog.Error(
+                            _logger,
+                            ex,
+                            "Audio playback failed.",
+                            new DiagnosticProperties()
+                                .Set("segment", completed)
+                                .Set("segments", segmentCount)
+                                .Set("failure", ex.GetType().Name));
+                        throw;
+                    }
+                }
             }
+
+            PublishReport("completed", speechText.Length, completed, segmentCount, started, failure: null);
+            DiagnosticLog.Information(
+                _logger,
+                "Speech synthesis completed.",
+                ReportProperties(speechText.Length, completed, segmentCount, started, failure: null));
+            SetProgress(0, 0, reading: false);
+        }
+        catch (OperationCanceledException)
+        {
+            PublishReport("stopped", speechText.Length, completed, segmentCount, started, failure: null);
+            DiagnosticLog.Information(
+                _logger,
+                "Speech synthesis stopped.",
+                ReportProperties(speechText.Length, completed, segmentCount, started, failure: null));
+            SetProgress(0, 0, reading: false);
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            PublishReport(
+                "failed",
+                speechText.Length,
+                completed,
+                segmentCount,
+                started,
+                ex.GetType().Name);
+            DiagnosticLog.Error(
+                _logger,
+                ex,
+                "Speech synthesis failed.",
+                ReportProperties(speechText.Length, completed, segmentCount, started, ex.GetType().Name));
+            SetProgress(0, 0, reading: false);
+            throw;
         }
         finally
         {
+            var current = false;
             lock (_gate)
-                IsSpeaking = false;
+            {
+                current = listen == _listen;
+                if (current)
+                    IsSpeaking = false;
+            }
+
+            if (current)
+                _player.Stop();
+
             Notify();
         }
     }
@@ -234,7 +340,7 @@ public sealed class SpeechService : IDisposable
         return any;
     }
 
-    /// <summary>Stops playback and cancels the current synthesis operation.</summary>
+    /// <summary>Stops playback, cancels synthesis, and returns the listen to the first chunk.</summary>
     public void Stop()
     {
         lock (_gate)
@@ -242,6 +348,7 @@ public sealed class SpeechService : IDisposable
             _cts?.Cancel();
             _player.Stop();
             IsSpeaking = false;
+            Progress = SpeechProgress.Ready;
         }
 
         Notify();
@@ -253,8 +360,75 @@ public sealed class SpeechService : IDisposable
         Stop();
     }
 
+    static int CountSpokenSegments(SpeechPlan plan)
+    {
+        var count = 0;
+        foreach (var segment in plan.Segments)
+        {
+            if (segment.Kind == SpeechSegmentKind.Text &&
+                !string.IsNullOrWhiteSpace(segment.Text))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    void SetProgress(int index, int count, bool reading)
+    {
+        Progress = new SpeechProgress(index, count, reading);
+        Notify();
+    }
+
+    void PublishReport(
+        string phase,
+        int characters,
+        int completed,
+        int segmentCount,
+        long startedTimestamp,
+        string? failure)
+    {
+        LastOperation = new SpeechOperationReport(
+            phase,
+            Voice.Voice,
+            characters,
+            completed,
+            segmentCount,
+            (long)Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds,
+            _azureCalls,
+            _cacheReplays,
+            failure);
+    }
+
+    DiagnosticProperties ReportProperties(
+        int characters,
+        int completed,
+        int segmentCount,
+        long startedTimestamp,
+        string? failure)
+    {
+        var properties = new DiagnosticProperties()
+            .Set("voice", Voice.Voice)
+            .Set("characters", characters)
+            .Set("segmentsCompleted", completed)
+            .Set("segments", segmentCount)
+            .Set("elapsedMs", (long)Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds)
+            .Set("azureCalls", _azureCalls)
+            .Set("cacheReplays", _cacheReplays);
+        if (!string.IsNullOrWhiteSpace(failure))
+            properties.Set("failure", failure);
+        return properties;
+    }
+
     async Task<byte[]> GetOrSynthesizeAsync(string text, CancellationToken cancellationToken)
     {
+        if (SynthesisOverride is not null)
+        {
+            _azureCalls++;
+            return await SynthesisOverride(text, cancellationToken).ConfigureAwait(false);
+        }
+
         var path = CachePath(text);
         if (File.Exists(path))
         {
@@ -262,11 +436,14 @@ public sealed class SpeechService : IDisposable
             if (cached.Length > 0)
             {
                 _usage.RecordCacheReplay();
-                _logger?.LogInformation(
-                    "Replayed cached audio. Characters {Characters}. Voice {Voice}. Bytes {Bytes}.",
-                    text.Length,
-                    Voice.Voice,
-                    cached.Length);
+                _cacheReplays++;
+                DiagnosticLog.Information(
+                    _logger,
+                    "Replayed cached audio.",
+                    new DiagnosticProperties()
+                        .Set("characters", text.Length)
+                        .Set("voice", Voice.Voice)
+                        .Set("bytes", cached.Length));
                 return cached;
             }
         }
@@ -284,21 +461,27 @@ public sealed class SpeechService : IDisposable
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _usage.RecordFailure(ex.GetType().Name);
-            _logger?.LogError(
+            DiagnosticLog.Error(
+                _logger,
                 ex,
-                "Azure synthesis failed. Characters {Characters}. Voice {Voice}.",
-                text.Length,
-                Voice.Voice);
+                "Azure synthesis failed.",
+                new DiagnosticProperties()
+                    .Set("characters", text.Length)
+                    .Set("voice", Voice.Voice)
+                    .Set("failure", ex.GetType().Name));
             throw;
         }
 
         _usage.RecordAzureCall(text.Length);
-        _logger?.LogInformation(
-            "Synthesized audio. Characters {Characters}. Voice {Voice}. ElapsedMs {ElapsedMs}. Bytes {Bytes}.",
-            text.Length,
-            Voice.Voice,
-            (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds,
-            mp3.Length);
+        _azureCalls++;
+        DiagnosticLog.Information(
+            _logger,
+            "Synthesized audio.",
+            new DiagnosticProperties()
+                .Set("characters", text.Length)
+                .Set("voice", Voice.Voice)
+                .Set("elapsedMs", (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds)
+                .Set("bytes", mp3.Length));
         try
         {
             await File.WriteAllBytesAsync(path, mp3, cancellationToken).ConfigureAwait(false);

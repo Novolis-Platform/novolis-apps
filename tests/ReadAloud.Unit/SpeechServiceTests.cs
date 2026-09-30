@@ -94,7 +94,9 @@ public sealed class SpeechServiceTests
         await Assert.That(harness.Store.Values.Single()).Contains("en-US-JennyNeural");
     }
 
-    sealed class Harness : IDisposable
+    internal static Harness CreateHarness() => Harness.Create();
+
+    internal sealed class Harness : IDisposable
     {
         public required SpeechService Speech { get; init; }
         public required SpeechFront Front { get; init; }
@@ -138,14 +140,14 @@ public sealed class SpeechServiceTests
         }
     }
 
-    sealed class TempPaths(string root) : IAppDataPaths
+    internal sealed class TempPaths(string root) : IAppDataPaths
     {
         public string ProductName => "ReadAloud";
         public string RootDirectory => root;
         public string WorkspaceDirectory => Path.Combine(root, "workspace");
     }
 
-    sealed class CapturingVoice : IVoiceService
+    internal sealed class CapturingVoice : IVoiceService
     {
         public string? Spoken { get; private set; }
 
@@ -162,7 +164,7 @@ public sealed class SpeechServiceTests
             throw new NotSupportedException();
     }
 
-    sealed class MemoryTokenStore : ISecureTokenStore
+    internal sealed class MemoryTokenStore : ISecureTokenStore
     {
         readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
 
@@ -184,14 +186,17 @@ public sealed class SpeechServiceTests
         }
     }
 
-    sealed class FakePlayer : IAudioPlayer
+    internal sealed class FakePlayer : IAudioPlayer
     {
         public int PlayCount { get; private set; }
 
-        public Task PlayAsync(byte[] mp3, CancellationToken cancellationToken = default)
+        public bool BlockUntilCancelled { get; set; }
+
+        public async Task PlayAsync(byte[] mp3, CancellationToken cancellationToken = default)
         {
             PlayCount++;
-            return Task.CompletedTask;
+            if (BlockUntilCancelled)
+                await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
         }
 
         public void Stop()
