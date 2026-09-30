@@ -417,8 +417,9 @@ public sealed class MainPage : ContentPage
 
     private void ShowWelcome()
     {
-        _welcomeScroll.IsVisible = true;
-        _viewerCard.IsVisible = false;
+        var compact = PdfViewerLayout.IsCompact(Width);
+        _welcomeScroll.IsVisible = !compact;
+        _viewerCard.IsVisible = compact;
         ApplyShellLayout();
     }
 
@@ -426,28 +427,25 @@ public sealed class MainPage : ContentPage
 
     private void ApplyShellLayout()
     {
-        var reading = _viewerCard.IsVisible;
         var compact = IsCompact;
-        var readingPhone = compact && reading;
-        _header.IsVisible = !readingPhone;
-        _brandMark.IsVisible = !readingPhone;
-        _brandTitle.IsVisible = !readingPhone;
-        _documentName.IsVisible = !readingPhone;
-        _tagline.IsVisible = !reading;
+        var reading = _viewerCard.IsVisible;
+        _header.IsVisible = !compact;
+        _brandMark.IsVisible = !compact;
+        _brandTitle.IsVisible = !compact;
+        _documentName.IsVisible = !compact;
+        _tagline.IsVisible = !compact && !reading;
         _brandTitle.FontSize = compact ? GraphicalProfileColors.IntervalTitleSize : 18;
         _documentName.FontSize = compact ? GraphicalProfileColors.CaptionSize : 13;
         var mark = compact ? 40 : 52;
         _brandMark.WidthRequest = mark;
         _brandMark.HeightRequest = mark;
-        _header.Padding = compact && reading
-            ? new Thickness(8, 4, 8, 4)
-            : compact
-                ? new Thickness(12, 8, 12, 6)
-                : new Thickness(18, 16, 18, 12);
-        _body.Padding = compact && reading
+        _header.Padding = compact
+            ? new Thickness(12, 8, 12, 6)
+            : new Thickness(18, 16, 18, 12);
+        _body.Padding = compact
             ? new Thickness(0)
             : new Thickness(16, 0, 16, 16);
-        _viewerCard.StrokeThickness = compact && reading ? 0 : GraphicalProfileColors.Stroke;
+        _viewerCard.StrokeThickness = compact ? 0 : GraphicalProfileColors.Stroke;
         _openButton.Padding = compact
             ? new Thickness(12, 8)
             : new Thickness(16, 9);

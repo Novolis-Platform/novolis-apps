@@ -5,6 +5,7 @@ using Android.Database;
 using Android.OS;
 using Android.Provider;
 using Android.Views;
+using AndroidX.Core.View;
 using Novolis.Pdf.Abstractions;
 using Novolis.Pdf.Platform;
 
@@ -33,6 +34,8 @@ public sealed class MainActivity : MauiAppCompatActivity
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        if (Window is not null)
+            WindowCompat.SetDecorFitsSystemWindows(Window, true);
         PublishPdfIntent(Intent);
     }
 
