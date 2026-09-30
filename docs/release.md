@@ -23,6 +23,7 @@ Undeclared channels fail before workloads install. There is **no Linux release a
 - Per-user Inno (`PrivilegesRequired=lowest`) under `%LocalAppData%\Programs\Novolis\…`
 - One Inno installer `.exe` per app
 - Auxiliary runtime executables and portable payloads remain inside the installer; `SHA256SUMS.txt` covers published assets
+- Each install includes `Novolis.Release.json` beside the program: display name, app id, version, git commit, repository, and the GitHub Release tag URL. The setup executable's Comments field repeats the name, version, channel, and a 12-character commit
 - Stable `AppId` and `UsePreviousAppDir=yes` for upgrades, with multi-exe close filters where needed (Live Studio)
 
 ### android-apk

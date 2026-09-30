@@ -75,6 +75,8 @@ internal static class AppPublishCommand
             }
         }
 
+        var commit = ReleaseTrace.ResolveCommit(repoRoot);
+        versionArgs = ReleaseTrace.WithInformationalVersion(versionArgs, packageVersion, commit);
         DotnetPublish(appProject, "win-x64", publishDir, repoRoot, versionArgs);
 
         foreach (var extraProjectRelativePath in app.Windows.AdditionalProjects)
@@ -86,6 +88,8 @@ internal static class AppPublishCommand
             DotnetRestore(extraProject, "win-x64", repoRoot, dotnetConfigArgs, versionArgs);
             DotnetPublish(extraProject, "win-x64", publishDir, repoRoot, versionArgs);
         }
+
+        ReleaseTrace.WriteStamp(publishDir, app.DisplayName, app.Windows.AppId, packageVersion, commit);
 
         var exeBase = Path.GetFileNameWithoutExtension(appProject);
         string zipStem;
@@ -110,6 +114,8 @@ internal static class AppPublishCommand
         var msbuildArgs = new List<string> { "msbuild", appProject, "-t:NovolisGenerateInnoScript" };
         msbuildArgs.AddRange(FormatMsBuildProperties(inno.MsBuildArgs));
         ProcessRunner.Run("dotnet", repoRoot, msbuildArgs);
+
+        ReleaseTrace.AddInstallerComments(inno.ScriptPath, app.DisplayName, packageVersion, commit);
 
         if (app.Key.Equals("reach", StringComparison.OrdinalIgnoreCase))
             AddReachInstallerEntries(inno.ScriptPath);

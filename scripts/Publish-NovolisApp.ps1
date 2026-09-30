@@ -2,14 +2,21 @@
 # Shared publish + zip + Inno script generation for novolis-apps. Catalog: build/apps.json.
 
 function Get-NovolisMsBuildPropertyArgs {
-    param([Parameter(Mandatory)][hashtable]$Properties)
+    param(
+        [Parameter(Mandatory)]
+        $Properties
+    )
+    $quote = [string][char]34
+    $backslash = [string][char]92
     foreach ($entry in $Properties.GetEnumerator()) {
         $val = [string]$entry.Value
-        if ($val -match '[;"]' -or $val.Contains(' ')) {
-            "-p:$($entry.Key)=`"$($val.Replace('"','\"'))`""
+        $needsQuotes = $val.Contains(';') -or $val.Contains($quote) -or $val.Contains(' ')
+        if ($needsQuotes) {
+            $escaped = $val.Replace($quote, $backslash + $quote)
+            '-p:' + $entry.Key + '=' + $quote + $escaped + $quote
         }
         else {
-            "-p:$($entry.Key)=$val"
+            '-p:' + $entry.Key + '=' + $val
         }
     }
 }
@@ -34,23 +41,26 @@ function Get-NovolisAppCatalog {
     $manifest = Get-NovolisAppsManifest -RepoRoot $RepoRoot
     foreach ($app in $manifest.apps) {
         if (-not ($app.ship -contains 'windows-inno')) { continue }
-        if (-not $app.windows) { throw "App $($app.key) ships windows-inno without windows metadata." }
-        [pscustomobject]@{
-            Key                        = $app.key
-            Choice                     = $app.choice
-            Project                    = $app.projects.publishWindows
-            DisplayName                = $app.displayName
-            AppId                      = $app.windows.appId
-            ExeName                    = $app.windows.exeName
-            GroupName                  = $app.windows.groupName
-            InstallDir                 = $app.windows.installDir
-            SetupBase                  = $app.windows.setupBase
-            ScriptFile                 = $app.windows.scriptFile
-            CloseApplicationsFilter    = $app.windows.closeApplicationsFilter
-            AdditionalProjects         = @($app.windows.additionalProjects)
-            Ship                       = @($app.ship)
-            Stack                      = $app.stack
+        $windows = $app | Select-Object -ExpandProperty windows -ErrorAction SilentlyContinue
+        if ($null -eq $windows) {
+            throw ('App ' + $app.key + ' ships windows-inno without windows metadata.')
         }
+        $row = New-Object System.Collections.Hashtable
+        $row['Key'] = $app.key
+        $row['Choice'] = $app.choice
+        $row['Project'] = $app.projects.publishWindows
+        $row['DisplayName'] = $app.displayName
+        $row['AppId'] = $windows.appId
+        $row['ExeName'] = $windows.exeName
+        $row['GroupName'] = $windows.groupName
+        $row['InstallDir'] = $windows.installDir
+        $row['SetupBase'] = $windows.setupBase
+        $row['ScriptFile'] = $windows.scriptFile
+        $row['CloseApplicationsFilter'] = $windows.closeApplicationsFilter
+        $row['AdditionalProjects'] = @($windows.additionalProjects)
+        $row['Ship'] = @($app.ship)
+        $row['Stack'] = $app.stack
+        New-Object PSObject -Property $row
     }
 }
 
@@ -61,23 +71,27 @@ function Get-NovolisAndroidAppCatalog {
     foreach ($app in $manifest.apps) {
         $shipsApk = $app.ship -contains 'android-apk'
         $playEnabled = $false
-        if ($app.release -and $app.release.googlePlay) {
-            $playEnabled = [bool]$app.release.googlePlay.enabled
+        $release = $app | Select-Object -ExpandProperty release -ErrorAction SilentlyContinue
+        if ($release -and $release.googlePlay) {
+            $playEnabled = [bool]$release.googlePlay.enabled
         }
         if (-not ($shipsApk -or $playEnabled)) { continue }
-        if (-not $app.android) { throw "App $($app.key) declares Android delivery without android metadata." }
-        [pscustomobject]@{
-            Key               = $app.key
-            Choice            = $app.choice
-            Project           = $app.android.project
-            DisplayName       = $app.displayName
-            ApplicationId     = $app.android.applicationId
-            ArtifactPrefix    = $app.artifactPrefix
-            SigningSecretKey  = $app.android.signingSecretKey
-            Stack             = $app.stack
-            IsMaui            = ($app.stack -eq 'maui')
-            GooglePlayEnabled = $playEnabled
+        $android = $app | Select-Object -ExpandProperty android -ErrorAction SilentlyContinue
+        if ($null -eq $android) {
+            throw ('App ' + $app.key + ' declares Android delivery without android metadata.')
         }
+        $row = New-Object System.Collections.Hashtable
+        $row['Key'] = $app.key
+        $row['Choice'] = $app.choice
+        $row['Project'] = $android.project
+        $row['DisplayName'] = $app.displayName
+        $row['ApplicationId'] = $android.applicationId
+        $row['ArtifactPrefix'] = $app.artifactPrefix
+        $row['SigningSecretKey'] = $android.signingSecretKey
+        $row['Stack'] = $app.stack
+        $row['IsMaui'] = ($app.stack -eq 'maui')
+        $row['GooglePlayEnabled'] = $playEnabled
+        New-Object PSObject -Property $row
     }
 }
 
@@ -87,17 +101,85 @@ function Get-NovolisLinuxAppCatalog {
     $manifest = Get-NovolisAppsManifest -RepoRoot $RepoRoot
     foreach ($app in $manifest.apps) {
         if (-not ($app.ship -contains 'linux-tar')) { continue }
-        if (-not $app.linux) { throw "App $($app.key) ships linux-tar without Linux metadata." }
-        [pscustomobject]@{
-            Key          = $app.key
-            Choice       = $app.choice
-            Project      = $app.linux.project
-            ExeName      = $app.linux.exeName
-            DisplayName  = $app.displayName
-            ArtifactPrefix = $app.artifactPrefix
-            Stack        = $app.stack
+        $linux = $app | Select-Object -ExpandProperty linux -ErrorAction SilentlyContinue
+        if ($null -eq $linux) {
+            throw ('App ' + $app.key + ' ships linux-tar without Linux metadata.')
         }
+        $row = New-Object System.Collections.Hashtable
+        $row['Key'] = $app.key
+        $row['Choice'] = $app.choice
+        $row['Project'] = $linux.project
+        $row['ExeName'] = $linux.exeName
+        $row['DisplayName'] = $app.displayName
+        $row['ArtifactPrefix'] = $app.artifactPrefix
+        $row['Stack'] = $app.stack
+        New-Object PSObject -Property $row
     }
+}
+
+function Get-NovolisReleaseCommit {
+    param([Parameter(Mandatory)][string]$RepoRoot)
+
+    if ($env:GITHUB_SHA) { return $env:GITHUB_SHA.Trim() }
+
+    $sha = & git -C $RepoRoot rev-parse HEAD 2>$null
+    if ($LASTEXITCODE -ne 0) { return $null }
+    $sha = "$sha".Trim()
+    if ($sha.Length -lt 7) { return $null }
+    return $sha
+}
+
+function Write-NovolisReleaseStamp {
+    param(
+        [Parameter(Mandatory)][string]$PublishDir,
+        [Parameter(Mandatory)]$App,
+        [Parameter(Mandatory)][string]$PackageVersion,
+        [string]$Commit
+    )
+
+    if (-not $App) { throw "Release stamp requires catalog metadata." }
+    $builtAt = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $stamp = New-Object System.Collections.Hashtable
+    $stamp['name'] = $App.DisplayName
+    $stamp['appId'] = $App.AppId
+    $stamp['version'] = $PackageVersion
+    $stamp['channel'] = 'windows-inno'
+    $stamp['repository'] = 'https://github.com/Novolis-Platform/novolis-apps'
+    $stamp['release'] = "https://github.com/Novolis-Platform/novolis-apps/releases/tag/v$PackageVersion"
+    $stamp['builtAt'] = $builtAt
+    if ($Commit) { $stamp['commit'] = $Commit }
+    $json = $stamp | ConvertTo-Json
+    [IO.File]::WriteAllText(
+        (Join-Path $PublishDir 'Novolis.Release.json'),
+        $json + "`n",
+        [Text.UTF8Encoding]::new($false))
+}
+
+function Add-NovolisInstallerTrace {
+    param(
+        [Parameter(Mandatory)][string]$ScriptPath,
+        [Parameter(Mandatory)][string]$DisplayName,
+        [Parameter(Mandatory)][string]$PackageVersion,
+        [string]$Commit
+    )
+
+    $contents = [IO.File]::ReadAllText($ScriptPath)
+    if ($contents.Contains('AppComments=')) { return }
+    $newLine = if ($contents.Contains("`r`n")) { "`r`n" } else { "`n" }
+    $marker = "AppVersion=$PackageVersion"
+    $index = $contents.IndexOf($marker)
+    if ($index -lt 0) {
+        throw "Installer script is missing AppVersion: $ScriptPath"
+    }
+    $insertAt = $index + $marker.Length
+    if ($insertAt -lt $contents.Length -and $contents[$insertAt] -eq "`r") { $insertAt++ }
+    if ($insertAt -lt $contents.Length -and $contents[$insertAt] -eq "`n") { $insertAt++ }
+    $shortCommit = if ($Commit -and $Commit.Length -ge 12) { $Commit.Substring(0, 12) } else { $Commit }
+    $comment = if ($shortCommit) { "$DisplayName $PackageVersion windows-inno $shortCommit" } else { "$DisplayName $PackageVersion windows-inno" }
+    $productText = if ($Commit) { "$PackageVersion+$Commit" } else { $PackageVersion }
+    $block = "AppComments=$comment$newLine" + "VersionInfoProductTextVersion=$productText$newLine"
+    $contents = $contents.Insert($insertAt, $block)
+    [IO.File]::WriteAllText($ScriptPath, $contents, [Text.UTF8Encoding]::new($false))
 }
 
 function Add-NovolisReachInstallerEntries {
@@ -105,22 +187,30 @@ function Add-NovolisReachInstallerEntries {
 
     $contents = [IO.File]::ReadAllText($ScriptPath)
     $newLine = if ($contents.Contains("`r`n")) { "`r`n" } else { "`n" }
-    $serviceStartup = 'Name: "{userstartup}\Novolis Reach Service"; Filename: "{app}\Novolis.Reach.Host.Windows.Service.exe"; WorkingDir: "{app}"'
-    $serviceRun = 'Filename: "{app}\Novolis.Reach.Host.Windows.Service.exe"; Description: "Start Novolis Reach Service"; Flags: nowait runhidden skipifsilent'
+    $quote = [string][char]34
+    $braceOpen = [string][char]123
+    $braceClose = [string][char]125
+    $appConst = $braceOpen + 'app' + $braceClose
+    $userStartupConst = $braceOpen + 'userstartup' + $braceClose
+    $serviceExe = $appConst + '\Novolis.Reach.Host.Windows.Service.exe'
+    $serviceStartup = 'Name: ' + $quote + $userStartupConst + '\Novolis Reach Service' + $quote +
+        '; Filename: ' + $quote + $serviceExe + $quote +
+        '; WorkingDir: ' + $quote + $appConst + $quote
+    $serviceRun = 'Filename: ' + $quote + $serviceExe + $quote +
+        '; Description: ' + $quote + 'Start Novolis Reach Service' + $quote +
+        '; Flags: nowait runhidden skipifsilent'
 
-    if (-not $contents.Contains("[Icons]$newLine")) {
-        throw "Reach installer script is missing the [Icons] section: $ScriptPath"
+    $iconsSection = '[' + 'Icons]' + $newLine
+    $runSection = '[' + 'Run]' + $newLine
+    if (-not $contents.Contains($iconsSection)) {
+        throw ('Reach installer script is missing the Icons section: ' + $ScriptPath)
     }
-    if (-not $contents.Contains("[Run]$newLine")) {
-        throw "Reach installer script is missing the [Run] section: $ScriptPath"
+    if (-not $contents.Contains($runSection)) {
+        throw ('Reach installer script is missing the Run section: ' + $ScriptPath)
     }
 
-    $contents = $contents.Replace(
-        "[Icons]$newLine",
-        "[Icons]$newLine$serviceStartup$newLine")
-    $contents = $contents.Replace(
-        "[Run]$newLine",
-        "[Run]$newLine$serviceRun$newLine")
+    $contents = $contents.Replace($iconsSection, $iconsSection + $serviceStartup + $newLine)
+    $contents = $contents.Replace($runSection, $runSection + $serviceRun + $newLine)
     [IO.File]::WriteAllText(
         $ScriptPath,
         $contents,
@@ -153,11 +243,13 @@ function Publish-NovolisApp {
 
     New-Item -ItemType Directory -Force -Path $publishDir, $installerDir | Out-Null
 
+    $commit = Get-NovolisReleaseCommit -RepoRoot $RepoRoot
+    $informational = if ($commit) { "$PackageVersion+$commit" } else { $PackageVersion }
     $versionArgs = @(
         "-p:PackageVersion=$PackageVersion"
         "-p:AssemblyVersion=$AssemblyVersion"
         "-p:FileVersion=$FileVersion"
-        "-p:InformationalVersion=$PackageVersion"
+        "-p:InformationalVersion=$informational"
     )
 
     $cfgArgs = @()
@@ -215,22 +307,23 @@ function Publish-NovolisApp {
         $zipStem = $exeBase
     }
 
+    Write-NovolisReleaseStamp -PublishDir $publishDir -App $catalog -PackageVersion $PackageVersion -Commit $commit
+
     $zipName = "$zipStem-$PackageVersion-win-x64.zip"
     $zipPath = Join-Path $stagingDir $zipName
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
     Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath | Out-Null
     Write-Host "Portable zip: $zipPath"
 
-    $result = [ordered]@{
-        AppKey        = $AppKey
-        ZipPath       = $zipPath
-        ZipName       = $zipName
-        InstallerPath = $null
-        InstallerName = $null
-    }
+    $result = New-Object System.Collections.Hashtable
+    $result['AppKey'] = $AppKey
+    $result['ZipPath'] = $zipPath
+    $result['ZipName'] = $zipName
+    $result['InstallerPath'] = $null
+    $result['InstallerName'] = $null
 
     if ($SkipInstaller) {
-        return [pscustomobject]$result
+        return (New-Object PSObject -Property $result)
     }
 
     $inno = Get-NovolisAppInnoProfile -AppKey $AppKey -PackageVersion $PackageVersion -PublishDir $publishDir -InstallerDir $installerDir -RepoRoot $RepoRoot
@@ -238,32 +331,34 @@ function Publish-NovolisApp {
         -t:NovolisGenerateInnoScript `
         @(Get-NovolisMsBuildPropertyArgs -Properties $inno.MsBuildArgs) | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Generating the Inno script failed with exit code $LASTEXITCODE." }
+    Add-NovolisInstallerTrace -ScriptPath $inno.ScriptPath -DisplayName $catalog.DisplayName -PackageVersion $PackageVersion -Commit $commit
     if ($AppKey -eq 'reach') {
         Add-NovolisReachInstallerEntries -ScriptPath $inno.ScriptPath
     }
 
+    $programFilesX86 = [Environment]::GetFolderPath('ProgramFilesX86')
     $iscc = @(
-        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-        "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+        (Join-Path $programFilesX86 'Inno Setup 6\ISCC.exe')
+        (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe')
     ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
     if (-not $iscc) {
         $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1)
     }
     if (-not $iscc) {
-        Write-Warning "ISCC.exe not found. Inno script written to $($inno.ScriptPath) — install Inno Setup 6 to compile the installer."
-        return [pscustomobject]$result
+        Write-Warning ('ISCC.exe not found. Inno script written to ' + $inno.ScriptPath + ' - install Inno Setup 6 to compile the installer.')
+        return (New-Object PSObject -Property $result)
     }
 
     & $iscc $inno.ScriptPath | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
     if (-not (Test-Path $inno.InstallerPath)) {
-        throw "Expected installer not found: $($inno.InstallerPath)"
+        throw ('Expected installer not found: ' + $inno.InstallerPath)
     }
 
     $result.InstallerPath = $inno.InstallerPath
     $result.InstallerName = Split-Path $inno.InstallerPath -Leaf
-    Write-Host "Installer: $($inno.InstallerPath)"
-    return [pscustomobject]$result
+    Write-Host ('Installer: ' + $inno.InstallerPath)
+    return (New-Object PSObject -Property $result)
 }
 
 function Publish-NovolisLinuxApp {
@@ -317,7 +412,7 @@ function Publish-NovolisLinuxApp {
         throw "Expected Linux executable not found: $executable"
     }
 
-    $tarName = "$($app.ArtifactPrefix)-$PackageVersion-linux-x64.tar.gz"
+    $tarName = $app.ArtifactPrefix + '-' + $PackageVersion + '-linux-x64.tar.gz'
     $tarPath = Join-Path $stagingDir $tarName
     if (Test-Path -LiteralPath $tarPath) {
         Remove-Item -LiteralPath $tarPath -Force
@@ -327,11 +422,11 @@ function Publish-NovolisLinuxApp {
     if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE." }
     Write-Host "Linux tarball: $tarPath"
 
-    [pscustomobject]@{
-        AppKey = $AppKey
-        TarPath = $tarPath
-        TarName = $tarName
-    }
+    $artifact = New-Object System.Collections.Hashtable
+    $artifact['AppKey'] = $AppKey
+    $artifact['TarPath'] = $tarPath
+    $artifact['TarName'] = $tarName
+    return (New-Object PSObject -Property $artifact)
 }
 
 function Get-NovolisAppInnoProfile {
@@ -347,30 +442,29 @@ function Get-NovolisAppInnoProfile {
     if (-not $app) { throw "Unknown app key: $AppKey" }
 
     $script = Join-Path $InstallerDir $app.ScriptFile
-    $setupBase = "$($app.SetupBase)-$PackageVersion-win-x64"
+    $setupBase = $app.SetupBase + '-' + $PackageVersion + '-win-x64'
     $license = Join-Path $RepoRoot 'LICENSE'
     $icon = Join-Path $RepoRoot 'icon.ico'
 
-    $msbuild = @{
-        NovolisInnoAppName                   = $app.DisplayName
-        NovolisInnoAppVersion                = $PackageVersion
-        NovolisInnoPublishDir                = $PublishDir
-        NovolisInnoAppExeName                = $app.ExeName
-        NovolisInnoOutputDir                 = $InstallerDir
-        NovolisInnoAppId                     = $app.AppId
-        NovolisInnoDefaultGroupName          = $app.GroupName
-        NovolisInnoOutputBaseFilename        = $setupBase
-        NovolisInnoInstallDirName            = $app.InstallDir
-        NovolisInnoScriptPath                = $script
-        NovolisInnoAppPublisher              = 'Novolis'
-        NovolisInnoAppPublisherURL           = 'https://github.com/Novolis-Platform'
-        NovolisInnoAppCopyright              = 'Copyright (c) Novolis'
-        NovolisInnoVersionInfoCompany        = 'Novolis'
-        NovolisInnoVersionInfoDescription    = "$($app.DisplayName) - Novolis"
-        NovolisInnoAppSupportURL             = 'https://github.com/Novolis-Platform/novolis-apps/issues'
-        NovolisInnoAppUpdatesURL             = 'https://github.com/Novolis-Platform/novolis-apps/releases'
-        NovolisInnoCloseApplicationsFilter   = $app.CloseApplicationsFilter
-    }
+    $msbuild = New-Object System.Collections.Hashtable
+    $msbuild['NovolisInnoAppName'] = $app.DisplayName
+    $msbuild['NovolisInnoAppVersion'] = $PackageVersion
+    $msbuild['NovolisInnoPublishDir'] = $PublishDir
+    $msbuild['NovolisInnoAppExeName'] = $app.ExeName
+    $msbuild['NovolisInnoOutputDir'] = $InstallerDir
+    $msbuild['NovolisInnoAppId'] = $app.AppId
+    $msbuild['NovolisInnoDefaultGroupName'] = $app.GroupName
+    $msbuild['NovolisInnoOutputBaseFilename'] = $setupBase
+    $msbuild['NovolisInnoInstallDirName'] = $app.InstallDir
+    $msbuild['NovolisInnoScriptPath'] = $script
+    $msbuild['NovolisInnoAppPublisher'] = 'Novolis'
+    $msbuild['NovolisInnoAppPublisherURL'] = 'https://github.com/Novolis-Platform'
+    $msbuild['NovolisInnoAppCopyright'] = 'Copyright (c) Novolis'
+    $msbuild['NovolisInnoVersionInfoCompany'] = 'Novolis'
+    $msbuild['NovolisInnoVersionInfoDescription'] = $app.DisplayName + ' - Novolis'
+    $msbuild['NovolisInnoAppSupportURL'] = 'https://github.com/Novolis-Platform/novolis-apps/issues'
+    $msbuild['NovolisInnoAppUpdatesURL'] = 'https://github.com/Novolis-Platform/novolis-apps/releases'
+    $msbuild['NovolisInnoCloseApplicationsFilter'] = $app.CloseApplicationsFilter
     if (Test-Path -LiteralPath $license) {
         $msbuild['NovolisInnoLicenseFile'] = $license
     }
@@ -378,11 +472,11 @@ function Get-NovolisAppInnoProfile {
         $msbuild['NovolisInnoSetupIconFile'] = $icon
     }
 
-    return [pscustomobject]@{
-        ScriptPath    = $script
-        InstallerPath = Join-Path $InstallerDir "$setupBase.exe"
-        MsBuildArgs   = $msbuild
-    }
+    $innoProfile = New-Object System.Collections.Hashtable
+    $innoProfile['ScriptPath'] = $script
+    $innoProfile['InstallerPath'] = Join-Path $InstallerDir ($setupBase + '.exe')
+    $innoProfile['MsBuildArgs'] = $msbuild
+    return (New-Object PSObject -Property $innoProfile)
 }
 
 function Resolve-NovolisKeytool {
@@ -424,11 +518,11 @@ function New-NovolisAdhocAndroidKeystore {
         -dname 'CN=Novolis Ad Hoc Release,O=Novolis,C=NO'
     if ($LASTEXITCODE -ne 0) { throw "keytool failed with exit code $LASTEXITCODE." }
 
-    [pscustomobject]@{
-        Path     = $Path
-        Alias    = $alias
-        Password = $pass
-    }
+    $keystore = New-Object System.Collections.Hashtable
+    $keystore['Path'] = $Path
+    $keystore['Alias'] = $alias
+    $keystore['Password'] = $pass
+    return (New-Object PSObject -Property $keystore)
 }
 
 function Find-NovolisPublishedAndroidArtifact {
@@ -484,6 +578,8 @@ function Get-NovolisAndroidVersionCode {
 }
 
 function Publish-NovolisAndroidArtifact {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'KeystorePassword')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'KeyPassword')]
     param(
         [Parameter(Mandatory)][string]$RepoRoot,
         [Parameter(Mandatory)][string]$AppKey,
@@ -559,20 +655,22 @@ function Publish-NovolisAndroidArtifact {
         -ApplicationId $app.ApplicationId
     if (-not $artifact) { throw "No Android $PackageFormat produced for $AppKey." }
 
-    $dest = Join-Path $stagingDir "$($app.ArtifactPrefix)-$PackageVersion-android.$PackageFormat"
+    $dest = Join-Path $stagingDir ($app.ArtifactPrefix + '-' + $PackageVersion + '-android.' + $PackageFormat)
     Copy-Item -LiteralPath $artifact.FullName -Destination $dest -Force
     Write-Host "Android $PackageFormat`: $dest"
-    return [pscustomobject]@{
-        AppKey         = $AppKey
-        ApplicationId  = $app.ApplicationId
-        ArtifactPath   = $dest
-        ArtifactName   = Split-Path $dest -Leaf
-        PackageFormat  = $PackageFormat
-        VersionCode    = $versionCode
-    }
+    $published = New-Object System.Collections.Hashtable
+    $published['AppKey'] = $AppKey
+    $published['ApplicationId'] = $app.ApplicationId
+    $published['ArtifactPath'] = $dest
+    $published['ArtifactName'] = Split-Path $dest -Leaf
+    $published['PackageFormat'] = $PackageFormat
+    $published['VersionCode'] = $versionCode
+    return (New-Object PSObject -Property $published)
 }
 
 function Publish-NovolisAndroidApk {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'KeystorePassword')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'KeyPassword')]
     param(
         [Parameter(Mandatory)][string]$RepoRoot,
         [Parameter(Mandatory)][string]$AppKey,
@@ -595,16 +693,18 @@ function Publish-NovolisAndroidApk {
         -KeyPassword $KeyPassword `
         -PackageFormat apk
 
-    [pscustomobject]@{
-        AppKey        = $item.AppKey
-        ApplicationId = $item.ApplicationId
-        ApkPath       = $item.ArtifactPath
-        ApkName       = $item.ArtifactName
-        VersionCode   = $item.VersionCode
-    }
+    $apk = New-Object System.Collections.Hashtable
+    $apk['AppKey'] = $item.AppKey
+    $apk['ApplicationId'] = $item.ApplicationId
+    $apk['ApkPath'] = $item.ArtifactPath
+    $apk['ApkName'] = $item.ArtifactName
+    $apk['VersionCode'] = $item.VersionCode
+    return (New-Object PSObject -Property $apk)
 }
 
 function Publish-NovolisAndroidBundle {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'KeystorePassword')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'KeyPassword')]
     param(
         [Parameter(Mandatory)][string]$RepoRoot,
         [Parameter(Mandatory)][string]$AppKey,
@@ -628,11 +728,11 @@ function Publish-NovolisAndroidBundle {
         -PackageFormat aab `
         -RequirePersistentSigning
 
-    [pscustomobject]@{
-        AppKey        = $item.AppKey
-        ApplicationId = $item.ApplicationId
-        AabPath       = $item.ArtifactPath
-        AabName       = $item.ArtifactName
-        VersionCode   = $item.VersionCode
-    }
+    $aab = New-Object System.Collections.Hashtable
+    $aab['AppKey'] = $item.AppKey
+    $aab['ApplicationId'] = $item.ApplicationId
+    $aab['AabPath'] = $item.ArtifactPath
+    $aab['AabName'] = $item.ArtifactName
+    $aab['VersionCode'] = $item.VersionCode
+    return (New-Object PSObject -Property $aab)
 }
