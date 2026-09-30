@@ -14,7 +14,6 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.AvaloniaEdit" />
     <PackageReference Include="Avalonia.Desktop" />
-    <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
     <LibraryReference Include="Novolis.Audio.Live" />

@@ -15,6 +15,7 @@ using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
 using Novolis.Avalonia.Cad.Ui;
+using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Avalonia.Studio;
 using Novolis.Cad.Primitives;
 using Novolis.Cad.SceneBridge;
@@ -70,7 +71,7 @@ internal sealed class MainWindow : Window
         Height = 920;
         MinWidth = 1100;
         MinHeight = 640;
-        Background = new SolidColorBrush(Color.FromRgb(14, 20, 28));
+        Background = GraphicalProfile.BackgroundBrush;
 
         Content = BuildLayout();
         _cad.Editor = _cadEditor;
@@ -143,7 +144,7 @@ internal sealed class MainWindow : Window
             Margin = new Thickness(12, 2, 12, 6),
             FontSize = 13,
             FontWeight = FontWeight.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(200, 220, 235)),
+            Foreground = GraphicalProfile.TextBrush,
             Text = "Draft 2D — plan (XZ)",
         };
         AgentProperties.SetId(_modeBanner, "cad3d.modeBanner");
@@ -217,7 +218,7 @@ internal sealed class MainWindow : Window
             Margin = new Thickness(10, 2),
             FontSize = 11,
             Opacity = 0.75,
-            Foreground = Brushes.WhiteSmoke,
+            Foreground = GraphicalProfile.TextBrush,
             Text = PortStatusLine(),
         };
         AgentProperties.SetId(ports, "cad3d.ports");
@@ -251,7 +252,7 @@ internal sealed class MainWindow : Window
             FontWeight = FontWeight.SemiBold,
             FontSize = 13,
             Margin = new Thickness(6, 8, 6, 4),
-            Foreground = new SolidColorBrush(Color.FromRgb(180, 200, 215)),
+            Foreground = GraphicalProfile.MutedBrush,
         };
         DockPanel.SetDock(leftTitle, Dock.Top);
         left.Children.Add(leftTitle);
@@ -264,7 +265,7 @@ internal sealed class MainWindow : Window
             FontWeight = FontWeight.SemiBold,
             FontSize = 13,
             Margin = new Thickness(6, 8, 6, 4),
-            Foreground = new SolidColorBrush(Color.FromRgb(180, 200, 215)),
+            Foreground = GraphicalProfile.MutedBrush,
         };
         DockPanel.SetDock(rightTitle, Dock.Top);
         right.Children.Add(rightTitle);
@@ -375,8 +376,8 @@ internal sealed class MainWindow : Window
         SyncDraftOptionsUi();
         return new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(22, 30, 38)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(40, 55, 70)),
+            Background = GraphicalProfile.SurfaceBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(0, 0, 0, 1),
             Child = row,
         };
@@ -440,10 +441,8 @@ internal sealed class MainWindow : Window
     private static void StyleAxis(Button b, bool on)
     {
         b.FontWeight = on ? FontWeight.Bold : FontWeight.Normal;
-        b.Background = on
-            ? new SolidColorBrush(Color.FromRgb(40, 90, 110))
-            : new SolidColorBrush(Color.FromRgb(28, 38, 48));
-        b.Foreground = Brushes.WhiteSmoke;
+        b.Background = on ? GraphicalProfile.AccentFillBrush : GraphicalProfile.RaisedBrush;
+        b.Foreground = on ? GraphicalProfile.OnAccentFillBrush : GraphicalProfile.TextBrush;
     }
 
     private void InvalidateDraftViews()
@@ -536,7 +535,7 @@ internal sealed class MainWindow : Window
         Opacity = 0.65,
         VerticalAlignment = VerticalAlignment.Center,
         Margin = new Thickness(4, 0, 6, 0),
-        Foreground = new SolidColorBrush(Color.FromRgb(160, 185, 200)),
+        Foreground = GraphicalProfile.MutedBrush,
     };
 
     private sealed record GridChoice(float Step, string Label)
@@ -570,8 +569,8 @@ internal sealed class MainWindow : Window
 
         var chrome = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(22, 32, 42)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(40, 60, 75)),
+            Background = GraphicalProfile.SurfaceBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(0, 0, 0, 1),
             Child = surface.CreateChrome(Path.Combine(_settings.DataRoot, "dumps")),
             [DockPanel.DockProperty] = Dock.Top,
@@ -579,7 +578,7 @@ internal sealed class MainWindow : Window
 
         return new DockPanel
         {
-            Background = new SolidColorBrush(Color.FromRgb(14, 20, 28)),
+            Background = GraphicalProfile.BackgroundBrush,
             Children = { chrome, center },
         };
     }

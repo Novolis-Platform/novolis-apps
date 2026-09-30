@@ -16,23 +16,37 @@ internal enum ReadAloudButtonKind
 
 internal static class ReadAloudTheme
 {
-    public static TextBlock BrandTitle(string text, double size = 28) => new()
+    public static TextBlock BrandTitle(string text, double size = 28)
     {
-        Text = text,
-        FontFamily = GraphicalProfile.BodyFont,
-        FontSize = size,
-        FontWeight = FontWeight.SemiBold,
-        Foreground = GraphicalProfile.AccentBrush,
-    };
+        var block = new TextBlock
+        {
+            Text = text,
+            FontFamily = GraphicalProfile.BodyFont,
+            FontSize = size,
+            FontWeight = FontWeight.SemiBold,
+        };
+        GraphicalProfileBinding.Bind(
+            block,
+            TextBlock.ForegroundProperty,
+            GraphicalProfile.AccentResourceKey);
+        return block;
+    }
 
-    public static TextBlock Muted(string text, double size = 14) => new()
+    public static TextBlock Muted(string text, double size = 14)
     {
-        Text = text,
-        FontFamily = GraphicalProfile.BodyFont,
-        FontSize = size,
-        Foreground = GraphicalProfile.MutedBrush,
-        TextWrapping = TextWrapping.Wrap,
-    };
+        var block = new TextBlock
+        {
+            Text = text,
+            FontFamily = GraphicalProfile.BodyFont,
+            FontSize = size,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        GraphicalProfileBinding.Bind(
+            block,
+            TextBlock.ForegroundProperty,
+            GraphicalProfile.MutedResourceKey);
+        return block;
+    }
 
     public static Button Button(string text, ReadAloudButtonKind kind = ReadAloudButtonKind.Secondary)
     {
@@ -57,26 +71,53 @@ internal static class ReadAloudTheme
         switch (kind)
         {
             case ReadAloudButtonKind.Primary:
-                btn.Background = GraphicalProfile.AccentFillBrush;
-                btn.Foreground = GraphicalProfile.BackgroundBrush;
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BackgroundProperty,
+                    GraphicalProfile.AccentFillResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.ForegroundProperty,
+                    GraphicalProfile.OnAccentFillResourceKey);
                 btn.BorderThickness = new Thickness(0);
                 break;
             case ReadAloudButtonKind.Danger:
-                btn.Background = GraphicalProfile.RaisedBrush;
-                btn.Foreground = GraphicalProfile.DangerBrush;
-                btn.BorderBrush = GraphicalProfile.DangerBrush;
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BackgroundProperty,
+                    GraphicalProfile.RaisedResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.ForegroundProperty,
+                    GraphicalProfile.DangerResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BorderBrushProperty,
+                    GraphicalProfile.DangerResourceKey);
                 btn.BorderThickness = new Thickness(1);
                 break;
             case ReadAloudButtonKind.Quiet:
                 btn.Background = Brushes.Transparent;
-                btn.Foreground = GraphicalProfile.MutedBrush;
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.ForegroundProperty,
+                    GraphicalProfile.MutedResourceKey);
                 btn.BorderThickness = new Thickness(0);
                 break;
             default:
-                btn.Background = GraphicalProfile.RaisedBrush;
-                btn.Foreground = GraphicalProfile.TextBrush;
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BackgroundProperty,
+                    GraphicalProfile.RaisedResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.ForegroundProperty,
+                    GraphicalProfile.TextResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BorderBrushProperty,
+                    GraphicalProfile.BorderResourceKey);
                 btn.BorderThickness = new Thickness(1);
-                btn.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 47, 223, 255));
                 break;
         }
     }

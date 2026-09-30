@@ -13,6 +13,7 @@ using Novolis.Avalonia.Agent;
 using Novolis.Avalonia.Agent.Protocol;
 using Novolis.Avalonia.Controls;
 using Novolis.Avalonia.Controls.Sketch;
+using Novolis.Avalonia.GraphicalProfile;
 using Optris.Icons.Avalonia;
 
 namespace SketchStudio;
@@ -1344,7 +1345,7 @@ internal sealed class MainWindow : Window
             IsHitTestVisible = false,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Bottom,
-            Background = new SolidColorBrush(Color.FromArgb(235, 32, 32, 32)),
+            Background = GraphicalProfile.RaisedBrush,
             CornerRadius = new CornerRadius(2),
             Padding = new Thickness(letter.Length > 1 ? 1 : 2, 0),
             Margin = new Thickness(0, 0, 1, 1),
@@ -1353,7 +1354,7 @@ internal sealed class MainWindow : Window
                 Text = letter,
                 FontSize = letter.Length > 1 ? 8 : 10,
                 FontWeight = FontWeight.SemiBold,
-                Foreground = Brushes.White
+                Foreground = GraphicalProfile.TextBrush
             }
         };
         glyph.HorizontalAlignment = HorizontalAlignment.Center;

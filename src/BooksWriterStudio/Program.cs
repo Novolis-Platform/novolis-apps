@@ -59,7 +59,6 @@ internal static class Program
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
-            .WithInterFont()
             .LogToTrace()
             .AfterSetup(_ => CrashLog.InstallAvalonia(Avalonia.Threading.Dispatcher.UIThread));
 }

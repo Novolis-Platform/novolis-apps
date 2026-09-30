@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Reach.Protocol;
 
 namespace Novolis.Reach.Host.Windows;
@@ -29,6 +30,10 @@ public sealed class ReachHostView : UserControl
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _tray = tray ?? throw new ArgumentNullException(nameof(tray));
+        GraphicalProfileBinding.Bind(
+            this,
+            BackgroundProperty,
+            GraphicalProfile.BackgroundResourceKey);
         _status = new TextBlock { Text = "Service status: unknown" };
         _endpoints = new TextBlock { TextWrapping = TextWrapping.Wrap };
         _clients = new TextBlock { TextWrapping = TextWrapping.Wrap };

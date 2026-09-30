@@ -1,3 +1,4 @@
+using Novolis.Avalonia.GraphicalProfile;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -111,17 +112,17 @@ internal sealed class MainWindow : Window
 
     _chrome = StudioChrome.Create();
     _feedback = _chrome.CreateFeedback();
-    _chrome.FlashLine.FontFamily = CalypsoPalette.BodyFont;
-    _chrome.StatusLine.FontFamily = CalypsoPalette.BodyFont;
-    _chrome.StatusLine.Foreground = CalypsoPalette.MutedBrush;
+    _chrome.FlashLine.FontFamily = GraphicalProfile.BodyFont;
+    _chrome.StatusLine.FontFamily = GraphicalProfile.BodyFont;
+    _chrome.StatusLine.Foreground = GraphicalProfile.MutedBrush;
 
     var brand = new TextBlock
     {
       Text = "Calypso",
       FontSize = 34,
       FontWeight = FontWeight.Bold,
-      FontFamily = CalypsoPalette.DisplayFont,
-      Foreground = CalypsoPalette.AccentBrush,
+      FontFamily = GraphicalProfile.BodyFont,
+      Foreground = GraphicalProfile.ActionBrush,
     };
     AgentProperties.SetId(brand, "calypso.brand");
     var title = new TextBlock
@@ -129,17 +130,17 @@ internal sealed class MainWindow : Window
       Text = "Captain Bridge",
       FontSize = 16,
       FontWeight = FontWeight.SemiBold,
-      FontFamily = CalypsoPalette.BodyFont,
+      FontFamily = GraphicalProfile.BodyFont,
       VerticalAlignment = VerticalAlignment.Bottom,
       Margin = new Thickness(12, 0, 0, 4),
-      Foreground = CalypsoPalette.MutedBrush,
+      Foreground = GraphicalProfile.MutedBrush,
     };
     AgentProperties.SetId(title, "calypso.title");
     _subtitle = new TextBlock
     {
       Text = CampaignWorld.PlayerMasterLabel,
-      Foreground = CalypsoPalette.MutedBrush,
-      FontFamily = CalypsoPalette.BodyFont,
+      Foreground = GraphicalProfile.MutedBrush,
+      FontFamily = GraphicalProfile.BodyFont,
       FontSize = 12,
       Margin = new Thickness(0, 4, 0, 0),
     };
@@ -196,7 +197,7 @@ internal sealed class MainWindow : Window
       Text = "Speed Max",
       Width = 88,
       VerticalAlignment = VerticalAlignment.Center,
-      Foreground = CalypsoPalette.MutedBrush,
+      Foreground = GraphicalProfile.MutedBrush,
       FontSize = 11,
     };
     _speed.PropertyChanged += (_, e) =>
@@ -209,7 +210,7 @@ internal sealed class MainWindow : Window
     _clockLine = new TextBlock
     {
       Text = "clock hardPause · speed 1",
-      Foreground = CalypsoPalette.MutedBrush,
+      Foreground = GraphicalProfile.MutedBrush,
       FontSize = 11,
       VerticalAlignment = VerticalAlignment.Center,
     };
@@ -223,7 +224,7 @@ internal sealed class MainWindow : Window
       PlaceholderText = "system id (agent / typed travel)",
       Width = 200,
       FontSize = 12,
-      FontFamily = CalypsoPalette.BodyFont,
+      FontFamily = GraphicalProfile.BodyFont,
     };
     AgentProperties.SetId(_travelSystem, "calypso.travelSystem", AgentRoleNames.TextBox);
     _travelSystem.TextChanged += (_, _) => UpdateTravelEnabled();
@@ -250,7 +251,7 @@ internal sealed class MainWindow : Window
         {
           Text = "Attention",
           VerticalAlignment = VerticalAlignment.Center,
-          Foreground = CalypsoPalette.MutedBrush,
+          Foreground = GraphicalProfile.MutedBrush,
           FontSize = 11,
         },
         _attention,
@@ -258,7 +259,7 @@ internal sealed class MainWindow : Window
         {
           Text = "Speed",
           VerticalAlignment = VerticalAlignment.Center,
-          Foreground = CalypsoPalette.MutedBrush,
+          Foreground = GraphicalProfile.MutedBrush,
           FontSize = 11,
         },
         _speed,
@@ -291,7 +292,7 @@ internal sealed class MainWindow : Window
     _map = new StarMapControl
     {
       MinHeight = 260,
-      FieldBrush = CalypsoPalette.MapFieldBrush,
+      FieldBrush = new SolidColorBrush(Color.Parse("#0a1524")),
       ShowChartGrid = true,
     };
     AgentProperties.SetId(_map, "calypso.map");
@@ -299,21 +300,21 @@ internal sealed class MainWindow : Window
     _hubDetail = new TextBlock
     {
       Text = "Select a system → Travel here (when docked idle).",
-      Foreground = CalypsoPalette.MutedBrush,
+      Foreground = GraphicalProfile.MutedBrush,
       TextWrapping = TextWrapping.Wrap,
       Margin = new Thickness(0, 8, 0, 0),
       FontSize = 12,
-      FontFamily = CalypsoPalette.BodyFont,
+      FontFamily = GraphicalProfile.BodyFont,
     };
     AgentProperties.SetId(_hubDetail, "calypso.hubDetail");
 
     var mapTitle = new TextBlock
     {
       Text = "Near-Sol · select destination to travel",
-      FontFamily = CalypsoPalette.DisplayFont,
+      FontFamily = GraphicalProfile.BodyFont,
       FontWeight = FontWeight.SemiBold,
       FontSize = 14,
-      Foreground = CalypsoPalette.AccentBrush,
+      Foreground = GraphicalProfile.ActionBrush,
       Margin = new Thickness(0, 0, 0, 6),
     };
     var mapDock = new DockPanel { LastChildFill = true };
@@ -325,8 +326,8 @@ internal sealed class MainWindow : Window
 
     var mapPanel = new Border
     {
-      Background = CalypsoPalette.PanelBrush,
-      BorderBrush = new SolidColorBrush(Color.Parse("#1e2c3c")),
+      Background = GraphicalProfile.SurfaceBrush,
+      BorderBrush = GraphicalProfile.BorderBrush,
       BorderThickness = new Thickness(1),
       Padding = new Thickness(10),
       CornerRadius = new CornerRadius(6),
@@ -335,8 +336,8 @@ internal sealed class MainWindow : Window
 
     _voyage = new TextBlock
     {
-      Foreground = CalypsoPalette.AccentBrush,
-      FontFamily = CalypsoPalette.DisplayFont,
+      Foreground = GraphicalProfile.ActionBrush,
+      FontFamily = GraphicalProfile.BodyFont,
       FontWeight = FontWeight.SemiBold,
       TextWrapping = TextWrapping.Wrap,
       FontSize = 18,
@@ -352,21 +353,21 @@ internal sealed class MainWindow : Window
     };
     _hullStats = new TextBlock
     {
-      Foreground = CalypsoPalette.BodyBrush,
+      Foreground = GraphicalProfile.TextBrush,
       TextWrapping = TextWrapping.Wrap,
       FontSize = 12,
-      FontFamily = CalypsoPalette.BodyFont,
+      FontFamily = GraphicalProfile.BodyFont,
     };
     _decision = new TextBlock
     {
-      Foreground = CalypsoPalette.MutedBrush,
+      Foreground = GraphicalProfile.MutedBrush,
       TextWrapping = TextWrapping.Wrap,
       FontSize = 12,
       Margin = new Thickness(0, 4, 0, 0),
     };
     _coach = new TextBlock
     {
-      Foreground = CalypsoPalette.AccentBrush,
+      Foreground = GraphicalProfile.ActionBrush,
       TextWrapping = TextWrapping.Wrap,
       FontSize = 14,
       FontWeight = FontWeight.SemiBold,
@@ -375,7 +376,7 @@ internal sealed class MainWindow : Window
     _coachChrome = new Border
     {
       Background = new SolidColorBrush(Color.Parse("#1a2838")),
-      BorderBrush = CalypsoPalette.AccentBrush,
+      BorderBrush = GraphicalProfile.ActionBrush,
       BorderThickness = new Thickness(1, 1, 1, 1),
       CornerRadius = new CornerRadius(4),
       Padding = new Thickness(10, 8),
@@ -385,13 +386,13 @@ internal sealed class MainWindow : Window
     };
     _softFail = new TextBlock
     {
-      Foreground = CalypsoPalette.DangerBrush,
+      Foreground = GraphicalProfile.DangerBrush,
       TextWrapping = TextWrapping.Wrap,
       FontSize = 12,
     };
     _survival = new TextBlock
     {
-      Foreground = CalypsoPalette.SuccessBrush,
+      Foreground = GraphicalProfile.ActionSoftBrush,
       TextWrapping = TextWrapping.Wrap,
       FontSize = 12,
       FontWeight = FontWeight.SemiBold,
@@ -519,7 +520,7 @@ internal sealed class MainWindow : Window
         new TextBlock
         {
           Text = "Pick a berth bet — Local accept, Steam on a rumor, or Wait.",
-          Foreground = CalypsoPalette.MutedBrush,
+          Foreground = GraphicalProfile.MutedBrush,
           FontSize = 11,
           TextWrapping = TextWrapping.Wrap,
         },
@@ -530,7 +531,7 @@ internal sealed class MainWindow : Window
           IsVisible = false,
           Children =
           {
-            new TextBlock { Text = "Filter", VerticalAlignment = VerticalAlignment.Center, Foreground = CalypsoPalette.MutedBrush, FontSize = 11 },
+            new TextBlock { Text = "Filter", VerticalAlignment = VerticalAlignment.Center, Foreground = GraphicalProfile.MutedBrush, FontSize = 11 },
             _boardScope,
           },
         }),
@@ -546,7 +547,7 @@ internal sealed class MainWindow : Window
         new TextBlock
         {
           Text = "Firm escrows Final cargo and pays a sum A→B. Take only at this dock.",
-          Foreground = CalypsoPalette.MutedBrush,
+          Foreground = GraphicalProfile.MutedBrush,
           FontSize = 11,
           TextWrapping = TextWrapping.Wrap,
         },
@@ -562,7 +563,7 @@ internal sealed class MainWindow : Window
         new TextBlock
         {
           Text = "Dock HubOrders — Buy ASKs into hold stock; Sell stock into BIDs.",
-          Foreground = CalypsoPalette.MutedBrush,
+          Foreground = GraphicalProfile.MutedBrush,
           FontSize = 11,
           TextWrapping = TextWrapping.Wrap,
         },
@@ -580,7 +581,7 @@ internal sealed class MainWindow : Window
         new TextBlock
         {
           Text = "Action stack",
-          Foreground = CalypsoPalette.MutedBrush,
+          Foreground = GraphicalProfile.MutedBrush,
           FontSize = 11,
         },
         _intentStack,
@@ -606,7 +607,7 @@ internal sealed class MainWindow : Window
           Spacing = 8,
           Children =
           {
-            new TextBlock { Text = "Profile", VerticalAlignment = VerticalAlignment.Center, Foreground = CalypsoPalette.MutedBrush },
+            new TextBlock { Text = "Profile", VerticalAlignment = VerticalAlignment.Center, Foreground = GraphicalProfile.MutedBrush },
             _profile,
           },
         },
@@ -626,7 +627,7 @@ internal sealed class MainWindow : Window
       IsReadOnly = true,
       AcceptsReturn = true,
       TextWrapping = TextWrapping.NoWrap,
-      FontFamily = CalypsoPalette.MonoFont,
+      FontFamily = GraphicalProfile.MonoFont,
       FontSize = 12,
     };
 
@@ -865,10 +866,10 @@ internal sealed class MainWindow : Window
       ? "—"
       : $"{bridge.RunwayDays:0.#}d";
     _runwayChipValue.Foreground = bridge.RunwayDays < 5m
-      ? CalypsoPalette.DangerBrush
+      ? GraphicalProfile.DangerBrush
       : bridge.RunwayDays < 12m
-        ? CalypsoPalette.AccentBrush
-        : CalypsoPalette.SuccessBrush;
+        ? GraphicalProfile.ActionBrush
+        : GraphicalProfile.ActionSoftBrush;
     var lifeMatch = System.Text.RegularExpressions.Regex.Match(bridge.HullLine, @"life (\d+)%");
     _lifeChipValue.Text = lifeMatch.Success ? lifeMatch.Groups[1].Value + "%" : "—";
     _hullStats.Text = $"{bridge.StandingLine}\n{bridge.HullLine}\n{bridge.HoldLine}";
@@ -882,10 +883,10 @@ internal sealed class MainWindow : Window
     _survival.Text = bridge.SurvivalLine;
     _survival.IsVisible = !string.IsNullOrEmpty(bridge.SurvivalLine);
     _survival.Foreground = bridge.SurvivalLine.Contains("WIN", StringComparison.Ordinal)
-      ? CalypsoPalette.SuccessBrush
+      ? GraphicalProfile.ActionSoftBrush
       : bridge.SurvivalLine.Contains("LOSE", StringComparison.Ordinal)
-        ? CalypsoPalette.DangerBrush
-        : CalypsoPalette.MutedBrush;
+        ? GraphicalProfile.DangerBrush
+        : GraphicalProfile.MutedBrush;
     _softFail.Text = bridge.SoftFailLine;
     _softFail.IsVisible = !string.IsNullOrEmpty(bridge.SoftFailLine);
     _map.SetMap(bridge.MapPoints, bridge.MapEdges);
@@ -1642,7 +1643,7 @@ internal sealed class MainWindow : Window
             ? ""
             : $"\n→ NEXT empty steam: {_bridge.SuggestedTravelSystemId}")
         : $"{hub.Name} · {hub.Role}\n{hub.ProfileHint}\n→ Travel here when idle";
-      _hubDetail.Foreground = CalypsoPalette.BodyBrush;
+      _hubDetail.Foreground = GraphicalProfile.TextBrush;
     }
     else
     {
@@ -1666,7 +1667,7 @@ internal sealed class MainWindow : Window
   {
     _flashClear?.Stop();
     _chrome.FlashLine.Text = message;
-    _chrome.FlashLine.Foreground = CalypsoPalette.AccentBrush;
+    _chrome.FlashLine.Foreground = GraphicalProfile.ActionBrush;
     _flashClear = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Normal, (_, _) =>
     {
       _chrome.FlashLine.Text = string.Empty;
@@ -1679,7 +1680,7 @@ internal sealed class MainWindow : Window
   {
     _flashClear?.Stop();
     _chrome.FlashLine.Text = message;
-    _chrome.FlashLine.Foreground = CalypsoPalette.DangerBrush;
+    _chrome.FlashLine.Foreground = GraphicalProfile.DangerBrush;
     _flashClear = new DispatcherTimer(TimeSpan.FromSeconds(6), DispatcherPriority.Normal, (_, _) =>
     {
       _chrome.FlashLine.Text = string.Empty;

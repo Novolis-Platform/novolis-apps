@@ -9,41 +9,6 @@ using Novolis.Avalonia.GraphicalProfile;
 
 namespace SinsOfACapitalismTycoon.Ui;
 
-/// <summary>Tramp freighter bridge tokens — navy / teal atmosphere, copper–amber accent.</summary>
-internal static class CalypsoPalette
-{
-  public static Color Window => GraphicalProfile.Background;
-  public static Color Panel => GraphicalProfile.Surface;
-  public static Color PanelRaised => GraphicalProfile.Raised;
-  public static Color Accent => GraphicalProfile.Action;
-  public static Color AccentSoft => GraphicalProfile.Accent;
-  public static Color Body => GraphicalProfile.Text;
-  public static Color Muted => GraphicalProfile.Muted;
-  public static Color Success => GraphicalProfile.ActionSoft;
-  public static Color Danger => GraphicalProfile.Danger;
-  public static Color PrimaryFace => GraphicalProfile.OnAction;
-  public static readonly Color MapField = Color.Parse("#0a1524");
-
-  public static IBrush WindowBrush => GraphicalProfile.BackgroundBrush;
-  public static IBrush PanelBrush => GraphicalProfile.SurfaceBrush;
-  public static IBrush PanelRaisedBrush => GraphicalProfile.RaisedBrush;
-  public static IBrush AccentBrush => GraphicalProfile.ActionBrush;
-  public static IBrush AccentSoftBrush => GraphicalProfile.AccentBrush;
-  public static IBrush BodyBrush => GraphicalProfile.TextBrush;
-  public static IBrush MutedBrush => GraphicalProfile.MutedBrush;
-  public static IBrush SuccessBrush => GraphicalProfile.ActionSoftBrush;
-  public static IBrush DangerBrush => GraphicalProfile.DangerBrush;
-  public static readonly IBrush MapFieldBrush = new SolidColorBrush(MapField);
-
-  /// <summary>Display face for brand / voyage (serif tramp chart energy).</summary>
-  public static FontFamily DisplayFont => GraphicalProfile.BodyFont;
-
-  /// <summary>Readable UI body — not Inter.</summary>
-  public static FontFamily BodyFont => GraphicalProfile.BodyFont;
-
-  public static FontFamily MonoFont => GraphicalProfile.MonoFont;
-}
-
 internal enum CalypsoButtonKind
 {
   Primary,
@@ -56,9 +21,15 @@ internal static class CalypsoTheme
 {
   public static void ApplyWindowChrome(Window window)
   {
-    window.Background = CalypsoPalette.WindowBrush;
-    window.FontFamily = CalypsoPalette.BodyFont;
-    window.Foreground = CalypsoPalette.BodyBrush;
+    window.FontFamily = GraphicalProfile.BodyFont;
+    GraphicalProfileBinding.Bind(
+      window,
+      Window.BackgroundProperty,
+      GraphicalProfile.BackgroundResourceKey);
+    GraphicalProfileBinding.Bind(
+      window,
+      Window.ForegroundProperty,
+      GraphicalProfile.TextResourceKey);
   }
 
   public static Button MakeButton(string text, string agentId, CalypsoButtonKind kind)
@@ -68,7 +39,7 @@ internal static class CalypsoTheme
       Content = text,
       Padding = new Thickness(14, 7),
       Margin = new Thickness(0, 0, 6, 4),
-      FontFamily = CalypsoPalette.BodyFont,
+      FontFamily = GraphicalProfile.BodyFont,
       FontSize = kind == CalypsoButtonKind.Primary ? 13 : 12,
       FontWeight = kind == CalypsoButtonKind.Primary ? FontWeight.SemiBold : FontWeight.Normal,
       CornerRadius = new CornerRadius(3),
@@ -84,27 +55,27 @@ internal static class CalypsoTheme
     switch (kind)
     {
       case CalypsoButtonKind.Primary:
-        btn.Background = CalypsoPalette.AccentBrush;
-        btn.Foreground = new SolidColorBrush(CalypsoPalette.PrimaryFace);
-        btn.BorderBrush = CalypsoPalette.AccentSoftBrush;
+        btn.Background = GraphicalProfile.ActionBrush;
+        btn.Foreground = GraphicalProfile.OnActionBrush;
+        btn.BorderBrush = GraphicalProfile.AccentBrush;
         btn.BorderThickness = new Thickness(1);
         break;
       case CalypsoButtonKind.Danger:
-        btn.Background = new SolidColorBrush(Color.Parse("#3a2220"));
-        btn.Foreground = CalypsoPalette.DangerBrush;
-        btn.BorderBrush = CalypsoPalette.DangerBrush;
+        btn.Background = GraphicalProfile.RaisedBrush;
+        btn.Foreground = GraphicalProfile.DangerBrush;
+        btn.BorderBrush = GraphicalProfile.DangerBrush;
         btn.BorderThickness = new Thickness(1);
         break;
       case CalypsoButtonKind.Quiet:
         btn.Background = Brushes.Transparent;
-        btn.Foreground = CalypsoPalette.MutedBrush;
-        btn.BorderBrush = new SolidColorBrush(Color.Parse("#2a3848"));
+        btn.Foreground = GraphicalProfile.MutedBrush;
+        btn.BorderBrush = GraphicalProfile.BorderBrush;
         btn.BorderThickness = new Thickness(1);
         break;
       default:
-        btn.Background = CalypsoPalette.PanelRaisedBrush;
-        btn.Foreground = CalypsoPalette.BodyBrush;
-        btn.BorderBrush = new SolidColorBrush(Color.Parse("#2a3848"));
+        btn.Background = GraphicalProfile.RaisedBrush;
+        btn.Foreground = GraphicalProfile.TextBrush;
+        btn.BorderBrush = GraphicalProfile.BorderBrush;
         btn.BorderThickness = new Thickness(1);
         break;
     }
@@ -115,10 +86,10 @@ internal static class CalypsoTheme
     valueBlock = new TextBlock
     {
       Text = value,
-      FontFamily = CalypsoPalette.DisplayFont,
+      FontFamily = GraphicalProfile.BodyFont,
       FontSize = 18,
       FontWeight = FontWeight.SemiBold,
-      Foreground = CalypsoPalette.AccentBrush,
+      Foreground = GraphicalProfile.ActionBrush,
     };
     var stack = new StackPanel
     {
@@ -129,16 +100,16 @@ internal static class CalypsoTheme
         {
           Text = label,
           FontSize = 10,
-          Foreground = CalypsoPalette.MutedBrush,
-          FontFamily = CalypsoPalette.BodyFont,
+          Foreground = GraphicalProfile.MutedBrush,
+          FontFamily = GraphicalProfile.BodyFont,
         },
         valueBlock,
       },
     };
     return new Border
     {
-      Background = CalypsoPalette.PanelRaisedBrush,
-      BorderBrush = new SolidColorBrush(Color.Parse("#2a3848")),
+      Background = GraphicalProfile.RaisedBrush,
+      BorderBrush = GraphicalProfile.BorderBrush,
       BorderThickness = new Thickness(1),
       CornerRadius = new CornerRadius(4),
       Padding = new Thickness(10, 6),
@@ -150,8 +121,8 @@ internal static class CalypsoTheme
   public static Border Section(string title, Control child) =>
     new()
     {
-      Background = CalypsoPalette.PanelBrush,
-      BorderBrush = new SolidColorBrush(Color.Parse("#1e2c3c")),
+      Background = GraphicalProfile.SurfaceBrush,
+      BorderBrush = GraphicalProfile.BorderBrush,
       BorderThickness = new Thickness(1),
       Padding = new Thickness(12, 10),
       CornerRadius = new CornerRadius(6),
@@ -163,10 +134,10 @@ internal static class CalypsoTheme
           new TextBlock
           {
             Text = title,
-            FontFamily = CalypsoPalette.DisplayFont,
+            FontFamily = GraphicalProfile.BodyFont,
             FontWeight = FontWeight.SemiBold,
             FontSize = 15,
-            Foreground = CalypsoPalette.AccentBrush,
+            Foreground = GraphicalProfile.ActionBrush,
           },
           child,
         },
@@ -187,9 +158,9 @@ internal static class CalypsoTheme
     {
       Text = s,
       TextWrapping = TextWrapping.Wrap,
-      FontFamily = CalypsoPalette.BodyFont,
+      FontFamily = GraphicalProfile.BodyFont,
       FontSize = 12,
-      Foreground = CalypsoPalette.BodyBrush,
+      Foreground = GraphicalProfile.TextBrush,
       Margin = new Thickness(4, 4),
     }, true);
 
@@ -205,28 +176,28 @@ internal static class CalypsoTheme
     IBrush badgeFg;
     if (isWait)
     {
-      badgeBg = CalypsoPalette.PanelRaisedBrush;
-      badgeFg = CalypsoPalette.MutedBrush;
+      badgeBg = GraphicalProfile.RaisedBrush;
+      badgeFg = GraphicalProfile.MutedBrush;
     }
     else if (band.Equals("Fat", StringComparison.OrdinalIgnoreCase))
     {
-      badgeBg = new SolidColorBrush(Color.Parse("#3a3020"));
-      badgeFg = CalypsoPalette.AccentBrush;
+      badgeBg = GraphicalProfile.RaisedBrush;
+      badgeFg = GraphicalProfile.ActionBrush;
     }
     else if (band.Equals("Thin", StringComparison.OrdinalIgnoreCase))
     {
-      badgeBg = new SolidColorBrush(Color.Parse("#2a3038"));
-      badgeFg = CalypsoPalette.MutedBrush;
+      badgeBg = GraphicalProfile.SurfaceBrush;
+      badgeFg = GraphicalProfile.MutedBrush;
     }
     else if (actionable)
     {
-      badgeBg = new SolidColorBrush(Color.Parse("#2a4030"));
-      badgeFg = CalypsoPalette.SuccessBrush;
+      badgeBg = GraphicalProfile.ActionSoftBrush;
+      badgeFg = GraphicalProfile.ActionSoftBrush;
     }
     else
     {
-      badgeBg = CalypsoPalette.PanelRaisedBrush;
-      badgeFg = CalypsoPalette.MutedBrush;
+      badgeBg = GraphicalProfile.RaisedBrush;
+      badgeFg = GraphicalProfile.MutedBrush;
     }
 
     var badge = new Border
@@ -246,8 +217,8 @@ internal static class CalypsoTheme
     badge.SetValue(DockPanel.DockProperty, Dock.Left);
     return new Border
     {
-      Background = CalypsoPalette.PanelRaisedBrush,
-      BorderBrush = new SolidColorBrush(Color.Parse("#2a3848")),
+      Background = GraphicalProfile.RaisedBrush,
+      BorderBrush = GraphicalProfile.BorderBrush,
       BorderThickness = new Thickness(1),
       CornerRadius = new CornerRadius(4),
       Padding = new Thickness(10, 8),
@@ -266,10 +237,10 @@ internal static class CalypsoTheme
               new TextBlock
               {
                 Text = title,
-                FontFamily = CalypsoPalette.BodyFont,
+                FontFamily = GraphicalProfile.BodyFont,
                 FontWeight = FontWeight.SemiBold,
                 FontSize = 13,
-                Foreground = CalypsoPalette.BodyBrush,
+                Foreground = GraphicalProfile.TextBrush,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(8, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -280,7 +251,7 @@ internal static class CalypsoTheme
           {
             Text = detail,
             FontSize = 11,
-            Foreground = CalypsoPalette.AccentSoftBrush,
+            Foreground = GraphicalProfile.AccentBrush,
             TextWrapping = TextWrapping.Wrap,
           },
         },
@@ -319,9 +290,9 @@ internal static class CalypsoTheme
             EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
             GradientStops =
             {
-              new GradientStop(Color.Parse("#081420"), 0),
-              new GradientStop(Color.Parse("#0c1c2e"), 0.5),
-              new GradientStop(Color.Parse("#0a1524"), 1),
+              new GradientStop(GraphicalProfile.Background, 0),
+              new GradientStop(GraphicalProfile.Surface, 0.5),
+              new GradientStop(GraphicalProfile.Raised, 1),
             },
           },
         },

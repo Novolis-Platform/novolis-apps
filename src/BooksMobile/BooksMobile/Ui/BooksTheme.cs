@@ -16,46 +16,79 @@ internal enum BooksButtonKind
 
 internal static class BooksTheme
 {
-    public static void ApplyRoot(Panel root) =>
-        root.Background = GraphicalProfile.BackgroundBrush;
-
-    public static TextBlock BrandTitle(string text, double size = 28) => new()
+    public static void ApplyRoot(Panel root)
     {
-        Text = text,
-        FontFamily = GraphicalProfile.BodyFont,
-        FontSize = size,
-        FontWeight = FontWeight.SemiBold,
-        Foreground = GraphicalProfile.AccentBrush,
-    };
+        GraphicalProfileBinding.Bind(
+            root,
+            Panel.BackgroundProperty,
+            GraphicalProfile.BackgroundResourceKey);
+    }
 
-    public static TextBlock BrandWordmark() => new()
+    public static TextBlock BrandTitle(string text, double size = 28)
     {
-        Text = "NOVOLIS",
-        FontFamily = GraphicalProfile.BodyFont,
-        FontSize = 13,
-        FontWeight = FontWeight.Bold,
-        LetterSpacing = 3,
-        Foreground = GraphicalProfile.AccentBrush,
-        Opacity = 0.95,
-    };
+        var block = new TextBlock
+        {
+            Text = text,
+            FontFamily = GraphicalProfile.BodyFont,
+            FontSize = size,
+            FontWeight = FontWeight.SemiBold,
+        };
+        GraphicalProfileBinding.Bind(
+            block,
+            TextBlock.ForegroundProperty,
+            GraphicalProfile.AccentResourceKey);
+        return block;
+    }
 
-    public static TextBlock Muted(string text, double size = 14) => new()
+    public static TextBlock BrandWordmark()
     {
-        Text = text,
-        FontFamily = GraphicalProfile.BodyFont,
-        FontSize = size,
-        Foreground = GraphicalProfile.MutedBrush,
-        TextWrapping = TextWrapping.Wrap,
-    };
+        var block = new TextBlock
+        {
+            Text = "NOVOLIS",
+            FontFamily = GraphicalProfile.BodyFont,
+            FontSize = 13,
+            FontWeight = FontWeight.Bold,
+            LetterSpacing = 3,
+            Opacity = 0.95,
+        };
+        GraphicalProfileBinding.Bind(
+            block,
+            TextBlock.ForegroundProperty,
+            GraphicalProfile.AccentResourceKey);
+        return block;
+    }
 
-    public static TextBlock Body(string text, double size = 15) => new()
+    public static TextBlock Muted(string text, double size = 14)
     {
-        Text = text,
-        FontFamily = GraphicalProfile.BodyFont,
-        FontSize = size,
-        Foreground = GraphicalProfile.TextBrush,
-        TextWrapping = TextWrapping.Wrap,
-    };
+        var block = new TextBlock
+        {
+            Text = text,
+            FontFamily = GraphicalProfile.BodyFont,
+            FontSize = size,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        GraphicalProfileBinding.Bind(
+            block,
+            TextBlock.ForegroundProperty,
+            GraphicalProfile.MutedResourceKey);
+        return block;
+    }
+
+    public static TextBlock Body(string text, double size = 15)
+    {
+        var block = new TextBlock
+        {
+            Text = text,
+            FontFamily = GraphicalProfile.BodyFont,
+            FontSize = size,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        GraphicalProfileBinding.Bind(
+            block,
+            TextBlock.ForegroundProperty,
+            GraphicalProfile.TextResourceKey);
+        return block;
+    }
 
     public static Button Button(string text, BooksButtonKind kind = BooksButtonKind.Secondary)
     {
@@ -79,39 +112,75 @@ internal static class BooksTheme
         switch (kind)
         {
             case BooksButtonKind.Primary:
-                btn.Background = GraphicalProfile.AccentFillBrush;
-                btn.Foreground = GraphicalProfile.BackgroundBrush;
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BackgroundProperty,
+                    GraphicalProfile.AccentFillResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.ForegroundProperty,
+                    GraphicalProfile.OnAccentFillResourceKey);
                 btn.BorderThickness = new Thickness(0);
                 break;
             case BooksButtonKind.Danger:
-                btn.Background = GraphicalProfile.RaisedBrush;
-                btn.Foreground = GraphicalProfile.DangerBrush;
-                btn.BorderBrush = GraphicalProfile.DangerBrush;
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BackgroundProperty,
+                    GraphicalProfile.RaisedResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.ForegroundProperty,
+                    GraphicalProfile.DangerResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BorderBrushProperty,
+                    GraphicalProfile.DangerResourceKey);
                 btn.BorderThickness = new Thickness(1);
                 break;
             case BooksButtonKind.Quiet:
                 btn.Background = Brushes.Transparent;
-                btn.Foreground = GraphicalProfile.MutedBrush;
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.ForegroundProperty,
+                    GraphicalProfile.MutedResourceKey);
                 btn.BorderThickness = new Thickness(0);
                 break;
             default:
-                btn.Background = GraphicalProfile.RaisedBrush;
-                btn.Foreground = GraphicalProfile.TextBrush;
-                btn.BorderBrush = GraphicalProfile.AccentBrush;
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BackgroundProperty,
+                    GraphicalProfile.RaisedResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.ForegroundProperty,
+                    GraphicalProfile.TextResourceKey);
+                GraphicalProfileBinding.Bind(
+                    btn,
+                    Avalonia.Controls.Button.BorderBrushProperty,
+                    GraphicalProfile.BorderResourceKey);
                 btn.BorderThickness = new Thickness(1);
-                btn.BorderBrush = new SolidColorBrush(Color.FromArgb(80, 47, 223, 255));
                 break;
         }
     }
 
-    public static Border Card(Control child) => new()
+    public static Border Card(Control child)
     {
-        Background = GraphicalProfile.SurfaceBrush,
-        BorderBrush = new SolidColorBrush(Color.FromArgb(40, 47, 223, 255)),
-        BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(6),
-        Padding = new Thickness(16, 14),
-        Margin = new Thickness(0, 0, 0, 10),
-        Child = child,
-    };
+        var card = new Border
+        {
+            BorderThickness = new Thickness(GraphicalProfileColors.Stroke),
+            CornerRadius = new CornerRadius(GraphicalProfileColors.CardRadius),
+            Padding = new Thickness(GraphicalProfileColors.CardPadding),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = child,
+        };
+        GraphicalProfileBinding.Bind(
+            card,
+            Border.BackgroundProperty,
+            GraphicalProfile.SurfaceResourceKey);
+        GraphicalProfileBinding.Bind(
+            card,
+            Border.BorderBrushProperty,
+            GraphicalProfile.BorderResourceKey);
+        return card;
+    }
 }

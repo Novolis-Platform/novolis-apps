@@ -5,17 +5,18 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Novolis.Audio.Live;
+using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Avalonia.Live;
 
 namespace LiveStudio.Components;
 
 internal sealed class LiveCodingWorkspace : Grid
 {
-    static readonly SolidColorBrush WorkspaceBackground = new(Color.Parse("#0F172A"));
-    static readonly SolidColorBrush ToolbarBackground = new(Color.Parse("#111827"));
-    static readonly SolidColorBrush ToolbarBorder = new(Color.Parse("#243047"));
-    static readonly SolidColorBrush TextBrush = new(Color.Parse("#E2E8F0"));
-    static readonly SolidColorBrush MutedBrush = new(Color.Parse("#94A3B8"));
+    static IBrush WorkspaceBackground => GraphicalProfile.BackgroundBrush;
+    static IBrush ToolbarBackground => GraphicalProfile.SurfaceBrush;
+    static IBrush ToolbarBorder => GraphicalProfile.BorderBrush;
+    static IBrush TextBrush => GraphicalProfile.TextBrush;
+    static IBrush MutedBrush => GraphicalProfile.MutedBrush;
 
     readonly LiveCodeEditorControl _editor = new();
     readonly LiveStudioDashboard _dashboard = new();
@@ -105,7 +106,7 @@ internal sealed class LiveCodingWorkspace : Grid
     {
         _launcherStatus.Text = state.LauncherStatus;
         _launcherStatus.Foreground = state.HasFatalLauncherError
-            ? new SolidColorBrush(Color.Parse("#FCA5A5"))
+            ? GraphicalProfile.DangerBrush
             : MutedBrush;
 
         _demoButton.Content = state.DemoSequenceRunning ? "Demo playing…" : "Replay demo";
@@ -254,7 +255,8 @@ internal sealed class LiveCodingWorkspace : Grid
     {
         button.Padding = new Thickness(12, 8);
         button.CornerRadius = new CornerRadius(8);
-        button.Background = new SolidColorBrush(Color.Parse(primary ? "#1D4ED8" : "#334155"));
-        button.Foreground = Brushes.White;
+        button.Background = primary ? GraphicalProfile.ActionBrush : GraphicalProfile.RaisedBrush;
+        button.Foreground = primary ? GraphicalProfile.OnActionBrush : GraphicalProfile.TextBrush;
+        button.BorderBrush = GraphicalProfile.BorderBrush;
     }
 }

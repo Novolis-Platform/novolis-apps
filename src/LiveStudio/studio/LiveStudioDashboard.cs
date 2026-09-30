@@ -6,25 +6,26 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Novolis.Audio.Live.Protocol.Dto;
 using Novolis.Audio.Live.Visuals;
+using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Avalonia.Live;
 
 namespace LiveStudio;
 
 internal sealed class LiveStudioDashboard : Grid
 {
-    private static readonly SolidColorBrush SurfaceBrush = new(Color.Parse("#FFFFFF"));
-    private static readonly SolidColorBrush BorderBrush = new(Color.Parse("#D6DBE5"));
-    private static readonly SolidColorBrush TextBrush = new(Color.Parse("#0F172A"));
-    private static readonly SolidColorBrush MutedBrush = new(Color.Parse("#475569"));
-    private static readonly SolidColorBrush AccentBrush = new(Color.Parse("#1D4ED8"));
-    private static readonly SolidColorBrush SuccessBrush = new(Color.Parse("#047857"));
-    private static readonly SolidColorBrush WarningBrush = new(Color.Parse("#B45309"));
-    private static readonly SolidColorBrush ErrorBrush = new(Color.Parse("#B91C1C"));
-    private static readonly SolidColorBrush AccentPaleBrush = new(Color.Parse("#DBEAFE"));
-    private static readonly SolidColorBrush SuccessPaleBrush = new(Color.Parse("#D1FAE5"));
-    private static readonly SolidColorBrush WarningPaleBrush = new(Color.Parse("#FEF3C7"));
-    private static readonly SolidColorBrush NeutralPaleBrush = new(Color.Parse("#E2E8F0"));
-    private static readonly SolidColorBrush BeatPulseBrush = new(Color.Parse("#22C55E"));
+    private static IBrush SurfaceBrush => GraphicalProfile.SurfaceBrush;
+    private static IBrush BorderBrush => GraphicalProfile.BorderBrush;
+    private static IBrush TextBrush => GraphicalProfile.TextBrush;
+    private static IBrush MutedBrush => GraphicalProfile.MutedBrush;
+    private static IBrush AccentBrush => GraphicalProfile.AccentFillBrush;
+    private static IBrush SuccessBrush => GraphicalProfile.ActionSoftBrush;
+    private static IBrush WarningBrush => GraphicalProfile.WarningBrush;
+    private static IBrush ErrorBrush => GraphicalProfile.DangerBrush;
+    private static IBrush AccentPaleBrush => GraphicalProfile.RaisedBrush;
+    private static IBrush SuccessPaleBrush => GraphicalProfile.RaisedBrush;
+    private static IBrush WarningPaleBrush => GraphicalProfile.RaisedBrush;
+    private static IBrush NeutralPaleBrush => GraphicalProfile.SurfaceBrush;
+    private static IBrush BeatPulseBrush => GraphicalProfile.ActionSoftBrush;
 
     private readonly TextBlock _connectionStatus = new();
     private readonly TextBlock _activityStatus = new();
@@ -43,7 +44,7 @@ internal sealed class LiveStudioDashboard : Grid
 
     public LiveStudioDashboard()
     {
-        Background = new SolidColorBrush(Color.Parse("#F4F7FB"));
+        Background = GraphicalProfile.BackgroundBrush;
         RowDefinitions = new RowDefinitions("Auto,Auto,*");
         ColumnDefinitions = new ColumnDefinitions("2*,3*");
         Margin = new Thickness(24);
@@ -383,8 +384,8 @@ internal sealed class LiveStudioDashboard : Grid
 
         return new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#F8FAFC")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#E2E8F0")),
+            Background = GraphicalProfile.RaisedBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(12),
@@ -423,7 +424,7 @@ internal sealed class LiveStudioDashboard : Grid
 
         var border = new Border
         {
-            Background = new SolidColorBrush(Color.Parse(isCurrent ? "#ECFDF5" : "#FAFBFC")),
+            Background = isCurrent ? GraphicalProfile.RaisedBrush : GraphicalProfile.SurfaceBrush,
             BorderBrush = accent,
             BorderThickness = new Thickness(isCurrent || isNext ? 2 : 1),
             CornerRadius = new CornerRadius(10),

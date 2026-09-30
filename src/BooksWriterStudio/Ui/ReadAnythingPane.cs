@@ -5,6 +5,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Avalonia.Markdown;
 
 namespace BooksWriterStudio.Ui;
@@ -56,7 +57,7 @@ internal sealed class ReadAnythingPane : Border
 
     public ReadAnythingPane()
     {
-        Background = new SolidColorBrush(Color.Parse("#1e1e1e"));
+        Background = GraphicalProfile.BackgroundBrush;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Stretch;
 
@@ -82,8 +83,8 @@ internal sealed class ReadAnythingPane : Border
 
         _chromeBar = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#252526")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#3F3F46")),
+            Background = GraphicalProfile.SurfaceBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(10, 8),
             Child = barInner,

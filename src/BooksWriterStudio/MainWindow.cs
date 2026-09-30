@@ -14,6 +14,7 @@ using BooksWriterStudio.Ui;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Manuscript.Export.Audio;
 using Novolis.Avalonia.Controls;
+using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Avalonia.Layout;
 using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Manuscript;
@@ -133,9 +134,9 @@ internal sealed class MainWindow : Window
         _feedback = chrome.CreateFeedback();
 
         // Single toolbar: workspace actions + catalog (no duplicate Save/Speak bars).
-        _topBar.Background = new SolidColorBrush(Color.Parse("#252526"));
+        _topBar.Background = GraphicalProfile.SurfaceBrush;
         _topBar.Padding = new Thickness(10, 6);
-        _topBar.BorderBrush = new SolidColorBrush(Color.Parse("#3F3F46"));
+        _topBar.BorderBrush = GraphicalProfile.BorderBrush;
         _topBar.BorderThickness = new Thickness(0, 0, 0, 1);
         var topInner = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         topInner.Children.Add(Button("Open…", OnOpenFolder));
@@ -148,7 +149,7 @@ internal sealed class MainWindow : Window
         {
             Width = 1,
             Margin = new Thickness(6, 2),
-            Background = new SolidColorBrush(Color.Parse("#3F3F46")),
+            Background = GraphicalProfile.BorderBrush,
         });
         topInner.Children.Add(_seriesCombo);
         topInner.Children.Add(_bookCombo);
@@ -167,14 +168,14 @@ internal sealed class MainWindow : Window
         navDock.Children.Add(_chapterList);
         var navBorder = new Border
         {
-            BorderBrush = new SolidColorBrush(Color.Parse("#3F3F46")),
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(0, 0, 1, 0),
             Child = navDock,
         };
 
         _contextHost = new Border
         {
-            BorderBrush = new SolidColorBrush(Color.Parse("#3F3F46")),
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1, 0, 0, 0),
             Child = _contextTabs,
             MinWidth = 360,
@@ -1644,7 +1645,7 @@ internal sealed class MainWindow : Window
         _feedback.SetStatus(text);
         _topBar.BorderBrush = _session.IsDirty
             ? StudioStatusBrushes.Dirty
-            : new SolidColorBrush(Color.Parse("#3F3F46"));
+            : GraphicalProfile.BorderBrush;
     }
 
     void ApplyEditorSettings()

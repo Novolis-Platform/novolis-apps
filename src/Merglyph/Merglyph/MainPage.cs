@@ -493,7 +493,7 @@ public sealed class MainPage : ContentPage
         {
             Padding = new Thickness(22),
             StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(26) },
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(18) },
             Content = content,
         };
 

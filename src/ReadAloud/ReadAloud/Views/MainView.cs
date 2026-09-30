@@ -209,8 +209,8 @@ public sealed class MainView : DockPanel
             Margin = new Thickness(16, 0, 16, 16),
             Padding = new Thickness(12),
             Background = GraphicalProfile.SurfaceBrush,
-            CornerRadius = new CornerRadius(6),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(40, 47, 223, 255)),
+            CornerRadius = new CornerRadius(GraphicalProfileColors.CardRadius),
+            BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
             Child = _textBox,
         });
