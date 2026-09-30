@@ -442,7 +442,7 @@ function Find-NovolisPublishedAndroidArtifact {
     @(Get-ChildItem -Path $RepoRoot -Recurse -File -Filter "*.$extension" -ErrorAction SilentlyContinue) |
         Where-Object {
             $_.FullName -notmatch '[\\/]obj[\\/]' -and
-            $_.FullName -match '(?i)[\\/]release[\\/]' -and
+            $_.FullName -match '(?i)[\\/]release(?:[_\\/]|$)' -and
             $_.Name -notmatch '(?i)unsigned' -and
             ([string]::IsNullOrWhiteSpace($ApplicationId) -or
                 $_.Name.Contains($ApplicationId, [StringComparison]::OrdinalIgnoreCase))
