@@ -30,13 +30,59 @@ namespace NovolisPdfReader;
     DataMimeType = "application/pdf")]
 public sealed class MainActivity : MauiAppCompatActivity
 {
+    private ScaleGestureDetector? _scale;
+    private bool _scaling;
+
     /// <inheritdoc />
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
         if (Window is not null)
             WindowCompat.SetDecorFitsSystemWindows(Window, true);
+        _scale = new ScaleGestureDetector(this, new PdfScaleGestureListener(this))
+        {
+            QuickScaleEnabled = false,
+        };
         PublishPdfIntent(Intent);
+    }
+
+    /// <inheritdoc />
+    public override bool DispatchTouchEvent(MotionEvent? e)
+    {
+        if (e is null || _scale is null)
+            return base.DispatchTouchEvent(e);
+
+        _scale.OnTouchEvent(e);
+        if (e.PointerCount >= 2)
+            Android.Util.Log.Info("NovolisPdf", $"pinch pointers={e.PointerCount} action={e.ActionMasked} scaling={_scaling}");
+        if (_scaling || e.PointerCount >= 2)
+            return true;
+
+        return base.DispatchTouchEvent(e);
+    }
+
+    /// <summary>Marks a host pinch so MAUI one-finger pan does not steal the second pointer.</summary>
+    internal void BeginPinchScale()
+    {
+        _scaling = true;
+        Android.Util.Log.Info("NovolisPdf", "pinch begin");
+    }
+
+    /// <summary>Applies an incremental scale factor from <see cref="ScaleGestureDetector"/>.</summary>
+    internal void ApplyPinchScale(float factor)
+    {
+        _scaling = true;
+        Android.Util.Log.Info("NovolisPdf", $"pinch scale={factor}");
+        TryGetMainPage()?.ScaleReading(factor);
+    }
+
+    /// <summary>Ends a host pinch and re-rasterizes.</summary>
+    internal void FinishPinchScale()
+    {
+        if (!_scaling)
+            return;
+        _scaling = false;
+        TryGetMainPage()?.EndReadingScale();
     }
 
     /// <inheritdoc />
@@ -51,8 +97,8 @@ public sealed class MainActivity : MauiAppCompatActivity
             Keycode.DpadRight => "Right",
             Keycode.MoveHome or Keycode.Home => "Home",
             Keycode.MoveEnd => "End",
-            Keycode.Plus or Keycode.NumpadAdd => "Add",
-            Keycode.Minus or Keycode.NumpadSubtract => "Subtract",
+            Keycode.Plus or Keycode.NumpadAdd or Keycode.ZoomIn => "Add",
+            Keycode.Minus or Keycode.NumpadSubtract or Keycode.ZoomOut => "Subtract",
             Keycode.F => "F",
             Keycode.R => "R",
             Keycode.G => "G",

@@ -228,6 +228,12 @@ public sealed class MainPage : ContentPage
     public bool TryHandleWheel(double delta, bool control) =>
         _viewer.TryHandleWheel(delta, control);
 
+    /// <summary>Applies an incremental pinch factor from Android's scale detector.</summary>
+    public void ScaleReading(double factor) => _viewer.ScaleReading(factor);
+
+    /// <summary>Finishes a host-driven pinch.</summary>
+    public void EndReadingScale() => _viewer.EndReadingScale();
+
     /// <inheritdoc />
     protected override void OnHandlerChanged()
     {

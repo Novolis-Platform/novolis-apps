@@ -29,13 +29,24 @@ if ($androidTool) {
 }
 
 $project = Join-Path $repoRoot 'src/NovolisPdfReader/NovolisPdfReader.csproj'
-Write-Host "Installing $project ($Configuration)…"
+$isEmulator = $Serial.StartsWith('emulator-', [System.StringComparison]::OrdinalIgnoreCase)
+Write-Host "Installing $project ($Configuration)$(if ($isEmulator) { ' android-x64' })…"
+$extra = @()
+if (-not [string]::IsNullOrWhiteSpace($Serial)) {
+    $extra += "-p:Device=$Serial"
+    $extra += "-p:AdbTarget=-s $Serial"
+}
+if ($isEmulator) {
+    $extra += '-p:RuntimeIdentifier=android-x64'
+    $extra += '-p:EmbedAssembliesIntoApk=true'
+}
 dotnet build $project `
     -f net10.0-android `
     -c $Configuration `
     -t:Install `
     -p:NovolisUseProjectReferences=true `
-    -p:NovolisMauiTargetFrameworks=net10.0-android
+    -p:NovolisMauiTargetFrameworks=net10.0-android `
+    @extra
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet build -t:Install failed with exit $LASTEXITCODE"
 }
