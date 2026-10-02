@@ -67,6 +67,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.BooksWriterStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -114,6 +115,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.DraftStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -161,6 +163,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.CadStudio3D", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -208,6 +211,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.SketchStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -255,6 +259,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.SinsOfACapitalismTycoon", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -312,6 +317,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.Audio.Live.Studio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -375,6 +381,7 @@
         "networkDestinations": ["api.github.com"],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.BooksMobile", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -444,6 +451,7 @@
         ],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.ReadAloud", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": {
         "githubRelease": true,
         "checksums": true,
@@ -495,6 +503,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.ShipDesigner", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -576,6 +585,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.Reach", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -666,6 +676,7 @@
         ],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.PresenceLedger", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -732,6 +743,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.Merglyph", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -798,6 +810,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.NdjsonViewer", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
@@ -857,6 +870,7 @@
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
+      "update": { "enabled": true, "appId": "Novolis.PdfReader", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     }
   ]
