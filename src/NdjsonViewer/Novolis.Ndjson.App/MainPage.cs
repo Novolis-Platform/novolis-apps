@@ -1,8 +1,8 @@
 using System.Globalization;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using Microsoft.Maui.Controls.Shapes;
+using Novolis.IO.Ndjson;
 using Novolis.Maui.GraphicalProfile;
-using Novolis.Ndjson;
 using Novolis.Ndjson.App.Viewer;
 using Profile = Novolis.Maui.GraphicalProfile.GraphicalProfile;
 #if WINDOWS

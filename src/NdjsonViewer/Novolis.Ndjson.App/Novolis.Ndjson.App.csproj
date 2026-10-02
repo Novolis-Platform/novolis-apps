@@ -37,13 +37,11 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
+    <LibraryReference Include="Novolis.IO.Ndjson" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../Novolis.Ndjson/Novolis.Ndjson.csproj" />
   </ItemGroup>
 </Project>

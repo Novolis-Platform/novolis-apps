@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Hosting;
 using Novolis.Maui.GraphicalProfile;
-using Novolis.Ndjson;
+using Novolis.IO.Ndjson;
 
 namespace Novolis.Ndjson.App;
 
