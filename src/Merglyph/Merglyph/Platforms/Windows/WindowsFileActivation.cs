@@ -21,7 +21,8 @@ internal static class WindowsFileActivation
                 cancellationToken.ThrowIfCancellationRequested();
                 var randomAccessStream = await file.OpenAsync(FileAccessMode.Read);
                 return randomAccessStream.AsStreamForRead();
-            }));
+            },
+            Path.GetDirectoryName(file.Path)));
     }
 
     public static void Publish(IEnumerable<string> arguments)
@@ -36,7 +37,7 @@ internal static class WindowsFileActivation
 
         var fullPath = Path.GetFullPath(path);
         ActivationBridge.Publish(new DocumentOpenRequest(
-            new DocumentName(fullPath),
+            new DocumentName(Path.GetFileName(fullPath)),
             cancellationToken =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -48,6 +49,7 @@ internal static class WindowsFileActivation
                     Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                 });
                 return ValueTask.FromResult(stream);
-            }));
+            },
+            Path.GetDirectoryName(fullPath)));
     }
 }

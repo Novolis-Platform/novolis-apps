@@ -11,6 +11,7 @@ public sealed class NdjsonPresenceStorage
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
         Directory.CreateDirectory(rootDirectory);
+        RootDirectory = rootDirectory;
         Locations = new NdjsonTrackedLocationStore(
             System.IO.Path.Combine(rootDirectory, "locations.ndjson"));
         Events = new NdjsonPresenceEventStore(
@@ -19,6 +20,9 @@ public sealed class NdjsonPresenceStorage
             System.IO.Path.Combine(rootDirectory, "states.ndjson"));
         Observations = new NdjsonPresenceObservationStore(rootDirectory);
     }
+
+    /// <summary>Private directory that holds the ledger files.</summary>
+    public string RootDirectory { get; }
 
     /// <summary>Location definition store.</summary>
     public NdjsonTrackedLocationStore Locations { get; }

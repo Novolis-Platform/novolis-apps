@@ -113,13 +113,16 @@ public sealed class CiMatrixPlannerTests
     }
 
     [Test]
-    public async Task MerglyphShipsAndroidApkOnly()
+    public async Task MerglyphShipsWindowsAndAndroid()
     {
         var merglyph = LoadManifest().Apps.Single(app => app.Key == "merglyph");
         await Assert.That(merglyph.Stack).IsEqualTo("maui");
-        await Assert.That(merglyph.Ship.Count).IsEqualTo(1);
-        await Assert.That(merglyph.Ship[0]).IsEqualTo("android-apk");
+        await Assert.That(merglyph.Ship.Contains("windows-inno")).IsTrue();
+        await Assert.That(merglyph.Ship.Contains("android-apk")).IsTrue();
+        await Assert.That(merglyph.Projects.PublishWindows).IsEqualTo("src/Merglyph/Merglyph/Merglyph.csproj");
         await Assert.That(merglyph.Projects.Maui).IsEqualTo("src/Merglyph/Merglyph/Merglyph.csproj");
+        await Assert.That(merglyph.Windows?.ExeName).IsEqualTo("Merglyph.exe");
+        await Assert.That(merglyph.Windows?.FileAssociationsAllowed).IsTrue();
     }
 
     [Test]

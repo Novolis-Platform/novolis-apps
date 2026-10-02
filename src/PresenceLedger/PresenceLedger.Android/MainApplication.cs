@@ -27,6 +27,9 @@ public class MainApplication : AvaloniaAndroidApplication<PresenceLedgerApp>
         var services = new ServiceCollection();
         services.AddNovolisMobileAndroid("PresenceLedger");
         services.AddPresenceLedger();
+        services.AddSingleton<ILedgerFilePublisher>(sp =>
+            new AndroidDownloadsLedgerPublisher(
+                sp.GetRequiredService<Novolis.Avalonia.Mobile.IAppDataPaths>().RootDirectory));
         PresenceLedgerApp.Services = services.BuildServiceProvider();
         base.OnCreate();
     }

@@ -33,8 +33,12 @@ dotnet workload install maui-android
 dotnet restore d:\novolis\novolis-apps\src\Merglyph\Merglyph.slnx
 # Android
 dotnet build d:\novolis\novolis-apps\src\Merglyph\Merglyph\Merglyph.csproj -f net10.0-android -p:NovolisMauiTargetFrameworks=net10.0-android
-# Windows local only (not a Ship channel)
-dotnet build d:\novolis\novolis-apps\src\Merglyph\Merglyph\Merglyph.csproj -f net10.0-windows10.0.19041.0 -p:NovolisMauiTargetFrameworks=net10.0-windows10.0.19041.0
+# Windows
+dotnet run --project d:\novolis\novolis-apps\src\Merglyph\Merglyph\Merglyph.csproj -f net10.0-windows10.0.19041.0 -p:NovolisUseProjectReferences=true -p:NovolisMauiTargetFrameworks=net10.0-windows10.0.19041.0
+```
+
+```powershell
+pwsh -File d:\novolis\novolis-apps\scripts\run-merglyph-desktop.ps1
 ```
 
 Optional Windows file-association registration for local debug:

@@ -409,8 +409,8 @@ public sealed class MainPage : ContentPage
         _welcomeScroll.IsVisible = false;
         _viewerCard.IsVisible = true;
         ApplyChromeTheme();
+        _viewer.SourceDirectory = document.SourceDirectory;
         _viewer.Title = document.Name.Value;
-        _viewer.Html = null;
         _viewer.Markdown = document.Content.Value;
     }
 
@@ -421,7 +421,7 @@ public sealed class MainPage : ContentPage
         _welcomeScroll.IsVisible = true;
         _viewerCard.IsVisible = false;
         ApplyChromeTheme();
-        _viewer.Html = null;
+        _viewer.SourceDirectory = null;
         _viewer.Title = "Merglyph";
         _viewer.Markdown = string.Empty;
     }

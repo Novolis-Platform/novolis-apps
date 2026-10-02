@@ -17,8 +17,8 @@ internal static partial class PlatformWebViewSecurity
                 settings.IsScriptEnabled = false;
                 settings.IsWebMessageEnabled = false;
                 settings.AreDevToolsEnabled = false;
-                settings.AreDefaultContextMenusEnabled = false;
-                settings.AreBrowserAcceleratorKeysEnabled = false;
+                settings.AreDefaultContextMenusEnabled = true;
+                settings.AreBrowserAcceleratorKeysEnabled = true;
                 settings.IsStatusBarEnabled = false;
             };
         });

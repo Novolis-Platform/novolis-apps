@@ -39,6 +39,10 @@
     <PackageReference Include="Microsoft.Maui.Controls" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
     <LibraryReference Include="Novolis.Maui.Markdown" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Merglyph.Core/Merglyph.Core.csproj" />

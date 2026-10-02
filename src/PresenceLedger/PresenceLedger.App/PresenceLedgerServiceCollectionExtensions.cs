@@ -50,6 +50,9 @@ public static class PresenceLedgerServiceCollectionExtensions
             sp.GetRequiredService<KartverketMapTileSource>());
         services.AddSingleton<IMapSearchProvider, KartverketMapSearchProvider>();
         services.AddSingleton<PresenceObservationCoordinator>();
+        services.AddSingleton<ILedgerFilePublisher>(sp =>
+            DirectoryLedgerFilePublisher.ForDownloads(
+                sp.GetRequiredService<IAppDataPaths>().RootDirectory));
         services.AddSingleton<MainView>();
         return services;
     }

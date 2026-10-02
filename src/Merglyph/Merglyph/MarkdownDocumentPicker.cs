@@ -25,12 +25,16 @@ public sealed class MarkdownDocumentPicker
         if (!SupportedMarkdownDocuments.IsSupported(file.FileName))
             throw new InvalidDataException("Merglyph opens .md, .markdown, .mdown, and .mkd files only.");
 
+        var directory = string.IsNullOrWhiteSpace(file.FullPath)
+            ? null
+            : Path.GetDirectoryName(file.FullPath);
         return new DocumentOpenRequest(
             new DocumentName(file.FileName),
             async cancellationToken =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 return await file.OpenReadAsync();
-            });
+            },
+            directory);
     }
 }

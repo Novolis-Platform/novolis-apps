@@ -678,7 +678,7 @@
       "stack": "maui",
       "status": "public",
       "projects": {
-        "publishWindows": null,
+        "publishWindows": "src/Merglyph/Merglyph/Merglyph.csproj",
         "linuxCi": [
           "src/Merglyph/Merglyph.Core/Merglyph.Core.csproj",
           "tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj",
@@ -695,7 +695,7 @@
         ]
       },
       "local": ["windows", "android"],
-      "ship": ["android-apk"],
+      "ship": ["windows-inno", "android-apk"],
       "validation": {
         "changedPathGlobs": ["src/Merglyph/**", "tests/Merglyph.Core.Tests/**", "tests/Merglyph.UiTests/**"],
         "runTests": true,
@@ -704,7 +704,16 @@
         "linuxCi": true,
         "fanOutStacks": ["maui", "android"]
       },
-      "windows": null,
+      "windows": {
+        "exeName": "Merglyph.exe",
+        "appId": "Novolis.Merglyph",
+        "installDir": "Novolis\\Merglyph",
+        "groupName": "Merglyph",
+        "setupBase": "MerglyphSetup",
+        "scriptFile": "merglyph.iss",
+        "closeApplicationsFilter": "Merglyph.exe",
+        "fileAssociationsAllowed": true
+      },
       "android": {
         "project": "src/Merglyph/Merglyph/Merglyph.csproj",
         "applicationId": "dev.novolis.merglyph",

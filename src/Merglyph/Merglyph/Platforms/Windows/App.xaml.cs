@@ -16,9 +16,14 @@ public partial class App : MauiWinUIApplication
             "WebView2");
         Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", webViewData);
 
-        // Opt-in only: MERGLYPH_REGISTER_FILE_ASSOCIATIONS=1 (or "true") for local debug.
+        // Installed copies register Markdown associations. Local debug stays opt-in.
         var register = Environment.GetEnvironmentVariable("MERGLYPH_REGISTER_FILE_ASSOCIATIONS");
-        if (string.Equals(register, "1", StringComparison.OrdinalIgnoreCase)
+        var installed = Environment.ProcessPath is { } path
+            && path.StartsWith(
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Novolis"),
+                StringComparison.OrdinalIgnoreCase);
+        if (installed
+            || string.Equals(register, "1", StringComparison.OrdinalIgnoreCase)
             || string.Equals(register, "true", StringComparison.OrdinalIgnoreCase))
         {
             WindowsFileAssociations.Register();

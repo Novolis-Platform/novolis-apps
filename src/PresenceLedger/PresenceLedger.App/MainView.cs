@@ -1066,14 +1066,84 @@ public sealed class MainView : UserControl
         stack.Children.Add(DiagnosticLine(
             "Stored observations today",
             $"{today.Observations.Count} local sample{(today.Observations.Count == 1 ? string.Empty : "s")}"));
-        stack.Children.Add(DiagnosticLine(
-            "Observation file",
-            storage?.Observations.GetFilePath(
-                DateOnly.FromDateTime(DateTime.UtcNow))
-            ?? "Unavailable"));
+        AddLedgerFiles(stack, storage);
         _content.Content = new ScrollViewer { Content = stack };
         SetStatus("Diagnostics refreshed");
     }
+
+    void AddLedgerFiles(StackPanel stack, NdjsonPresenceStorage? storage)
+    {
+        stack.Children.Add(new TextBlock
+        {
+            Text = "LEDGER FILES",
+            Classes = { "eyebrow" },
+            Foreground = GraphicalProfile.AccentBrush,
+            Margin = new Thickness(0, 8, 0, 0),
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Save copies the files already stored and any days recorded later into Downloads.",
+            Foreground = GraphicalProfile.MutedBrush,
+            TextWrapping = TextWrapping.Wrap,
+        });
+
+        var files = storage is null
+            ? []
+            : LedgerFiles.List(storage.RootDirectory);
+        if (files.Count == 0)
+        {
+            stack.Children.Add(new TextBlock
+            {
+                Text = "No ledger files yet.",
+                Foreground = GraphicalProfile.TextBrush,
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
+        else
+        {
+            foreach (var file in files)
+            {
+                stack.Children.Add(DiagnosticLine(
+                    file.RelativePath,
+                    FormatFileSize(file.LengthBytes)));
+            }
+        }
+
+        var save = new Button
+        {
+            Content = "Save ledger to Downloads",
+            Classes = { "primary-button" },
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = GraphicalProfile.AccentFillBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        save.Click += async (_, _) =>
+        {
+            var publisher = _services.GetService<ILedgerFilePublisher>();
+            if (publisher is null)
+            {
+                SetStatus("This host cannot publish the ledger.");
+                return;
+            }
+
+            try
+            {
+                var where = await publisher.PublishAsync();
+                SetStatus($"Ledger saved to {where}");
+                await ShowDiagnosticsAsync();
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Could not save ledger: {ex.Message}");
+            }
+        };
+        stack.Children.Add(save);
+    }
+
+    static string FormatFileSize(long bytes) =>
+        bytes >= 1024
+            ? $"{bytes / 1024d:0.#} KB"
+            : $"{bytes} B";
 
     void SetSelectedCoordinate(GeoCoordinate coordinate)
     {
