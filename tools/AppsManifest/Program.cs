@@ -41,6 +41,7 @@ internal static class Program
                 "generate-solutions" => GenerateSolutions(manifestPath, repoRoot, write: true),
                 "ci-matrix" => EmitCiMatrix(manifestPath, repoRoot, args),
                 "release-matrix" => EmitReleaseMatrix(manifestPath, args),
+                "generate-update-manifest" => UpdateManifestGenerator.Generate(args),
                 "play-matrix" => EmitGooglePlayMatrix(manifestPath, args),
                 "list" => ListApps(manifestPath),
                 "publish" => AppPublishCommand.Publish(manifestPath, repoRoot, args.Skip(1).ToArray()),
@@ -101,6 +102,7 @@ internal static class Program
 
         var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var appIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var updateAppIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var applicationIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var choices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var knownChannels = new HashSet<string>(doc.Channels.Keys, StringComparer.OrdinalIgnoreCase);
@@ -113,6 +115,39 @@ internal static class Program
                 errors.Add($"Duplicate or missing choice: '{app.Choice}'.");
             if (app.Ship is null || app.Ship.Count == 0)
                 errors.Add($"App '{app.Key}' under src/ must declare at least one ship channel.");
+
+            var update = app.Update;
+            var updateAppId = string.IsNullOrWhiteSpace(update?.AppId)
+                ? app.Windows?.AppId
+                : update.AppId;
+            if (update?.Enabled != false)
+            {
+                if (string.IsNullOrWhiteSpace(updateAppId)
+                    || !updateAppIds.Add(updateAppId!))
+                {
+                    errors.Add($"Duplicate or missing update appId for '{app.Key}'.");
+                }
+                if (!string.Equals(
+                        update?.Distribution ?? "direct-github",
+                        "direct-github",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add($"App '{app.Key}' must use direct-github for the release updater.");
+                }
+                var repository = update?.Repository ?? ReleaseTrace.Repository;
+                if (!Uri.TryCreate(repository, UriKind.Absolute, out var updateRepository)
+                    || updateRepository.Scheme != Uri.UriSchemeHttps)
+                {
+                    errors.Add($"App '{app.Key}' update repository must be an HTTPS URI.");
+                }
+                var channel = update?.Channel ?? "stable";
+                if (!channel.Equals("stable", StringComparison.OrdinalIgnoreCase)
+                    && !channel.Equals("preview", StringComparison.OrdinalIgnoreCase)
+                    && !channel.Equals("nightly", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add($"App '{app.Key}' has an unsupported update channel '{channel}'.");
+                }
+            }
 
             foreach (var channel in app.Ship ?? [])
             {
@@ -578,6 +613,19 @@ internal static class Program
                     linux_exe_name = app.Linux?.ExeName,
                     display_name = app.DisplayName,
                     signing_secret_key = app.Android?.SigningSecretKey,
+                    update_app_id = string.IsNullOrWhiteSpace(app.Update?.AppId)
+                        ? app.Windows?.AppId ?? $"Novolis.{app.Choice}"
+                        : app.Update.AppId,
+                    update_repository = string.IsNullOrWhiteSpace(app.Update?.Repository)
+                        ? ReleaseTrace.Repository
+                        : app.Update.Repository,
+                    update_channel = string.IsNullOrWhiteSpace(app.Update?.Channel)
+                        ? "stable"
+                        : app.Update.Channel,
+                    update_distribution = string.IsNullOrWhiteSpace(app.Update?.Distribution)
+                        ? "direct-github"
+                        : app.Update.Distribution,
+                    declared_update_artifacts = GetDeclaredUpdateArtifacts(channel),
                 });
             }
         }
@@ -618,6 +666,15 @@ internal static class Program
         Console.WriteLine(JsonSerializer.Serialize(new { include }, CompactJsonOptions));
         return 0;
     }
+
+    private static IReadOnlyList<string> GetDeclaredUpdateArtifacts(string channel) =>
+        channel.ToLowerInvariant() switch
+        {
+            "windows-inno" => ["windowsInstaller", "windowsPortable"],
+            "linux-tar" => ["linuxTarGz"],
+            "android-apk" => ["androidApk"],
+            _ => [],
+        };
 
     private static int ListApps(string manifestPath)
     {
@@ -792,6 +849,16 @@ internal sealed class AppEntry
     public LinuxConfig? Linux { get; set; }
     public DataConfig? Data { get; set; }
     public ReleaseConfig? Release { get; set; }
+    public UpdateConfig? Update { get; set; }
+}
+
+internal sealed class UpdateConfig
+{
+    public bool Enabled { get; set; } = true;
+    public string AppId { get; set; } = "";
+    public string Repository { get; set; } = ReleaseTrace.Repository;
+    public string Channel { get; set; } = "stable";
+    public string Distribution { get; set; } = "direct-github";
 }
 
 internal sealed class ProjectSet
