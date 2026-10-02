@@ -229,7 +229,7 @@ public sealed class MainPage : ContentPage
 
             var items = await args.DataView.GetStorageItemsAsync();
             if (items.OfType<StorageFile>().FirstOrDefault() is not { } file
-                || !Path.GetExtension(file.Name).Equals(".ndjson", StringComparison.OrdinalIgnoreCase))
+                || !System.IO.Path.GetExtension(file.Name).Equals(".ndjson", StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
