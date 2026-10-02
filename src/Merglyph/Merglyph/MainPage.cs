@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using Merglyph.Core;
 using Novolis.Maui.Markdown;
@@ -427,6 +428,18 @@ public sealed class MainPage : ContentPage
         _viewer.SourceDirectory = document.SourceDirectory;
         _viewer.Title = document.Name.Value;
         _viewer.Markdown = document.Content.Value;
+        if (Environment.GetCommandLineArgs().Contains("--preview", StringComparer.OrdinalIgnoreCase))
+            _ = OpenFirstPreviewWhenReadyAsync();
+    }
+
+    private async Task OpenFirstPreviewWhenReadyAsync()
+    {
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            await Task.Delay(250).ConfigureAwait(true);
+            if (_viewer.TryOpenPreview(0))
+                return;
+        }
     }
 
     private void ShowWelcome()
