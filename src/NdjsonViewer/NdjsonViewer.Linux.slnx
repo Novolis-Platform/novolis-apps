@@ -1,9 +1,5 @@
 <Solution>
-  <Folder Name="/Novolis.Ndjson/">
-    <Project Path="Novolis.Ndjson/Novolis.Ndjson.csproj" />
-  </Folder>
   <Folder Name="/tests/">
     <Project Path="../../tests/Novolis.Ndjson.App.Tests/Novolis.Ndjson.App.Tests.csproj" />
-    <Project Path="../../tests/Novolis.Ndjson.Tests/Novolis.Ndjson.Tests.csproj" />
   </Folder>
 </Solution>

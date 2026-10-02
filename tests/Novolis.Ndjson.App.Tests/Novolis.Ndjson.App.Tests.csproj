@@ -10,8 +10,6 @@
     <PackageReference Include="TUnit" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="../../src/NdjsonViewer/Novolis.Ndjson.App/Viewer/ViewerState.cs" Link="ViewerState.cs" />
-    <Compile Include="../../src/NdjsonViewer/Novolis.Ndjson.App/Viewer/ViewerNavigation.cs" Link="ViewerNavigation.cs" />
     <LibraryReference Include="Novolis.IO.Ndjson" />
   </ItemGroup>
 </Project>

@@ -34,6 +34,7 @@
     <PackageVersion Include="Novolis.Avalonia.Diagnostics" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Logging.Diagnostics" Version="2026.1.*" />
     <PackageVersion Include="Novolis.IO.GitHub" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.IO.Ndjson" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Audio.Live" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Audio.Live.Dsl" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Audio.Live.Protocol" Version="2026.1.*" />
@@ -157,6 +158,7 @@
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.110" />
     <PackageVersion Include="Novolis.Maui.Markdown" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Maui.GraphicalProfile" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Maui.Ndjson" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Maui.PdfViewer" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Maui.Agent" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Maui.Agent.Protocol" Version="2026.1.*" />
