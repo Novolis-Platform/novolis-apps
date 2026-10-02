@@ -52,6 +52,42 @@ public sealed class PresenceReplayTests
     }
 
     [Test]
+    public async Task Phone_day_pulls_an_indoor_fix_back_onto_the_home_network()
+    {
+        var anchored = SsidPositionAnchor.Apply([Home(), Work()], ReadPhoneDay());
+        var spike = anchored.Single(item =>
+            item.At >= new DateTimeOffset(2026, 10, 2, 16, 52, 0, TimeSpan.Zero)
+            && item.At < new DateTimeOffset(2026, 10, 2, 16, 53, 0, TimeSpan.Zero)
+            && item.Position is not null);
+        var commute = anchored.Single(item =>
+            item.At >= new DateTimeOffset(2026, 10, 2, 6, 40, 0, TimeSpan.Zero)
+            && item.At < new DateTimeOffset(2026, 10, 2, 6, 41, 0, TimeSpan.Zero)
+            && item.Position is not null);
+
+        await Assert.That(spike.Position).IsEqualTo(Home().Area.Center);
+        await Assert.That(commute.Position!.Value.Longitude).IsGreaterThan(7.97);
+        await Assert.That(commute.Position.Value.Longitude).IsLessThan(7.98);
+    }
+
+    [Test]
+    public async Task A_fix_stays_when_the_same_network_returns_after_the_evidence_gap()
+    {
+        var start = new DateTimeOffset(2026, 10, 2, 16, 0, 0, TimeSpan.Zero);
+        var away = new GeoCoordinate(58.16, 7.97);
+        var ssid = Home().Wifi!.Ssid;
+        var samples = new[]
+        {
+            new PresenceObservationRecord(start, null, null, RecordedWifiStatus.Available, ssid),
+            new PresenceObservationRecord(start.AddMinutes(3), away, 8, RecordedWifiStatus.Unavailable, null),
+            new PresenceObservationRecord(start.AddMinutes(6), null, null, RecordedWifiStatus.Available, ssid),
+        };
+
+        var anchored = SsidPositionAnchor.Apply([Home()], samples);
+
+        await Assert.That(anchored[1].Position).IsEqualTo(away);
+    }
+
+    [Test]
     public async Task Moving_a_place_reapplies_it_to_earlier_fixes()
     {
         var start = new DateTimeOffset(2026, 10, 2, 7, 0, 0, TimeSpan.Zero);
