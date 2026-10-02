@@ -41,5 +41,6 @@
     <Project Path="tests/Reach.Unit/Reach.Unit.csproj" />
     <Project Path="tests/ReadAloud.Unit/ReadAloud.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
+    <Project Path="tests/Update.Smoke/Update.Smoke.csproj" />
   </Folder>
 </Solution>
