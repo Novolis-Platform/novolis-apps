@@ -22,6 +22,27 @@ public static class WifiPlacement
     }
 
     /// <summary>
+    /// Returns the first configured place whose name is among networks that were heard.
+    /// The caller orders names by preference, strongest signal first.
+    /// </summary>
+    public static TrackedLocation? MatchHeard(
+        IEnumerable<string?> heardSsids,
+        IEnumerable<TrackedLocation> locations)
+    {
+        ArgumentNullException.ThrowIfNull(heardSsids);
+        ArgumentNullException.ThrowIfNull(locations);
+        var places = locations as IReadOnlyList<TrackedLocation> ?? locations.ToArray();
+        foreach (var ssid in heardSsids)
+        {
+            var matched = Match(ssid, places);
+            if (matched is not null)
+                return matched;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// GPS is required when the phone is not on a network that belongs to a configured place.
     /// </summary>
     public static bool ShouldRequestPositionFix(

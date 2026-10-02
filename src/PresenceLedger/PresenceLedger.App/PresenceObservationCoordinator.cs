@@ -12,6 +12,7 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
 {
     static readonly TimeSpan WifiInterval = TimeSpan.FromSeconds(30);
     static readonly TimeSpan FreshFixAge = TimeSpan.FromMinutes(2);
+    static readonly TimeSpan FreshNetworkAge = TimeSpan.FromMinutes(2);
 
     readonly IServiceProvider _services;
     readonly IPresenceEngine _engine;
@@ -248,10 +249,15 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         if (wifi is not null)
             reading = await wifi.ReadAsync(cancellationToken);
 
-        var connectedSsid = reading is { Status: MobileObservationStatus.Available }
-            ? reading.ConnectedSsid
-            : null;
-        var matched = WifiPlacement.Match(connectedSsid, configured);
+        var connectedSsid = reading?.ConnectedSsid;
+        var heard = (reading?.Visible ?? [])
+            .Where(network => network.Age is { } age && age <= FreshNetworkAge)
+            .OrderByDescending(network => network.SignalDbm ?? int.MinValue)
+            .Select(network => network.Ssid);
+        var matched = WifiPlacement.Match(connectedSsid, configured)
+            ?? WifiPlacement.MatchHeard(heard, configured);
+        if (matched?.Wifi is { } placeNetwork)
+            connectedSsid = placeNetwork.Ssid;
         var held = false;
         if (matched is null
             && reading is not null
@@ -278,7 +284,9 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
                     matched.Area.RadiusMeters);
             await RetainAsync(record, cancellationToken);
             if (connectedSsid is not null
-                && (held || reading.Status == MobileObservationStatus.Available))
+                && (held
+                    || matched is not null
+                    || reading.Status == MobileObservationStatus.Available))
             {
                 await _engine.ProcessAsync(wifiObservation, cancellationToken);
                 lock (_gate)

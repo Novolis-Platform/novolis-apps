@@ -47,6 +47,8 @@ public sealed class MainView : UserControl
     CancellationTokenSource? _searchCancellation;
     NdjsonSliceView? _ledgerViewer;
     INdjsonDocument? _ledgerDocument;
+    ShellSection _section = ShellSection.Today;
+    readonly List<(Button Button, ShellSection Section)> _nav = [];
 
     /// <summary>Creates the shared product view.</summary>
     public MainView(
@@ -164,55 +166,78 @@ public sealed class MainView : UserControl
         Grid.SetColumn(localBadge, 2);
         header.Children.Add(brandRow);
 
-        var navigation = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-        };
-        navigation.Children.Add(NavigationButton("Today", async () => await ShowTodayAsync()));
-        navigation.Children.Add(NavigationButton("Map", async () => await ShowMapAsync()));
-        navigation.Children.Add(NavigationButton("Places", async () => await ShowLocationsAsync()));
-        navigation.Children.Add(NavigationButton("History", async () => await ShowHistoryAsync()));
-        navigation.Children.Add(NavigationButton("Report", async () => await ShowReportAsync()));
-        navigation.Children.Add(NavigationButton("More", async () => await ShowDiagnosticsAsync()));
-        var navigationScroll = new ScrollViewer
-        {
-            Content = navigation,
-            HorizontalScrollBarVisibility =
-                Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden,
-            VerticalScrollBarVisibility =
-                Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-        };
-        header.Children.Add(navigationScroll);
-
         _status.Text = "Local storage · Kartverket maps · Geonorge address search";
         _status.Foreground = GraphicalProfile.MutedBrush;
         _status.FontSize = 11;
-        _status.Margin = new Thickness(16, 4);
+        _status.Margin = new Thickness(16, 6, 16, 4);
 
+        var bar = new Grid
+        {
+            MinHeight = 58,
+            Background = GraphicalProfile.SurfaceBrush,
+        };
+        var sections = new (string Label, ShellSection Section, Func<Task> Open)[]
+        {
+            ("Today", ShellSection.Today, ShowTodayAsync),
+            ("Map", ShellSection.Map, ShowMapAsync),
+            ("Places", ShellSection.Places, ShowLocationsAsync),
+            ("Report", ShellSection.Report, ShowReportAsync),
+            ("More", ShellSection.More, ShowDiagnosticsAsync),
+        };
+        for (var index = 0; index < sections.Length; index++)
+        {
+            var item = sections[index];
+            bar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            var button = new Button
+            {
+                Content = item.Label,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                MinHeight = 58,
+                Padding = new Thickness(0, 8),
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0, 2, 0, 0),
+                CornerRadius = new CornerRadius(0),
+                FontSize = 13,
+            };
+            button.Click += async (_, _) => await item.Open();
+            _nav.Add((button, item.Section));
+            Grid.SetColumn(button, index);
+            bar.Children.Add(button);
+        }
+
+        ShowSection(ShellSection.Today);
         var shell = new DockPanel();
         DockPanel.SetDock(header, Dock.Top);
+        DockPanel.SetDock(bar, Dock.Bottom);
         DockPanel.SetDock(_status, Dock.Bottom);
         shell.Children.Add(header);
+        shell.Children.Add(bar);
         shell.Children.Add(_status);
         shell.Children.Add(_content);
         Content = shell;
     }
 
-    static Button NavigationButton(string label, Func<Task> action)
+    void ShowSection(ShellSection section)
     {
-        var button = new Button
+        _section = section;
+        foreach (var (button, item) in _nav)
         {
-            Content = label,
-            Classes = { "nav-button" },
-            Background = GraphicalProfile.SurfaceBrush,
-            Foreground = GraphicalProfile.TextBrush,
-        };
-        button.Click += async (_, _) => await action();
-        return button;
+            var selected = item == section;
+            button.Foreground = selected
+                ? GraphicalProfile.AccentBrush
+                : GraphicalProfile.MutedBrush;
+            button.BorderBrush = selected
+                ? GraphicalProfile.AccentBrush
+                : Brushes.Transparent;
+            button.FontWeight = selected ? FontWeight.SemiBold : FontWeight.Normal;
+        }
     }
 
     async Task ShowTodayAsync()
     {
+        ShowSection(ShellSection.Today);
         try
         {
             var projection = await ReadDayProjectionAsync(_displayDate);
@@ -355,6 +380,7 @@ public sealed class MainView : UserControl
 
     async Task ShowLocationsAsync()
     {
+        ShowSection(ShellSection.Places);
         try
         {
             var locations = await ReadAllAsync(_locations.ReadAsync());
@@ -435,6 +461,7 @@ public sealed class MainView : UserControl
 
     async Task ShowMapAsync()
     {
+        ShowSection(ShellSection.Map);
         try
         {
             var locations = await ReadAllAsync(_locations.ReadAsync());
@@ -586,6 +613,7 @@ public sealed class MainView : UserControl
 
     async Task ShowAddLocationAsync(TrackedLocation? existing = null)
     {
+        ShowSection(ShellSection.Places);
         _searchCancellation?.Cancel();
         _searchCancellation = null;
         _editingLocation = existing;
@@ -765,8 +793,47 @@ public sealed class MainView : UserControl
             Foreground = GraphicalProfile.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
         });
-        stack.Children.Add(new TextBlock { Text = "Wi-Fi network (optional)", Foreground = GraphicalProfile.MutedBrush });
+        stack.Children.Add(new TextBlock { Text = "Network", Foreground = GraphicalProfile.MutedBrush });
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Pick a name you can hear, including a gym or pub you cannot join. While that name is nearby, GPS stays off.",
+            Foreground = GraphicalProfile.MutedBrush,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        var here = new Button
+        {
+            Content = "Here",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+            Background = GraphicalProfile.SurfaceBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        here.Click += async (_, _) => await UseHereAsync();
+        var networks = new Button
+        {
+            Content = "Networks here",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+            Background = GraphicalProfile.SurfaceBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        var networkList = new StackPanel { Spacing = 6 };
+        networks.Click += async (_, _) => await ShowNetworksAsync(networkList);
+        var placeActions = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Star),
+            },
+            ColumnSpacing = 8,
+        };
+        placeActions.Children.Add(here);
+        placeActions.Children.Add(networks);
+        Grid.SetColumn(networks, 1);
+        stack.Children.Add(placeActions);
         stack.Children.Add(_ssidInput);
+        stack.Children.Add(networkList);
         stack.Children.Add(new TextBlock { Text = "Address search", Foreground = GraphicalProfile.MutedBrush });
         stack.Children.Add(new StackPanel
         {
@@ -860,6 +927,107 @@ public sealed class MainView : UserControl
         await ShowLocationsAsync();
     }
 
+    async Task UseHereAsync()
+    {
+        var source = _services.GetService<ILocationReadingSource>();
+        if (source is null)
+        {
+            SetStatus("This host has no position source.");
+            return;
+        }
+
+        SetStatus("Finding where you are…");
+        try
+        {
+            var fix = await source.ReadFixAsync(TimeSpan.FromMinutes(1));
+            if (fix is null)
+            {
+                SetStatus("No position yet. Stand still and try Here again.");
+                return;
+            }
+
+            SetSelectedCoordinate(fix.Position);
+            if (_pickerMap is not null)
+                _pickerMap.Viewport = new MapViewport(fix.Position, 16);
+            if (_radiusInput is not null && fix.AccuracyMeters > 0)
+            {
+                _radiusInput.Value = global::System.Math.Clamp(
+                    global::System.Math.Max(fix.AccuracyMeters * 2, 50),
+                    _radiusInput.Minimum,
+                    _radiusInput.Maximum);
+            }
+
+            UpdatePickerOverlays();
+            SetStatus("Centered on where you are.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not read where you are: {ex.Message}");
+        }
+    }
+
+    async Task ShowNetworksAsync(StackPanel list)
+    {
+        list.Children.Clear();
+        var wifi = _services.GetService<IWifiObservationSource>();
+        if (wifi is null)
+        {
+            list.Children.Add(Hint("This host cannot list nearby networks."));
+            return;
+        }
+
+        SetStatus("Listening for networks…");
+        try
+        {
+            var reading = await wifi.RefreshVisibleAsync();
+            var visible = reading.Visible ?? [];
+            if (visible.Count == 0)
+            {
+                list.Children.Add(Hint("No network names yet. Wi-Fi needs to be on, and location permission lets the phone read the names."));
+                SetStatus("No networks heard.");
+                return;
+            }
+
+            foreach (var network in visible)
+            {
+                var choice = new Button
+                {
+                    Content = network.IsConnected
+                        ? $"{network.Ssid}  ·  joined"
+                        : network.Ssid,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
+                    MinHeight = 48,
+                    Background = GraphicalProfile.RaisedBrush,
+                    Foreground = GraphicalProfile.TextBrush,
+                };
+                var name = network.Ssid;
+                choice.Click += (_, _) =>
+                {
+                    if (_ssidInput is not null)
+                        _ssidInput.Text = name;
+                    SetStatus($"Network set to {name}.");
+                };
+                list.Children.Add(choice);
+            }
+
+            SetStatus($"{visible.Count} network{(visible.Count == 1 ? string.Empty : "s")} nearby.");
+        }
+        catch (Exception ex)
+        {
+            list.Children.Add(Hint(ex.Message));
+            SetStatus($"Could not list networks: {ex.Message}");
+        }
+    }
+
+    static TextBlock Hint(string text) =>
+        new()
+        {
+            Text = text,
+            Foreground = GraphicalProfile.MutedBrush,
+            TextWrapping = TextWrapping.Wrap,
+        };
+
     async Task PublishLedgerAsync()
     {
         var publisher = _services.GetService<ILedgerFilePublisher>();
@@ -879,6 +1047,7 @@ public sealed class MainView : UserControl
 
     async Task ShowReportAsync()
     {
+        ShowSection(ShellSection.Report);
         try
         {
             var locations = await ReadAllAsync(_locations.ReadHistoryAsync());
@@ -961,6 +1130,7 @@ public sealed class MainView : UserControl
 
     async Task ShowHistoryAsync()
     {
+        ShowSection(ShellSection.More);
         try
         {
             var locationHistory = await ReadAllAsync(_locations.ReadHistoryAsync());
@@ -1048,6 +1218,7 @@ public sealed class MainView : UserControl
 
     async Task ShowDiagnosticsAsync()
     {
+        ShowSection(ShellSection.More);
         await CloseLedgerDocumentAsync();
         var locations = await ReadAllAsync(_locations.ReadAsync());
         var states = await ReadAllAsync(_states.ReadAsync());
@@ -1058,7 +1229,17 @@ public sealed class MainView : UserControl
         var wifiStatus = wifiSource?.GetStatus();
         var today = await ReadDayProjectionAsync(DateOnly.FromDateTime(DateTime.Now));
         var storage = _services.GetService<NdjsonPresenceStorage>();
-        var stack = PageStack("Diagnostics", "Platform capability is reported separately from presence inference.");
+        var stack = PageStack("More", "The ledger, the event list, and what the phone is able to read.");
+        var events = new Button
+        {
+            Content = "Event list",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+            Background = GraphicalProfile.SurfaceBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        events.Click += async (_, _) => await ShowHistoryAsync();
+        stack.Children.Add(events);
         stack.Children.Add(DiagnosticLine(
             "Location source",
             locationStatus is { } locationCapability
@@ -1355,5 +1536,14 @@ public sealed class MainView : UserControl
         await foreach (var value in source)
             values.Add(value);
         return values;
+    }
+
+    enum ShellSection
+    {
+        Today,
+        Map,
+        Places,
+        Report,
+        More,
     }
 }

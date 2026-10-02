@@ -138,6 +138,24 @@ public sealed class PresenceInferenceTests
     }
 
     [Test]
+    public async Task A_heard_network_names_a_place_the_phone_has_not_joined()
+    {
+        var gym = new TrackedLocation(
+            Guid.Parse("11111111-2222-3333-4444-555555555555"),
+            "Gym",
+            new GeoCircle(new GeoCoordinate(58.14, 7.99), 80),
+            new WifiEvidence("GymWifi"),
+            PresencePolicyDefaults.Standard);
+
+        var matched = WifiPlacement.MatchHeard(["CafeGuest", "GymWifi"], [gym]);
+        var absent = WifiPlacement.MatchHeard(["CafeGuest"], [gym]);
+
+        await Assert.That(matched?.DisplayName).IsEqualTo("Gym");
+        await Assert.That(absent).IsNull();
+        await Assert.That(WifiPlacement.Match(null, [gym])).IsNull();
+    }
+
+    [Test]
     public async Task Location_only_policy_requires_repeated_qualifying_fixes()
     {
         var location = new TrackedLocation(
