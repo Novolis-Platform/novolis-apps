@@ -550,7 +550,7 @@ public sealed class MainView : UserControl
                     },
                     new TextBlock
                     {
-                        Text = $"{_displayDate:yyyy-MM-dd} · drag, pinch, or use the buttons. Tiles stay in the map; samples stay on this device.",
+                        Text = $"{_displayDate:yyyy-MM-dd} · two fingers pan and pinch. Tiles stay in the map; samples stay on this device.",
                         Foreground = GraphicalProfile.MutedBrush,
                         TextWrapping = TextWrapping.Wrap,
                     },
