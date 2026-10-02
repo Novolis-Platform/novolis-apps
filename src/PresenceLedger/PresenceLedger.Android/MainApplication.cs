@@ -30,6 +30,9 @@ public class MainApplication : AvaloniaAndroidApplication<PresenceLedgerApp>
         services.AddSingleton<ILedgerFilePublisher>(sp =>
             new AndroidDownloadsLedgerPublisher(
                 sp.GetRequiredService<Novolis.Avalonia.Mobile.IAppDataPaths>().RootDirectory));
+        services.AddSingleton<ILedgerFileShare>(sp =>
+            new AndroidLedgerShare(
+                sp.GetRequiredService<Novolis.Avalonia.Mobile.IAppDataPaths>().RootDirectory));
         PresenceLedgerApp.Services = services.BuildServiceProvider();
         base.OnCreate();
     }

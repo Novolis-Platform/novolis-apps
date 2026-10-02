@@ -98,6 +98,7 @@ public sealed class MainPage : ContentPage
     private readonly Border _welcomeCard;
     private readonly Border _viewerCard;
     private readonly ScrollView _welcomeScroll;
+    private readonly ContentView _bodyHost = new();
     private readonly Button _openButton;
     private readonly Button _heroOpenButton;
     private CancellationTokenSource? _activationCancellation;
@@ -238,9 +239,16 @@ public sealed class MainPage : ContentPage
             },
         };
         viewerLayout.Add(viewerHeader, 0, 0);
+        _viewer.HorizontalOptions = LayoutOptions.Fill;
+        _viewer.VerticalOptions = LayoutOptions.Fill;
         viewerLayout.Add(_viewer, 0, 1);
-        _viewerCard = CreateCard(viewerLayout);
-        _viewerCard.Padding = new Thickness(0);
+        // WinUI WebView2 stays blank inside a rounded/clipped Border. Keep a rectangular card.
+        _viewerCard = new Border
+        {
+            Padding = new Thickness(0),
+            StrokeThickness = 1,
+            Content = viewerLayout,
+        };
 
         _welcomeScroll = new ScrollView
         {
@@ -248,12 +256,20 @@ public sealed class MainPage : ContentPage
             VerticalScrollBarVisibility = ScrollBarVisibility.Never,
         };
 
+        _bodyHost.HorizontalOptions = LayoutOptions.Fill;
+        _bodyHost.VerticalOptions = LayoutOptions.Fill;
+        _welcomeScroll.HorizontalOptions = LayoutOptions.Fill;
+        _welcomeScroll.VerticalOptions = LayoutOptions.Fill;
+        _viewerCard.HorizontalOptions = LayoutOptions.Fill;
+        _viewerCard.VerticalOptions = LayoutOptions.Fill;
+
         var body = new Grid
         {
             Padding = new Thickness(16, 0, 16, 16),
+            RowDefinitions = { new RowDefinition(GridLength.Star) },
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star) },
         };
-        body.Add(_welcomeScroll);
-        body.Add(_viewerCard);
+        body.Add(_bodyHost, 0, 0);
 
         var layout = new Grid
         {
@@ -406,8 +422,7 @@ public sealed class MainPage : ContentPage
     {
         _documentName.Text = document.Name.Value;
         _documentMeta.Text = "Markdown document • local file";
-        _welcomeScroll.IsVisible = false;
-        _viewerCard.IsVisible = true;
+        _bodyHost.Content = _viewerCard;
         ApplyChromeTheme();
         _viewer.SourceDirectory = document.SourceDirectory;
         _viewer.Title = document.Name.Value;
@@ -418,8 +433,7 @@ public sealed class MainPage : ContentPage
     {
         _documentName.Text = "No document open";
         _documentMeta.Text = "Choose a local Markdown file to begin";
-        _welcomeScroll.IsVisible = true;
-        _viewerCard.IsVisible = false;
+        _bodyHost.Content = _welcomeScroll;
         ApplyChromeTheme();
         _viewer.SourceDirectory = null;
         _viewer.Title = "Merglyph";

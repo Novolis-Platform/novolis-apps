@@ -39,6 +39,8 @@
     <PackageReference Include="Microsoft.Maui.Controls" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
     <LibraryReference Include="Novolis.Maui.Markdown" />
+    <LibraryReference Include="Novolis.IO.Platform.Android"
+                      Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

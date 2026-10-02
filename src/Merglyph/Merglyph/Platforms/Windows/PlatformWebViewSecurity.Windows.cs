@@ -14,7 +14,7 @@ internal static partial class PlatformWebViewSecurity
                 if (native.CoreWebView2?.Settings is not { } settings)
                     return;
 
-                settings.IsScriptEnabled = false;
+                // Leave script enabled so NavigateToString can paint. Document CSP blocks page scripts.
                 settings.IsWebMessageEnabled = false;
                 settings.AreDevToolsEnabled = false;
                 settings.AreDefaultContextMenusEnabled = true;

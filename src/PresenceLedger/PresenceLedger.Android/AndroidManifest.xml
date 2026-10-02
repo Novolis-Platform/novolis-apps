@@ -20,5 +20,14 @@
       android:name="com.novolis.presenceledger.PresenceObservationService"
       android:exported="false"
       android:foregroundServiceType="location" />
+    <provider
+      android:name="androidx.core.content.FileProvider"
+      android:authorities="${applicationId}.ledger"
+      android:exported="false"
+      android:grantUriPermissions="true">
+      <meta-data
+        android:name="android.support.FILE_PROVIDER_PATHS"
+        android:resource="@xml/presence_ledger_paths" />
+    </provider>
   </application>
 </manifest>

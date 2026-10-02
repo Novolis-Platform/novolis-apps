@@ -1,4 +1,3 @@
-using System.Threading.Channels;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Mobile;
 using PresenceLedger.Core;
@@ -11,10 +10,8 @@ namespace PresenceLedger.App;
 /// </summary>
 public sealed class PresenceObservationCoordinator : IAsyncDisposable
 {
-    static readonly TimeSpan LocationInterval = TimeSpan.FromMinutes(1);
     static readonly TimeSpan WifiInterval = TimeSpan.FromSeconds(30);
-    static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(15);
-    const double LocationDistanceMeters = 40;
+    static readonly TimeSpan FreshFixAge = TimeSpan.FromMinutes(2);
 
     readonly IServiceProvider _services;
     readonly IPresenceEngine _engine;
@@ -26,6 +23,9 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
     Exception? _lastError;
     DateTimeOffset? _lastPositionAt;
     DateTimeOffset? _lastWifiAt;
+    string? _lastConnectedSsid;
+    string? _lastPlacement;
+    bool _positionFixSkipped;
 
     /// <summary>Creates an observation coordinator.</summary>
     public PresenceObservationCoordinator(
@@ -65,6 +65,36 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         {
             lock (_gate)
                 return _lastWifiAt;
+        }
+    }
+
+    /// <summary>Connected network from the latest Wi-Fi reading, when one was available.</summary>
+    public string? LastConnectedSsid
+    {
+        get
+        {
+            lock (_gate)
+                return _lastConnectedSsid;
+        }
+    }
+
+    /// <summary>Place named by the latest matching network, when GPS was not required.</summary>
+    public string? LastPlacement
+    {
+        get
+        {
+            lock (_gate)
+                return _lastPlacement;
+        }
+    }
+
+    /// <summary>Whether the latest cycle skipped GPS because a known network already placed the person.</summary>
+    public bool PositionFixSkipped
+    {
+        get
+        {
+            lock (_gate)
+                return _positionFixSkipped;
         }
     }
 
@@ -156,97 +186,12 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         IWifiObservationSource? wifi,
         CancellationToken cancellationToken)
     {
-        var channel = Channel.CreateUnbounded<Observation>(
-            new UnboundedChannelOptions { SingleReader = true });
-        var producers = new List<Task>(2);
-
-        if (location is not null)
-            producers.Add(ReadLocationsAsync(location, channel.Writer, cancellationToken));
-        if (wifi is not null)
-            producers.Add(ReadWifiAsync(wifi, channel.Writer, cancellationToken));
-
-        var pump = PumpAsync(channel.Reader, cancellationToken);
-        try
-        {
-            await Task.WhenAll(producers);
-        }
-        finally
-        {
-            channel.Writer.TryComplete();
-        }
-
-        await pump;
-    }
-
-    async Task ReadLocationsAsync(
-        ILocationReadingSource source,
-        ChannelWriter<Observation> writer,
-        CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            try
-            {
-                await foreach (var reading in source.ObserveAsync(
-                    LocationInterval,
-                    LocationDistanceMeters,
-                    cancellationToken))
-                {
-                    var observation = new PositionObservation(
-                        reading.At,
-                        reading.Position,
-                        reading.AccuracyMeters);
-                    await RetainAsync(
-                        PresenceObservationRecord.FromPosition(observation),
-                        cancellationToken);
-                    await writer.WriteAsync(observation, cancellationToken);
-                    lock (_gate)
-                        _lastPositionAt = reading.At;
-                }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception ex)
-            {
-                SetError(ex);
-            }
-
-            await DelayAsync(RetryInterval, cancellationToken);
-        }
-    }
-
-    async Task ReadWifiAsync(
-        IWifiObservationSource source,
-        ChannelWriter<Observation> writer,
-        CancellationToken cancellationToken)
-    {
         using var timer = new PeriodicTimer(WifiInterval);
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                var reading = await source.ReadAsync(cancellationToken);
-                var wifiObservation = new WifiObservation(
-                    reading.At,
-                    reading.ConnectedSsid);
-                await RetainAsync(
-                    PresenceObservationRecord.FromWifi(
-                        wifiObservation,
-                        MapWifiStatus(reading.Status)),
-                    cancellationToken);
-                // A redacted/unknown SSID is not evidence of departure. A
-                // known non-matching network is useful absence evidence.
-                if (reading.Status == MobileObservationStatus.Available
-                    && reading.ConnectedSsid is not null)
-                {
-                    await writer.WriteAsync(
-                        new WifiObservation(reading.At, reading.ConnectedSsid),
-                        cancellationToken);
-                    lock (_gate)
-                        _lastWifiAt = reading.At;
-                }
+                await ObserveCycleAsync(location, wifi, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -259,7 +204,8 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
 
             try
             {
-                await timer.WaitForNextTickAsync(cancellationToken);
+                if (!await timer.WaitForNextTickAsync(cancellationToken))
+                    return;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -268,35 +214,118 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         }
     }
 
-    async Task PumpAsync(
-        ChannelReader<Observation> reader,
+    async Task ObserveCycleAsync(
+        ILocationReadingSource? location,
+        IWifiObservationSource? wifi,
         CancellationToken cancellationToken)
     {
-        await foreach (var observation in reader.ReadAllAsync(cancellationToken))
+        var configured = await ReadConfiguredLocationsAsync(cancellationToken);
+        MobileWifiReading? reading = null;
+        if (wifi is not null)
+            reading = await wifi.ReadAsync(cancellationToken);
+
+        var connectedSsid = reading is { Status: MobileObservationStatus.Available }
+            ? reading.ConnectedSsid
+            : null;
+        var matched = WifiPlacement.Match(connectedSsid, configured);
+        var skipPositionFix = matched is not null || location is null;
+
+        if (reading is not null)
         {
-            try
+            var wifiObservation = new WifiObservation(reading.At, connectedSsid);
+            var record = matched is null
+                ? PresenceObservationRecord.FromWifi(
+                    wifiObservation,
+                    MapWifiStatus(reading.Status))
+                : PresenceObservationRecord.FromKnownNetwork(
+                    wifiObservation,
+                    matched.Area.Center,
+                    matched.Area.RadiusMeters);
+            await RetainAsync(record, cancellationToken);
+            if (reading.Status == MobileObservationStatus.Available
+                && connectedSsid is not null)
             {
-                await _engine.ProcessAsync(observation, cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception ex)
-            {
-                SetError(ex);
+                await _engine.ProcessAsync(wifiObservation, cancellationToken);
+                lock (_gate)
+                {
+                    _lastWifiAt = reading.At;
+                    _lastConnectedSsid = connectedSsid;
+                    _lastPlacement = matched?.DisplayName;
+                    _positionFixSkipped = skipPositionFix;
+                }
             }
         }
+
+        lock (_gate)
+            _positionFixSkipped = skipPositionFix;
+
+        if (skipPositionFix || location is null)
+        {
+            await PublishLedgerAsync(cancellationToken);
+            return;
+        }
+
+        var fix = await location.ReadFixAsync(FreshFixAge, cancellationToken);
+        var alreadyRecorded = false;
+        if (fix is not null)
+        {
+            lock (_gate)
+                alreadyRecorded = _lastPositionAt == fix.At;
+        }
+
+        if (fix is not null && !alreadyRecorded)
+        {
+            var position = new PositionObservation(
+                fix.At,
+                fix.Position,
+                fix.AccuracyMeters);
+            await RetainAsync(
+                PresenceObservationRecord.FromPosition(
+                    position,
+                    reading is null
+                        ? RecordedWifiStatus.Unknown
+                        : MapWifiStatus(reading.Status),
+                    connectedSsid),
+                cancellationToken);
+            await _engine.ProcessAsync(position, cancellationToken);
+            lock (_gate)
+                _lastPositionAt = fix.At;
+        }
+
+        await PublishLedgerAsync(cancellationToken);
     }
 
-    static async Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+    async Task<IReadOnlyList<TrackedLocation>> ReadConfiguredLocationsAsync(
+        CancellationToken cancellationToken)
     {
+        var store = _services.GetService<ITrackedLocationStore>();
+        if (store is null)
+            return [];
+
+        var locations = new List<TrackedLocation>();
+        await foreach (var location in store.ReadAsync(cancellationToken))
+            locations.Add(location);
+
+        return locations;
+    }
+
+    async Task PublishLedgerAsync(CancellationToken cancellationToken)
+    {
+        var publisher = _services.GetService<ILedgerFilePublisher>();
+        if (publisher is null)
+            return;
+
         try
         {
-            await Task.Delay(delay, cancellationToken);
+            await publisher.PublishAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            SetError(exception);
         }
     }
 

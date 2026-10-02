@@ -81,4 +81,16 @@ public sealed record PresenceObservationRecord
             null,
             status,
             wifi.ConnectedSsid);
+
+    /// <summary>Creates a record that places the person at a known network's configured center.</summary>
+    public static PresenceObservationRecord FromKnownNetwork(
+        WifiObservation wifi,
+        GeoCoordinate position,
+        double accuracyMeters) =>
+        new(
+            wifi.At,
+            position,
+            accuracyMeters,
+            RecordedWifiStatus.Available,
+            wifi.ConnectedSsid);
 }

@@ -198,8 +198,10 @@ public sealed class MainView : UserControl
         try
         {
             var projection = await ReadDayProjectionAsync(_displayDate);
+            var locations = await ReadAllAsync(_locations.ReadAsync());
             _content.Content = PresenceTodayView.Build(
                 projection,
+                locations,
                 DateTimeOffset.UtcNow,
                 () => _ = ChangeDayAsync(-1),
                 () => _ = ChangeDayAsync(1),
@@ -429,9 +431,9 @@ public sealed class MainView : UserControl
                 Viewport = new MapViewport(center, locations.Count == 0 ? 12 : 14),
                 TileSource = _tileSource,
                 Attribution = KartverketMap.Attribution,
-                Height = 360,
-                MinHeight = 260,
+                MinHeight = 280,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
                 BackgroundBrush = GraphicalProfile.SurfaceBrush,
             };
             map.Markers = locations
@@ -490,30 +492,13 @@ public sealed class MainView : UserControl
                 locations
                     .Select(location => location.Area.Center)
                     .Concat(sampleTrack));
-            var mapFrame = new Grid
-            {
-                Children =
-                {
-                    map,
-                    new StackPanel
-                    {
-                        Orientation = Orientation.Vertical,
-                        Spacing = 6,
-                        Margin = new Thickness(10),
-                        HorizontalAlignment = HorizontalAlignment.Right,
-                        VerticalAlignment = VerticalAlignment.Top,
-                        Children = { zoomIn, zoomOut, fit },
-                    },
-                },
-            };
-
             var refresh = new Button
             {
-                Content = "Refresh map",
-                Classes = { "primary-button" },
-                Background = GraphicalProfile.AccentFillBrush,
+                Content = "Refresh",
+                MinWidth = 44,
+                MinHeight = 44,
+                Background = GraphicalProfile.SurfaceBrush,
                 Foreground = GraphicalProfile.TextBrush,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
             refresh.Click += async (_, _) =>
             {
@@ -527,11 +512,28 @@ public sealed class MainView : UserControl
                     SetStatus($"Map unavailable: {ex.Message}");
                 }
             };
-
-            var stack = new StackPanel
+            var mapFrame = new Grid
             {
-                Margin = new Thickness(16, 12, 16, 28),
-                Spacing = 12,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Children =
+                {
+                    map,
+                    new StackPanel
+                    {
+                        Orientation = Orientation.Vertical,
+                        Spacing = 6,
+                        Margin = new Thickness(10),
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        VerticalAlignment = VerticalAlignment.Top,
+                        Children = { zoomIn, zoomOut, fit, refresh },
+                    },
+                },
+            };
+            var header = new StackPanel
+            {
+                Spacing = 4,
+                Margin = new Thickness(0, 0, 0, 8),
                 Children =
                 {
                     new TextBlock
@@ -548,29 +550,28 @@ public sealed class MainView : UserControl
                     },
                     new TextBlock
                     {
-                        Text = $"{_displayDate:yyyy-MM-dd} · configured places and local samples",
-                        Classes = { "body-copy" },
-                        Foreground = GraphicalProfile.MutedBrush,
-                    },
-                    mapFrame,
-                    refresh,
-                    new TextBlock
-                    {
-                        Text = "Map tiles and address search may use Kartverket/Geonorge. Your locations and samples stay in the app’s private storage.",
+                        Text = $"{_displayDate:yyyy-MM-dd} · drag, pinch, or use the buttons. Tiles stay in the map; samples stay on this device.",
                         Foreground = GraphicalProfile.MutedBrush,
                         TextWrapping = TextWrapping.Wrap,
                     },
                 },
             };
-            _content.Content = new ScrollViewer
+            var page = new Grid
             {
-                Content = stack,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                HorizontalScrollBarVisibility =
-                    Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-                VerticalScrollBarVisibility =
-                    Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                Margin = new Thickness(16, 12, 16, 12),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                RowDefinitions =
+                {
+                    new RowDefinition(GridLength.Auto),
+                    new RowDefinition(new GridLength(1, GridUnitType.Star)),
+                },
             };
+            page.Children.Add(header);
+            Grid.SetRow(header, 0);
+            page.Children.Add(mapFrame);
+            Grid.SetRow(mapFrame, 1);
+            _content.Content = page;
             try
             {
                 await map.RefreshTilesAsync();
@@ -926,7 +927,25 @@ public sealed class MainView : UserControl
             policy,
             effectiveFrom));
         _editingLocation = null;
+        await PublishLedgerAsync();
         await ShowLocationsAsync();
+    }
+
+    async Task PublishLedgerAsync()
+    {
+        var publisher = _services.GetService<ILedgerFilePublisher>();
+        if (publisher is null)
+            return;
+
+        try
+        {
+            var where = await publisher.PublishAsync();
+            SetStatus($"Ledger saved to {where}");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not publish ledger: {ex.Message}");
+        }
     }
 
     async Task ShowHistoryAsync()
@@ -1082,7 +1101,7 @@ public sealed class MainView : UserControl
         });
         stack.Children.Add(new TextBlock
         {
-            Text = "Save copies the files already stored and any days recorded later into Downloads.",
+            Text = "Every ledger file is copied to Downloads/PresenceLedger as it is written. Share sends the same files, including ones created later.",
             Foreground = GraphicalProfile.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
         });
@@ -1119,25 +1138,40 @@ public sealed class MainView : UserControl
         };
         save.Click += async (_, _) =>
         {
-            var publisher = _services.GetService<ILedgerFilePublisher>();
-            if (publisher is null)
+            await PublishLedgerAsync();
+            await ShowDiagnosticsAsync();
+        };
+        var share = new Button
+        {
+            Content = "Share ledger files",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+            Background = GraphicalProfile.SurfaceBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        share.Click += async (_, _) =>
+        {
+            var sharer = _services.GetService<ILedgerFileShare>();
+            if (sharer is null)
             {
-                SetStatus("This host cannot publish the ledger.");
+                SetStatus("This host saves the ledger to Downloads instead of a share sheet.");
+                await PublishLedgerAsync();
                 return;
             }
 
             try
             {
-                var where = await publisher.PublishAsync();
-                SetStatus($"Ledger saved to {where}");
-                await ShowDiagnosticsAsync();
+                await PublishLedgerAsync();
+                await sharer.ShareAsync();
+                SetStatus("Ledger share opened");
             }
             catch (Exception ex)
             {
-                SetStatus($"Could not save ledger: {ex.Message}");
+                SetStatus($"Could not share ledger: {ex.Message}");
             }
         };
         stack.Children.Add(save);
+        stack.Children.Add(share);
     }
 
     static string FormatFileSize(long bytes) =>

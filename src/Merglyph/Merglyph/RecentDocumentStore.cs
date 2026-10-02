@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Merglyph.Core;
+#if ANDROID
+using Novolis.IO.Platform.Android;
+#endif
 
 namespace Merglyph;
 
@@ -85,10 +88,17 @@ public sealed class RecentDocumentStore
         }
     }
 
-    private string IndexPath => Path.Combine(FileSystem.AppDataDirectory, IndexFileName);
+    private static string DataRoot =>
+#if ANDROID
+        AndroidAppStorage.DefaultRoot("Merglyph");
+#else
+        FileSystem.AppDataDirectory;
+#endif
+
+    private string IndexPath => Path.Combine(DataRoot, IndexFileName);
 
     private string ContentDirectoryPath =>
-        Path.Combine(FileSystem.AppDataDirectory, ContentDirectoryName);
+        Path.Combine(DataRoot, ContentDirectoryName);
 
     private async Task<List<RecentDocumentEntry>> ReadEntriesAsync(
         CancellationToken cancellationToken)
@@ -115,7 +125,7 @@ public sealed class RecentDocumentStore
         IReadOnlyList<RecentDocumentEntry> entries,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(FileSystem.AppDataDirectory);
+        Directory.CreateDirectory(DataRoot);
         var temporaryPath = $"{IndexPath}.tmp";
         var json = JsonSerializer.Serialize(entries, JsonOptions);
         await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);

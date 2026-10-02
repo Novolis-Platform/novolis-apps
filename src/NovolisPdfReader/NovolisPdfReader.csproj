@@ -41,6 +41,8 @@
     <LibraryReference Include="Novolis.Maui.PdfViewer" />
     <LibraryReference Include="Novolis.Maui.Agent" />
     <LibraryReference Include="Novolis.Maui.Agent.Protocol" />
+    <LibraryReference Include="Novolis.IO.Platform.Android"
+                      Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
     <LibraryReference Include="Novolis.Windows.Pdf"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">

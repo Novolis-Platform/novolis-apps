@@ -12,6 +12,7 @@ internal static class PresenceTodayView
 {
     public static Control Build(
         PresenceDayProjection day,
+        IReadOnlyList<TrackedLocation> locations,
         DateTimeOffset now,
         Action previousDay,
         Action nextDay,
@@ -67,7 +68,7 @@ internal static class PresenceTodayView
                 && (interval.EndedAt is null || now < interval.EndedAt))
             .OrderByDescending(interval => interval.StartedAt)
             .FirstOrDefault();
-        content.Children.Add(BuildHero(current, day));
+        content.Children.Add(BuildHero(current, day, locations));
 
         var mapButton = new Button
         {
@@ -101,7 +102,9 @@ internal static class PresenceTodayView
 
         if (day.Intervals.Count == 0)
         {
-            content.Children.Add(BuildEmptyState(day, addLocation));
+            content.Children.Add(locations.Count == 0
+                ? BuildEmptyState(day, addLocation)
+                : BuildWatchingState(locations));
         }
         else
         {
@@ -109,7 +112,7 @@ internal static class PresenceTodayView
                 content.Children.Add(BuildInterval(interval, day.DisplayTimeZone));
         }
 
-        content.Children.Add(BuildEvidenceSummary(day));
+        content.Children.Add(BuildEvidenceSummary(day, locations));
 
         return new ScrollViewer
         {
@@ -161,13 +164,16 @@ internal static class PresenceTodayView
         return row;
     }
 
-    static Control BuildHero(PresenceInterval? current, PresenceDayProjection day)
+    static Control BuildHero(
+        PresenceInterval? current,
+        PresenceDayProjection day,
+        IReadOnlyList<TrackedLocation> locations)
     {
         var title = current is null ? "No confirmed location right now" : current.DisplayName;
         var detail = current is null
-            ? day.Intervals.Count == 0
+            ? locations.Count == 0
                 ? "Start by adding Home or Work, then let the local observer collect evidence."
-                : "The ledger is between configured locations."
+                : $"Watching {locations.Count} place{(locations.Count == 1 ? string.Empty : "s")}. A known Wi-Fi network counts as being there."
             : current.IsOpen
                 ? $"Present since {FormatTime(current.StartedAt, day.DisplayTimeZone)}"
                 : $"Present from {FormatTime(current.StartedAt, day.DisplayTimeZone)}";
@@ -299,29 +305,92 @@ internal static class PresenceTodayView
             GraphicalProfile.RaisedBrush);
     }
 
-    static Control BuildEvidenceSummary(PresenceDayProjection day)
+    static Control BuildWatchingState(IReadOnlyList<TrackedLocation> locations)
     {
-        var expander = new Expander
+        var stack = new StackPanel { Spacing = 8 };
+        stack.Children.Add(new TextBlock
         {
-            Header = $"Evidence details · {day.Observations.Count} local sample{(day.Observations.Count == 1 ? string.Empty : "s")}",
-            Foreground = GraphicalProfile.MutedBrush,
-            Content = new TextBlock
+            Text = "Places being watched",
+            FontSize = 18,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = GraphicalProfile.TextBrush,
+        });
+        foreach (var location in locations.OrderBy(item => item.DisplayName, StringComparer.Ordinal))
+        {
+            var network = location.Wifi is null
+                ? "GPS when the network is unknown"
+                : $"Wi-Fi {location.Wifi.Ssid} skips GPS";
+            stack.Children.Add(new TextBlock
             {
-                Text = day.Observations.Count == 0
-                    ? "No raw samples are available for this display day."
-                    : string.Join(
-                        Environment.NewLine,
-                        day.Observations.Take(30).Select(item =>
-                            $"{item.At.ToLocalTime():g} · {item.WifiStatus} · "
-                            + (item.Position is { } position
-                                ? $"{position.Latitude:F5}, {position.Longitude:F5}"
-                                : "no position"))),
+                Text = $"{location.DisplayName} · {network}",
                 Foreground = GraphicalProfile.MutedBrush,
                 TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 8, 0, 0),
+            });
+        }
+
+        return Card(stack, GraphicalProfile.RaisedBrush);
+    }
+
+    static Control BuildEvidenceSummary(
+        PresenceDayProjection day,
+        IReadOnlyList<TrackedLocation> locations)
+    {
+        var lines = day.Observations.Count == 0
+            ? "No samples for this day yet."
+            : string.Join(
+                Environment.NewLine,
+                day.Observations.TakeLast(12).Select(item => FormatSample(item, locations)));
+        return Card(
+            new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = $"EVIDENCE · {day.Observations.Count}",
+                        Classes = { "eyebrow" },
+                        Foreground = GraphicalProfile.AccentBrush,
+                    },
+                    new TextBlock
+                    {
+                        Text = lines,
+                        Foreground = GraphicalProfile.TextBrush,
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                },
             },
-        };
-        return expander;
+            GraphicalProfile.SurfaceBrush);
+    }
+
+    static string FormatSample(
+        PresenceObservationDebugPoint item,
+        IReadOnlyList<TrackedLocation> locations)
+    {
+        var time = item.At.ToLocalTime().ToString("HH:mm");
+        var matched = WifiPlacement.Match(item.ConnectedSsid, locations);
+        if (matched is not null)
+        {
+            return item.Position is { } placed
+                ? $"{time} · {matched.DisplayName} via {item.ConnectedSsid} · {placed.Latitude:F5}, {placed.Longitude:F5}"
+                : $"{time} · {matched.DisplayName} via {item.ConnectedSsid}";
+        }
+
+        if (item.Position is { } position)
+        {
+            var accuracy = item.AccuracyMeters is { } meters
+                ? $" ±{meters:0} m"
+                : string.Empty;
+            var network = string.IsNullOrWhiteSpace(item.ConnectedSsid)
+                ? "GPS"
+                : $"GPS · {item.ConnectedSsid}";
+            return $"{time} · {network} · {position.Latitude:F5}, {position.Longitude:F5}{accuracy}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.ConnectedSsid))
+            return $"{time} · Wi-Fi {item.ConnectedSsid} · not one of your places";
+
+        return $"{time} · {item.WifiStatus} · GPS fix not available";
     }
 
     static Button SmallButton(string text, Action action)

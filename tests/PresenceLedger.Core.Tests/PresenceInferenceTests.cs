@@ -99,6 +99,45 @@ public sealed class PresenceInferenceTests
     }
 
     [Test]
+    public async Task Matching_wifi_confirms_arrival_without_a_gps_fix()
+    {
+        var location = WifiLocation();
+        var state = LocationPresenceState.CreateAbsent(location.Id);
+
+        state = Apply(location, state, Wifi(0)).State;
+        state = Apply(location, state, Wifi(60)).State;
+        state = Apply(location, state, Wifi(120)).State;
+        var result = Apply(location, state, Wifi(180));
+
+        await Assert.That(result.Event).IsNotNull();
+        await Assert.That(result.Event!.Transition).IsEqualTo(PresenceTransition.Arrived);
+        await Assert.That(result.Event.At).IsEqualTo(Morning);
+        await Assert.That(result.State.State).IsEqualTo(PresenceState.Present);
+    }
+
+    [Test]
+    public async Task Known_network_skips_the_position_fix()
+    {
+        var home = WifiLocation();
+        var cafe = new TrackedLocation(
+            Guid.Parse("8c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f"),
+            "Cafe",
+            new GeoCircle(new GeoCoordinate(59, 10), 80),
+            null,
+            PresencePolicyDefaults.LocationOnly);
+
+        var matched = WifiPlacement.Match("\"CorpWifi\"", [home, cafe]);
+        var unknown = WifiPlacement.ShouldRequestPositionFix("Guest", [home, cafe]);
+        var known = WifiPlacement.ShouldRequestPositionFix("CorpWifi", [home, cafe]);
+        var missing = WifiPlacement.ShouldRequestPositionFix(null, [home]);
+
+        await Assert.That(matched?.DisplayName).IsEqualTo("Office");
+        await Assert.That(unknown).IsTrue();
+        await Assert.That(known).IsFalse();
+        await Assert.That(missing).IsTrue();
+    }
+
+    [Test]
     public async Task Location_only_policy_requires_repeated_qualifying_fixes()
     {
         var location = new TrackedLocation(

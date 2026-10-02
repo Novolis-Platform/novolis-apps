@@ -97,10 +97,7 @@ public static class PresenceInference
         if (location.Wifi is null || string.IsNullOrWhiteSpace(observation.ConnectedSsid))
             return new PresenceInferenceResult(state, null);
 
-        var matches = string.Equals(
-            NormalizeSsid(observation.ConnectedSsid),
-            location.Wifi.Ssid,
-            StringComparison.Ordinal);
+        var matches = WifiPlacement.SameSsid(observation.ConnectedSsid, location.Wifi.Ssid);
 
         if (state.State == PresenceState.Present)
         {
@@ -198,21 +195,20 @@ public static class PresenceInference
         DateTimeOffset at)
     {
         var startedAt = candidate.StartedAt;
-        if (startedAt is null && location.Wifi is null)
-        {
+        if (startedAt is null && candidate.MatchingWifiObservations >= 1)
+            startedAt = candidate.FirstMatchingWifiAt;
+        else if (startedAt is null && location.Wifi is null)
             startedAt = candidate.FirstInsideAt;
-        }
-        else if (startedAt is null
-            && candidate.FirstInsideAt is { } firstInside
-            && candidate.FirstMatchingWifiAt is { } firstWifi)
-        {
-            startedAt = firstInside >= firstWifi ? firstInside : firstWifi;
-        }
+        else if (startedAt is null && candidate.PositionObservations >= 2)
+            startedAt = candidate.FirstInsideAt;
 
         candidate = candidate with { StartedAt = startedAt };
+        // A matching network is enough to place the person. GPS remains the
+        // path for places without a network, and for a network that does not match.
         var hasRequiredEvidence = location.Wifi is null
             ? candidate.PositionObservations >= 2
-            : candidate.PositionObservations >= 1 && candidate.MatchingWifiObservations >= 1;
+            : candidate.MatchingWifiObservations >= 1
+                || candidate.PositionObservations >= 2;
         if (startedAt is null
             || !hasRequiredEvidence
             || at - startedAt.Value < location.Policy.ConfirmationDuration)
@@ -304,15 +300,5 @@ public static class PresenceInference
                 null,
                 at),
             presenceEvent);
-    }
-
-    static string NormalizeSsid(string ssid)
-    {
-        var normalized = ssid.Trim();
-        if (normalized.Length >= 2
-            && normalized[0] == '"'
-            && normalized[^1] == '"')
-            normalized = normalized[1..^1];
-        return normalized;
     }
 }

@@ -2,6 +2,9 @@ using System.Globalization;
 using System.Text;
 using Novolis.Pdf.Abstractions;
 using Novolis.Pdf.Platform;
+#if ANDROID
+using Novolis.IO.Platform.Android;
+#endif
 
 namespace NovolisPdfReader;
 
@@ -16,10 +19,14 @@ public sealed class PdfReaderDiagnosticsLog
     /// <summary>Creates the log under the current user's Novolis data folder.</summary>
     public PdfReaderDiagnosticsLog()
     {
+#if ANDROID
+        var directory = AndroidAppStorage.DefaultRoot("NovolisPdfReader");
+#else
         var directory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Novolis",
             "pdf-reader");
+#endif
         Directory.CreateDirectory(directory);
         FilePath = Path.Combine(directory, "diagnostics.log");
     }

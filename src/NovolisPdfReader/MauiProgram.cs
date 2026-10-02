@@ -3,6 +3,9 @@ using Microsoft.Maui.Hosting;
 using Novolis.Maui.GraphicalProfile;
 using Novolis.Maui.PdfViewer;
 using Novolis.Pdf.Documents;
+#if ANDROID
+using Novolis.IO.Platform.Android;
+#endif
 
 namespace NovolisPdfReader;
 
@@ -24,7 +27,7 @@ public static class MauiProgram
             .AddSingleton<PdfDocumentPicker>()
             .AddSingleton<IPdfDocumentStateStore>(
                 _ => new JsonPdfDocumentStateStore(
-                    Path.Combine(FileSystem.Current.AppDataDirectory, "reader-state")))
+                    Path.Combine(AppStorageRoot(), "reader-state")))
             .AddSingleton<PdfViewer>()
             .AddSingleton<MainPage>();
         PdfReaderDiagnosticsLog.Shared.InstallProcessHooks();
@@ -32,5 +35,14 @@ public static class MauiProgram
         var app = builder.Build();
         PdfActivationBridge.Initialize(app.Services.GetRequiredService<PdfActivationInbox>());
         return app;
+    }
+
+    static string AppStorageRoot()
+    {
+#if ANDROID
+        return AndroidAppStorage.DefaultRoot("NovolisPdfReader");
+#else
+        return FileSystem.Current.AppDataDirectory;
+#endif
     }
 }
