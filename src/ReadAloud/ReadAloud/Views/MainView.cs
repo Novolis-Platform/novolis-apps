@@ -9,8 +9,10 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
+using Novolis.Avalonia.Ndjson;
 using Novolis.Avalonia.Speech;
 using Novolis.Avalonia.Diagnostics;
+using Novolis.IO.Ndjson;
 using Novolis.Logging.Diagnostics;
 using ReadAloud.Reading;
 using ReadAloud.Services;
@@ -50,6 +52,10 @@ public sealed class MainView : DockPanel
     readonly TextBlock _deviceUsage;
     readonly TextBlock _usageStatus;
     readonly TextBlock _diagnosticsView;
+    readonly Button _openDiagnosticsButton;
+    readonly NdjsonSliceView _diagnosticRecords;
+    readonly NdjsonFileReader _ndjsonReader = new();
+    INdjsonDocument? _diagnosticDocument;
     readonly ComboBox _voicePicker;
     readonly TextBox _endpointBox;
     readonly TextBox _keyBox;
@@ -171,6 +177,19 @@ public sealed class MainView : DockPanel
             "Sign in and select an Azure Speech service to load the last 30 days.",
             13);
         _diagnosticsView = ReadAloudTheme.Muted("Diagnostics appear here after listen, save, and usage refresh.", 12);
+        _openDiagnosticsButton = ReadAloudTheme.Button(
+            "Browse full diagnostic journal",
+            ReadAloudButtonKind.Secondary);
+        _openDiagnosticsButton.Click += async (_, _) => await OpenDiagnosticsAsync();
+        _diagnosticRecords = new NdjsonSliceView
+        {
+            IsVisible = false,
+            ErrorHandler = (_, error) =>
+            {
+                SetStatus($"Diagnostic journal unavailable: {error.Message}");
+                return Task.CompletedTask;
+            },
+        };
         _usageRefreshButton = ReadAloudTheme.Button(
             "Refresh usage",
             ReadAloudButtonKind.Secondary);
@@ -249,6 +268,8 @@ public sealed class MainView : DockPanel
                     _usageRefreshButton,
                     ReadAloudTheme.Muted("Last operation", 12),
                     _diagnosticsView,
+                    _openDiagnosticsButton,
+                    _diagnosticRecords,
                     diagnosticsBtn,
                 },
             },
@@ -301,6 +322,7 @@ public sealed class MainView : DockPanel
         {
             _speech.Stop();
             ReleaseWake();
+            _ = CloseDiagnosticDocumentAsync();
         };
 
         if (SharedTextInbox.TryTake(out var shared))
@@ -1464,6 +1486,41 @@ public sealed class MainView : DockPanel
             _logger.LogError(ex, "Read Aloud diagnostics export failed.");
             SetStatus($"Diagnostics failed: {ex.Message}");
         }
+    }
+
+    async Task OpenDiagnosticsAsync()
+    {
+        var path = _journal.GetRecentFiles().FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            SetStatus("No diagnostic journal has been recorded yet.");
+            return;
+        }
+
+        try
+        {
+            var document = await _ndjsonReader.OpenAsync(new FileInfo(path));
+            var previous = _diagnosticDocument;
+            _diagnosticDocument = document;
+            await _diagnosticRecords.OpenAsync(document, Path.GetFileName(path));
+            _diagnosticRecords.IsVisible = true;
+            if (previous is not null)
+                await previous.DisposeAsync();
+            SetStatus($"Browsing {Path.GetFileName(path)}");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Diagnostic journal unavailable: {ex.Message}");
+        }
+    }
+
+    async Task CloseDiagnosticDocumentAsync()
+    {
+        if (_diagnosticDocument is not { } document)
+            return;
+        _diagnosticDocument = null;
+        _diagnosticRecords.IsVisible = false;
+        await document.DisposeAsync();
     }
 
     void SetStatus(string text) => _status.Text = text;

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
   <files-path name="novolis_app_files" path="." />
+  <external-files-path name="novolis_app_external" path="Novolis/ReadAloud/" />
+  <external-path name="novolis_shared_documents" path="Documents/Novolis/ReadAloud/" />
 </paths>

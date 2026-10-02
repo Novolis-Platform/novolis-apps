@@ -37,7 +37,11 @@ sealed class DayMapSession
     readonly MapControl _map;
     readonly PresenceObservationDebugPoint[] _samples;
     readonly TrailPoint[] _path;
+    readonly MapTrackOverlay[] _pathTracks;
+    readonly List<MapTrackOverlay> _visibleTracks;
     readonly MapMarker[] _placeMarkers;
+    readonly MapMarker[] _markers;
+    readonly GeoCoordinate[] _headPoints = new GeoCoordinate[2];
     readonly GeoCoordinate[] _fitPoints;
     readonly Slider _scrub;
     readonly TextBlock _clock;
@@ -48,6 +52,7 @@ sealed class DayMapSession
     readonly DateTimeOffset _end;
     int _speedIndex = 1;
     bool _applying;
+    bool _fitApplied;
     DateTimeOffset _cursor;
 
     DayMapSession(
@@ -65,6 +70,7 @@ sealed class DayMapSession
         _start = _samples.Length == 0 ? DateTimeOffset.UnixEpoch : _samples[0].At;
         _end = _samples.Length == 0 ? _start : _samples[^1].At;
         _cursor = _end;
+        _pathTracks = new MapTrackOverlay[global::System.Math.Max(0, _path.Length - 1)];
         var center = locations.FirstOrDefault()?.Area.Center
             ?? _samples.FirstOrDefault()?.Position
             ?? new GeoCoordinate(58.14623, 7.99517);
@@ -76,6 +82,7 @@ sealed class DayMapSession
                 8,
                 PlaceInk(index)))
             .ToArray();
+        _markers = new MapMarker[_placeMarkers.Length + 1];
         _map = new MapControl
         {
             Viewport = new MapViewport(center, locations.Count == 0 ? 12 : 14),
@@ -97,6 +104,17 @@ sealed class DayMapSession
             .Select(location => location.Area.Center)
             .Concat(_path.Select(item => item.Position))
             .ToArray();
+        _visibleTracks = new List<MapTrackOverlay>(_pathTracks.Length + 1);
+        for (var index = 0; index < _pathTracks.Length; index++)
+        {
+            var ink = SampleInk(Fraction(_path[index + 1].At));
+            _pathTracks[index] = new MapTrackOverlay(
+                $"day-{index + 1}",
+                [_path[index].Position, _path[index + 1].Position],
+                null,
+                ink,
+                ink);
+        }
         var span = global::System.Math.Max(1, (_end - _start).TotalSeconds);
         _clock = new TextBlock
         {
@@ -139,6 +157,16 @@ sealed class DayMapSession
         ToolTip.SetTip(_speed, "Playback speed");
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _timer.Tick += (_, _) => Advance();
+        _map.SizeChanged += (_, args) =>
+        {
+            if (!_fitApplied
+                && args.NewSize.Width > 0
+                && args.NewSize.Height > 0)
+            {
+                _fitApplied = true;
+                _map.FitToContent(_fitPoints);
+            }
+        };
         Render();
 
         var zoomIn = OverlayButton("+");
@@ -238,6 +266,20 @@ sealed class DayMapSession
         frame.Children.Add(legend);
         Grid.SetRow(legend, 3);
         frame.DetachedFromVisualTree += (_, _) => _timer.Stop();
+        frame.AttachedToVisualTree += (_, _) =>
+        {
+            if (!_fitApplied)
+                Dispatcher.UIThread.Post(
+                    () =>
+                    {
+                        if (_map.Bounds.Width > 0 && _map.Bounds.Height > 0)
+                        {
+                            _fitApplied = true;
+                            _map.FitToContent(_fitPoints);
+                        }
+                    },
+                    DispatcherPriority.Loaded);
+        };
         Surface = frame;
         Map = _map;
     }
@@ -267,43 +309,58 @@ sealed class DayMapSession
         if (_samples.Length == 0)
         {
             _map.Markers = [];
-            _map.Tracks = [];
+            _visibleTracks.Clear();
+            _map.Tracks = _visibleTracks;
+            _map.RequestRender();
             _clock.Text = "No samples";
             return;
         }
 
         var amount = Fraction(_cursor);
-        var visible = new List<TrailPoint>(_path.Length);
-        foreach (var point in _path)
+        var visibleCount = UpperBound(_path, _cursor);
+        var head = PositionAt(_cursor);
+        _visibleTracks.Clear();
+        for (var index = 0; index < visibleCount - 1; index++)
         {
-            if (point.At > _cursor)
-                break;
-
-            visible.Add(point);
+            _visibleTracks.Add(_pathTracks[index]);
         }
 
-        var head = PositionAt(_cursor);
-        if (visible.Count == 0 || Meters(visible[^1].Position, head) >= 1)
-            visible.Add(new TrailPoint(_cursor, head));
-
-        var tracks = new List<MapTrackOverlay>(global::System.Math.Max(0, visible.Count - 1));
-        for (var index = 1; index < visible.Count; index++)
+        if (visibleCount > 0
+            && Meters(_path[visibleCount - 1].Position, head) >= 1)
         {
-            var ink = SampleInk(Fraction(visible[index].At));
-            tracks.Add(new MapTrackOverlay(
-                $"day-{index}",
-                [visible[index - 1].Position, visible[index].Position],
+            _headPoints[0] = _path[visibleCount - 1].Position;
+            _headPoints[1] = head;
+            var ink = SampleInk(amount);
+            _visibleTracks.Add(new MapTrackOverlay(
+                "day-head",
+                _headPoints,
                 null,
                 ink,
                 ink));
         }
 
-        var markers = new MapMarker[_placeMarkers.Length + 1];
-        _placeMarkers.CopyTo(markers, 0);
-        markers[^1] = new MapMarker("now", head, null, 10, SampleInk(amount));
-        _map.Tracks = tracks;
-        _map.Markers = markers;
+        _placeMarkers.CopyTo(_markers, 0);
+        _markers[^1] = new MapMarker("now", head, null, 10, SampleInk(amount));
+        _map.Tracks = _visibleTracks;
+        _map.Markers = _markers;
+        _map.RequestRender();
         _clock.Text = _cursor.ToLocalTime().ToString("HH:mm:ss");
+    }
+
+    static int UpperBound(TrailPoint[] points, DateTimeOffset at)
+    {
+        var lower = 0;
+        var upper = points.Length;
+        while (lower < upper)
+        {
+            var middle = lower + ((upper - lower) / 2);
+            if (points[middle].At <= at)
+                lower = middle + 1;
+            else
+                upper = middle;
+        }
+
+        return lower;
     }
 
     void Step(int direction)
@@ -431,9 +488,21 @@ sealed class DayMapSession
         var amount = span <= 0 ? 1 : (at - from.At).TotalSeconds / span;
         var origin = from.Position!.Value;
         var destination = to.Position!.Value;
+        var longitudeDelta = destination.Longitude - origin.Longitude;
+        if (longitudeDelta > 180)
+            longitudeDelta -= 360;
+        else if (longitudeDelta < -180)
+            longitudeDelta += 360;
+
+        var longitude = origin.Longitude + (longitudeDelta * amount);
+        if (longitude > 180)
+            longitude -= 360;
+        else if (longitude < -180)
+            longitude += 360;
+
         return new GeoCoordinate(
             origin.Latitude + ((destination.Latitude - origin.Latitude) * amount),
-            origin.Longitude + ((destination.Longitude - origin.Longitude) * amount));
+            longitude);
     }
 
     static TrailPoint[] Decimate(PresenceObservationDebugPoint[] samples)
@@ -460,7 +529,12 @@ sealed class DayMapSession
     {
         const double metersPerDegree = 111_320;
         var latitude = (origin.Latitude + destination.Latitude) * 0.5 * (global::System.Math.PI / 180);
-        var east = (destination.Longitude - origin.Longitude) * metersPerDegree * global::System.Math.Cos(latitude);
+        var longitudeDelta = destination.Longitude - origin.Longitude;
+        if (longitudeDelta > 180)
+            longitudeDelta -= 360;
+        else if (longitudeDelta < -180)
+            longitudeDelta += 360;
+        var east = longitudeDelta * metersPerDegree * global::System.Math.Cos(latitude);
         var north = (destination.Latitude - origin.Latitude) * metersPerDegree;
         return global::System.Math.Sqrt((east * east) + (north * north));
     }

@@ -20,10 +20,12 @@
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Identity.Client" />
+    <LibraryReference Include="Novolis.IO.Platform.Android" />
     <LibraryReference Include="Novolis.Audio.Voice.Platform.Android" />
     <LibraryReference Include="Novolis.Avalonia.Speech" />
     <LibraryReference Include="Novolis.Avalonia.Mobile.Android" />
     <LibraryReference Include="Novolis.Logging.Diagnostics" />
+    <LibraryReference Include="Novolis.Logging.Ndjson" />
     <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
     <PackageReference Include="Xamarin.AndroidX.AppCompat" />
     <PackageReference Include="Xamarin.AndroidX.Core.SplashScreen" />

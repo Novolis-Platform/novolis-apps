@@ -37,10 +37,13 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
+    <LibraryReference Include="Novolis.IO.Ndjson" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
+    <LibraryReference Include="Novolis.Maui.Ndjson" />
     <LibraryReference Include="Novolis.Maui.PdfViewer" />
     <LibraryReference Include="Novolis.Maui.Agent" />
     <LibraryReference Include="Novolis.Maui.Agent.Protocol" />
+    <LibraryReference Include="Novolis.Storage.Ndjson" />
     <LibraryReference Include="Novolis.IO.Platform.Android"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
     <LibraryReference Include="Novolis.Windows.Pdf"

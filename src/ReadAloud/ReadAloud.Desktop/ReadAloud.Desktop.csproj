@@ -21,6 +21,7 @@
     <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
     <LibraryReference Include="Novolis.Avalonia.Mobile.Desktop" />
     <LibraryReference Include="Novolis.Logging.Diagnostics" />
+    <LibraryReference Include="Novolis.Logging.Ndjson" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

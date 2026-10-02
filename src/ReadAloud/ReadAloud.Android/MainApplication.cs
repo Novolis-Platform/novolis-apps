@@ -10,6 +10,7 @@ using Novolis.Audio.Voice.Platform.Android;
 using Novolis.Avalonia.Diagnostics;
 using Novolis.Avalonia.Mobile.Android;
 using Novolis.Avalonia.Speech;
+using Novolis.IO.Platform.Android;
 using Novolis.Logging.Diagnostics;
 using Novolis.Manuscript.Export.Audio;
 using ReadAloud;
@@ -30,11 +31,11 @@ public class MainApplication : AvaloniaAndroidApplication<App>
 
     public override void OnCreate()
     {
-        var filesDirectory = global::Android.App.Application.Context?.FilesDir?.AbsolutePath
-            ?? throw new InvalidOperationException("Android application files directory is unavailable.");
         _diagnostics = new DiagnosticJournal(new DiagnosticJournalOptions
         {
-            DirectoryPath = Path.Combine(filesDirectory, "diagnostics"),
+            DirectoryPath = Path.Combine(
+                AndroidAppStorage.DefaultRoot("ReadAloud"),
+                "diagnostics"),
             ApplicationName = "ReadAloud",
             StartupState = AndroidStartupState(),
         });

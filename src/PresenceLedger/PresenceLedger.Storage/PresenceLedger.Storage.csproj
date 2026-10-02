@@ -6,7 +6,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <LibraryReference Include="Novolis.IO.Ndjson" />
+    <LibraryReference Include="Novolis.Storage.Ndjson" />
     <ProjectReference Include="..\PresenceLedger.Core\PresenceLedger.Core.csproj" />
   </ItemGroup>
 </Project>

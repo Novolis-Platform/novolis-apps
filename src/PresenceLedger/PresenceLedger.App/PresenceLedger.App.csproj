@@ -14,9 +14,11 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
+    <LibraryReference Include="Novolis.Avalonia.Ndjson" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <LibraryReference Include="Novolis.Avalonia.Map" />
     <LibraryReference Include="Novolis.Avalonia.Mobile" />
+    <LibraryReference Include="Novolis.IO.Ndjson" />
     <LibraryReference Include="Novolis.IO.Maps" />
     <LibraryReference Include="Novolis.Math.Geometry" />
   </ItemGroup>

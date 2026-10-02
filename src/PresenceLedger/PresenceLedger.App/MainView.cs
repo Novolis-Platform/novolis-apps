@@ -3,10 +3,13 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Map;
 using Novolis.Avalonia.Mobile;
+using Novolis.Avalonia.Ndjson;
+using Novolis.IO.Ndjson;
 using Novolis.IO.Maps;
 using Novolis.Math.Geometry;
 using PresenceLedger.Core;
@@ -41,6 +44,9 @@ public sealed class MainView : UserControl
     Slider? _radiusInput;
     TextBlock? _radiusLabel;
     MapControl? _pickerMap;
+    CancellationTokenSource? _searchCancellation;
+    NdjsonSliceView? _ledgerViewer;
+    INdjsonDocument? _ledgerDocument;
 
     /// <summary>Creates the shared product view.</summary>
     public MainView(
@@ -69,6 +75,12 @@ public sealed class MainView : UserControl
         Background = GraphicalProfile.BackgroundBrush;
         BuildShell();
         AttachedToVisualTree += async (_, _) => await ShowTodayAsync();
+        DetachedFromVisualTree += (_, _) =>
+        {
+            _searchCancellation?.Cancel();
+            _searchCancellation = null;
+            _ = CloseLedgerDocumentAsync();
+        };
     }
 
     void BuildShell()
@@ -160,6 +172,7 @@ public sealed class MainView : UserControl
         navigation.Children.Add(NavigationButton("Map", async () => await ShowMapAsync()));
         navigation.Children.Add(NavigationButton("Places", async () => await ShowLocationsAsync()));
         navigation.Children.Add(NavigationButton("History", async () => await ShowHistoryAsync()));
+        navigation.Children.Add(NavigationButton("Report", async () => await ShowReportAsync()));
         navigation.Children.Add(NavigationButton("More", async () => await ShowDiagnosticsAsync()));
         var navigationScroll = new ScrollViewer
         {
@@ -171,7 +184,7 @@ public sealed class MainView : UserControl
         };
         header.Children.Add(navigationScroll);
 
-        _status.Text = "Local storage · map and address search use Kartverket services";
+        _status.Text = "Local storage · Kartverket maps · Geonorge address search";
         _status.Foreground = GraphicalProfile.MutedBrush;
         _status.FontSize = 11;
         _status.Margin = new Thickness(16, 4);
@@ -458,7 +471,7 @@ public sealed class MainView : UserControl
                     },
                     new TextBlock
                     {
-                        Text = $"{_displayDate:yyyy-MM-dd} · two fingers pan and pinch. Earlier samples are darker, later samples are lighter.",
+                        Text = $"{_displayDate:yyyy-MM-dd} · drag to pan and pinch to zoom. Earlier samples are darker, later samples are lighter.",
                         Foreground = GraphicalProfile.MutedBrush,
                         TextWrapping = TextWrapping.Wrap,
                     },
@@ -483,7 +496,11 @@ public sealed class MainView : UserControl
             try
             {
                 await map.RefreshTilesAsync();
-                SetStatus("Map ready");
+                SetStatus(
+                    map.ErrorMessage
+                    ?? (map.HasStaleTiles
+                        ? "Map ready with cached tiles"
+                        : "Map ready"));
             }
             catch (Exception ex)
             {
@@ -569,6 +586,8 @@ public sealed class MainView : UserControl
 
     async Task ShowAddLocationAsync(TrackedLocation? existing = null)
     {
+        _searchCancellation?.Cancel();
+        _searchCancellation = null;
         _editingLocation = existing;
         _selectedCoordinate = existing?.Area.Center;
         _nameInput = new TextBox
@@ -659,9 +678,19 @@ public sealed class MainView : UserControl
                 SetStatus("Enter an address to search.");
                 return;
             }
+
+            _searchCancellation?.Cancel();
+            using var searchCancellation = new CancellationTokenSource();
+            _searchCancellation = searchCancellation;
+            var query = searchInput.Text.Trim();
             try
             {
-                var results = await _searchProvider.SearchAsync(searchInput.Text);
+                var results = await _searchProvider.SearchAsync(
+                    query,
+                    searchCancellation.Token);
+                if (!ReferenceEquals(_searchCancellation, searchCancellation))
+                    return;
+
                 if (results.Count == 0)
                 {
                     searchResults.Children.Add(new TextBlock
@@ -689,9 +718,18 @@ public sealed class MainView : UserControl
                     searchResults.Children.Add(resultButton);
                 }
             }
+            catch (OperationCanceledException)
+            {
+            }
             catch (Exception ex)
             {
-                SetStatus($"Search unavailable: {ex.Message}");
+                if (!searchCancellation.IsCancellationRequested)
+                    SetStatus($"Search unavailable: {ex.Message}");
+            }
+            finally
+            {
+                if (ReferenceEquals(_searchCancellation, searchCancellation))
+                    _searchCancellation = null;
             }
         };
 
@@ -839,6 +877,88 @@ public sealed class MainView : UserControl
         }
     }
 
+    async Task ShowReportAsync()
+    {
+        try
+        {
+            var locations = await ReadAllAsync(_locations.ReadHistoryAsync());
+            var events = await ReadAllAsync(_events.ReadAsync());
+            var zone = TimeZoneInfo.Local;
+            var asOf = DateTimeOffset.Now;
+            var report = AttendanceReport.Build(events, locations);
+            _content.Content = new ScrollViewer
+            {
+                Content = PresenceReportView.Build(
+                    report,
+                    zone,
+                    asOf,
+                    () => ExportReportAsync(report, zone)),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                HorizontalScrollBarVisibility =
+                    Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility =
+                    Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            };
+            var stays = report.Places.Sum(place => place.VisitCount);
+            SetStatus(stays == 0
+                ? "No stays yet"
+                : $"{stays} stay{(stays == 1 ? string.Empty : "s")} across {report.Places.Count} place{(report.Places.Count == 1 ? string.Empty : "s")}");
+        }
+        catch (Exception ex)
+        {
+            _content.Content = ErrorSurface(
+                "Report is unavailable",
+                "The local event ledger could not be read.",
+                ex.Message,
+                () => _ = ShowReportAsync());
+            SetStatus($"Could not read the report: {ex.Message}");
+        }
+    }
+
+    async Task ExportReportAsync(AttendanceReport report, TimeZoneInfo zone)
+    {
+        var text = report.Format(DateTimeOffset.Now, zone, CultureInfo.CurrentCulture);
+        var exporter = _services.GetService<IReportExport>();
+        if (exporter is not null)
+        {
+            try
+            {
+                await exporter.ExportAsync(text);
+                SetStatus("Report share opened");
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Could not export the report: {ex.Message}");
+            }
+
+            return;
+        }
+
+        var top = TopLevel.GetTopLevel(this);
+        if (top?.StorageProvider is { CanSave: true } storage)
+        {
+            var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export presence report",
+                SuggestedFileName = "presence-report.txt",
+                DefaultExtension = "txt",
+            });
+            if (file is null)
+            {
+                SetStatus("Export cancelled");
+                return;
+            }
+
+            await using var stream = await file.OpenWriteAsync();
+            await using var writer = new StreamWriter(stream);
+            await writer.WriteAsync(text);
+            SetStatus("Report saved");
+            return;
+        }
+
+        SetStatus("This host cannot export the report.");
+    }
+
     async Task ShowHistoryAsync()
     {
         try
@@ -928,6 +1048,7 @@ public sealed class MainView : UserControl
 
     async Task ShowDiagnosticsAsync()
     {
+        await CloseLedgerDocumentAsync();
         var locations = await ReadAllAsync(_locations.ReadAsync());
         var states = await ReadAllAsync(_states.ReadAsync());
         var locationSource = _services.GetService<ILocationReadingSource>();
@@ -1008,8 +1129,28 @@ public sealed class MainView : UserControl
                 stack.Children.Add(DiagnosticLine(
                     file.RelativePath,
                     FormatFileSize(file.LengthBytes)));
+                var open = new Button
+                {
+                    Content = $"Browse {file.RelativePath}",
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    Background = GraphicalProfile.SurfaceBrush,
+                    Foreground = GraphicalProfile.TextBrush,
+                };
+                open.Click += async (_, _) => await OpenLedgerFileAsync(file);
+                stack.Children.Add(open);
             }
         }
+
+        _ledgerViewer = new NdjsonSliceView
+        {
+            IsVisible = false,
+            ErrorHandler = (_, error) =>
+            {
+                SetStatus($"Ledger file unavailable: {error.Message}");
+                return Task.CompletedTask;
+            },
+        };
+        stack.Children.Add(_ledgerViewer);
 
         var save = new Button
         {
@@ -1055,6 +1196,38 @@ public sealed class MainView : UserControl
         };
         stack.Children.Add(save);
         stack.Children.Add(share);
+    }
+
+    async Task OpenLedgerFileAsync(LedgerFile file)
+    {
+        if (_ledgerViewer is not { } viewer)
+            return;
+
+        try
+        {
+            var document = await new NdjsonFileReader().OpenAsync(new FileInfo(file.FullPath));
+            var previous = _ledgerDocument;
+            _ledgerDocument = document;
+            await viewer.OpenAsync(document, file.RelativePath);
+            viewer.IsVisible = true;
+            if (previous is not null)
+                await previous.DisposeAsync();
+            SetStatus($"Browsing {file.RelativePath}");
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Ledger file unavailable: {ex.Message}");
+        }
+    }
+
+    async Task CloseLedgerDocumentAsync()
+    {
+        if (_ledgerDocument is not { } document)
+            return;
+        _ledgerDocument = null;
+        if (_ledgerViewer is not null)
+            _ledgerViewer.IsVisible = false;
+        await document.DisposeAsync();
     }
 
     static string FormatFileSize(long bytes) =>

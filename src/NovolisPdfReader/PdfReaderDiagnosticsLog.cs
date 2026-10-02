@@ -1,7 +1,6 @@
-using System.Globalization;
-using System.Text;
 using Novolis.Pdf.Abstractions;
 using Novolis.Pdf.Platform;
+using Novolis.Storage.Ndjson;
 #if ANDROID
 using Novolis.IO.Platform.Android;
 #endif
@@ -12,6 +11,7 @@ namespace NovolisPdfReader;
 public sealed class PdfReaderDiagnosticsLog
 {
     private readonly Lock _gate = new();
+    private readonly NdjsonStore _store;
 
     /// <summary>Process-wide log used before MAUI dependency injection is ready.</summary>
     public static PdfReaderDiagnosticsLog Shared { get; } = new();
@@ -28,7 +28,8 @@ public sealed class PdfReaderDiagnosticsLog
             "pdf-reader");
 #endif
         Directory.CreateDirectory(directory);
-        FilePath = Path.Combine(directory, "diagnostics.log");
+        FilePath = Path.Combine(directory, "diagnostics.ndjson");
+        _store = new NdjsonStore(FilePath);
     }
 
     /// <summary>Absolute path of the append-only log file.</summary>
@@ -57,29 +58,23 @@ public sealed class PdfReaderDiagnosticsLog
         ArgumentException.ThrowIfNullOrWhiteSpace(stage);
         ArgumentNullException.ThrowIfNull(message);
 
-        var block = new StringBuilder();
-        block.AppendLine("========");
-        block.Append("utc: ").AppendLine(DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture));
-        block.Append("stage: ").AppendLine(stage);
-        block.Append("message: ").AppendLine(message);
-        block.Append("pid: ").AppendLine(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
-        AppendRequest(block, request);
-        if (exception is not null)
-            AppendException(block, exception);
-        if (diagnostics is { Count: > 0 })
+        var record = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            block.AppendLine("engineDiagnostics:");
-            foreach (var entry in diagnostics)
-                AppendDiagnostic(block, entry, "  ");
-        }
-
-        block.AppendLine();
-        var text = block.ToString();
+            ["utc"] = DateTimeOffset.UtcNow,
+            ["stage"] = stage,
+            ["message"] = message,
+            ["pid"] = Environment.ProcessId,
+            ["request"] = CreateRequestRecord(request),
+            ["exception"] = exception is null ? null : CreateExceptionRecord(exception),
+            ["engineDiagnostics"] = diagnostics is { Count: > 0 }
+                ? diagnostics.Select(CreateDiagnosticRecord).ToArray()
+                : null,
+        };
         lock (_gate)
         {
             try
             {
-                File.AppendAllText(FilePath, text, Encoding.UTF8);
+                _store.Append(record, flushToDisk: exception is not null);
             }
             catch (Exception writeException)
             {
@@ -91,90 +86,106 @@ public sealed class PdfReaderDiagnosticsLog
     /// <summary>Returns the trailing portion of the log for in-app display.</summary>
     public string ReadTail(int maximumCharacters = 12_000)
     {
+        if (maximumCharacters <= 0)
+            return string.Empty;
+
         lock (_gate)
         {
             if (!File.Exists(FilePath))
                 return string.Empty;
-            var text = File.ReadAllText(FilePath, Encoding.UTF8);
+
+            using var stream = new FileStream(
+                FilePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            var byteBudget = Math.Max(1024L, maximumCharacters * 4L);
+            stream.Seek(Math.Max(0, stream.Length - byteBudget), SeekOrigin.Begin);
+            using var reader = new StreamReader(stream);
+            var text = reader.ReadToEnd();
             return text.Length <= maximumCharacters
                 ? text
                 : text[^maximumCharacters..];
         }
     }
 
-    private static void AppendRequest(StringBuilder block, PdfOpenRequest? request)
+    private static object? CreateRequestRecord(PdfOpenRequest? request)
     {
         if (request is null)
-            return;
+            return null;
 
         var descriptor = request.Descriptor;
-        block.Append("displayName: ").AppendLine(descriptor.DisplayName);
-        block.Append("stableId: ").AppendLine(descriptor.StableId ?? string.Empty);
-        block.Append("declaredBytes: ").AppendLine(
-            descriptor.Length?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
+        var record = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["displayName"] = descriptor.DisplayName,
+            ["stableId"] = descriptor.StableId,
+            ["declaredBytes"] = descriptor.Length,
+        };
         var path = descriptor.StableId;
         if (string.IsNullOrWhiteSpace(path) || !LooksLikePath(path))
-            return;
+            return record;
 
         try
         {
             var exists = File.Exists(path);
-            block.Append("pathExists: ").AppendLine(exists.ToString());
+            record["pathExists"] = exists;
             if (!exists)
-                return;
+                return record;
 
             var info = new FileInfo(path);
-            block.Append("fileBytes: ").AppendLine(info.Length.ToString(CultureInfo.InvariantCulture));
-            block.Append("fileUtc: ").AppendLine(info.LastWriteTimeUtc.ToString("O", CultureInfo.InvariantCulture));
-            block.Append("headerHex: ").AppendLine(ReadHeaderHex(path));
+            record["fileBytes"] = info.Length;
+            record["fileUtc"] = info.LastWriteTimeUtc;
+            record["headerHex"] = ReadHeaderHex(path);
         }
         catch (Exception probeException)
         {
-            block.Append("pathProbe: ").AppendLine(probeException.ToString());
+            record["pathProbeException"] = probeException.ToString();
         }
+
+        return record;
     }
 
-    private static void AppendException(StringBuilder block, Exception exception)
+    private static object CreateExceptionRecord(Exception exception)
     {
-        block.Append("exceptionType: ").AppendLine(exception.GetType().FullName);
-        block.AppendLine("exception:");
-        block.AppendLine(exception.ToString());
+        var record = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["type"] = exception.GetType().FullName,
+            ["text"] = exception.ToString(),
+        };
+        var diagnostics = new List<object>();
         if (exception is PdfReaderException reader)
-            AppendDiagnostic(block, reader.Diagnostic, string.Empty);
+            diagnostics.Add(CreateDiagnosticRecord(reader.Diagnostic));
 
         var inner = exception.InnerException;
-        var depth = 1;
-        while (inner is not null && depth <= 8)
+        for (var depth = 1; inner is not null && depth <= 8; depth++)
         {
-            block.Append("inner[").Append(depth.ToString(CultureInfo.InvariantCulture)).Append("]: ")
-                .AppendLine(inner.GetType().FullName);
-            block.AppendLine(inner.ToString());
+            var innerRecord = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["type"] = inner.GetType().FullName,
+                ["text"] = inner.ToString(),
+            };
             if (inner is PdfReaderException innerReader)
-                AppendDiagnostic(block, innerReader.Diagnostic, "  ");
+                innerRecord["diagnostic"] = CreateDiagnosticRecord(innerReader.Diagnostic);
+            diagnostics.Add(innerRecord);
             inner = inner.InnerException;
-            depth++;
         }
+
+        record["inner"] = diagnostics.Count == 0 ? null : diagnostics;
+        return record;
     }
 
-    private static void AppendDiagnostic(
-        StringBuilder block,
-        PdfDiagnosticEntry entry,
-        string indent)
+    private static object CreateDiagnosticRecord(PdfDiagnosticEntry entry)
     {
-        block.Append(indent).Append("diagnostic.severity: ").AppendLine(entry.Severity.ToString());
-        block.Append(indent).Append("diagnostic.code: ").AppendLine(entry.Code);
-        block.Append(indent).Append("diagnostic.message: ").AppendLine(entry.Message);
-        if (entry.ByteOffset is { } offset)
-            block.Append(indent).Append("diagnostic.byteOffset: ")
-                .AppendLine(offset.ToString(CultureInfo.InvariantCulture));
-        if (entry.ObjectNumber is { } objectNumber)
-            block.Append(indent).Append("diagnostic.objectNumber: ")
-                .AppendLine(objectNumber.ToString(CultureInfo.InvariantCulture));
-        if (entry.PageIndex is { } pageIndex)
-            block.Append(indent).Append("diagnostic.pageIndex: ")
-                .AppendLine(pageIndex.ToString(CultureInfo.InvariantCulture));
-        if (entry.Exception is { } nested)
-            block.Append(indent).Append("diagnostic.exception: ").AppendLine(nested.ToString());
+        return new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["severity"] = entry.Severity.ToString(),
+            ["code"] = entry.Code,
+            ["message"] = entry.Message,
+            ["byteOffset"] = entry.ByteOffset,
+            ["objectNumber"] = entry.ObjectNumber,
+            ["pageIndex"] = entry.PageIndex,
+            ["exception"] = entry.Exception?.ToString(),
+        };
     }
 
     private static bool LooksLikePath(string value) =>

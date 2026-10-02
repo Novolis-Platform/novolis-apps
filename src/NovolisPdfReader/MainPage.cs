@@ -1,6 +1,8 @@
 using Microsoft.Maui.Controls.Shapes;
 using Microsoft.Maui.Devices;
+using Novolis.IO.Ndjson;
 using Novolis.Maui.GraphicalProfile;
+using Novolis.Maui.Ndjson;
 using Profile = Novolis.Maui.GraphicalProfile.GraphicalProfile;
 using Novolis.Maui.PdfViewer;
 using Novolis.Pdf.Abstractions;
@@ -16,6 +18,8 @@ public sealed class MainPage : ContentPage
     private readonly PdfActivationInbox _activationInbox;
     private readonly PdfReaderDiagnosticsLog _diagnosticsLog;
     private readonly Editor _diagnosticsEditor;
+    private readonly NdjsonSliceView _diagnosticsViewer;
+    private INdjsonDocument? _diagnosticsDocument;
     private readonly ScrollView _welcomeScroll;
     private readonly Border _welcomeCard;
     private readonly Border _viewerCard;
@@ -57,6 +61,12 @@ public sealed class MainPage : ContentPage
             AutoSize = EditorAutoSizeOption.TextChanges,
             MinimumHeightRequest = 160,
             IsVisible = false,
+        };
+        _diagnosticsViewer = new NdjsonSliceView
+        {
+            AutomationId = "PdfReaderDiagnosticsViewer",
+            IsVisible = false,
+            MinimumHeightRequest = 420,
         };
 
         _documentName = new Label
@@ -178,6 +188,7 @@ public sealed class MainPage : ContentPage
                     _registerButton,
                     _privacyNote,
                     _diagnosticsEditor,
+                    _diagnosticsViewer,
                 },
             });
 
@@ -357,6 +368,7 @@ public sealed class MainPage : ContentPage
                 _welcomeScroll.IsVisible = false;
                 _viewerCard.IsVisible = true;
                 _diagnosticsEditor.IsVisible = false;
+                _diagnosticsViewer.IsVisible = false;
                 ApplyTheme();
                 ApplyShellLayout();
             });
@@ -395,12 +407,38 @@ public sealed class MainPage : ContentPage
             _diagnosticsEditor.Text =
                 $"Log: {_diagnosticsLog.FilePath}{Environment.NewLine}{Environment.NewLine}{_diagnosticsLog.ReadTail()}";
             _diagnosticsEditor.IsVisible = true;
+            await OpenDiagnosticsViewerAsync();
             ApplyTheme();
             await DisplayAlertAsync(
                 "Unable to open PDF",
                 $"{summary}{Environment.NewLine}{Environment.NewLine}Details were written to:{Environment.NewLine}{_diagnosticsLog.FilePath}",
                 "OK");
         });
+    }
+
+    private async Task OpenDiagnosticsViewerAsync()
+    {
+        try
+        {
+            var reader = new NdjsonFileReader(new NdjsonOpenOptions(IndexInterval: 256, MaxTake: 500));
+            var document = await reader.OpenAsync(
+                new FileInfo(_diagnosticsLog.FilePath),
+                CancellationToken.None);
+            var previous = _diagnosticsDocument;
+            _diagnosticsDocument = document;
+            await _diagnosticsViewer.OpenAsync(
+                document,
+                $"{System.IO.Path.GetFileName(_diagnosticsLog.FilePath)} · live diagnostic records");
+            _diagnosticsViewer.IsVisible = true;
+            if (previous is not null)
+                await previous.DisposeAsync();
+        }
+        catch (Exception viewerException)
+        {
+            _diagnosticsViewer.IsVisible = false;
+            _diagnosticsEditor.Text +=
+                $"{Environment.NewLine}{Environment.NewLine}NDJSON viewer unavailable: {viewerException.Message}";
+        }
     }
 
     private Task RegisterAssociationAsync()
@@ -474,6 +512,7 @@ public sealed class MainPage : ContentPage
         _privacyNote.TextColor = Profile.Muted;
         _diagnosticsEditor.TextColor = Profile.Text;
         _diagnosticsEditor.BackgroundColor = Profile.Raised;
+        _diagnosticsViewer.ApplyTheme();
         _openButton.BackgroundColor = Profile.AccentFill;
         _openButton.TextColor = Profile.OnAccentFill;
         _heroOpenButton.BackgroundColor = Profile.Action;
