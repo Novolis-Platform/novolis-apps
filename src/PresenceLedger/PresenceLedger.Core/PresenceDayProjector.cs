@@ -85,7 +85,7 @@ public sealed class PresenceDayProjector
                 isOpen: true);
         }
 
-        var debugPoints = observations
+        var debugPoints = SsidPositionAnchor.Apply(locationHistory, observations)
             .Where(item => item.At >= startUtc && item.At < endUtc)
             .OrderBy(item => item.At)
             .Select(item => new PresenceObservationDebugPoint(

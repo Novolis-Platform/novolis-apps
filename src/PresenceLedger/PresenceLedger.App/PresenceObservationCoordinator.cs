@@ -252,6 +252,17 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
             ? reading.ConnectedSsid
             : null;
         var matched = WifiPlacement.Match(connectedSsid, configured);
+        var held = false;
+        if (matched is null
+            && reading is not null
+            && reading.Status != MobileObservationStatus.Available
+            && HoldKnownNetwork(reading.At, configured) is { } heldPlace)
+        {
+            matched = heldPlace;
+            connectedSsid = heldPlace.Wifi!.Ssid;
+            held = true;
+        }
+
         var skipPositionFix = matched is not null || location is null;
 
         if (reading is not null)
@@ -266,14 +277,18 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
                     matched.Area.Center,
                     matched.Area.RadiusMeters);
             await RetainAsync(record, cancellationToken);
-            if (reading.Status == MobileObservationStatus.Available
-                && connectedSsid is not null)
+            if (connectedSsid is not null
+                && (held || reading.Status == MobileObservationStatus.Available))
             {
                 await _engine.ProcessAsync(wifiObservation, cancellationToken);
                 lock (_gate)
                 {
-                    _lastWifiAt = reading.At;
-                    _lastConnectedSsid = connectedSsid;
+                    if (!held)
+                    {
+                        _lastWifiAt = reading.At;
+                        _lastConnectedSsid = connectedSsid;
+                    }
+
                     _lastPlacement = matched?.DisplayName;
                     _positionFixSkipped = skipPositionFix;
                 }
@@ -375,6 +390,28 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         {
             SetError(exception);
         }
+    }
+
+    TrackedLocation? HoldKnownNetwork(
+        DateTimeOffset at,
+        IReadOnlyList<TrackedLocation> configured)
+    {
+        DateTimeOffset? seenAt;
+        string? seenSsid;
+        lock (_gate)
+        {
+            seenAt = _lastWifiAt;
+            seenSsid = _lastConnectedSsid;
+        }
+
+        if (seenAt is not { } seen || at < seen)
+            return null;
+
+        var place = WifiPlacement.Match(seenSsid, configured);
+        if (place is null || at - seen > place.Policy.MaximumEvidenceGap)
+            return null;
+
+        return place;
     }
 
     static RecordedWifiStatus MapWifiStatus(MobileObservationStatus status) =>

@@ -26,7 +26,7 @@ public static class PresenceReplay
             location => LocationPresenceState.CreateAbsent(location.Id));
         var events = new List<PresenceEvent>();
 
-        foreach (var record in observations.OrderBy(item => item.At))
+        foreach (var record in SsidPositionAnchor.Apply(current, observations))
         {
             foreach (var observation in Interpret(record))
             {
