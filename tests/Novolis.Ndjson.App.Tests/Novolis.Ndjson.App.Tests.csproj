@@ -12,6 +12,6 @@
   <ItemGroup>
     <Compile Include="../../src/NdjsonViewer/Novolis.Ndjson.App/Viewer/ViewerState.cs" Link="ViewerState.cs" />
     <Compile Include="../../src/NdjsonViewer/Novolis.Ndjson.App/Viewer/ViewerNavigation.cs" Link="ViewerNavigation.cs" />
-    <ProjectReference Include="../../src/NdjsonViewer/Novolis.Ndjson/Novolis.Ndjson.csproj" />
+    <LibraryReference Include="Novolis.IO.Ndjson" />
   </ItemGroup>
 </Project>
