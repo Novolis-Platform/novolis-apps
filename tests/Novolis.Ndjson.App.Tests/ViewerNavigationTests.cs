@@ -1,4 +1,4 @@
-using Novolis.Ndjson;
+using Novolis.IO.Ndjson;
 using Novolis.Ndjson.App.Viewer;
 
 namespace Novolis.Ndjson.App.Tests;
