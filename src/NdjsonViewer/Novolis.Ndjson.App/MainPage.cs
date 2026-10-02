@@ -13,7 +13,7 @@ using WindowsStandardDataFormats = Windows.ApplicationModel.DataTransfer.Standar
 
 namespace Novolis.Ndjson.App;
 
-public sealed class MainPage : ContentPage
+internal sealed class LegacyNdjsonMainPage : ContentPage
 {
     private readonly NdjsonDocumentSession _session;
     private readonly NdjsonFilePicker _picker;
@@ -38,7 +38,7 @@ public sealed class MainPage : ContentPage
     private ViewerState _state = new(0, 100, null, false, null);
     private bool _themeSubscribed;
 
-    public MainPage(
+    public LegacyNdjsonMainPage(
         NdjsonDocumentSession session,
         NdjsonFilePicker picker,
         DocumentActivationInbox activationInbox)
