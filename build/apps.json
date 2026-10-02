@@ -735,6 +735,78 @@
       "release": { "githubRelease": true, "checksums": true }
     },
     {
+      "key": "ndjson-viewer",
+      "choice": "NdjsonViewer",
+      "displayName": "Novolis NDJSON Viewer",
+      "sourceRoot": "src/NdjsonViewer",
+      "solution": "src/NdjsonViewer/NdjsonViewer.slnx",
+      "artifactPrefix": "NovolisNdjsonViewer",
+      "stack": "maui",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/NdjsonViewer/Novolis.Ndjson.App/Novolis.Ndjson.App.csproj",
+        "linuxCi": [
+          "src/NdjsonViewer/Novolis.Ndjson/Novolis.Ndjson.csproj",
+          "tests/Novolis.Ndjson.Tests/Novolis.Ndjson.Tests.csproj",
+          "tests/Novolis.Ndjson.App.Tests/Novolis.Ndjson.App.Tests.csproj"
+        ],
+        "android": "src/NdjsonViewer/Novolis.Ndjson.App/Novolis.Ndjson.App.csproj",
+        "maui": "src/NdjsonViewer/Novolis.Ndjson.App/Novolis.Ndjson.App.csproj",
+        "tests": [
+          "tests/Novolis.Ndjson.Tests/Novolis.Ndjson.Tests.csproj",
+          "tests/Novolis.Ndjson.App.Tests/Novolis.Ndjson.App.Tests.csproj"
+        ],
+        "all": [
+          "src/NdjsonViewer/Novolis.Ndjson/Novolis.Ndjson.csproj",
+          "src/NdjsonViewer/Novolis.Ndjson.App/Novolis.Ndjson.App.csproj",
+          "tests/Novolis.Ndjson.Tests/Novolis.Ndjson.Tests.csproj",
+          "tests/Novolis.Ndjson.App.Tests/Novolis.Ndjson.App.Tests.csproj"
+        ]
+      },
+      "local": ["windows", "android"],
+      "ship": ["windows-inno", "android-apk"],
+      "validation": {
+        "changedPathGlobs": [
+          "src/NdjsonViewer/**",
+          "tests/Novolis.Ndjson.Tests/**",
+          "tests/Novolis.Ndjson.App.Tests/**"
+        ],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["maui", "android"]
+      },
+      "windows": {
+        "exeName": "Novolis.Ndjson.App.exe",
+        "appId": "Novolis.NdjsonViewer",
+        "installDir": "Novolis\\NDJSON Viewer",
+        "groupName": "Novolis NDJSON Viewer",
+        "setupBase": "NovolisNdjsonViewerSetup",
+        "scriptFile": "novolis-ndjson-viewer.iss",
+        "closeApplicationsFilter": "Novolis.Ndjson.App.exe",
+        "fileAssociationsAllowed": true
+      },
+      "android": {
+        "project": "src/NdjsonViewer/Novolis.Ndjson.App/Novolis.Ndjson.App.csproj",
+        "applicationId": "dev.novolis.ndjsonviewer",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "NDJSON_VIEWER_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [],
+        "networkPolicy": "none"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\ndjson-viewer",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\ndjson-viewer\\cache",
+        "credentialsNamespace": "Novolis.NdjsonViewer",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
       "key": "novolis-pdf-reader",
       "choice": "NovolisPdfReader",
       "displayName": "Novolis PDF Reader",

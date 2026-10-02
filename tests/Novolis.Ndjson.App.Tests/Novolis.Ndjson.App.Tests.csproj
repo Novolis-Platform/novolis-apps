@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Novolis.Ndjson.App.Tests</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/NdjsonViewer/Novolis.Ndjson.App/Viewer/ViewerState.cs" Link="ViewerState.cs" />
+    <Compile Include="../../src/NdjsonViewer/Novolis.Ndjson.App/Viewer/ViewerNavigation.cs" Link="ViewerNavigation.cs" />
+    <ProjectReference Include="../../src/NdjsonViewer/Novolis.Ndjson/Novolis.Ndjson.csproj" />
+  </ItemGroup>
+</Project>

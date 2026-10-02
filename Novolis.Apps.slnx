@@ -16,6 +16,7 @@
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
     <Project Path="src/LiveStudio/studio/LiveStudio.csproj" />
     <Project Path="src/Merglyph/Merglyph.Core/Merglyph.Core.csproj" />
+    <Project Path="src/NdjsonViewer/Novolis.Ndjson/Novolis.Ndjson.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.App/PresenceLedger.App.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.Core/PresenceLedger.Core.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.Storage/PresenceLedger.Storage.csproj" />
@@ -34,6 +35,8 @@
     <Project Path="tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
     <Project Path="tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
     <Project Path="tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />
+    <Project Path="tests/Novolis.Ndjson.App.Tests/Novolis.Ndjson.App.Tests.csproj" />
+    <Project Path="tests/Novolis.Ndjson.Tests/Novolis.Ndjson.Tests.csproj" />
     <Project Path="tests/NovolisPdfReader.UiTests/NovolisPdfReader.UiTests.csproj" />
     <Project Path="tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj" />
     <Project Path="tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj" />
