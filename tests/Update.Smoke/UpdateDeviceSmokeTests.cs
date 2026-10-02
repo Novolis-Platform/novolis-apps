@@ -1,7 +1,9 @@
 using Novolis.Registry.Primitives.Updates;
+using Novolis.Registry.Updates;
 using OpenQA.Selenium.Appium;
 using OpenQA.Selenium.Appium.Android;
 using OpenQA.Selenium.Appium.Windows;
+using TUnit.Core;
 
 namespace Novolis.Apps.Update.Smoke;
 
@@ -57,6 +59,17 @@ public sealed class UpdateDeviceSmokeTests
     }
 
     [Test]
+    public async Task Maui_windows_update_surface_is_visible_when_device_gate_is_enabled()
+    {
+        Skip.Unless(
+            IsEnabled("NOVOLIS_UPDATE_MAUI_WINDOWS_SMOKE"),
+            "Set NOVOLIS_UPDATE_MAUI_WINDOWS_SMOKE=1 to run MAUI Windows Appium smoke.");
+        using var driver = StartWindows(RequiredPath("NOVOLIS_UPDATE_MAUI_WINDOWS_APP"));
+        var status = driver.FindElement(MobileBy.AccessibilityId("UpdateStatusView"));
+        await Assert.That(status.Displayed).IsTrue();
+    }
+
+    [Test]
     public async Task Android_sideload_update_surface_is_visible_when_device_gate_is_enabled()
     {
         Skip.Unless(
@@ -70,6 +83,31 @@ public sealed class UpdateDeviceSmokeTests
                 "Set NOVOLIS_UPDATE_ANDROID_PACKAGE for Android smoke."));
         var status = driver.FindElement(MobileBy.Id("UpdateStatusView"));
         await Assert.That(status.Displayed).IsTrue();
+    }
+
+    [Test]
+    public async Task Store_managed_build_does_not_contact_direct_release_source()
+    {
+        var source = new CountingSource();
+        await using var coordinator = new UpdateCoordinator(
+            new UpdateRequest
+            {
+                AppId = "Novolis.StoreApp",
+                Repository = new Uri(
+                    "https://github.com/Novolis-Platform/novolis-apps"),
+                CurrentVersion = "2026.1.1.0",
+                Platform = UpdatePlatform.Windows,
+                ArtifactKind = UpdateArtifactKind.WindowsInstaller,
+                DistributionMode = UpdateDistributionMode.StoreManaged,
+            },
+            source,
+            new EmptyStateStore(),
+            new UnusedDownloader());
+
+        var snapshot = await coordinator.CheckAsync(force: true);
+
+        await Assert.That(snapshot.ErrorCode).IsEqualTo("store-managed");
+        await Assert.That(source.Calls).IsEqualTo(0);
     }
 
     private static UpdateArtifact Artifact(
@@ -139,5 +177,40 @@ public sealed class UpdateDeviceSmokeTests
         return File.Exists(path)
             ? path
             : throw new FileNotFoundException($"Update smoke app does not exist: {path}", path);
+    }
+
+    private sealed class CountingSource : IAutoUpdateSource
+    {
+        public int Calls { get; private set; }
+
+        public ValueTask<UpdateSourceResult> CheckAsync(
+            UpdateRequest request,
+            UpdateSourceCheckpoint checkpoint,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            throw new InvalidOperationException("The direct source must not be contacted.");
+        }
+    }
+
+    private sealed class EmptyStateStore : IUpdateStateStore
+    {
+        public ValueTask<UpdatePersistedState?> LoadAsync(
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<UpdatePersistedState?>(null);
+
+        public ValueTask SaveAsync(
+            UpdatePersistedState state,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.CompletedTask;
+    }
+
+    private sealed class UnusedDownloader : IArtifactDownloader
+    {
+        public ValueTask<DownloadedUpdateArtifact> DownloadAsync(
+            UpdateReleaseCandidate candidate,
+            IProgress<UpdateDownloadProgress>? progress = null,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("A store-managed build must not download.");
     }
 }

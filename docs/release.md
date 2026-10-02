@@ -7,6 +7,12 @@
 3. Artifacts from that run land on a GitHub Release tagged `vYEAR.MAJOR.MINOR.BUILD` with `SHA256SUMS.txt`. Nothing is copied from an older tag. A release asset is the build for that commit.
 4. `scripts/prune-github-releases.ps1` keeps the newest 5 releases. Each kept tag is a full drop, so deleting an older tag does not remove an installer that the latest tag lacks.
 
+For apps with `update.enabled`, the same release also publishes a validated
+`Novolis.Update.json` containing the app identity, channel, provenance,
+target-specific assets, lengths, and SHA-256 hashes. The update document is
+included in `SHA256SUMS.txt`; it is part of the release contract and must not
+be uploaded separately or edited after publication.
+
 Google Play and nuget.org are not part of this release. Play stays
 `play-store.yml`, started by hand from an existing tag. nuget.org stays the
 library workflow `dotnet-release-publish`. Either can become an input on this
@@ -34,6 +40,9 @@ A full release builds only channels listed in `ship`. Reach is the only `linux-t
 - The same values live in the 1Password Environment **Novolis Android signing**, which is the recoverable copy
 - Missing secrets fail the Android job. A freshly generated certificate cannot update an app already on a device
 - Monotonic `versionCode` via `NovolisAndroidVersionCode` / `Get-NovolisAndroidVersionCode`
+- Direct-release APKs are handed to Android's package installer by the updater.
+  They must keep the same signing identity and a higher `versionCode`; store
+  builds stay on the Play path.
 
 ### Google Play
 

@@ -3,6 +3,8 @@
     <RootNamespace>Novolis.Apps.Update.Smoke</RootNamespace>
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
+    <IsTestingPlatformApplication>true</IsTestingPlatformApplication>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
@@ -10,5 +12,6 @@
     <PackageReference Include="TUnit" />
     <PackageReference Include="Appium.WebDriver" />
     <LibraryReference Include="Novolis.Registry.Primitives" />
+    <LibraryReference Include="Novolis.Registry.Updates" />
   </ItemGroup>
 </Project>

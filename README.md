@@ -84,6 +84,12 @@ track. Play delivery requires persistent upload-key secrets and the
 `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` GitHub Environment secret; it never uses the
 adhoc APK fallback.
 
+Apps using the direct-release updater publish a validated `Novolis.Update.json`
+beside every release's artifacts. The updater notifies, links, downloads, and
+hands off to the host or platform; it does not silently replace a running
+application. Store-managed builds are excluded. See
+[docs/updates.md](docs/updates.md).
+
 ```powershell
 pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio
 ```
@@ -111,6 +117,7 @@ List programmatically: `dotnet run --project d:\novolis\novolis-apps\tools\AppsM
 
 - [docs/design.md](docs/design.md)
 - [docs/release.md](docs/release.md)
+- [docs/updates.md](docs/updates.md)
 - [docs/getting-started.md](docs/getting-started.md)
 - [installer-data-lifecycle](https://github.com/Novolis-Platform/novolis-governance/blob/main/docs/installer-data-lifecycle.md)
 - [nuget-only-policy](https://github.com/Novolis-Platform/novolis-governance/blob/main/docs/nuget-only-policy.md)
