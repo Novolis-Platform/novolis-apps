@@ -145,6 +145,7 @@ public sealed class SpeechServiceTests
         public string ProductName => "ReadAloud";
         public string RootDirectory => root;
         public string WorkspaceDirectory => Path.Combine(root, "workspace");
+        public string CacheDirectory => Path.Combine(root, "cache");
     }
 
     internal sealed class CapturingVoice : IVoiceService

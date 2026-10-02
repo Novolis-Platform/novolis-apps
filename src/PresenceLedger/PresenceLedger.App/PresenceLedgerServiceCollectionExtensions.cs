@@ -50,8 +50,7 @@ public static class PresenceLedgerServiceCollectionExtensions
                 sp.GetRequiredService<HttpClient>(),
                 MapPresets.KartverketTopo,
                 Path.Combine(
-                    sp.GetRequiredService<IAppDataPaths>().RootDirectory,
-                    "cache",
+                    sp.GetRequiredService<IAppDataPaths>().CacheDirectory,
                     "maps"),
                 "PresenceLedger/2026.1"));
         services.AddSingleton<RasterMapTileSource>();
