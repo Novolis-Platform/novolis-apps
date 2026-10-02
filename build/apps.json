@@ -604,13 +604,15 @@
           "src/PresenceLedger/PresenceLedger.Storage/PresenceLedger.Storage.csproj",
           "src/PresenceLedger/PresenceLedger.App/PresenceLedger.App.csproj",
           "tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj",
-          "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj"
+          "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj",
+          "tests/PresenceLedger.App.Tests/PresenceLedger.App.Tests.csproj"
         ],
         "android": "src/PresenceLedger/PresenceLedger.Android/PresenceLedger.Android.csproj",
         "maui": null,
         "tests": [
           "tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj",
-          "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj"
+          "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj",
+          "tests/PresenceLedger.App.Tests/PresenceLedger.App.Tests.csproj"
         ],
         "all": [
           "src/PresenceLedger/PresenceLedger.Core/PresenceLedger.Core.csproj",
@@ -619,7 +621,8 @@
           "src/PresenceLedger/PresenceLedger.Desktop/PresenceLedger.Desktop.csproj",
           "src/PresenceLedger/PresenceLedger.Android/PresenceLedger.Android.csproj",
           "tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj",
-          "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj"
+          "tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj",
+          "tests/PresenceLedger.App.Tests/PresenceLedger.App.Tests.csproj"
         ]
       },
       "local": ["windows", "linux", "android"],
@@ -628,7 +631,8 @@
         "changedPathGlobs": [
           "src/PresenceLedger/**",
           "tests/PresenceLedger.Core.Tests/**",
-          "tests/PresenceLedger.Storage.Tests/**"
+          "tests/PresenceLedger.Storage.Tests/**",
+          "tests/PresenceLedger.App.Tests/**"
         ],
         "runTests": true,
         "androidCompile": true,

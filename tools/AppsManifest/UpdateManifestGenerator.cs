@@ -150,6 +150,10 @@ internal static class UpdateManifestGenerator
         var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(asset.Path)))
             .ToLowerInvariant();
         var escapedName = Uri.EscapeDataString(asset.Name);
+        var downloadRoot = releaseUrl.Replace(
+            "/releases/tag/",
+            "/releases/download/",
+            StringComparison.OrdinalIgnoreCase);
         return new ArtifactFile
         {
             Name = asset.Name,
@@ -160,7 +164,7 @@ internal static class UpdateManifestGenerator
                 RuntimeIdentifier = runtime,
                 Architecture = architecture,
             },
-            DownloadUri = $"{releaseUrl.TrimEnd('/')}/{escapedName}",
+            DownloadUri = $"{downloadRoot.TrimEnd('/')}/{escapedName}",
             Length = fileInfo.Length,
             Sha256 = hash,
             ContentType = contentType,
