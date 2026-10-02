@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Novolis.IO.Ndjson;
 
 namespace PresenceLedger.Storage;
 
@@ -8,11 +8,13 @@ namespace PresenceLedger.Storage;
 internal sealed class NdjsonFile
 {
     readonly SemaphoreSlim _writeGate = new(1, 1);
+    readonly NdjsonFileWriter _writer;
 
     public NdjsonFile(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         Path = path;
+        _writer = new NdjsonFileWriter(path);
     }
 
     public string Path { get; }
@@ -24,22 +26,47 @@ internal sealed class NdjsonFile
         await _writeGate.WaitAsync(cancellationToken);
         try
         {
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(value, NdjsonJson.Options);
+            await _writer.AppendJsonAsync(bytes, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    public async ValueTask ReplaceAsync<T>(
+        IEnumerable<T> values,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        await _writeGate.WaitAsync(cancellationToken);
+        try
+        {
             var directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrWhiteSpace(directory))
                 Directory.CreateDirectory(directory);
 
-            await using var stream = new FileStream(
-                Path,
-                FileMode.Append,
+            var temporary = Path + ".tmp";
+            await using (var stream = new FileStream(
+                temporary,
+                FileMode.Create,
                 FileAccess.Write,
-                FileShare.Read,
+                FileShare.None,
                 4096,
-                FileOptions.Asynchronous);
-            await using var writer = new StreamWriter(stream);
-            await writer.WriteLineAsync(
-                JsonSerializer.Serialize(value, NdjsonJson.Options)
-                    .AsMemory(),
-                cancellationToken);
+                FileOptions.Asynchronous))
+            await using (var writer = new StreamWriter(stream))
+            {
+                foreach (var value in values)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await writer.WriteLineAsync(
+                        JsonSerializer.Serialize(value, NdjsonJson.Options).AsMemory(),
+                        cancellationToken);
+                }
+            }
+
+            File.Move(temporary, Path, overwrite: true);
         }
         finally
         {

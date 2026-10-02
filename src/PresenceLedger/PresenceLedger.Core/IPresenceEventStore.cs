@@ -11,4 +11,9 @@ public interface IPresenceEventStore
     ValueTask AppendAsync(
         PresenceEvent presenceEvent,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Replaces the event ledger with the supplied sequence.</summary>
+    ValueTask ReplaceAsync(
+        IReadOnlyList<PresenceEvent> events,
+        CancellationToken cancellationToken = default);
 }

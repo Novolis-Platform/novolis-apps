@@ -17,6 +17,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <LibraryReference Include="Novolis.Avalonia.Map" />
     <LibraryReference Include="Novolis.Avalonia.Mobile" />
+    <LibraryReference Include="Novolis.IO.Maps" />
     <LibraryReference Include="Novolis.Math.Geometry" />
   </ItemGroup>
 </Project>

@@ -16,6 +16,7 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
     readonly IServiceProvider _services;
     readonly IPresenceEngine _engine;
     readonly IPresenceObservationStore _observations;
+    readonly PresenceHistoryRebuild _history;
     readonly object _gate = new();
 
     CancellationTokenSource? _cancellation;
@@ -31,11 +32,13 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
     public PresenceObservationCoordinator(
         IServiceProvider services,
         IPresenceEngine engine,
-        IPresenceObservationStore observations)
+        IPresenceObservationStore observations,
+        PresenceHistoryRebuild history)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _observations = observations ?? throw new ArgumentNullException(nameof(observations));
+        _history = history ?? throw new ArgumentNullException(nameof(history));
     }
 
     /// <summary>Whether a platform observation session is currently active.</summary>
@@ -186,6 +189,19 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         IWifiObservationSource? wifi,
         CancellationToken cancellationToken)
     {
+        try
+        {
+            await _history.RebuildAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+
         using var timer = new PeriodicTimer(WifiInterval);
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -214,7 +230,15 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         }
     }
 
-    async Task ObserveCycleAsync(
+    Task ObserveCycleAsync(
+        ILocationReadingSource? location,
+        IWifiObservationSource? wifi,
+        CancellationToken cancellationToken) =>
+        _history.RunExclusiveAsync(
+            token => ObserveOnceAsync(location, wifi, token),
+            cancellationToken);
+
+    async Task ObserveOnceAsync(
         ILocationReadingSource? location,
         IWifiObservationSource? wifi,
         CancellationToken cancellationToken)

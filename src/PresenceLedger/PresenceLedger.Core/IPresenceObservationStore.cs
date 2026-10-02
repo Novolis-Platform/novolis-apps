@@ -12,4 +12,8 @@ public interface IPresenceObservationStore
     IAsyncEnumerable<PresenceObservationRecord> ReadAsync(
         DateOnly utcDate,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Reads every retained day in UTC date order.</summary>
+    IAsyncEnumerable<PresenceObservationRecord> ReadAllAsync(
+        CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using Novolis.Math.Geometry;
 
 namespace PresenceLedger.Core;
@@ -12,28 +11,18 @@ public sealed record TrackedLocation
         string displayName,
         GeoCircle area,
         WifiEvidence? wifi,
-        PresencePolicy policy,
-        DateTimeOffset? effectiveFromUtc = null,
-        DateTimeOffset? effectiveToUtc = null)
+        PresencePolicy policy)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("Location id must not be empty.", nameof(id));
 
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
-        if (effectiveFromUtc is { } from
-            && effectiveToUtc is { } to
-            && to <= from)
-            throw new ArgumentException(
-                "The location validity end must be after its start.",
-                nameof(effectiveToUtc));
 
         DisplayName = displayName.Trim();
         Id = id;
         Area = area;
         Wifi = wifi;
         Policy = policy ?? throw new ArgumentNullException(nameof(policy));
-        EffectiveFromUtc = effectiveFromUtc?.ToUniversalTime();
-        EffectiveToUtc = effectiveToUtc?.ToUniversalTime();
     }
 
     /// <summary>Stable location identifier.</summary>
@@ -50,10 +39,4 @@ public sealed record TrackedLocation
 
     /// <summary>Inference policy for this location.</summary>
     public PresencePolicy Policy { get; }
-
-    /// <summary>UTC instant at which this location revision becomes effective.</summary>
-    public DateTimeOffset? EffectiveFromUtc { get; }
-
-    /// <summary>UTC instant at which this location revision stops being effective.</summary>
-    public DateTimeOffset? EffectiveToUtc { get; }
 }

@@ -7,8 +7,8 @@ using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Map;
 using Novolis.Avalonia.Mobile;
+using Novolis.IO.Maps;
 using Novolis.Math.Geometry;
-using PresenceLedger.App.Map;
 using PresenceLedger.Core;
 using PresenceLedger.Storage;
 
@@ -25,8 +25,10 @@ public sealed class MainView : UserControl
     readonly IPresenceObservationStore _observations;
     readonly PresenceDayProjector _dayProjector;
     readonly IMapTileSource _tileSource;
-    readonly IMapSearchProvider _searchProvider;
+    readonly IMapRasterSource _rasterSource;
+    readonly IMapPlaceSearch _searchProvider;
     readonly IServiceProvider _services;
+    readonly PresenceHistoryRebuild _history;
     readonly ContentControl _content = new();
     readonly TextBlock _status = new();
 
@@ -36,7 +38,6 @@ public sealed class MainView : UserControl
     TextBox? _nameInput;
     TextBox? _ssidInput;
     TextBox? _coordinateInput;
-    TextBox? _effectiveFromInput;
     Slider? _radiusInput;
     TextBlock? _radiusLabel;
     MapControl? _pickerMap;
@@ -49,8 +50,10 @@ public sealed class MainView : UserControl
         IPresenceObservationStore observations,
         PresenceDayProjector dayProjector,
         IMapTileSource tileSource,
-        IMapSearchProvider searchProvider,
-        IServiceProvider services)
+        IMapRasterSource rasterSource,
+        IMapPlaceSearch searchProvider,
+        IServiceProvider services,
+        PresenceHistoryRebuild history)
     {
         _locations = locations ?? throw new ArgumentNullException(nameof(locations));
         _events = events ?? throw new ArgumentNullException(nameof(events));
@@ -58,8 +61,10 @@ public sealed class MainView : UserControl
         _observations = observations ?? throw new ArgumentNullException(nameof(observations));
         _dayProjector = dayProjector ?? throw new ArgumentNullException(nameof(dayProjector));
         _tileSource = tileSource ?? throw new ArgumentNullException(nameof(tileSource));
+        _rasterSource = rasterSource ?? throw new ArgumentNullException(nameof(rasterSource));
         _searchProvider = searchProvider ?? throw new ArgumentNullException(nameof(searchProvider));
         _services = services ?? throw new ArgumentNullException(nameof(services));
+        _history = history ?? throw new ArgumentNullException(nameof(history));
 
         Background = GraphicalProfile.BackgroundBrush;
         BuildShell();
@@ -421,115 +426,18 @@ public sealed class MainView : UserControl
         {
             var locations = await ReadAllAsync(_locations.ReadAsync());
             var projection = await ReadDayProjectionAsync(_displayDate);
-            var center = locations.FirstOrDefault()?.Area.Center
-                ?? projection.Observations
-                    .Select(item => item.Position)
-                    .FirstOrDefault(position => position is not null)
-                ?? DefaultMapCenter;
-            var map = new MapControl
-            {
-                Viewport = new MapViewport(center, locations.Count == 0 ? 12 : 14),
-                TileSource = _tileSource,
-                Attribution = KartverketMap.Attribution,
-                MinHeight = 280,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Stretch,
-                BackgroundBrush = GraphicalProfile.SurfaceBrush,
-            };
-            map.Markers = locations
-                .Select(location => new MapMarker(
-                    location.Id.ToString("N"),
-                    location.Area.Center,
-                    location.DisplayName,
-                    8))
-                .Concat(projection.Observations
-                    .Where(item => item.Position is not null)
-                    .Select((item, index) => new MapMarker(
-                        $"sample-{index}",
-                        item.Position!.Value,
-                        null,
-                        4)))
-                .ToArray();
-            var sampleTrack = projection.Observations
-                .Where(item => item.Position is not null)
-                .Select(item => item.Position!.Value)
-                .ToArray();
-            map.Tracks = sampleTrack.Length < 2
-                ? []
-                : [new MapTrackOverlay("day-samples", sampleTrack, "Local samples")];
-            map.Circles = locations
-                .Select(location => new MapCircleOverlay(
-                    location.Id.ToString("N"),
-                    location.Area,
-                    location.DisplayName))
-                .ToArray();
-            var zoomIn = new Button
-            {
-                Content = "+",
-                MinWidth = 44,
-                MinHeight = 44,
-                Background = GraphicalProfile.SurfaceBrush,
-                Foreground = GraphicalProfile.TextBrush,
-            };
-            zoomIn.Click += (_, _) => map.ZoomIn();
-            var zoomOut = new Button
-            {
-                Content = "−",
-                MinWidth = 44,
-                MinHeight = 44,
-                Background = GraphicalProfile.SurfaceBrush,
-                Foreground = GraphicalProfile.TextBrush,
-            };
-            zoomOut.Click += (_, _) => map.ZoomOut();
-            var fit = new Button
-            {
-                Content = "Fit",
-                MinHeight = 44,
-                Background = GraphicalProfile.SurfaceBrush,
-                Foreground = GraphicalProfile.TextBrush,
-            };
-            fit.Click += (_, _) => map.FitToContent(
-                locations
-                    .Select(location => location.Area.Center)
-                    .Concat(sampleTrack));
-            var refresh = new Button
-            {
-                Content = "Refresh",
-                MinWidth = 44,
-                MinHeight = 44,
-                Background = GraphicalProfile.SurfaceBrush,
-                Foreground = GraphicalProfile.TextBrush,
-            };
-            refresh.Click += async (_, _) =>
-            {
-                try
+            var session = DayMapSession.Create(
+                locations,
+                projection.Observations,
+                _tileSource,
+                _rasterSource.Template.Attribution,
+                async map =>
                 {
                     await map.RefreshTilesAsync();
                     SetStatus("Map refreshed");
-                }
-                catch (Exception ex)
-                {
-                    SetStatus($"Map unavailable: {ex.Message}");
-                }
-            };
-            var mapFrame = new Grid
-            {
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                VerticalAlignment = VerticalAlignment.Stretch,
-                Children =
-                {
-                    map,
-                    new StackPanel
-                    {
-                        Orientation = Orientation.Vertical,
-                        Spacing = 6,
-                        Margin = new Thickness(10),
-                        HorizontalAlignment = HorizontalAlignment.Right,
-                        VerticalAlignment = VerticalAlignment.Top,
-                        Children = { zoomIn, zoomOut, fit, refresh },
-                    },
-                },
-            };
+                });
+            var map = session.Map;
+            var mapFrame = session.Surface;
             var header = new StackPanel
             {
                 Spacing = 4,
@@ -550,7 +458,7 @@ public sealed class MainView : UserControl
                     },
                     new TextBlock
                     {
-                        Text = $"{_displayDate:yyyy-MM-dd} · two fingers pan and pinch. Tiles stay in the map; samples stay on this device.",
+                        Text = $"{_displayDate:yyyy-MM-dd} · two fingers pan and pinch. Earlier samples are darker, later samples are lighter.",
                         Foreground = GraphicalProfile.MutedBrush,
                         TextWrapping = TextWrapping.Wrap,
                     },
@@ -670,14 +578,6 @@ public sealed class MainView : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
             MinHeight = 48,
         };
-        _effectiveFromInput = new TextBox
-        {
-            Text = existing?.EffectiveFromUtc?.ToString("O")
-                ?? DateTimeOffset.UtcNow.ToString("O"),
-            PlaceholderText = "2026-09-29T07:00:00Z",
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 48,
-        };
         _ssidInput = new TextBox
         {
             Text = existing?.Wifi?.Ssid ?? string.Empty,
@@ -714,7 +614,7 @@ public sealed class MainView : UserControl
         {
             Viewport = new MapViewport(existing?.Area.Center ?? DefaultMapCenter, existing is null ? 13 : 15),
             TileSource = _tileSource,
-            Attribution = KartverketMap.Attribution,
+            Attribution = _rasterSource.Template.Attribution,
             Height = 320,
             MinHeight = 240,
             MaxHeight = 420,
@@ -823,13 +723,7 @@ public sealed class MainView : UserControl
         stack.Children.Add(_nameInput);
         stack.Children.Add(new TextBlock
         {
-            Text = "Effective from (UTC)",
-            Foreground = GraphicalProfile.MutedBrush,
-        });
-        stack.Children.Add(_effectiveFromInput);
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Use this to introduce a place retroactively without rewriting later revisions.",
+            Text = "Saving applies this place to samples already collected, including after you move it.",
             Foreground = GraphicalProfile.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
         });
@@ -901,17 +795,6 @@ public sealed class MainView : UserControl
             return;
         }
 
-        if (_effectiveFromInput is null
-            || !DateTimeOffset.TryParse(
-                _effectiveFromInput.Text,
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                out var effectiveFrom))
-        {
-            SetStatus("Enter a valid effective-from UTC timestamp.");
-            return;
-        }
-
         _selectedCoordinate = coordinate;
         var ssid = string.IsNullOrWhiteSpace(_ssidInput?.Text)
             ? null
@@ -924,9 +807,17 @@ public sealed class MainView : UserControl
             _nameInput.Text.Trim(),
             new GeoCircle(coordinate, _radiusInput.Value),
             ssid,
-            policy,
-            effectiveFrom));
+            policy));
         _editingLocation = null;
+        try
+        {
+            await _history.RebuildAsync();
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not rebuild presence: {ex.Message}");
+        }
+
         await PublishLedgerAsync();
         await ShowLocationsAsync();
     }
@@ -962,8 +853,7 @@ public sealed class MainView : UserControl
             {
                 var name = ResolveLocationName(
                     locationHistory,
-                    presenceEvent.LocationId,
-                    presenceEvent.At);
+                    presenceEvent.LocationId);
                 var label = presenceEvent.Transition == PresenceTransition.Arrived
                     ? "ARRIVED"
                     : "LEFT";
@@ -1030,16 +920,9 @@ public sealed class MainView : UserControl
 
     static string ResolveLocationName(
         IEnumerable<TrackedLocation> history,
-        Guid locationId,
-        DateTimeOffset at)
+        Guid locationId)
     {
-        var location = history
-            .Where(item =>
-                item.Id == locationId
-                && (item.EffectiveFromUtc is null || item.EffectiveFromUtc <= at)
-                && (item.EffectiveToUtc is null || at < item.EffectiveToUtc))
-            .OrderBy(item => item.EffectiveFromUtc ?? DateTimeOffset.MinValue)
-            .LastOrDefault();
+        var location = history.LastOrDefault(item => item.Id == locationId);
         return location?.DisplayName ?? locationId.ToString();
     }
 

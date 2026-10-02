@@ -12,8 +12,8 @@ public sealed class PresenceDayProjectionTests
     [Test]
     public async Task Projects_a_home_work_home_day_with_an_open_final_interval()
     {
-        var home = Location(HomeId, "Home", 0);
-        var work = Location(WorkId, "Work", 0);
+        var home = Location(HomeId, "Home");
+        var work = Location(WorkId, "Work");
         var events = new[]
         {
             Event(HomeId, PresenceTransition.Arrived, 0),
@@ -39,10 +39,10 @@ public sealed class PresenceDayProjectionTests
     }
 
     [Test]
-    public async Task Uses_the_location_revision_effective_at_the_event_time()
+    public async Task Uses_the_latest_location_revision_for_the_whole_day()
     {
-        var oldRevision = Location(HomeId, "Old Home", 0);
-        var newRevision = Location(HomeId, "New Home", 12 * 60);
+        var oldRevision = Location(HomeId, "Old Home");
+        var newRevision = Location(HomeId, "New Home");
 
         var result = new PresenceDayProjector().Project(
             new DateOnly(2026, 9, 29),
@@ -55,7 +55,7 @@ public sealed class PresenceDayProjectionTests
             [],
             [oldRevision, newRevision]);
 
-        await Assert.That(result.Intervals[0].DisplayName).IsEqualTo("Old Home");
+        await Assert.That(result.Intervals[0].DisplayName).IsEqualTo("New Home");
         await Assert.That(result.Intervals[1].DisplayName).IsEqualTo("New Home");
     }
 
@@ -86,14 +86,13 @@ public sealed class PresenceDayProjectionTests
         await Assert.That(result.Observations[0].ConnectedSsid).IsEqualTo("Home");
     }
 
-    static TrackedLocation Location(Guid id, string name, int effectiveMinute) =>
+    static TrackedLocation Location(Guid id, string name) =>
         new(
             id,
             name,
             new GeoCircle(new GeoCoordinate(58.14623, 7.99517), 50),
             null,
-            PresencePolicyDefaults.LocationOnly,
-            Day.AddMinutes(effectiveMinute));
+            PresencePolicyDefaults.LocationOnly);
 
     static PresenceEvent Event(
         Guid locationId,

@@ -49,4 +49,13 @@ public sealed class NdjsonPresenceStateStore : IPresenceStateStore
         ArgumentNullException.ThrowIfNull(state);
         return _file.AppendAsync(state, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public ValueTask ReplaceAsync(
+        IReadOnlyList<LocationPresenceState> states,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+        return _file.ReplaceAsync(states, cancellationToken);
+    }
 }

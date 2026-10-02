@@ -12,4 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PresenceLedger\PresenceLedger.Core\PresenceLedger.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Fixtures\2026-10-02-phone.ndjson" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

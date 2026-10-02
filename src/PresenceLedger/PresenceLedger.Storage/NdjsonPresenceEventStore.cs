@@ -27,4 +27,13 @@ public sealed class NdjsonPresenceEventStore : IPresenceEventStore
         ArgumentNullException.ThrowIfNull(presenceEvent);
         return _file.AppendAsync(presenceEvent, cancellationToken);
     }
+
+    /// <inheritdoc />
+    public ValueTask ReplaceAsync(
+        IReadOnlyList<PresenceEvent> events,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(events);
+        return _file.ReplaceAsync(events, cancellationToken);
+    }
 }

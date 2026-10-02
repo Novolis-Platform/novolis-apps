@@ -22,20 +22,9 @@ public sealed class NdjsonTrackedLocationStore : ITrackedLocationStore
         await foreach (var location in ReadHistoryAsync(cancellationToken))
             revisions.Add(location);
 
-        var now = DateTimeOffset.UtcNow;
         foreach (var location in revisions
-                     .GroupBy(location => location.Id)
-                     .Select(group => group
-                         .Where(location =>
-                             (location.EffectiveFromUtc is null
-                                 || location.EffectiveFromUtc <= now)
-                             && (location.EffectiveToUtc is null
-                                 || now < location.EffectiveToUtc))
-                         .OrderBy(location =>
-                             location.EffectiveFromUtc ?? DateTimeOffset.MinValue)
-                         .LastOrDefault())
-                     .Where(location => location is not null)
-                     .Select(location => location!))
+                     .GroupBy(item => item.Id)
+                     .Select(group => group.Last()))
             yield return location;
     }
 

@@ -31,12 +31,7 @@ public sealed class PresenceDayProjector
 
         var locations = locationHistory
             .GroupBy(location => location.Id)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderBy(location => location.EffectiveFromUtc ?? DateTimeOffset.MinValue)
-                    .ThenBy(location => location.EffectiveToUtc ?? DateTimeOffset.MaxValue)
-                    .ToArray());
+            .ToDictionary(group => group.Key, group => group.Last());
 
         var intervals = new List<PresenceInterval>();
         var active = new Dictionary<Guid, ActiveInterval>();
@@ -45,10 +40,7 @@ public sealed class PresenceDayProjector
                      .ThenBy(item => item.EventId))
         {
             var at = presenceEvent.At.ToUniversalTime();
-            var location = ResolveLocation(
-                locations,
-                presenceEvent.LocationId,
-                at);
+            var location = ResolveLocation(locations, presenceEvent.LocationId);
             var displayName = location?.DisplayName ?? "Unknown location";
 
             if (presenceEvent.Transition == PresenceTransition.Arrived)
@@ -117,20 +109,11 @@ public sealed class PresenceDayProjector
     }
 
     static TrackedLocation? ResolveLocation(
-        IReadOnlyDictionary<Guid, TrackedLocation[]> locations,
-        Guid locationId,
-        DateTimeOffset at)
+        IReadOnlyDictionary<Guid, TrackedLocation> locations,
+        Guid locationId)
     {
-        if (!locations.TryGetValue(locationId, out var revisions))
-            return null;
-
-        return revisions
-            .Where(location =>
-                (location.EffectiveFromUtc is null || location.EffectiveFromUtc <= at)
-                && (location.EffectiveToUtc is null || at < location.EffectiveToUtc))
-            .OrderBy(location => location.EffectiveFromUtc ?? DateTimeOffset.MinValue)
-            .LastOrDefault()
-            ?? revisions.LastOrDefault();
+        locations.TryGetValue(locationId, out var location);
+        return location;
     }
 
     static void AddClippedInterval(

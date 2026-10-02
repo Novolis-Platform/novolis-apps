@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Map;
 using Novolis.Avalonia.Mobile;
+using Novolis.IO.Maps;
 using Novolis.Math.Geometry;
-using PresenceLedger.App.Map;
 using PresenceLedger.Core;
 using PresenceLedger.Storage;
 
@@ -12,7 +12,7 @@ namespace PresenceLedger.App;
 public static class PresenceLedgerServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers local storage, inference, Kartverket adapters, and the shared view.
+    /// Registers local storage, inference, map providers, and the shared view.
     /// A platform host must register <see cref="IAppDataPaths"/> first.
     /// </summary>
     public static IServiceCollection AddPresenceLedger(this IServiceCollection services)
@@ -45,10 +45,20 @@ public static class PresenceLedgerServiceCollectionExtensions
                 sp.GetRequiredService<IPresenceStateStore>(),
                 sp.GetRequiredService<IPresenceEventStore>()));
         services.AddSingleton<PresenceDayProjector>();
-        services.AddSingleton<KartverketMapTileSource>();
+        services.AddSingleton<IMapRasterSource>(sp =>
+            new XyzMapSource(
+                sp.GetRequiredService<HttpClient>(),
+                MapPresets.KartverketTopo,
+                Path.Combine(
+                    sp.GetRequiredService<IAppDataPaths>().RootDirectory,
+                    "cache",
+                    "maps"),
+                "PresenceLedger/2026.1"));
+        services.AddSingleton<RasterMapTileSource>();
         services.AddSingleton<IMapTileSource>(sp =>
-            sp.GetRequiredService<KartverketMapTileSource>());
-        services.AddSingleton<IMapSearchProvider, KartverketMapSearchProvider>();
+            sp.GetRequiredService<RasterMapTileSource>());
+        services.AddSingleton<IMapPlaceSearch, GeonorgeAddressSearch>();
+        services.AddSingleton<PresenceHistoryRebuild>();
         services.AddSingleton<PresenceObservationCoordinator>();
         services.AddSingleton<ILedgerFilePublisher>(sp =>
             DirectoryLedgerFilePublisher.ForDownloads(

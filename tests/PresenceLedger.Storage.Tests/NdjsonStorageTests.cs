@@ -151,26 +151,62 @@ public sealed class NdjsonStorageTests
     }
 
     [Test]
-    public async Task Current_location_read_includes_an_effective_revision_that_is_already_active()
+    public async Task Current_location_read_keeps_the_latest_revision()
     {
         var root = CreateRoot();
         try
         {
             var storage = new NdjsonPresenceStorage(root);
-            var location = new TrackedLocation(
-                Guid.NewGuid(),
-                "Home",
-                new GeoCircle(new GeoCoordinate(58, 8), 50),
-                null,
-                PresencePolicyDefaults.LocationOnly,
-                DateTimeOffset.UtcNow.AddMinutes(-1));
-
-            await storage.Locations.SaveAsync(location);
+            var original = Location();
+            var moved = new TrackedLocation(
+                original.Id,
+                original.DisplayName,
+                new GeoCircle(new GeoCoordinate(58.143788, 7.992383), 69),
+                original.Wifi,
+                original.Policy);
+            await storage.Locations.SaveAsync(original);
+            await storage.Locations.SaveAsync(moved);
 
             var current = await ReadAll(storage.Locations.ReadAsync());
+            var history = await ReadAll(storage.Locations.ReadHistoryAsync());
 
             await Assert.That(current).Count().IsEqualTo(1);
-            await Assert.That(current[0]).IsEqualTo(location);
+            await Assert.That(current[0].Area.Center.Latitude).IsEqualTo(58.143788);
+            await Assert.That(history).Count().IsEqualTo(2);
+        }
+        finally
+        {
+            DeleteRoot(root);
+        }
+    }
+
+    [Test]
+    public async Task Replacing_events_discards_the_previous_ledger()
+    {
+        var root = CreateRoot();
+        try
+        {
+            var storage = new NdjsonPresenceStorage(root);
+            var location = Location();
+            var first = new PresenceEvent(
+                Guid.NewGuid(),
+                location.Id,
+                PresenceTransition.Arrived,
+                DateTimeOffset.Parse("2026-10-02T05:06:49Z"),
+                new PresenceEvidence(PresenceConfidence.Confirmed, TimeSpan.FromMinutes(3)));
+            var second = new PresenceEvent(
+                Guid.NewGuid(),
+                location.Id,
+                PresenceTransition.Left,
+                DateTimeOffset.Parse("2026-10-02T06:28:24Z"),
+                new PresenceEvidence(PresenceConfidence.Confirmed, TimeSpan.FromMinutes(3)));
+            await storage.Events.AppendAsync(first);
+            await storage.Events.ReplaceAsync([second]);
+
+            var events = await ReadAll(storage.Events.ReadAsync());
+
+            await Assert.That(events).Count().IsEqualTo(1);
+            await Assert.That(events[0]).IsEqualTo(second);
         }
         finally
         {

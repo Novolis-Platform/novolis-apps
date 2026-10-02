@@ -16,4 +16,9 @@ public interface IPresenceStateStore
     ValueTask SaveAsync(
         LocationPresenceState state,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Replaces the state ledger with one snapshot per location.</summary>
+    ValueTask ReplaceAsync(
+        IReadOnlyList<LocationPresenceState> states,
+        CancellationToken cancellationToken = default);
 }

@@ -41,6 +41,22 @@ public sealed class NdjsonPresenceObservationStore : IPresenceObservationStore
         CancellationToken cancellationToken = default) =>
         GetFile(utcDate).ReadAsync<PresenceObservationRecord>(cancellationToken);
 
+    /// <inheritdoc />
+    public async IAsyncEnumerable<PresenceObservationRecord> ReadAllAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(_rootDirectory))
+            yield break;
+
+        foreach (var path in Directory.EnumerateFiles(_rootDirectory, "*.ndjson")
+                     .OrderBy(item => item, StringComparer.Ordinal))
+        {
+            await foreach (var record in new NdjsonFile(path)
+                               .ReadAsync<PresenceObservationRecord>(cancellationToken))
+                yield return record;
+        }
+    }
+
     NdjsonFile GetFile(DateTime utcDate) =>
         GetFile(DateOnly.FromDateTime(DateTime.SpecifyKind(utcDate, DateTimeKind.Utc)));
 
