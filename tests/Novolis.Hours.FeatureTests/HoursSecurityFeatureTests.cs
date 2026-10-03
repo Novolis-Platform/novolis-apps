@@ -93,7 +93,7 @@ public sealed class HoursSecurityFeatureTests
         var client = app.GetTestClient();
         var tokenResponse = await client.GetAsync("/api/auth/antiforgery");
         var token = ReadJsonString(await tokenResponse.Content.ReadAsStringAsync(), "token");
-        var antiforgeryCookie = SetCookie(tokenResponse, "__Host-NovolisHours.Antiforgery");
+        var antiforgeryCookie = SetCookie(tokenResponse, "NovolisHours.Antiforgery");
 
         HttpResponseMessage? last = null;
         for (var attempt = 0; attempt < 11; attempt++)
@@ -146,7 +146,6 @@ public sealed class HoursSecurityFeatureTests
             ("Hours:InitialAdministratorPassword", "Cobalt-Raven-45!"),
             ("Hours:RequireHttps", "false"));
         await app.StartAsync();
-        var directory = app.Services.GetRequiredService<HoursUserDirectory>();
         var client = app.GetTestClient();
         var session = await SignInAsync(client, "admin", "Cobalt-Raven-45!");
 
@@ -169,7 +168,7 @@ public sealed class HoursSecurityFeatureTests
             .IsEqualTo(HttpStatusCode.Unauthorized);
 
         var replacement = await SignInAsync(client, "admin", "Cobalt-Raven-46!");
-        await Assert.That(replacement.Cookies).Contains("__Host-NovolisHours.Session=");
+        await Assert.That(replacement.Cookies).Contains("NovolisHours.Session=");
     }
 
     [Test]
@@ -179,6 +178,7 @@ public sealed class HoursSecurityFeatureTests
             ("Hours:InitialAdministratorPassword", "Cobalt-Raven-45!"),
             ("Hours:RequireHttps", "false"));
         await app.StartAsync();
+        var directory = app.Services.GetRequiredService<HoursUserDirectory>();
         var client = app.GetTestClient();
         var session = await SignInAsync(client, "admin", "Cobalt-Raven-45!");
 
@@ -214,7 +214,9 @@ public sealed class HoursSecurityFeatureTests
     [Test]
     public async Task Health_and_readiness_are_separate_anonymous_boundaries()
     {
-        await using var app = BuildDevelopmentHost(("Hours:RequireHttps", "false"));
+        await using var app = BuildDevelopmentHost(
+            ("Hours:EnableDemoAdminCredentials", "true"),
+            ("Hours:RequireHttps", "false"));
         await app.StartAsync();
         var client = app.GetTestClient();
 
@@ -293,7 +295,7 @@ public sealed class HoursSecurityFeatureTests
     {
         var antiforgery = await client.GetAsync("/api/auth/antiforgery");
         var token = ReadJsonString(await antiforgery.Content.ReadAsStringAsync(), "token");
-        var antiforgeryCookie = SetCookie(antiforgery, "__Host-NovolisHours.Antiforgery");
+        var antiforgeryCookie = SetCookie(antiforgery, "NovolisHours.Antiforgery");
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
         {
             Content = JsonContent.Create(new { login, password }),
@@ -302,7 +304,7 @@ public sealed class HoursSecurityFeatureTests
         request.Headers.Add("X-Novolis-Hours-CSRF", token);
         var response = await client.SendAsync(request);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        var sessionCookie = SetCookie(response, "__Host-NovolisHours.Session");
+        var sessionCookie = SetCookie(response, "NovolisHours.Session");
         return ($"{CookiePair(antiforgeryCookie)}; {CookiePair(sessionCookie)}", token);
     }
 

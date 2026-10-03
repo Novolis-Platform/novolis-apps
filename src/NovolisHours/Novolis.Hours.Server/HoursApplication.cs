@@ -80,22 +80,28 @@ public static class HoursApplication
                 () => HealthCheckResult.Healthy("The Hours host has started its storage and security services."));
         builder.Services.AddRateLimiter(HoursRateLimitPolicies.AddTo);
         builder.Services.AddSignalR();
+        var secureCookies = !builder.Environment.IsDevelopment();
+        var cookiePrefix = secureCookies ? "__Host-NovolisHours" : "NovolisHours";
         builder.Services.AddAntiforgery(antiforgery =>
         {
             antiforgery.HeaderName = "X-Novolis-Hours-CSRF";
-            antiforgery.Cookie.Name = "__Host-NovolisHours.Antiforgery";
+            antiforgery.Cookie.Name = $"{cookiePrefix}.Antiforgery";
             antiforgery.Cookie.HttpOnly = false;
-            antiforgery.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            antiforgery.Cookie.SecurePolicy = secureCookies
+                ? CookieSecurePolicy.Always
+                : CookieSecurePolicy.SameAsRequest;
             antiforgery.Cookie.Path = "/";
             antiforgery.Cookie.SameSite = SameSiteMode.Strict;
         });
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
-                options.Cookie.Name = "__Host-NovolisHours.Session";
+                options.Cookie.Name = $"{cookiePrefix}.Session";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Strict;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.SecurePolicy = secureCookies
+                    ? CookieSecurePolicy.Always
+                    : CookieSecurePolicy.SameAsRequest;
                 options.Cookie.Path = "/";
                 options.Events = new CookieAuthenticationEvents
                 {
