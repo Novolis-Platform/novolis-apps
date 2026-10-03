@@ -12,7 +12,10 @@ public sealed class HoursServerOptions
     /// <summary>Uses a real in-memory journal for feature harnesses instead of the JSON journal.</summary>
     public bool UseInMemoryJournal { get; set; }
 
-    /// <summary>Allows the documented local-only admin/admin demo account; it is disabled unless explicitly requested.</summary>
+    /// <summary>Requires HTTPS for the application surface outside Development.</summary>
+    public bool RequireHttps { get; set; } = true;
+
+    /// <summary>Allows the documented local-only demo account; it is disabled unless explicitly requested in Development.</summary>
     public bool EnableDemoAdminCredentials { get; set; }
 
     /// <summary>Login used only to provision the first non-demo administrator through the normal security path.</summary>

@@ -18,6 +18,7 @@
     <Project Path="src/Merglyph/Merglyph.Core/Merglyph.Core.csproj" />
     <Project Path="src/NovolisHours/Novolis.Hours.Avalonia/Novolis.Hours.Avalonia.csproj" />
     <Project Path="src/NovolisHours/Novolis.Hours.Cli/Novolis.Hours.Cli.csproj" />
+    <Project Path="src/NovolisHours/Novolis.Hours.Client/Novolis.Hours.Client.csproj" />
     <Project Path="src/NovolisHours/Novolis.Hours.Domain/Novolis.Hours.Domain.csproj" />
     <Project Path="src/NovolisHours/Novolis.Hours.Infrastructure/Novolis.Hours.Infrastructure.csproj" />
     <Project Path="src/NovolisHours/Novolis.Hours.Server/Novolis.Hours.Server.csproj" />
