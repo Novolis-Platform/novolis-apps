@@ -29,7 +29,8 @@ public sealed class HoursHostFeatureTests
                     ["Hours:UseInMemoryJournal"] = "true",
                     ["Hours:EnableDemoAdminCredentials"] = "true",
                 });
-            });
+            },
+            environmentName: "Development");
         await app.StartAsync();
         var client = app.GetTestClient();
 
@@ -52,7 +53,7 @@ public sealed class HoursHostFeatureTests
         var loginResponse = await client.SendAsync(login);
         await Assert.That(loginResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionCookie = CookieHeader(loginResponse)
-            .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
+            .Single(cookie => cookie.StartsWith("__Host-NovolisHours.Session=", StringComparison.Ordinal));
 
         var configurationRequest = new HttpRequestMessage(HttpMethod.Get, "/api/configuration/employees/admin");
         configurationRequest.Headers.Add("Cookie", $"{antiforgeryCookie}; {sessionCookie}");
@@ -124,7 +125,8 @@ public sealed class HoursHostFeatureTests
                     ["Hours:UseInMemoryJournal"] = "true",
                     ["Hours:EnableDemoAdminCredentials"] = "true",
                 });
-            });
+            },
+            environmentName: "Development");
         await app.StartAsync();
         var client = app.GetTestClient();
         var session = await SignInDemoAsync(client);
@@ -184,7 +186,8 @@ public sealed class HoursHostFeatureTests
                                      ["Hours:DataPath"] = dataPath,
                                      ["Hours:EnableDemoAdminCredentials"] = "true",
                                  });
-                             }))
+                             },
+                             environmentName: "Development"))
             {
                 await app.StartAsync();
                 var service = app.Services.GetRequiredService<HoursService>();
@@ -280,7 +283,8 @@ public sealed class HoursHostFeatureTests
                     ["Hours:UseInMemoryJournal"] = "true",
                     ["Hours:EnableDemoAdminCredentials"] = "true",
                 });
-            });
+            },
+            environmentName: "Development");
         await app.StartAsync();
         var directory = app.Services.GetRequiredService<HoursUserDirectory>();
         await directory.SaveAsync(new HoursUserDocument(
@@ -301,7 +305,7 @@ public sealed class HoursHostFeatureTests
         login.Headers.Add("Cookie", antiforgeryCookie);
         login.Headers.Add("X-Novolis-Hours-CSRF", antiforgeryToken);
         var sessionCookie = CookieHeader(await client.SendAsync(login))
-            .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
+            .Single(cookie => cookie.StartsWith("__Host-NovolisHours.Session=", StringComparison.Ordinal));
         var cookies = $"{antiforgeryCookie}; {sessionCookie}";
 
         var settings = new HttpRequestMessage(HttpMethod.Put, "/api/admin/users/ada/worktime-settings")
@@ -448,7 +452,8 @@ public sealed class HoursHostFeatureTests
                     ["Hours:UseInMemoryJournal"] = "true",
                     ["Hours:EnableDemoAdminCredentials"] = "true",
                 });
-            });
+            },
+            environmentName: "Development");
         await app.StartAsync();
         var hours = app.Services.GetRequiredService<HoursService>();
         var adjustment = await hours.ProposeAdjustmentAsync(new ProposeAdjustmentCommand(
@@ -511,7 +516,8 @@ public sealed class HoursHostFeatureTests
                     ["Hours:DataPath"] = dataPath,
                     ["Hours:EnableDemoAdminCredentials"] = "true",
                 });
-            });
+            },
+            environmentName: "Development");
 
     private static async Task<(string Cookies, string AntiforgeryToken)> SignInDemoAsync(HttpClient client)
     {
@@ -527,7 +533,7 @@ public sealed class HoursHostFeatureTests
         var response = await client.SendAsync(login);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionCookie = CookieHeader(response)
-            .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
+            .Single(cookie => cookie.StartsWith("__Host-NovolisHours.Session=", StringComparison.Ordinal));
         return ($"{antiforgeryCookie}; {sessionCookie}", antiforgeryToken);
     }
 }

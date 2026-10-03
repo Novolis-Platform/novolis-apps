@@ -43,6 +43,7 @@ public static class HoursPrincipalFactory
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, identityId.ToString("D")),
+            new(HoursClaimTypes.IdentityId, identityId.ToString("D")),
             new(ClaimTypes.Name, user.DisplayName),
             new(HoursClaimTypes.EmployeeId, user.EmployeeId),
             new(HoursClaimTypes.Role, user.Role.ToString()),

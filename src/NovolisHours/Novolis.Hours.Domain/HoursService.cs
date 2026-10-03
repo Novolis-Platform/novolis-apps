@@ -44,6 +44,11 @@ public sealed class HoursService
                 new ClockInterval(item.Start, item.End),
                 item.Reason))
             .ToImmutableArray();
+        var managerAgreementRecorded = command.ManagerAgreementRecorded &&
+            command.Actor.Role is HoursActorRole.Manager
+                or HoursActorRole.HumanResources
+                or HoursActorRole.Higher
+                or HoursActorRole.Administrator;
         var actual = new ActualWorkRecord(
             Guid.CreateVersion7(),
             command.Day,
@@ -51,7 +56,7 @@ public sealed class HoursService
             takenBreak,
             compensation,
             command.Comment,
-            command.ManagerAgreementRecorded);
+            managerAgreementRecorded);
         var expected = WorktimeCalculator.CreateExpectedSnapshot(command.Day, policy.EmploymentSettings);
         var balance = WorktimeCalculator.Calculate(actual, expected);
         var notices = WorktimeLegalEvaluator.Evaluate(
@@ -81,7 +86,7 @@ public sealed class HoursService
             balance.FlexDelta,
             balance.FinanciallyCompensated,
             command.Comment,
-            command.ManagerAgreementRecorded,
+            managerAgreementRecorded,
             new HoursWorktimeSnapshot(
                 expected.ProfileId,
                 expected.TemplateId,

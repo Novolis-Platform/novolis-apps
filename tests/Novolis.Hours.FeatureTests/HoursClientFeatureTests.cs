@@ -21,7 +21,8 @@ public sealed class HoursClientFeatureTests
                     ["Hours:UseInMemoryJournal"] = "true",
                     ["Hours:EnableDemoAdminCredentials"] = "true",
                 });
-            });
+            },
+            environmentName: "Development");
         await app.StartAsync();
 
         using var client = new HoursApiClient(new HttpClient(
