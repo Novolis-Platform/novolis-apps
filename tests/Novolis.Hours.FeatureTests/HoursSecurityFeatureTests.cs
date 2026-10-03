@@ -53,9 +53,10 @@ public sealed class HoursSecurityFeatureTests
             "https://localhost/api/auth/antiforgery"));
         await Assert.That(httpsResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var antiforgeryCookie = SetCookie(httpsResponse, "__Host-NovolisHours.Antiforgery");
-        await Assert.That(antiforgeryCookie).Contains("Secure");
-        await Assert.That(antiforgeryCookie).Contains("Path=/");
-        await Assert.That(antiforgeryCookie).DoesNotContain("Domain=");
+        var normalizedAntiforgeryCookie = antiforgeryCookie.ToLowerInvariant();
+        await Assert.That(normalizedAntiforgeryCookie).Contains("secure");
+        await Assert.That(normalizedAntiforgeryCookie).Contains("path=/");
+        await Assert.That(normalizedAntiforgeryCookie).DoesNotContain("domain=");
 
         var token = ReadJsonString(
             await httpsResponse.Content.ReadAsStringAsync(),
@@ -76,11 +77,12 @@ public sealed class HoursSecurityFeatureTests
 
         await Assert.That(loginResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionCookie = SetCookie(loginResponse, "__Host-NovolisHours.Session");
-        await Assert.That(sessionCookie).Contains("HttpOnly");
-        await Assert.That(sessionCookie).Contains("Secure");
-        await Assert.That(sessionCookie).Contains("SameSite=Strict");
-        await Assert.That(sessionCookie).Contains("Path=/");
-        await Assert.That(sessionCookie).DoesNotContain("Domain=");
+        var normalizedSessionCookie = sessionCookie.ToLowerInvariant();
+        await Assert.That(normalizedSessionCookie).Contains("httponly");
+        await Assert.That(normalizedSessionCookie).Contains("secure");
+        await Assert.That(normalizedSessionCookie).Contains("samesite=strict");
+        await Assert.That(normalizedSessionCookie).Contains("path=/");
+        await Assert.That(normalizedSessionCookie).DoesNotContain("domain=");
     }
 
     [Test]
@@ -305,6 +307,9 @@ public sealed class HoursSecurityFeatureTests
         var response = await client.SendAsync(request);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionCookie = SetCookie(response, "NovolisHours.Session");
+        antiforgery = await client.GetAsync("/api/auth/antiforgery");
+        token = ReadJsonString(await antiforgery.Content.ReadAsStringAsync(), "token");
+        antiforgeryCookie = SetCookie(antiforgery, "NovolisHours.Antiforgery");
         return ($"{CookiePair(antiforgeryCookie)}; {CookiePair(sessionCookie)}", token);
     }
 

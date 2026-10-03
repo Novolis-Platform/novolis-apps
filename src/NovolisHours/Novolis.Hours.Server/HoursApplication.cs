@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -194,13 +195,45 @@ public static class HoursApplication
         app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
-        app.UseAntiforgery();
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api") &&
+                !HttpMethods.IsGet(context.Request.Method) &&
+                !HttpMethods.IsHead(context.Request.Method) &&
+                !HttpMethods.IsOptions(context.Request.Method))
+            {
+                try
+                {
+                    await context.RequestServices
+                        .GetRequiredService<IAntiforgery>()
+                        .ValidateRequestAsync(context);
+                }
+                catch (AntiforgeryValidationException exception)
+                {
+                    app.Logger.LogWarning(
+                        exception,
+                        "Hours antiforgery validation failed for {Method} {Path}.",
+                        context.Request.Method,
+                        context.Request.Path);
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    await Results.Problem(
+                            statusCode: StatusCodes.Status400BadRequest,
+                            title: "The antiforgery token is missing or invalid.",
+                            detail: "Obtain a fresh token and submit the request again.")
+                        .ExecuteAsync(context);
+                    return;
+                }
+            }
+
+            await next(context);
+        });
 
         app.MapHealthChecks("/health/live", new HealthCheckOptions
         {
             Predicate = _ => false,
         }).AllowAnonymous();
         app.MapHealthChecks("/health/ready").AllowAnonymous();
+        app.MapGet("/health", () => Results.NotFound()).AllowAnonymous();
         app.MapHub<HoursHub>("/hubs/hours");
         HoursEndpointMappings.Map(app);
         app.MapFallbackToFile("index.html");

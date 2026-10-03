@@ -66,6 +66,8 @@ public sealed class HoursApiClient : IDisposable
         await EnsureSuccessAsync(response, cancellationToken);
         var payload = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("The Hours host returned an empty login response.");
+        antiforgeryToken = null;
+        await GetAntiforgeryTokenAsync(cancellationToken);
         return new HoursClientUser(
             payload.EmployeeId,
             payload.DisplayName,

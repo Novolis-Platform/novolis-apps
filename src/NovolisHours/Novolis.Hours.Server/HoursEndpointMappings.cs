@@ -25,8 +25,7 @@ public static class HoursEndpointMappings
 
         endpoints.MapPost("/api/auth/login", LoginAsync)
             .AllowAnonymous()
-            .RequireRateLimiting(HoursRateLimitPolicies.Login)
-            .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+            .RequireRateLimiting(HoursRateLimitPolicies.Login);
 
         var api = endpoints.MapGroup("/api").RequireAuthorization();
         api.MapGet("/auth/me", (HttpContext context) =>
@@ -34,22 +33,21 @@ public static class HoursEndpointMappings
             var actor = HoursPrincipalFactory.ToActor(context.User);
             return Results.Ok(new CurrentUserResponse(actor.Id, actor.DisplayName, actor.Role));
         });
-        api.MapPost("/auth/logout", LogoutAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPost("/auth/password", ChangePasswordAsync)
-            .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/auth/logout", LogoutAsync);
+        api.MapPost("/auth/password", ChangePasswordAsync);
 
         api.MapGet("/configuration/employees/{employeeId}", GetEmployeeConfiguration);
         api.MapGet("/employees/{employeeId}/view", GetEmployeeViewAsync);
         api.MapGet("/query/{kind}", ExecuteQueryAsync);
-        api.MapPost("/work", RegisterWorkAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPost("/adjustments", ProposeAdjustmentAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPost("/flex-normalizations", ProposeFlexNormalizationAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPost("/adjustments/{adjustmentId:guid}/response", RespondToAdjustmentAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPost("/adjustments/{adjustmentId:guid}/resolve", ResolveAdjustmentAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPost("/approval-periods", OpenApprovalPeriodAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPost("/approval-periods/{periodId:guid}/submit", SubmitPeriodAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPost("/approval-periods/{periodId:guid}/review", ReviewPeriodAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPost("/approval-periods/{periodId:guid}/escalate", EscalatePeriodAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/work", RegisterWorkAsync);
+        api.MapPost("/adjustments", ProposeAdjustmentAsync);
+        api.MapPost("/flex-normalizations", ProposeFlexNormalizationAsync);
+        api.MapPost("/adjustments/{adjustmentId:guid}/response", RespondToAdjustmentAsync);
+        api.MapPost("/adjustments/{adjustmentId:guid}/resolve", ResolveAdjustmentAsync);
+        api.MapPost("/approval-periods", OpenApprovalPeriodAsync);
+        api.MapPost("/approval-periods/{periodId:guid}/submit", SubmitPeriodAsync);
+        api.MapPost("/approval-periods/{periodId:guid}/review", ReviewPeriodAsync);
+        api.MapPost("/approval-periods/{periodId:guid}/escalate", EscalatePeriodAsync);
         api.MapGet("/reports/{employeeId}.html", ExportHtmlReportAsync);
         api.MapGet("/legal/presets", (HoursPolicy policy) => Results.Ok(new LegalPresetResponse(
             policy.LegalPreset.Id,
@@ -63,9 +61,8 @@ public static class HoursEndpointMappings
             policy.LegalPreset.ApprovalSchedule.HrResolutionBusinessDays)));
         api.MapGet("/legal/preset-catalog", GetLegalPresetCatalog);
         api.MapGet("/admin/users", ListUsers);
-        api.MapPost("/admin/users", CreateUserAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
-        api.MapPut("/admin/users/{employeeId}/worktime-settings", UpdateWorktimeSettingsAsync)
-            .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/admin/users", CreateUserAsync);
+        api.MapPut("/admin/users/{employeeId}/worktime-settings", UpdateWorktimeSettingsAsync);
     }
 
     private static async Task<IResult> LoginAsync(

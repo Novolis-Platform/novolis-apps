@@ -91,6 +91,7 @@
         method: "POST",
         body: JSON.stringify({ login: value("login"), password: value("password") })
       });
+      await getToken();
       signIn.classList.add("hidden");
       hours.classList.remove("hidden");
       await refresh();

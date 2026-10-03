@@ -54,6 +54,9 @@ public sealed class HoursHostFeatureTests
         await Assert.That(loginResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionCookie = CookieHeader(loginResponse)
             .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
+        antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
+        antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
+        antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
 
         var configurationRequest = new HttpRequestMessage(HttpMethod.Get, "/api/configuration/employees/admin");
         configurationRequest.Headers.Add("Cookie", $"{antiforgeryCookie}; {sessionCookie}");
@@ -306,6 +309,9 @@ public sealed class HoursHostFeatureTests
         login.Headers.Add("X-Novolis-Hours-CSRF", antiforgeryToken);
         var sessionCookie = CookieHeader(await client.SendAsync(login))
             .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
+        antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
+        antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
+        antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
         var cookies = $"{antiforgeryCookie}; {sessionCookie}";
 
         var settings = new HttpRequestMessage(HttpMethod.Put, "/api/admin/users/ada/worktime-settings")
@@ -534,6 +540,9 @@ public sealed class HoursHostFeatureTests
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionCookie = CookieHeader(response)
             .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
+        antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
+        antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
+        antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
         return ($"{antiforgeryCookie}; {sessionCookie}", antiforgeryToken);
     }
 }
