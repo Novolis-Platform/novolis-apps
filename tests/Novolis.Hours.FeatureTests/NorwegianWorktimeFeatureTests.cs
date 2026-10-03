@@ -1,5 +1,5 @@
 using Novolis.Hours.Domain;
-using Novolis.Hours.Infrastructure;
+using Novolis.Hours.Storage;
 using Novolis.Hours.Server;
 using Microsoft.Extensions.Logging.Abstractions;
 

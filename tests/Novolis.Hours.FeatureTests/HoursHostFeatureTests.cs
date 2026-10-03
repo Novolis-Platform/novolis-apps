@@ -8,8 +8,9 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Novolis.Hours.Application;
 using Novolis.Hours.Domain;
-using Novolis.Hours.Infrastructure;
+using Novolis.Hours.Storage;
 using Novolis.Hours.Server;
 
 namespace Novolis.Hours.FeatureTests;
@@ -54,7 +55,11 @@ public sealed class HoursHostFeatureTests
         await Assert.That(loginResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionCookie = CookieHeader(loginResponse)
             .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
-        antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
+        using var refreshedAntiforgeryRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/auth/antiforgery");
+        refreshedAntiforgeryRequest.Headers.Add("Cookie", sessionCookie);
+        antiforgeryResponse = await client.SendAsync(refreshedAntiforgeryRequest);
         antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
         antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
 
@@ -309,7 +314,11 @@ public sealed class HoursHostFeatureTests
         login.Headers.Add("X-Novolis-Hours-CSRF", antiforgeryToken);
         var sessionCookie = CookieHeader(await client.SendAsync(login))
             .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
-        antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
+        using var refreshedAntiforgeryRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/auth/antiforgery");
+        refreshedAntiforgeryRequest.Headers.Add("Cookie", sessionCookie);
+        antiforgeryResponse = await client.SendAsync(refreshedAntiforgeryRequest);
         antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
         antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
         var cookies = $"{antiforgeryCookie}; {sessionCookie}";
@@ -540,7 +549,11 @@ public sealed class HoursHostFeatureTests
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionCookie = CookieHeader(response)
             .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
-        antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
+        using var refreshedAntiforgeryRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/auth/antiforgery");
+        refreshedAntiforgeryRequest.Headers.Add("Cookie", sessionCookie);
+        antiforgeryResponse = await client.SendAsync(refreshedAntiforgeryRequest);
         antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
         antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
         return ($"{antiforgeryCookie}; {sessionCookie}", antiforgeryToken);

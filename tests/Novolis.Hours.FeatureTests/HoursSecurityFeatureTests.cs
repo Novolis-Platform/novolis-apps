@@ -8,7 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Novolis.Hours.Domain;
-using Novolis.Hours.Infrastructure;
+using Novolis.Hours.Storage;
 using Novolis.Hours.Server;
 using Novolis.Security.Authentication;
 
@@ -307,7 +307,11 @@ public sealed class HoursSecurityFeatureTests
         var response = await client.SendAsync(request);
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var sessionCookie = SetCookie(response, "NovolisHours.Session");
-        antiforgery = await client.GetAsync("/api/auth/antiforgery");
+        using var refreshedAntiforgeryRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/auth/antiforgery");
+        refreshedAntiforgeryRequest.Headers.Add("Cookie", CookiePair(sessionCookie));
+        antiforgery = await client.SendAsync(refreshedAntiforgeryRequest);
         token = ReadJsonString(await antiforgery.Content.ReadAsStringAsync(), "token");
         antiforgeryCookie = SetCookie(antiforgery, "NovolisHours.Antiforgery");
         return ($"{CookiePair(antiforgeryCookie)}; {CookiePair(sessionCookie)}", token);

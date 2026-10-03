@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Novolis.Hours.Storage</RootNamespace>
+    <AssemblyName>Novolis.Hours.Storage</AssemblyName>
+    <Description>Durable and in-memory journals for Novolis Hours.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Novolis.Hours.Domain\Novolis.Hours.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <LibraryReference Include="Novolis.Storage.Abstractions" />
+    <LibraryReference Include="Novolis.Storage.Json" />
+  </ItemGroup>
+</Project>

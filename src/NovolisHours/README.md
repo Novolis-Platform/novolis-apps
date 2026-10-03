@@ -53,8 +53,8 @@ All included presets start as `Draft`; a tenant must complete country-specific l
 - `Novolis.Hours.Server` — ASP.NET Core API, SignalR hub, JSON persistence, SPA delivery, workflow scheduling, and HTML report export.
 - `Novolis.Hours.Cli` — prints the listening URL after starting the host.
 - `Novolis.Hours.Client` — authenticated cookie and antiforgery API client shared by native hosts.
-- `Novolis.Hours.Avalonia` — shared-profile native client with real service sign-in and summary loading.
-- `Novolis.Hours.Maui` — shared-profile mobile and Windows client with real service sign-in and summary loading.
+- `Novolis.Hours.Client.Avalonia` — shared-profile native client with real service sign-in and summary loading.
+- `Novolis.Hours.Client.Maui` — shared-profile mobile and Windows client with real service sign-in and summary loading.
 
 The local demonstration host supports `admin/admin` only when explicitly started with `serve --demo`, so a fresh JSON-backed run can be tried in one command. The default is secure: a non-demo host starts only when an administrator already exists or `Hours__InitialAdministratorPassword` is supplied through secure configuration. Production bootstrap checks passwords through the Novolis Security breach-checking adapter.
 

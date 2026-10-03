@@ -6,14 +6,15 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Novolis.Hours.Application\Novolis.Hours.Application.csproj" />
+    <ProjectReference Include="..\Novolis.Hours.Contracts\Novolis.Hours.Contracts.csproj" />
     <ProjectReference Include="..\Novolis.Hours.Domain\Novolis.Hours.Domain.csproj" />
-    <ProjectReference Include="..\Novolis.Hours.Infrastructure\Novolis.Hours.Infrastructure.csproj" />
+    <ProjectReference Include="..\Novolis.Hours.Storage\Novolis.Hours.Storage.csproj" />
   </ItemGroup>
   <ItemGroup>
     <LibraryReference Include="Novolis.Security.Authentication" />
     <LibraryReference Include="Novolis.Security.Authentication.Storage" />
     <LibraryReference Include="Novolis.Security.HaveIBeenPwned" />
-    <LibraryReference Include="Novolis.Markup.Html" />
     <LibraryReference Include="Novolis.Storage.Abstractions" />
     <LibraryReference Include="Novolis.Storage.InMemory" />
     <LibraryReference Include="Novolis.WorkflowEngine" />

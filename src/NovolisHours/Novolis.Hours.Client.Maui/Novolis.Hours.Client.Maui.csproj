@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(NovolisMauiTargetFrameworks)' != ''">$(NovolisMauiTargetFrameworks)</TargetFrameworks>
+    <TargetFramework></TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Novolis.Hours.Client.Maui</RootNamespace>
+    <AssemblyName>Novolis.Hours.Client.Maui</AssemblyName>
+    <ApplicationTitle>Novolis Hours</ApplicationTitle>
+    <ApplicationId>com.novolis.hours</ApplicationId>
+    <ApplicationDisplayVersion>$(NovolisPlatformVersion)</ApplicationDisplayVersion>
+    <ApplicationVersion Condition="'$(NovolisAndroidVersionCode)' != ''">$(NovolisAndroidVersionCode)</ApplicationVersion>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">26.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+    <WindowsPackageType Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">None</WindowsPackageType>
+    <AppxPackageSigningEnabled Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">false</AppxPackageSigningEnabled>
+    <Description>MAUI client shell for the Novolis Hours service.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Novolis.Hours.Client\Novolis.Hours.Client.csproj" />
+  </ItemGroup>
+</Project>

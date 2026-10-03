@@ -1,6 +1,6 @@
 <Solution>
-  <Folder Name="/Novolis.Hours.Avalonia/">
-    <Project Path="Novolis.Hours.Avalonia/Novolis.Hours.Avalonia.csproj" />
+  <Folder Name="/Novolis.Hours.Client.Avalonia/">
+    <Project Path="Novolis.Hours.Client.Avalonia/Novolis.Hours.Client.Avalonia.csproj" />
   </Folder>
   <Folder Name="/Novolis.Hours.Cli/">
     <Project Path="Novolis.Hours.Cli/Novolis.Hours.Cli.csproj" />
@@ -11,8 +11,8 @@
   <Folder Name="/Novolis.Hours.Domain/">
     <Project Path="Novolis.Hours.Domain/Novolis.Hours.Domain.csproj" />
   </Folder>
-  <Folder Name="/Novolis.Hours.Infrastructure/">
-    <Project Path="Novolis.Hours.Infrastructure/Novolis.Hours.Infrastructure.csproj" />
+  <Folder Name="/Novolis.Hours.Storage/">
+    <Project Path="Novolis.Hours.Storage/Novolis.Hours.Storage.csproj" />
   </Folder>
   <Folder Name="/Novolis.Hours.Server/">
     <Project Path="Novolis.Hours.Server/Novolis.Hours.Server.csproj" />
