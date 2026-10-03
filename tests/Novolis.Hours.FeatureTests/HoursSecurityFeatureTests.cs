@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Novolis.Hours.Domain;
+using Novolis.Hours.Infrastructure;
 using Novolis.Hours.Server;
 using Novolis.Security.Authentication;
 
@@ -145,6 +146,7 @@ public sealed class HoursSecurityFeatureTests
             ("Hours:InitialAdministratorPassword", "Cobalt-Raven-45!"),
             ("Hours:RequireHttps", "false"));
         await app.StartAsync();
+        var directory = app.Services.GetRequiredService<HoursUserDirectory>();
         var client = app.GetTestClient();
         var session = await SignInAsync(client, "admin", "Cobalt-Raven-45!");
 
@@ -196,6 +198,10 @@ public sealed class HoursSecurityFeatureTests
         missingToken.Headers.Add("Cookie", session.Cookies);
         var antiforgeryResponse = await client.SendAsync(missingToken);
         await Assert.That(antiforgeryResponse.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+
+        var administrator = directory.FindByEmployeeId("admin")
+            ?? throw new InvalidOperationException("The bootstrap administrator was not created.");
+        await directory.SaveAsync(administrator with { Role = HoursActorRole.Employee });
 
         using var forbidden = new HttpRequestMessage(
             HttpMethod.Get,
@@ -274,11 +280,9 @@ public sealed class HoursSecurityFeatureTests
             builder =>
             {
                 builder.WebHost.UseTestServer();
-                builder.Configuration.AddInMemoryCollection(
-                    new Dictionary<string, string?>(settings)
-                    {
-                        ["Hours:UseInMemoryJournal"] = "true",
-                    });
+                var values = settings.ToDictionary(item => item.Key, item => (string?)item.Value);
+                values["Hours:UseInMemoryJournal"] = "true";
+                builder.Configuration.AddInMemoryCollection(values);
             },
             environmentName: "Development");
 
