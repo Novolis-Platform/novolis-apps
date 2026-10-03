@@ -23,6 +23,8 @@
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" />
     <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
@@ -62,6 +64,10 @@
     <PackageVersion Include="Novolis.Transports.Quic" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Discovery" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Tailscale" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Http.Client" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Http.Documents" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Http.Variables" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Language.RoboSharp" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Video.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Video.Capture.Windows" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Video.Codecs.H264" Version="2026.1.*" />
