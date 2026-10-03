@@ -1,6 +1,9 @@
 using Aspire.Hosting;
+using Microsoft.Extensions.Configuration;
+using System.Reflection;
 
 var builder = DistributedApplication.CreateBuilder(args);
+builder.Configuration.AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true);
 
 var administratorPassword = builder.AddParameter(
     "hours-initial-administrator-password",
