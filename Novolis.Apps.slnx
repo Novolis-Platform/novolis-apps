@@ -16,15 +16,8 @@
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
     <Project Path="src/LiveStudio/studio/LiveStudio.csproj" />
     <Project Path="src/Merglyph/Merglyph.Core/Merglyph.Core.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.AppHost/Novolis.Hours.AppHost.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.Application/Novolis.Hours.Application.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.Cli/Novolis.Hours.Cli.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.Client.Avalonia/Novolis.Hours.Client.Avalonia.csproj" />
     <Project Path="src/NovolisHours/Novolis.Hours.Client/Novolis.Hours.Client.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.Contracts/Novolis.Hours.Contracts.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.Domain/Novolis.Hours.Domain.csproj" />
     <Project Path="src/NovolisHours/Novolis.Hours.Server/Novolis.Hours.Server.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.Storage/Novolis.Hours.Storage.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.App/PresenceLedger.App.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.Core/PresenceLedger.Core.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.Storage/PresenceLedger.Storage.csproj" />
@@ -43,7 +36,6 @@
     <Project Path="tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
     <Project Path="tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
     <Project Path="tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />
-    <Project Path="tests/Novolis.Hours.AspireTests/Novolis.Hours.AspireTests.csproj" />
     <Project Path="tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj" />
     <Project Path="tests/Novolis.Ndjson.App.Tests/Novolis.Ndjson.App.Tests.csproj" />
     <Project Path="tests/NovolisPdfReader.UiTests/NovolisPdfReader.UiTests.csproj" />
