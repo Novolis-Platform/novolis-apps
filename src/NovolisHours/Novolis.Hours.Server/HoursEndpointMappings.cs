@@ -1,0 +1,550 @@
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Novolis.Hours.Domain;
+using Novolis.Security.Authentication;
+using AuthenticationFacade = Novolis.Security.Authentication.IAuthenticationService;
+
+namespace Novolis.Hours.Server;
+
+/// <summary>Maps the authenticated JSON API and report endpoints for the self-contained Hours host.</summary>
+public static class HoursEndpointMappings
+{
+    /// <summary>Adds endpoint routes to the host.</summary>
+    public static void Map(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/api/auth/antiforgery", (IAntiforgery antiforgery, HttpContext context) =>
+        {
+            var tokens = antiforgery.GetAndStoreTokens(context);
+            return Results.Ok(new AntiforgeryResponse(tokens.RequestToken ?? string.Empty));
+        }).AllowAnonymous();
+
+        endpoints.MapPost("/api/auth/login", LoginAsync)
+            .AllowAnonymous()
+            .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+
+        var api = endpoints.MapGroup("/api").RequireAuthorization();
+        api.MapGet("/auth/me", (HttpContext context) =>
+        {
+            var actor = HoursPrincipalFactory.ToActor(context.User);
+            return Results.Ok(new CurrentUserResponse(actor.Id, actor.DisplayName, actor.Role));
+        });
+        api.MapPost("/auth/logout", LogoutAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+
+        api.MapGet("/configuration/employees/{employeeId}", GetEmployeeConfiguration);
+        api.MapGet("/employees/{employeeId}/view", GetEmployeeViewAsync);
+        api.MapGet("/query/{kind}", ExecuteQueryAsync);
+        api.MapPost("/work", RegisterWorkAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/adjustments", ProposeAdjustmentAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/flex-normalizations", ProposeFlexNormalizationAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/adjustments/{adjustmentId:guid}/response", RespondToAdjustmentAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/adjustments/{adjustmentId:guid}/resolve", ResolveAdjustmentAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/approval-periods", OpenApprovalPeriodAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/approval-periods/{periodId:guid}/submit", SubmitPeriodAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/approval-periods/{periodId:guid}/review", ReviewPeriodAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/approval-periods/{periodId:guid}/escalate", EscalatePeriodAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapGet("/reports/{employeeId}.html", ExportHtmlReportAsync);
+        api.MapGet("/legal/presets", (HoursPolicy policy) => Results.Ok(new LegalPresetResponse(
+            policy.LegalPreset.Id,
+            policy.LegalPreset.Version,
+            policy.LegalPreset.CountryCode,
+            policy.LegalPreset.Citation,
+            policy.LegalPreset.ReviewState,
+            policy.LegalPreset.OvertimeAgreementMessage,
+            policy.LegalPreset.ApprovalSchedule.EmployeeSubmitBusinessDays,
+            policy.LegalPreset.ApprovalSchedule.ManagerReviewBusinessDays,
+            policy.LegalPreset.ApprovalSchedule.HrResolutionBusinessDays)));
+        api.MapGet("/admin/users", ListUsers);
+        api.MapPost("/admin/users", CreateUserAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+    }
+
+    private static async Task<IResult> LoginAsync(
+        LoginRequest request,
+        HttpContext context,
+        HoursServerOptions options,
+        AuthenticationFacade authentication,
+        HoursUserDirectory users)
+    {
+        if (string.IsNullOrWhiteSpace(request.Login) || string.IsNullOrEmpty(request.Password))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["login"] = ["Login and password are required."],
+            });
+        }
+
+        if (options.EnableDemoAdminCredentials &&
+            string.Equals(request.Login, HoursDemoAccount.Login, StringComparison.Ordinal) &&
+            string.Equals(request.Password, HoursDemoAccount.Password, StringComparison.Ordinal))
+        {
+            var principal = HoursPrincipalFactory.CreateDemo();
+            await context.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                principal,
+                new AuthenticationProperties { AllowRefresh = true });
+            return Results.Ok(ToLoginResponse(HoursDemoAccount.User));
+        }
+
+        var signIn = await authentication.SignInAsync(
+            request.Login,
+            request.Password,
+            createSession: true,
+            cancellationToken: context.RequestAborted);
+        if (!signIn.Succeeded || signIn.IdentityId is not { } identity || string.IsNullOrWhiteSpace(signIn.SessionId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = await users.FindAsync(identity.Value, context.RequestAborted);
+        if (user is null)
+        {
+            await authentication.SignOutAsync(signIn.SessionId, context.RequestAborted);
+            return Results.Problem(
+                "The authenticated account has no Novolis Hours role profile.",
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var authenticatedPrincipal = HoursPrincipalFactory.Create(user, identity, signIn.SessionId);
+        await context.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            authenticatedPrincipal,
+            new AuthenticationProperties { AllowRefresh = true });
+        return Results.Ok(ToLoginResponse(user));
+    }
+
+    private static async Task<IResult> LogoutAsync(
+        HttpContext context,
+        AuthenticationFacade authentication)
+    {
+        var sessionId = context.User.FindFirst(HoursClaimTypes.SessionId)?.Value;
+        if (!string.IsNullOrWhiteSpace(sessionId) && sessionId != "demo")
+        {
+            await authentication.SignOutAsync(sessionId, context.RequestAborted);
+        }
+
+        await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> GetEmployeeViewAsync(
+        string employeeId,
+        HttpContext context,
+        HoursService hours)
+    {
+        var forbidden = EnsureCanView(context.User, employeeId);
+        if (forbidden is not null)
+        {
+            return forbidden;
+        }
+
+        return Results.Ok(await hours.GetEmployeeViewAsync(employeeId, context.RequestAborted));
+    }
+
+    private static IResult GetEmployeeConfiguration(
+        string employeeId,
+        HttpContext context,
+        IHoursPolicyProvider policies)
+    {
+        var forbidden = EnsureCanView(context.User, employeeId);
+        if (forbidden is not null)
+        {
+            return forbidden;
+        }
+
+        var policy = policies.GetPolicy(employeeId);
+        var profile = policy.EmploymentSettings.Profile;
+        var settings = policy.EmploymentSettings;
+        return Results.Ok(new EmployeeConfigurationResponse(
+            employeeId,
+            new ProfileResponse(
+                profile.Id,
+                profile.Name,
+                profile.WorkingDayEnvelope.Start,
+                profile.WorkingDayEnvelope.End,
+                profile.CoreHours.Start,
+                profile.CoreHours.End,
+                profile.Lunch.Start,
+                profile.Lunch.End,
+                profile.WeekHours,
+                profile.DayHours,
+                profile.UnmarkedSurplusClassification),
+            new TemplateResponse(settings.Template.Id, settings.Template.Name),
+            new IndividualSettingsResponse(
+                settings.WorkFraction,
+                settings.ExpectedIntervalOverride?.Start,
+                settings.ExpectedIntervalOverride?.End),
+            new CalendarResponse(
+                settings.Calendar.Id,
+                settings.Calendar.Source.Source,
+                settings.Calendar.Source.Version,
+                settings.Calendar.Source.CountryCode),
+            new LegalPresetResponse(
+                policy.LegalPreset.Id,
+                policy.LegalPreset.Version,
+                policy.LegalPreset.CountryCode,
+                policy.LegalPreset.Citation,
+                policy.LegalPreset.ReviewState,
+                policy.LegalPreset.OvertimeAgreementMessage,
+                policy.LegalPreset.ApprovalSchedule.EmployeeSubmitBusinessDays,
+                policy.LegalPreset.ApprovalSchedule.ManagerReviewBusinessDays,
+                policy.LegalPreset.ApprovalSchedule.HrResolutionBusinessDays),
+            policy.SettlementPolicy.Id,
+            policy.SettlementPolicy.Cadence));
+    }
+
+    private static async Task<IResult> ExecuteQueryAsync(
+        string kind,
+        string employeeId,
+        DateOnly? from,
+        DateOnly? through,
+        HttpContext context,
+        HoursQueryService queries)
+    {
+        var forbidden = EnsureCanView(context.User, employeeId);
+        if (forbidden is not null)
+        {
+            return forbidden;
+        }
+
+        if (!Enum.TryParse<HoursQueryKind>(kind, ignoreCase: true, out var queryKind))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["kind"] = [$"Unknown query kind '{kind}'."],
+            });
+        }
+
+        return Results.Ok(await queries.ExecuteAsync(
+            new HoursQuery(employeeId, queryKind, from, through),
+            context.RequestAborted));
+    }
+
+    private static async Task<IResult> RegisterWorkAsync(
+        RegisterWorkRequest request,
+        HttpContext context,
+        HoursService hours)
+    {
+        var actor = HoursPrincipalFactory.ToActor(context.User);
+        var result = await hours.RegisterWorkAsync(
+            new RegisterWorkCommand(
+                request.EmployeeId,
+                request.Day,
+                request.StartedAt,
+                request.EndedAt,
+                request.BreakStartedAt,
+                request.BreakEndedAt,
+                request.FinancialCompensationSlices ?? [],
+                request.Comment,
+                request.ManagerAgreementRecorded,
+                actor),
+            context.RequestAborted);
+        HoursTelemetry.JournalAppends.Add(1);
+        return Results.Created($"/api/employees/{result.EmployeeId}/view", result);
+    }
+
+    private static async Task<IResult> ProposeAdjustmentAsync(
+        ProposeAdjustmentRequest request,
+        HttpContext context,
+        HoursService hours)
+    {
+        var adjustment = await hours.ProposeAdjustmentAsync(
+            new ProposeAdjustmentCommand(
+                request.EmployeeId,
+                request.EffectiveDay,
+                request.DurationDelta,
+                request.Reason,
+                request.Comment,
+                HoursPrincipalFactory.ToActor(context.User)),
+            context.RequestAborted);
+        HoursTelemetry.JournalAppends.Add(1);
+        return Results.Created($"/api/adjustments/{adjustment.Id}", adjustment);
+    }
+
+    private static async Task<IResult> RespondToAdjustmentAsync(
+        Guid adjustmentId,
+        RespondToAdjustmentRequest request,
+        HttpContext context,
+        HoursService hours)
+    {
+        var adjustment = await hours.RespondToAdjustmentAsync(
+            new RespondToAdjustmentCommand(
+                adjustmentId,
+                request.Response,
+                request.Comment,
+                HoursPrincipalFactory.ToActor(context.User)),
+            context.RequestAborted);
+        HoursTelemetry.JournalAppends.Add(1);
+        return Results.Ok(adjustment);
+    }
+
+    private static async Task<IResult> ProposeFlexNormalizationAsync(
+        ProposeFlexNormalizationRequest request,
+        HttpContext context,
+        HoursService hours)
+    {
+        var adjustment = await hours.ProposeFlexNormalizationAsync(
+            request.EmployeeId,
+            request.AssessedThrough,
+            HoursPrincipalFactory.ToActor(context.User),
+            context.RequestAborted);
+        return adjustment is null
+            ? Results.NoContent()
+            : Results.Created($"/api/adjustments/{adjustment.Id}", adjustment);
+    }
+
+    private static async Task<IResult> ResolveAdjustmentAsync(
+        Guid adjustmentId,
+        ResolveAdjustmentRequest request,
+        HttpContext context,
+        HoursService hours)
+    {
+        var adjustment = await hours.ResolveAdjustmentAsync(
+            new ResolveAdjustmentCommand(
+                adjustmentId,
+                request.Resolution,
+                request.Comment,
+                HoursPrincipalFactory.ToActor(context.User)),
+            context.RequestAborted);
+        HoursTelemetry.JournalAppends.Add(1);
+        return Results.Ok(adjustment);
+    }
+
+    private static async Task<IResult> OpenApprovalPeriodAsync(
+        OpenApprovalPeriodRequest request,
+        HttpContext context,
+        HoursService hours)
+    {
+        var period = await hours.OpenApprovalPeriodAsync(
+            new OpenApprovalPeriodCommand(
+                request.EmployeeId,
+                request.StartsOn,
+                request.EndsOn,
+                HoursPrincipalFactory.ToActor(context.User)),
+            context.RequestAborted);
+        HoursTelemetry.JournalAppends.Add(1);
+        return Results.Created($"/api/approval-periods/{period.Id}", period);
+    }
+
+    private static async Task<IResult> SubmitPeriodAsync(
+        Guid periodId,
+        ApprovalActionRequest request,
+        HttpContext context,
+        HoursService hours)
+    {
+        var period = await hours.SubmitApprovalPeriodAsync(
+            periodId,
+            request.Comment,
+            HoursPrincipalFactory.ToActor(context.User),
+            context.RequestAborted);
+        HoursTelemetry.JournalAppends.Add(1);
+        return Results.Ok(period);
+    }
+
+    private static async Task<IResult> ReviewPeriodAsync(
+        Guid periodId,
+        ApprovalActionRequest request,
+        HttpContext context,
+        HoursService hours)
+    {
+        var period = await hours.ReviewApprovalPeriodAsync(
+            periodId,
+            request.Comment,
+            HoursPrincipalFactory.ToActor(context.User),
+            context.RequestAborted);
+        HoursTelemetry.JournalAppends.Add(1);
+        return Results.Ok(period);
+    }
+
+    private static async Task<IResult> EscalatePeriodAsync(
+        Guid periodId,
+        ApprovalActionRequest request,
+        HttpContext context,
+        HoursService hours)
+    {
+        var period = await hours.EscalateApprovalPeriodAsync(
+            periodId,
+            request.Comment,
+            HoursPrincipalFactory.ToActor(context.User),
+            context.RequestAborted);
+        HoursTelemetry.JournalAppends.Add(1);
+        return Results.Ok(period);
+    }
+
+    private static async Task<IResult> ExportHtmlReportAsync(
+        string employeeId,
+        HttpContext context,
+        HoursService hours,
+        HoursHtmlReportExporter exporter)
+    {
+        var forbidden = EnsureCanView(context.User, employeeId);
+        if (forbidden is not null)
+        {
+            return forbidden;
+        }
+
+        var view = await hours.GetEmployeeViewAsync(employeeId, context.RequestAborted);
+        return Results.Content(exporter.Export(view), "text/html; charset=utf-8");
+    }
+
+    private static IResult ListUsers(HttpContext context, HoursUserDirectory users)
+    {
+        var forbidden = EnsureAdministrator(context.User);
+        return forbidden ?? Results.Ok(users.List());
+    }
+
+    private static async Task<IResult> CreateUserAsync(
+        CreateUserRequest request,
+        HttpContext context,
+        AuthenticationFacade authentication,
+        HoursUserDirectory users)
+    {
+        var forbidden = EnsureAdministrator(context.User);
+        if (forbidden is not null)
+        {
+            return forbidden;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.EmployeeId) ||
+            string.IsNullOrWhiteSpace(request.Login) ||
+            string.IsNullOrWhiteSpace(request.DisplayName))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["user"] = ["Employee ID, login, and display name are required."],
+            });
+        }
+
+        var result = await authentication.RegisterAsync(
+            request.Login,
+            request.Password,
+            request.DisplayName,
+            createSession: false,
+            context.RequestAborted);
+        if (!result.Succeeded || result.IdentityId is not { } identity)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["password"] = [result.Error ?? "The account could not be created."],
+            });
+        }
+
+        var user = new HoursUserDocument(
+            identity.Value,
+            request.EmployeeId,
+            request.Login,
+            request.DisplayName,
+            request.Role);
+        await users.SaveAsync(user, context.RequestAborted);
+        return Results.Created($"/api/admin/users/{user.Id}", user);
+    }
+
+    private static IResult? EnsureCanView(System.Security.Claims.ClaimsPrincipal principal, string employeeId)
+    {
+        var actor = HoursPrincipalFactory.ToActor(principal);
+        return actor.Role == HoursActorRole.Employee &&
+            !string.Equals(actor.Id, employeeId, StringComparison.Ordinal)
+            ? Results.Forbid()
+            : null;
+    }
+
+    private static IResult? EnsureAdministrator(System.Security.Claims.ClaimsPrincipal principal) =>
+        HoursPrincipalFactory.ToActor(principal).Role == HoursActorRole.Administrator
+            ? null
+            : Results.Forbid();
+
+    private static LoginResponse ToLoginResponse(HoursUserDocument user) =>
+        new(user.EmployeeId, user.DisplayName, user.Role, user.Role == HoursActorRole.Administrator);
+
+    public sealed record AntiforgeryResponse(string Token);
+
+    public sealed record LoginRequest(string Login, string Password);
+
+    public sealed record LoginResponse(
+        string EmployeeId,
+        string DisplayName,
+        HoursActorRole Role,
+        bool IsDemoAdministrator);
+
+    public sealed record CurrentUserResponse(string EmployeeId, string DisplayName, HoursActorRole Role);
+
+    public sealed record EmployeeConfigurationResponse(
+        string EmployeeId,
+        ProfileResponse Profile,
+        TemplateResponse Template,
+        IndividualSettingsResponse IndividualSettings,
+        CalendarResponse Calendar,
+        LegalPresetResponse LegalPreset,
+        string SettlementPolicyId,
+        FlexSettlementCadence SettlementCadence);
+
+    public sealed record ProfileResponse(
+        string Id,
+        string Name,
+        TimeOnly WorkingDayStart,
+        TimeOnly WorkingDayEnd,
+        TimeOnly CoreStart,
+        TimeOnly CoreEnd,
+        TimeOnly LunchStart,
+        TimeOnly LunchEnd,
+        TimeSpan WeekHours,
+        TimeSpan DayHours,
+        Novolis.Time.Worktime.PresenceClassification UnmarkedSurplusClassification);
+
+    public sealed record TemplateResponse(string Id, string Name);
+
+    public sealed record IndividualSettingsResponse(
+        decimal WorkFraction,
+        TimeOnly? ExpectedIntervalOverrideStart,
+        TimeOnly? ExpectedIntervalOverrideEnd);
+
+    public sealed record CalendarResponse(string Id, string Source, string Version, string CountryCode);
+
+    public sealed record RegisterWorkRequest(
+        string EmployeeId,
+        DateOnly Day,
+        TimeOnly StartedAt,
+        TimeOnly EndedAt,
+        TimeOnly? BreakStartedAt,
+        TimeOnly? BreakEndedAt,
+        IReadOnlyCollection<FinancialCompensationSlice>? FinancialCompensationSlices,
+        string Comment,
+        bool ManagerAgreementRecorded);
+
+    public sealed record ProposeAdjustmentRequest(
+        string EmployeeId,
+        DateOnly EffectiveDay,
+        TimeSpan DurationDelta,
+        HoursAdjustmentReason Reason,
+        string Comment);
+
+    public sealed record ProposeFlexNormalizationRequest(string EmployeeId, DateOnly AssessedThrough);
+
+    public sealed record RespondToAdjustmentRequest(HoursAdjustmentResponse Response, string Comment);
+
+    public sealed record ResolveAdjustmentRequest(HoursAdjustmentResolution Resolution, string Comment);
+
+    public sealed record OpenApprovalPeriodRequest(string EmployeeId, DateOnly StartsOn, DateOnly EndsOn);
+
+    public sealed record ApprovalActionRequest(string Comment);
+
+    public sealed record CreateUserRequest(
+        string EmployeeId,
+        string Login,
+        string Password,
+        string DisplayName,
+        HoursActorRole Role);
+
+    public sealed record LegalPresetResponse(
+        string Id,
+        string Version,
+        string CountryCode,
+        string Citation,
+        Novolis.Time.Worktime.Legal.LegalReviewState ReviewState,
+        string OvertimeAgreementMessage,
+        int EmployeeSubmitBusinessDays,
+        int ManagerReviewBusinessDays,
+        int HrResolutionBusinessDays);
+}

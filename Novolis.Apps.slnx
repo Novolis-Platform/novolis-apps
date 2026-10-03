@@ -16,6 +16,11 @@
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
     <Project Path="src/LiveStudio/studio/LiveStudio.csproj" />
     <Project Path="src/Merglyph/Merglyph.Core/Merglyph.Core.csproj" />
+    <Project Path="src/NovolisHours/Novolis.Hours.Avalonia/Novolis.Hours.Avalonia.csproj" />
+    <Project Path="src/NovolisHours/Novolis.Hours.Cli/Novolis.Hours.Cli.csproj" />
+    <Project Path="src/NovolisHours/Novolis.Hours.Domain/Novolis.Hours.Domain.csproj" />
+    <Project Path="src/NovolisHours/Novolis.Hours.Infrastructure/Novolis.Hours.Infrastructure.csproj" />
+    <Project Path="src/NovolisHours/Novolis.Hours.Server/Novolis.Hours.Server.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.App/PresenceLedger.App.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.Core/PresenceLedger.Core.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.Storage/PresenceLedger.Storage.csproj" />
@@ -34,13 +39,14 @@
     <Project Path="tests/DraftStudio.Unit/DraftStudio.Unit.csproj" />
     <Project Path="tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
     <Project Path="tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />
+    <Project Path="tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj" />
     <Project Path="tests/Novolis.Ndjson.App.Tests/Novolis.Ndjson.App.Tests.csproj" />
     <Project Path="tests/NovolisPdfReader.UiTests/NovolisPdfReader.UiTests.csproj" />
+    <Project Path="tests/PresenceLedger.App.Tests/PresenceLedger.App.Tests.csproj" />
     <Project Path="tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj" />
     <Project Path="tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj" />
     <Project Path="tests/Reach.Unit/Reach.Unit.csproj" />
     <Project Path="tests/ReadAloud.Unit/ReadAloud.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
-    <Project Path="tests/Update.Smoke/Update.Smoke.csproj" />
   </Folder>
 </Solution>

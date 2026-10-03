@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Novolis Hours</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: Canvas; color: CanvasText; }
+    main { max-width: 68rem; margin: auto; padding: 2rem 1rem 4rem; }
+    header { border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, transparent); margin-bottom: 1.5rem; }
+    .card { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: .65rem; padding: 1rem; margin: 1rem 0; background: color-mix(in srgb, Canvas 94%, CanvasText); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .75rem; }
+    label { display: grid; gap: .35rem; font-size: .9rem; }
+    input, select, button, textarea { font: inherit; padding: .5rem; }
+    button { cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); padding: .5rem; text-align: left; }
+    .hidden { display: none; } .notice { border-left: .3rem solid #b97800; padding: .5rem .75rem; margin: .4rem 0; background: color-mix(in srgb, #dca837 15%, Canvas); }
+    .status { min-height: 1.5rem; } .muted { opacity: .75; }
+  </style>
+</head>
+<body>
+  <main>
+    <header><h1>Novolis Hours</h1><p>Worktime traces, flex saldo, approvals, and legal notices — not payroll or leave.</p></header>
+    <section id="sign-in" class="card">
+      <h2>Sign in</h2>
+      <form id="login-form" class="grid">
+        <label>Login <input id="login" value="admin" autocomplete="username" required></label>
+        <label>Password <input id="password" value="admin" type="password" autocomplete="current-password" required></label>
+        <button type="submit">Sign in</button>
+      </form>
+      <p class="muted">The default <code>admin/admin</code> account is an explicitly local demo credential. Disable it before deployment.</p>
+    </section>
+    <section id="hours" class="hidden">
+      <div class="card"><span id="who"></span> <button id="logout">Sign out</button></div>
+      <section class="card">
+        <h2>Register work</h2>
+        <form id="work-form" class="grid">
+          <label>Employee ID <input id="employee-id" value="admin" required></label>
+          <label>Day <input id="day" type="date" required></label>
+          <label>Started <input id="started" type="time" value="08:00" required></label>
+          <label>Ended <input id="ended" type="time" value="16:00" required></label>
+          <label>Break started <input id="break-started" type="time" value="11:30"></label>
+          <label>Break ended <input id="break-ended" type="time" value="12:00"></label>
+          <label>Comment <input id="comment" value="Working day" required></label>
+          <button type="submit">Register worktime</button>
+        </form>
+        <p class="muted">Record actual presence. Use an adjustment or compensation classification when a manager has a documented reason.</p>
+      </section>
+      <section class="card"><h2>Current worktime view</h2><div id="summary"></div><div id="anomalies"></div><table><thead><tr><th>Day</th><th>Presence</th><th>Expected</th><th>Actual</th><th>Flex</th><th>Comment</th></tr></thead><tbody id="entries"></tbody></table></section>
+    </section>
+    <p id="status" class="status" role="status"></p>
+  </main>
+  <script>
+    let csrfToken = "";
+    const status = text => document.getElementById("status").textContent = text;
+    const hours = document.getElementById("hours");
+    const signIn = document.getElementById("sign-in");
+    const value = id => document.getElementById(id).value;
+    const escapeHtml = text => String(text).replace(/[&<>"']/g, character => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+    })[character]);
+    const api = async (path, options = {}) => {
+      const headers = { ...(options.headers || {}) };
+      if (options.method && options.method !== "GET") headers["X-Novolis-Hours-CSRF"] = csrfToken;
+      if (options.body) headers["Content-Type"] = "application/json";
+      const response = await fetch(path, { credentials: "same-origin", ...options, headers });
+      if (!response.ok) throw new Error(await response.text() || `${response.status} ${response.statusText}`);
+      return response.status === 204 ? null : response.json();
+    };
+    const format = value => value || "0:00:00";
+    async function token() { csrfToken = (await api("/api/auth/antiforgery")).token; }
+    async function refresh() {
+      const me = await api("/api/auth/me");
+      document.getElementById("who").textContent = `${me.displayName} (${me.role})`;
+      const employee = value("employee-id");
+      const view = await api(`/api/employees/${encodeURIComponent(employee)}/view`);
+      document.getElementById("summary").textContent = `Flex saldo: ${format(view.flexSaldo)} · ${view.entries.length} recorded day(s)`;
+      document.getElementById("entries").innerHTML = view.entries.map(entry => `<tr><td>${escapeHtml(entry.day)}</td><td>${escapeHtml(entry.startedAt)}–${escapeHtml(entry.endedAt)}</td><td>${escapeHtml(format(entry.expectedDuration))}</td><td>${escapeHtml(format(entry.actualDuration))}</td><td>${escapeHtml(format(entry.flexDelta))}</td><td>${escapeHtml(entry.comment)}</td></tr>`).join("");
+      document.getElementById("anomalies").innerHTML = view.anomalies.map(item => `<div class="notice"><strong>${escapeHtml(item.code)}</strong>: ${escapeHtml(item.message)}</div>`).join("");
+    }
+    document.getElementById("login-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      try {
+        await api("/api/auth/login", { method: "POST", body: JSON.stringify({ login: value("login"), password: value("password") }) });
+        signIn.classList.add("hidden"); hours.classList.remove("hidden"); await refresh(); status("Signed in.");
+      } catch (error) { status(`Sign-in failed: ${error.message}`); }
+    });
+    document.getElementById("work-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      try {
+        await api("/api/work", { method: "POST", body: JSON.stringify({
+          employeeId: value("employee-id"), day: value("day"), startedAt: value("started"), endedAt: value("ended"),
+          breakStartedAt: value("break-started") || null, breakEndedAt: value("break-ended") || null,
+          financialCompensationSlices: [], comment: value("comment"), managerAgreementRecorded: false
+        }) });
+        await refresh(); status("Worktime was appended to the journal.");
+      } catch (error) { status(`Registration failed: ${error.message}`); }
+    });
+    document.getElementById("logout").addEventListener("click", async () => {
+      await api("/api/auth/logout", { method: "POST" }); hours.classList.add("hidden"); signIn.classList.remove("hidden"); status("Signed out.");
+    });
+    document.getElementById("employee-id").addEventListener("change", () => refresh().catch(error => status(error.message)));
+    document.getElementById("day").value = new Date().toISOString().slice(0, 10);
+    token().catch(error => status(`Could not initialize security token: ${error.message}`));
+  </script>
+</body>
+</html>

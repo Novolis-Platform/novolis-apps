@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Novolis.Hours.Domain</RootNamespace>
+    <AssemblyName>Novolis.Hours.Domain</AssemblyName>
+    <Description>Immutable worktime tracking domain for Novolis Hours.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <LibraryReference Include="Novolis.Time.Calendar" />
+    <LibraryReference Include="Novolis.Time.Calendar.PublicHoliday" />
+    <LibraryReference Include="Novolis.Time.Worktime" />
+    <LibraryReference Include="Novolis.Time.Worktime.Legal" />
+  </ItemGroup>
+</Project>

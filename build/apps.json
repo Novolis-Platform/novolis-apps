@@ -876,6 +876,73 @@
       },
       "update": { "enabled": true, "appId": "Novolis.PdfReader", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "novolis-hours",
+      "choice": "NovolisHours",
+      "displayName": "Novolis Hours",
+      "sourceRoot": "src/NovolisHours",
+      "solution": "src/NovolisHours/Novolis.Hours.slnx",
+      "artifactPrefix": "NovolisHours",
+      "stack": "maui",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/NovolisHours/Novolis.Hours.Maui/Novolis.Hours.Maui.csproj",
+        "linuxCi": [
+          "src/NovolisHours/Novolis.Hours.Domain/Novolis.Hours.Domain.csproj",
+          "src/NovolisHours/Novolis.Hours.Infrastructure/Novolis.Hours.Infrastructure.csproj",
+          "src/NovolisHours/Novolis.Hours.Server/Novolis.Hours.Server.csproj",
+          "src/NovolisHours/Novolis.Hours.Cli/Novolis.Hours.Cli.csproj",
+          "src/NovolisHours/Novolis.Hours.Avalonia/Novolis.Hours.Avalonia.csproj",
+          "tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj"
+        ],
+        "android": "src/NovolisHours/Novolis.Hours.Maui/Novolis.Hours.Maui.csproj",
+        "maui": "src/NovolisHours/Novolis.Hours.Maui/Novolis.Hours.Maui.csproj",
+        "tests": ["tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj"],
+        "all": [
+          "src/NovolisHours/Novolis.Hours.Domain/Novolis.Hours.Domain.csproj",
+          "src/NovolisHours/Novolis.Hours.Infrastructure/Novolis.Hours.Infrastructure.csproj",
+          "src/NovolisHours/Novolis.Hours.Server/Novolis.Hours.Server.csproj",
+          "src/NovolisHours/Novolis.Hours.Cli/Novolis.Hours.Cli.csproj",
+          "src/NovolisHours/Novolis.Hours.Avalonia/Novolis.Hours.Avalonia.csproj",
+          "src/NovolisHours/Novolis.Hours.Maui/Novolis.Hours.Maui.csproj",
+          "tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj"
+        ]
+      },
+      "local": ["windows", "linux", "android"],
+      "ship": ["linux-tar", "android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/NovolisHours/**", "tests/Novolis.Hours.FeatureTests/**"],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["maui", "android", "avalonia"]
+      },
+      "windows": null,
+      "linux": {
+        "project": "src/NovolisHours/Novolis.Hours.Cli/Novolis.Hours.Cli.csproj",
+        "exeName": "Novolis.Hours.Cli"
+      },
+      "android": {
+        "project": "src/NovolisHours/Novolis.Hours.Maui/Novolis.Hours.Maui.csproj",
+        "applicationId": "com.novolis.hours",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "NOVOLIS_HOURS_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": ["android.permission.INTERNET"],
+        "networkPolicy": "self-hosted"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\hours",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\hours\\cache",
+        "credentialsNamespace": "Novolis.Hours",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": false, "appId": "Novolis.Hours", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
+      "release": { "githubRelease": true, "checksums": true }
     }
   ]
 }

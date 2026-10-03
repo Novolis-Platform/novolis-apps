@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>Novolis.Hours.Avalonia</RootNamespace>
+    <AssemblyName>Novolis.Hours.Avalonia</AssemblyName>
+    <ApplicationTitle>Novolis Hours</ApplicationTitle>
+    <Description>Avalonia client shell for the Novolis Hours service.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
+  </ItemGroup>
+</Project>

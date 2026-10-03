@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>Novolis.Hours.Server</RootNamespace>
+    <AssemblyName>Novolis.Hours.Server</AssemblyName>
+    <Description>Self-contained web host, API, realtime transport, and SPA delivery for Novolis Hours.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Novolis.Hours.Domain\Novolis.Hours.Domain.csproj" />
+    <ProjectReference Include="..\Novolis.Hours.Infrastructure\Novolis.Hours.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <LibraryReference Include="Novolis.Security.Authentication" />
+    <LibraryReference Include="Novolis.Security.Authentication.Storage" />
+    <LibraryReference Include="Novolis.Storage.Abstractions" />
+    <LibraryReference Include="Novolis.Storage.InMemory" />
+    <LibraryReference Include="Novolis.WorkflowEngine" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+</Project>
