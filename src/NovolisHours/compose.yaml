@@ -8,6 +8,7 @@ services:
     environment:
       Hours__DataPath: /data
       Hours__EnableDemoAdminCredentials: "false"
+      Hours__InitialAdministratorPassword: ${HOURS_INITIAL_ADMINISTRATOR_PASSWORD:?Set a non-demo bootstrap secret before starting Novolis Hours.}
     volumes:
       - novolis-hours-data:/data
 

@@ -3,12 +3,15 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Novolis.Avalonia.GraphicalProfile;
+using Novolis.Hours.Client;
 
 namespace Novolis.Hours.Avalonia;
 
-/// <summary>Small native entry surface that guides the user to a self-hosted Hours service.</summary>
+/// <summary>Native sign-in surface for a secured self-hosted Hours service.</summary>
 public sealed class MainWindow : Window
 {
+    private HoursApiClient? apiClient;
+
     /// <summary>Initializes the native client shell.</summary>
     public MainWindow()
     {
@@ -21,9 +24,55 @@ public sealed class MainWindow : Window
 
         var endpoint = new TextBox
         {
-            Text = "http://localhost:5000",
+            Text = "https://localhost:5001",
             PlaceholderText = "Hours service URL",
             HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var login = new TextBox
+        {
+            Text = "admin",
+            PlaceholderText = "Login",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var password = new TextBox
+        {
+            PasswordChar = '●',
+            PlaceholderText = "Password",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        var connect = new Button
+        {
+            Content = "Sign in and load summary",
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        var status = new TextBlock
+        {
+            Text = "Enter a secure Hours service URL and sign in.",
+            TextWrapping = TextWrapping.Wrap,
+        };
+        connect.Click += async (_, _) =>
+        {
+            connect.IsEnabled = false;
+            status.Text = "Signing in…";
+            try
+            {
+                var serviceUri = new Uri(endpoint.Text ?? string.Empty, UriKind.Absolute);
+                apiClient?.Dispose();
+                apiClient = HoursApiClient.Connect(serviceUri);
+                var user = await apiClient.SignInAsync(login.Text ?? string.Empty, password.Text ?? string.Empty);
+                var summary = await apiClient.GetEmployeeSummaryAsync(user.EmployeeId);
+                status.Text =
+                    $"{user.DisplayName} ({user.Role}) · flex {summary.FlexSaldo:c} · " +
+                    $"{summary.PresenceRecordCount} presence record(s) · {summary.AnomalyCount} anomaly/anomalies.";
+            }
+            catch (Exception exception)
+            {
+                status.Text = $"Could not sign in: {exception.Message}";
+            }
+            finally
+            {
+                connect.IsEnabled = true;
+            }
         };
         var content = new StackPanel
         {
@@ -39,18 +88,26 @@ public sealed class MainWindow : Window
                 },
                 new TextBlock
                 {
-                    Text = "Native client foundation. Connect it to the self-contained Hours service to view records, notices, and approvals.",
+                    Text = "Sign in to the self-hosted Hours service to view your recorded presence and flex-time summary.",
                     TextWrapping = TextWrapping.Wrap,
                 },
                 new TextBlock { Text = "Service URL" },
                 endpoint,
-                new TextBlock
-                {
-                    Text = "The first delivery is the browser SPA; this shell is the shared-profile Avalonia foundation for a native client.",
-                    TextWrapping = TextWrapping.Wrap,
-                },
+                new TextBlock { Text = "Login" },
+                login,
+                new TextBlock { Text = "Password" },
+                password,
+                connect,
+                status,
             },
         };
         Content = content;
+    }
+
+    /// <inheritdoc />
+    protected override void OnClosed(EventArgs e)
+    {
+        apiClient?.Dispose();
+        base.OnClosed(e);
     }
 }

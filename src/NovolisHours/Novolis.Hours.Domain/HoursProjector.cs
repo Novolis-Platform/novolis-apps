@@ -66,11 +66,13 @@ public static class HoursProjector
                 item.RegisteredAtUtc,
                 item.Id)))
             .Concat(orderedAdjustments
-                .Where(item => item.State == HoursAdjustmentState.Escalated)
+                .Where(item => item.State is HoursAdjustmentState.Escalated
+                    or HoursAdjustmentState.ResolvedAccepted
+                    or HoursAdjustmentState.ResolvedRejected)
                 .Select(item => new HoursAnomaly(
                     "adjustment.disputed",
-                    $"Adjustment '{item.Id}' is escalated to {item.EscalatedTo?.Role}.",
-                    item.RespondedAtUtc ?? item.ProposedAtUtc,
+                    AdjustmentDisputeMessage(item),
+                    item.ResolvedAtUtc ?? item.RespondedAtUtc ?? item.ProposedAtUtc,
                     item.Id)))
             .Concat(orderedPeriods.SelectMany(item => item.Anomalies))
             .OrderBy(item => item.ObservedAtUtc)
@@ -88,4 +90,16 @@ public static class HoursProjector
             anomalies,
             flexSaldo);
     }
+
+    private static string AdjustmentDisputeMessage(HoursAdjustment adjustment) =>
+        adjustment.State switch
+        {
+            HoursAdjustmentState.Escalated =>
+                $"Adjustment '{adjustment.Id}' is escalated to {adjustment.EscalatedTo?.Role}.",
+            HoursAdjustmentState.ResolvedAccepted =>
+                $"Adjustment '{adjustment.Id}' was disputed and resolved as committed by {adjustment.ResolvedBy?.Role}.",
+            HoursAdjustmentState.ResolvedRejected =>
+                $"Adjustment '{adjustment.Id}' was disputed and resolved as rejected by {adjustment.ResolvedBy?.Role}.",
+            _ => throw new ArgumentOutOfRangeException(nameof(adjustment), adjustment.State, "Adjustment is not a dispute state."),
+        };
 }

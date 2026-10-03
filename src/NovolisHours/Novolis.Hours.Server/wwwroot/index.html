@@ -26,11 +26,11 @@
     <section id="sign-in" class="card">
       <h2>Sign in</h2>
       <form id="login-form" class="grid">
-        <label>Login <input id="login" value="admin" autocomplete="username" required></label>
-        <label>Password <input id="password" value="admin" type="password" autocomplete="current-password" required></label>
+        <label>Login <input id="login" autocomplete="username" required></label>
+        <label>Password <input id="password" type="password" autocomplete="current-password" required></label>
         <button type="submit">Sign in</button>
       </form>
-      <p class="muted">The default <code>admin/admin</code> account is an explicitly local demo credential. Disable it before deployment.</p>
+      <p class="muted">Local demo mode (<code>serve --demo</code>) uses <code>admin/admin</code>. It is disabled unless explicitly requested.</p>
     </section>
     <section id="hours" class="hidden">
       <div class="card"><span id="who"></span> <button id="logout">Sign out</button></div>
@@ -49,61 +49,30 @@
         <p class="muted">Record actual presence. Use an adjustment or compensation classification when a manager has a documented reason.</p>
       </section>
       <section class="card"><h2>Current worktime view</h2><div id="summary"></div><div id="anomalies"></div><table><thead><tr><th>Day</th><th>Presence</th><th>Expected</th><th>Actual</th><th>Flex</th><th>Comment</th></tr></thead><tbody id="entries"></tbody></table></section>
+      <section id="administrator" class="card hidden">
+        <h2>Administrator setup</h2>
+        <p class="muted">Create role profiles, then assign the employee’s starter policy and expected working time. Draft legal presets are informational until locally reviewed.</p>
+        <form id="user-form" class="grid">
+          <label>Employee ID <input id="new-employee-id" required></label>
+          <label>Login <input id="new-login" autocomplete="username" required></label>
+          <label>Display name <input id="new-display-name" required></label>
+          <label>Password <input id="new-password" type="password" autocomplete="new-password" required></label>
+          <label>Role <select id="new-role"><option value="Employee">Employee</option><option value="Manager">Manager</option><option value="HumanResources">Human Resources</option><option value="Higher">Higher</option><option value="Administrator">Administrator</option></select></label>
+          <button type="submit">Create user</button>
+        </form>
+        <form id="settings-form" class="grid">
+          <label>Employee ID <input id="settings-employee-id" required></label>
+          <label>Legal preset <select id="settings-legal-preset"></select></label>
+          <label>Work fraction <input id="settings-work-fraction" type="number" min="0.01" max="1" step="0.01" value="1" required></label>
+          <label>Expected start <input id="settings-start" type="time"></label>
+          <label>Expected end <input id="settings-end" type="time"></label>
+          <button type="submit">Save worktime settings</button>
+        </form>
+        <div id="users"></div>
+      </section>
     </section>
     <p id="status" class="status" role="status"></p>
   </main>
-  <script>
-    let csrfToken = "";
-    const status = text => document.getElementById("status").textContent = text;
-    const hours = document.getElementById("hours");
-    const signIn = document.getElementById("sign-in");
-    const value = id => document.getElementById(id).value;
-    const escapeHtml = text => String(text).replace(/[&<>"']/g, character => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
-    })[character]);
-    const api = async (path, options = {}) => {
-      const headers = { ...(options.headers || {}) };
-      if (options.method && options.method !== "GET") headers["X-Novolis-Hours-CSRF"] = csrfToken;
-      if (options.body) headers["Content-Type"] = "application/json";
-      const response = await fetch(path, { credentials: "same-origin", ...options, headers });
-      if (!response.ok) throw new Error(await response.text() || `${response.status} ${response.statusText}`);
-      return response.status === 204 ? null : response.json();
-    };
-    const format = value => value || "0:00:00";
-    async function token() { csrfToken = (await api("/api/auth/antiforgery")).token; }
-    async function refresh() {
-      const me = await api("/api/auth/me");
-      document.getElementById("who").textContent = `${me.displayName} (${me.role})`;
-      const employee = value("employee-id");
-      const view = await api(`/api/employees/${encodeURIComponent(employee)}/view`);
-      document.getElementById("summary").textContent = `Flex saldo: ${format(view.flexSaldo)} · ${view.entries.length} recorded day(s)`;
-      document.getElementById("entries").innerHTML = view.entries.map(entry => `<tr><td>${escapeHtml(entry.day)}</td><td>${escapeHtml(entry.startedAt)}–${escapeHtml(entry.endedAt)}</td><td>${escapeHtml(format(entry.expectedDuration))}</td><td>${escapeHtml(format(entry.actualDuration))}</td><td>${escapeHtml(format(entry.flexDelta))}</td><td>${escapeHtml(entry.comment)}</td></tr>`).join("");
-      document.getElementById("anomalies").innerHTML = view.anomalies.map(item => `<div class="notice"><strong>${escapeHtml(item.code)}</strong>: ${escapeHtml(item.message)}</div>`).join("");
-    }
-    document.getElementById("login-form").addEventListener("submit", async event => {
-      event.preventDefault();
-      try {
-        await api("/api/auth/login", { method: "POST", body: JSON.stringify({ login: value("login"), password: value("password") }) });
-        signIn.classList.add("hidden"); hours.classList.remove("hidden"); await refresh(); status("Signed in.");
-      } catch (error) { status(`Sign-in failed: ${error.message}`); }
-    });
-    document.getElementById("work-form").addEventListener("submit", async event => {
-      event.preventDefault();
-      try {
-        await api("/api/work", { method: "POST", body: JSON.stringify({
-          employeeId: value("employee-id"), day: value("day"), startedAt: value("started"), endedAt: value("ended"),
-          breakStartedAt: value("break-started") || null, breakEndedAt: value("break-ended") || null,
-          financialCompensationSlices: [], comment: value("comment"), managerAgreementRecorded: false
-        }) });
-        await refresh(); status("Worktime was appended to the journal.");
-      } catch (error) { status(`Registration failed: ${error.message}`); }
-    });
-    document.getElementById("logout").addEventListener("click", async () => {
-      await api("/api/auth/logout", { method: "POST" }); hours.classList.add("hidden"); signIn.classList.remove("hidden"); status("Signed out.");
-    });
-    document.getElementById("employee-id").addEventListener("change", () => refresh().catch(error => status(error.message)));
-    document.getElementById("day").value = new Date().toISOString().slice(0, 10);
-    token().catch(error => status(`Could not initialize security token: ${error.message}`));
-  </script>
+  <script src="/app.js" defer></script>
 </body>
 </html>

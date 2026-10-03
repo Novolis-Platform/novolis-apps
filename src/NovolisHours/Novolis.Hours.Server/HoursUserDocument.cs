@@ -9,4 +9,8 @@ public sealed record HoursUserDocument(
     string EmployeeId,
     string Login,
     string DisplayName,
-    HoursActorRole Role) : IHasId;
+    HoursActorRole Role,
+    string? LegalPresetId = null,
+    decimal WorkFraction = 1m,
+    TimeOnly? ExpectedIntervalOverrideStart = null,
+    TimeOnly? ExpectedIntervalOverrideEnd = null) : IHasId;

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Novolis.Time.Week;
 
 namespace Novolis.Hours.Domain;
 
@@ -35,6 +36,15 @@ public static class HoursQueryEngine
                     entry.FlexDelta,
                     null,
                     entry.Id)),
+            HoursQueryKind.Weekly => view.Entries
+                .Where(entry => IsInRange(entry.Day, query))
+                .GroupBy(entry => IsoWeek.From(entry.Day))
+                .OrderBy(group => group.Key.Monday)
+                .Select(group => new HoursQueryRow(
+                    group.Key.Monday,
+                    "iso-week",
+                    $"Week {group.Key.Monday:yyyy-MM-dd}–{group.Key.Sunday:yyyy-MM-dd}: expected {Format(Total(group, entry => entry.ExpectedDuration))}, actual {Format(Total(group, entry => entry.ActualDuration))}, flex {Format(Total(group, entry => entry.FlexDelta))}.",
+                    Total(group, entry => entry.FlexDelta))),
             HoursQueryKind.Adjustments => view.Adjustments
                 .Where(adjustment => IsInRange(adjustment.EffectiveDay, query))
                 .Select(adjustment => new HoursQueryRow(
@@ -69,4 +79,10 @@ public static class HoursQueryEngine
     private static bool IsInRange(DateOnly day, HoursQuery query) =>
         (query.From is null || day >= query.From) &&
         (query.Through is null || day <= query.Through);
+
+    private static string Format(TimeSpan duration) =>
+        FormattableString.Invariant($"{duration.TotalHours:+0.##;-0.##;0} h");
+
+    private static TimeSpan Total(IEnumerable<HoursEntry> entries, Func<HoursEntry, TimeSpan> selector) =>
+        entries.Aggregate(TimeSpan.Zero, (total, entry) => total + selector(entry));
 }

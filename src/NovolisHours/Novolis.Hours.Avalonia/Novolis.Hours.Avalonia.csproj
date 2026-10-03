@@ -14,4 +14,7 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Novolis.Hours.Client\Novolis.Hours.Client.csproj" />
+  </ItemGroup>
 </Project>

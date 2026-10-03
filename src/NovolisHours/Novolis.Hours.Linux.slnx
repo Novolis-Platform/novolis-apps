@@ -2,6 +2,9 @@
   <Folder Name="/Novolis.Hours.Avalonia/">
     <Project Path="Novolis.Hours.Avalonia/Novolis.Hours.Avalonia.csproj" />
   </Folder>
+  <Folder Name="/Novolis.Hours.Client/">
+    <Project Path="Novolis.Hours.Client/Novolis.Hours.Client.csproj" />
+  </Folder>
   <Folder Name="/Novolis.Hours.Cli/">
     <Project Path="Novolis.Hours.Cli/Novolis.Hours.Cli.csproj" />
   </Folder>

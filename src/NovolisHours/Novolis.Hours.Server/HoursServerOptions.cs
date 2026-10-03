@@ -12,11 +12,20 @@ public sealed class HoursServerOptions
     /// <summary>Uses a real in-memory journal for feature harnesses instead of the JSON journal.</summary>
     public bool UseInMemoryJournal { get; set; }
 
-    /// <summary>Allows the documented admin/admin demo bootstrap account; disable this before any non-demo deployment.</summary>
-    public bool EnableDemoAdminCredentials { get; set; } = true;
+    /// <summary>Allows the documented local-only admin/admin demo account; it is disabled unless explicitly requested.</summary>
+    public bool EnableDemoAdminCredentials { get; set; }
 
-    /// <summary>Configures whether the host should seed a sample employee and worktime facts on first use.</summary>
-    public bool SeedSampleData { get; set; } = true;
+    /// <summary>Login used only to provision the first non-demo administrator through the normal security path.</summary>
+    public string InitialAdministratorLogin { get; set; } = "admin";
+
+    /// <summary>Product employee identifier assigned to the first non-demo administrator.</summary>
+    public string InitialAdministratorEmployeeId { get; set; } = "admin";
+
+    /// <summary>Display name assigned to the first non-demo administrator.</summary>
+    public string InitialAdministratorDisplayName { get; set; } = "Administrator";
+
+    /// <summary>Secret used only when no real administrator exists; supply it through secure configuration rather than source control.</summary>
+    public string? InitialAdministratorPassword { get; set; }
 
     /// <summary>Stable legal-preset identifier selected for this tenant's starting worktime policy.</summary>
     public string LegalPresetId { get; set; } = "norway.private.flex";

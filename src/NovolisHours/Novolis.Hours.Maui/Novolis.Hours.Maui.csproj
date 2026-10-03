@@ -25,4 +25,7 @@
     <PackageReference Include="Microsoft.Maui.Controls" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Novolis.Hours.Client\Novolis.Hours.Client.csproj" />
+  </ItemGroup>
 </Project>

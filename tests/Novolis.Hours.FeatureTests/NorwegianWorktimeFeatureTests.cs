@@ -1,5 +1,7 @@
 using Novolis.Hours.Domain;
 using Novolis.Hours.Infrastructure;
+using Novolis.Hours.Server;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Novolis.Hours.FeatureTests;
 
@@ -122,7 +124,40 @@ public sealed class NorwegianWorktimeFeatureTests
         await Assert.That(resolved.State).IsEqualTo(HoursAdjustmentState.ResolvedAccepted);
         await Assert.That(resolved.ResolvedBy).IsEqualTo(HoursActor.HumanResources("hana"));
         await Assert.That(resolved.ResolutionComment).Contains("verified");
-        await Assert.That((await service.GetEmployeeViewAsync("ada")).FlexSaldo).IsEqualTo(TimeSpan.FromHours(-3));
+        var resolvedView = await service.GetEmployeeViewAsync("ada");
+        await Assert.That(resolvedView.FlexSaldo).IsEqualTo(TimeSpan.FromHours(-3));
+        await Assert.That(resolvedView.Anomalies.Single(anomaly => anomaly.Code == "adjustment.disputed").Message)
+            .Contains("resolved as committed");
+    }
+
+    [Test]
+    public async Task HR_rejection_keeps_a_resolved_dispute_visible_without_posting_the_adjustment()
+    {
+        var service = new HoursService(new InMemoryHoursJournal(), NorwegianHoursPolicy.Create(year: 2026));
+        var adjustment = await service.ProposeAdjustmentAsync(new ProposeAdjustmentCommand(
+            "ada",
+            new DateOnly(2026, 10, 1),
+            TimeSpan.FromHours(-3),
+            HoursAdjustmentReason.ConvertToFinancialCompensation,
+            "Converting three flex hours to financial compensation.",
+            HoursActor.Manager("mia")));
+        await service.RespondToAdjustmentAsync(new RespondToAdjustmentCommand(
+            adjustment.Id,
+            HoursAdjustmentResponse.Dispute,
+            "Please review the classification.",
+            HoursActor.Employee("ada")));
+
+        var resolved = await service.ResolveAdjustmentAsync(new ResolveAdjustmentCommand(
+            adjustment.Id,
+            HoursAdjustmentResolution.Reject,
+            "HR found no documented manager agreement.",
+            HoursActor.HumanResources("hana")));
+
+        var view = await service.GetEmployeeViewAsync("ada");
+        await Assert.That(resolved.State).IsEqualTo(HoursAdjustmentState.ResolvedRejected);
+        await Assert.That(view.FlexSaldo).IsEqualTo(TimeSpan.Zero);
+        await Assert.That(view.Anomalies.Single(anomaly => anomaly.Code == "adjustment.disputed").Message)
+            .Contains("resolved as rejected");
     }
 
     [Test]
@@ -187,6 +222,41 @@ public sealed class NorwegianWorktimeFeatureTests
         await Assert.That(committed.LedgerPostings.Aggregate(
             TimeSpan.Zero,
             (total, posting) => total + posting.SignedDuration)).IsEqualTo(TimeSpan.Zero);
+    }
+
+    [Test]
+    public async Task Quarterly_settlement_scheduler_proposes_an_overdue_normalization_without_committing_it()
+    {
+        var journal = new InMemoryHoursJournal();
+        var policy = NorwegianHoursPolicy.Create(year: 2026);
+        var time = new FrozenTimeProvider(new DateTimeOffset(2027, 1, 1, 8, 0, 0, TimeSpan.Zero));
+        var service = new HoursService(journal, policy, time);
+        foreach (var day in new[]
+                 {
+                     new DateOnly(2026, 10, 1),
+                     new DateOnly(2026, 10, 2),
+                     new DateOnly(2026, 10, 5),
+                     new DateOnly(2026, 10, 6),
+                     new DateOnly(2026, 10, 7),
+                     new DateOnly(2026, 10, 8),
+                 })
+        {
+            await service.RegisterWorkAsync(LongDay(day));
+        }
+
+        var scheduler = new HoursFlexSettlementScheduler(
+            journal,
+            new FixedHoursPolicyProvider(policy),
+            service,
+            time,
+            NullLogger<HoursFlexSettlementScheduler>.Instance);
+        await scheduler.AssessOnceAsync();
+
+        var view = await service.GetEmployeeViewAsync("ada");
+        var proposed = view.Adjustments.Single();
+        await Assert.That(proposed.EffectiveDay).IsEqualTo(new DateOnly(2026, 12, 31));
+        await Assert.That(proposed.State).IsEqualTo(HoursAdjustmentState.AwaitingEmployee);
+        await Assert.That(view.FlexSaldo).IsEqualTo(TimeSpan.FromHours(48));
     }
 
     static RegisterWorkCommand OrdinaryDay(DateOnly? day = null) =>

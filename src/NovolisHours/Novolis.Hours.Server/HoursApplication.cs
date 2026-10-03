@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +11,7 @@ using Novolis.Hours.Domain;
 using Novolis.Hours.Infrastructure;
 using Novolis.Security.Authentication;
 using Novolis.Security.Authentication.Storage;
+using Novolis.Security.HaveIBeenPwned;
 using Novolis.Storage.Abstractions;
 using Novolis.Storage.InMemory;
 using Novolis.Time.Worktime.Legal;
@@ -24,12 +26,15 @@ public static class HoursApplication
     /// <summary>Builds a complete host and exposes a builder hook for the no-mock TestServer harness.</summary>
     public static WebApplication Build(
         string[] args,
-        Action<WebApplicationBuilder>? configureBuilder = null)
+        Action<WebApplicationBuilder>? configureBuilder = null,
+        string? environmentName = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             Args = args,
             ApplicationName = typeof(HoursApplication).Assembly.FullName,
+            EnvironmentName = environmentName,
+            ContentRootPath = AppContext.BaseDirectory,
         });
         configureBuilder?.Invoke(builder);
 
@@ -37,6 +42,10 @@ public static class HoursApplication
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(TimeProvider.System);
         ConfigureStorage(builder.Services, options);
+        if (!builder.Environment.IsDevelopment() && !options.EnableDemoAdminCredentials)
+        {
+            builder.Services.AddNovolisPasswordBreachCheck();
+        }
         builder.Services.AddNovolisAuthentication(authentication =>
         {
             authentication.IsDevelopment = builder.Environment.IsDevelopment() || options.EnableDemoAdminCredentials;
@@ -45,9 +54,10 @@ public static class HoursApplication
         builder.Services.AddNovolisAuthenticationStorage();
         builder.Services.AddSingleton<HoursUserDirectory>();
         builder.Services.AddSingleton<HoursHtmlReportExporter>();
+        builder.Services.ConfigureHttpJsonOptions(json =>
+            json.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
         builder.Services.AddSingleton(_ => CreatePolicy(options, DateTime.UtcNow.Year));
-        builder.Services.AddSingleton<IHoursPolicyProvider>(provider =>
-            new FixedHoursPolicyProvider(provider.GetRequiredService<HoursPolicy>()));
+        builder.Services.AddSingleton<IHoursPolicyProvider, HoursEmployeePolicyProvider>();
         builder.Services.AddSingleton(provider => new HoursService(
             provider.GetRequiredService<IHoursJournal>(),
             provider.GetRequiredService<IHoursPolicyProvider>(),
@@ -88,8 +98,10 @@ public static class HoursApplication
             .Accepts<HoursApprovalDeadlineCheck>()
             .Then<HoursApprovalDeadlineWorkflowStep, HoursApprovalDeadlineCheck, HoursApprovalPeriod>()
             .EndWith<HoursApprovalDeadlineWorkflowSink, HoursApprovalPeriod>());
+        builder.Services.AddHostedService<HoursBootstrapService>();
         builder.Services.AddHostedService<HoursRealtimeProjectionService>();
         builder.Services.AddHostedService<HoursApprovalDeadlineScheduler>();
+        builder.Services.AddHostedService<HoursFlexSettlementScheduler>();
 
         var app = builder.Build();
         app.UseForwardedHeaders(new ForwardedHeadersOptions

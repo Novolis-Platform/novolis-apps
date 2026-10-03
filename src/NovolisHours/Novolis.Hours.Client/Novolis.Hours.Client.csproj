@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Novolis.Hours.Client</RootNamespace>
+    <AssemblyName>Novolis.Hours.Client</AssemblyName>
+    <Description>Authenticated HTTP client contracts for Novolis Hours native applications.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

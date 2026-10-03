@@ -8,10 +8,12 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="TUnit" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Client\Novolis.Hours.Client.csproj" />
     <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Domain\Novolis.Hours.Domain.csproj" />
     <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Infrastructure\Novolis.Hours.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Server\Novolis.Hours.Server.csproj" />

@@ -443,7 +443,7 @@ public sealed class HoursService
             .Where(item => item.Type is HoursEventType.AdjustmentProposed or HoursEventType.AdjustmentUpdated)
             .Select(item => item.ReadPayload<HoursAdjustment>())
             .Where(item => item.Id == adjustmentId)
-            .OrderBy(item => item.RespondedAtUtc ?? item.ProposedAtUtc)
+            .OrderBy(item => item.ResolvedAtUtc ?? item.RespondedAtUtc ?? item.ProposedAtUtc)
             .LastOrDefault();
         return eventMatch ?? throw new KeyNotFoundException($"Hours adjustment '{adjustmentId}' was not found.");
     }

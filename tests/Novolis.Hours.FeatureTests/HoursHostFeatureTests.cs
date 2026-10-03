@@ -1,11 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Hours.Domain;
+using Novolis.Hours.Infrastructure;
 using Novolis.Hours.Server;
 
 namespace Novolis.Hours.FeatureTests;
@@ -24,7 +28,6 @@ public sealed class HoursHostFeatureTests
                 {
                     ["Hours:UseInMemoryJournal"] = "true",
                     ["Hours:EnableDemoAdminCredentials"] = "true",
-                    ["Hours:SeedSampleData"] = "false",
                 });
             });
         await app.StartAsync();
@@ -32,6 +35,8 @@ public sealed class HoursHostFeatureTests
 
         var page = await client.GetStringAsync("/");
         await Assert.That(page).Contains("Novolis Hours");
+        await Assert.That(page).Contains("src=\"/app.js\"");
+        await Assert.That(await client.GetStringAsync("/app.js")).Contains("settings-form");
 
         var antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
         await Assert.That(antiforgeryResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
@@ -55,6 +60,11 @@ public sealed class HoursHostFeatureTests
         await Assert.That(configurationResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var configurationJson = await configurationResponse.Content.ReadAsStringAsync();
         await Assert.That(ReadJsonString(configurationJson, "settlementPolicyId")).Contains("quarterly");
+
+        var catalogRequest = new HttpRequestMessage(HttpMethod.Get, "/api/legal/preset-catalog");
+        catalogRequest.Headers.Add("Cookie", $"{antiforgeryCookie}; {sessionCookie}");
+        using var catalogDocument = JsonDocument.Parse(await (await client.SendAsync(catalogRequest)).Content.ReadAsStringAsync());
+        await Assert.That(catalogDocument.RootElement.GetArrayLength()).IsEqualTo(7);
 
         var work = new HttpRequestMessage(HttpMethod.Post, "/api/work")
         {
@@ -91,6 +101,70 @@ public sealed class HoursHostFeatureTests
         await Assert.That(queryResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
         using var queryDocument = JsonDocument.Parse(await queryResponse.Content.ReadAsStringAsync());
         await Assert.That(queryDocument.RootElement.GetProperty("rows").GetArrayLength()).IsEqualTo(2);
+
+        var weeklyRequest = new HttpRequestMessage(HttpMethod.Get, "/api/query/weekly?employeeId=admin");
+        weeklyRequest.Headers.Add("Cookie", $"{antiforgeryCookie}; {sessionCookie}");
+        var weeklyResponse = await client.SendAsync(weeklyRequest);
+        await Assert.That(weeklyResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var weeklyDocument = JsonDocument.Parse(await weeklyResponse.Content.ReadAsStringAsync());
+        await Assert.That(weeklyDocument.RootElement.GetProperty("rows")[0].GetProperty("category").GetString())
+            .IsEqualTo("iso-week");
+    }
+
+    [Test]
+    public async Task The_authenticated_SignalR_hub_projects_a_durable_journal_append_from_the_real_channel()
+    {
+        await using var app = HoursApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:UseInMemoryJournal"] = "true",
+                    ["Hours:EnableDemoAdminCredentials"] = "true",
+                });
+            });
+        await app.StartAsync();
+        var client = app.GetTestClient();
+        var session = await SignInDemoAsync(client);
+        var received = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var connection = new HubConnectionBuilder()
+            .WithUrl(
+                "http://localhost/hubs/hours",
+                options =>
+                {
+                    options.HttpMessageHandlerFactory = _ => app.GetTestServer().CreateHandler();
+                    options.Transports = HttpTransportType.LongPolling;
+                    options.Headers["Cookie"] = session.Cookies;
+                })
+            .Build();
+        connection.On<JsonElement>("hoursChanged", notification => received.TrySetResult(notification));
+        await connection.StartAsync();
+
+        var work = new HttpRequestMessage(HttpMethod.Post, "/api/work")
+        {
+            Content = JsonContent.Create(new
+            {
+                employeeId = "admin",
+                day = "2026-10-01",
+                startedAt = "08:00",
+                endedAt = "16:00",
+                breakStartedAt = "11:30",
+                breakEndedAt = "12:00",
+                financialCompensationSlices = Array.Empty<object>(),
+                comment = "Realtime projection verification.",
+                managerAgreementRecorded = false,
+            }),
+        };
+        work.Headers.Add("Cookie", session.Cookies);
+        work.Headers.Add("X-Novolis-Hours-CSRF", session.AntiforgeryToken);
+        await Assert.That((await client.SendAsync(work)).StatusCode).IsEqualTo(HttpStatusCode.Created);
+
+        var notification = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(notification.GetProperty("employeeId").GetString()).IsEqualTo("admin");
+        await Assert.That(notification.GetProperty("type").GetString()).IsEqualTo("work.registered.v1");
+        await connection.StopAsync();
     }
 
     [Test]
@@ -140,6 +214,279 @@ public sealed class HoursHostFeatureTests
         }
     }
 
+    [Test]
+    public async Task The_real_json_host_releases_its_lock_replays_the_journal_and_keeps_the_demo_flow_available_after_restart()
+    {
+        var dataPath = Path.Combine(Path.GetTempPath(), $"novolis-hours-replay-{Guid.NewGuid():N}");
+        try
+        {
+            await using (var first = BuildJsonDemoHost(dataPath))
+            {
+                await first.StartAsync();
+                var client = first.GetTestClient();
+                var session = await SignInDemoAsync(client);
+                var work = new HttpRequestMessage(HttpMethod.Post, "/api/work")
+                {
+                    Content = JsonContent.Create(new
+                    {
+                        employeeId = "admin",
+                        day = "2026-10-01",
+                        startedAt = "08:00",
+                        endedAt = "16:00",
+                        breakStartedAt = "11:30",
+                        breakEndedAt = "12:00",
+                        financialCompensationSlices = Array.Empty<object>(),
+                        comment = "Restart replay verification.",
+                        managerAgreementRecorded = false,
+                    }),
+                };
+                work.Headers.Add("Cookie", session.Cookies);
+                work.Headers.Add("X-Novolis-Hours-CSRF", session.AntiforgeryToken);
+                await Assert.That((await client.SendAsync(work)).StatusCode).IsEqualTo(HttpStatusCode.Created);
+            }
+
+            await using (var second = BuildJsonDemoHost(dataPath))
+            {
+                await second.StartAsync();
+                var client = second.GetTestClient();
+                var session = await SignInDemoAsync(client);
+                var view = new HttpRequestMessage(HttpMethod.Get, "/api/employees/admin/view");
+                view.Headers.Add("Cookie", session.Cookies);
+                using var document = JsonDocument.Parse(await (await client.SendAsync(view)).Content.ReadAsStringAsync());
+                await Assert.That(document.RootElement.GetProperty("entries").GetArrayLength()).IsEqualTo(1);
+                await Assert.That(document.RootElement.GetProperty("entries")[0].GetProperty("comment").GetString())
+                    .IsEqualTo("Restart replay verification.");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(dataPath))
+            {
+                Directory.Delete(dataPath, recursive: true);
+            }
+        }
+    }
+
+    [Test]
+    public async Task An_administrator_can_persist_individual_policy_and_work_fraction_settings_before_registration()
+    {
+        await using var app = HoursApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:UseInMemoryJournal"] = "true",
+                    ["Hours:EnableDemoAdminCredentials"] = "true",
+                });
+            });
+        await app.StartAsync();
+        var directory = app.Services.GetRequiredService<HoursUserDirectory>();
+        await directory.SaveAsync(new HoursUserDocument(
+            Guid.NewGuid(),
+            "ada",
+            "ada",
+            "Ada Lovelace",
+            HoursActorRole.Employee));
+
+        var client = app.GetTestClient();
+        var antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
+        var antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
+        var antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
+        var login = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
+        {
+            Content = JsonContent.Create(new { login = "admin", password = "admin" }),
+        };
+        login.Headers.Add("Cookie", antiforgeryCookie);
+        login.Headers.Add("X-Novolis-Hours-CSRF", antiforgeryToken);
+        var sessionCookie = CookieHeader(await client.SendAsync(login))
+            .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
+        var cookies = $"{antiforgeryCookie}; {sessionCookie}";
+
+        var settings = new HttpRequestMessage(HttpMethod.Put, "/api/admin/users/ada/worktime-settings")
+        {
+            Content = JsonContent.Create(new
+            {
+                legalPresetId = "norway.state.flex",
+                workFraction = 0.5m,
+                expectedIntervalOverrideStart = "09:00",
+                expectedIntervalOverrideEnd = "17:00",
+            }),
+        };
+        settings.Headers.Add("Cookie", cookies);
+        settings.Headers.Add("X-Novolis-Hours-CSRF", antiforgeryToken);
+        await Assert.That((await client.SendAsync(settings)).StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        var configuration = new HttpRequestMessage(HttpMethod.Get, "/api/configuration/employees/ada");
+        configuration.Headers.Add("Cookie", cookies);
+        using var configurationDocument = JsonDocument.Parse(
+            await (await client.SendAsync(configuration)).Content.ReadAsStringAsync());
+        await Assert.That(configurationDocument.RootElement.GetProperty("legalPreset").GetProperty("id").GetString())
+            .IsEqualTo("norway.state.flex");
+        await Assert.That(configurationDocument.RootElement.GetProperty("individualSettings").GetProperty("workFraction").GetDecimal())
+            .IsEqualTo(0.5m);
+
+        var work = new HttpRequestMessage(HttpMethod.Post, "/api/work")
+        {
+            Content = JsonContent.Create(new
+            {
+                employeeId = "ada",
+                day = "2026-10-01",
+                startedAt = "09:00",
+                endedAt = "17:00",
+                breakStartedAt = "11:30",
+                breakEndedAt = "12:00",
+                financialCompensationSlices = Array.Empty<object>(),
+                comment = "Half-time employment settings verification.",
+                managerAgreementRecorded = false,
+            }),
+        };
+        work.Headers.Add("Cookie", cookies);
+        work.Headers.Add("X-Novolis-Hours-CSRF", antiforgeryToken);
+        await Assert.That((await client.SendAsync(work)).StatusCode).IsEqualTo(HttpStatusCode.Created);
+
+        var view = new HttpRequestMessage(HttpMethod.Get, "/api/employees/ada/view");
+        view.Headers.Add("Cookie", cookies);
+        using var viewDocument = JsonDocument.Parse(await (await client.SendAsync(view)).Content.ReadAsStringAsync());
+        await Assert.That(viewDocument.RootElement.GetProperty("entries")[0].GetProperty("expectedDuration").GetString())
+            .IsEqualTo("03:45:00");
+    }
+
+    [Test]
+    public async Task A_non_demo_host_provisions_its_first_administrator_through_the_real_security_path()
+    {
+        await using var app = HoursApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:UseInMemoryJournal"] = "true",
+                    ["Hours:EnableDemoAdminCredentials"] = "false",
+                    ["Hours:InitialAdministratorPassword"] = "Cobalt-Raven-45!",
+                });
+            },
+            environmentName: "Development");
+        await app.StartAsync();
+        var client = app.GetTestClient();
+
+        var antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
+        var antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
+        var antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
+        var login = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
+        {
+            Content = JsonContent.Create(new { login = "admin", password = "Cobalt-Raven-45!" }),
+        };
+        login.Headers.Add("Cookie", antiforgeryCookie);
+        login.Headers.Add("X-Novolis-Hours-CSRF", antiforgeryToken);
+
+        var response = await client.SendAsync(login);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        await Assert.That(document.RootElement.GetProperty("isDemoAdministrator").GetBoolean()).IsFalse();
+    }
+
+    [Test]
+    public async Task A_non_demo_host_refuses_to_start_without_an_existing_administrator_or_bootstrap_secret()
+    {
+        await using var app = HoursApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:UseInMemoryJournal"] = "true",
+                    ["Hours:EnableDemoAdminCredentials"] = "false",
+                });
+            },
+            environmentName: "Development");
+        Func<Task> start = () => app.StartAsync();
+
+        await Assert.That(start).Throws<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task Html_export_includes_policy_traceability_and_escapes_recorded_comments()
+    {
+        var service = new HoursService(
+            new InMemoryHoursJournal(),
+            NorwegianHoursPolicy.Create(year: 2026));
+        await service.RegisterWorkAsync(new RegisterWorkCommand(
+            "ada",
+            new DateOnly(2026, 10, 1),
+            new TimeOnly(9, 30),
+            new TimeOnly(21, 45),
+            new TimeOnly(11, 30),
+            new TimeOnly(12, 0),
+            [],
+            "<script>do-not-execute</script>",
+            ManagerAgreementRecorded: false,
+            Actor: HoursActor.Employee("ada")));
+
+        var report = new HoursHtmlReportExporter().Export(await service.GetEmployeeViewAsync("ada"));
+
+        await Assert.That(report).Contains("<!DOCTYPE html>");
+        await Assert.That(report).Contains("norway.private.flex");
+        await Assert.That(report).Contains("working-day.envelope");
+        await Assert.That(report).Contains("&lt;script&gt;do-not-execute&lt;/script&gt;");
+        await Assert.That(report).DoesNotContain("<script>do-not-execute</script>");
+    }
+
+    [Test]
+    public async Task An_authenticated_HR_level_endpoint_resolution_preserves_the_dispute_and_applies_only_the_selected_outcome()
+    {
+        await using var app = HoursApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:UseInMemoryJournal"] = "true",
+                    ["Hours:EnableDemoAdminCredentials"] = "true",
+                });
+            });
+        await app.StartAsync();
+        var hours = app.Services.GetRequiredService<HoursService>();
+        var adjustment = await hours.ProposeAdjustmentAsync(new ProposeAdjustmentCommand(
+            "ada",
+            new DateOnly(2026, 10, 1),
+            TimeSpan.FromHours(-3),
+            HoursAdjustmentReason.ConvertToFinancialCompensation,
+            "Proposed conversion.",
+            HoursActor.Manager("mia")));
+        await hours.RespondToAdjustmentAsync(new RespondToAdjustmentCommand(
+            adjustment.Id,
+            HoursAdjustmentResponse.Dispute,
+            "Please escalate this adjustment.",
+            HoursActor.Employee("ada")));
+
+        var client = app.GetTestClient();
+        var session = await SignInDemoAsync(client);
+        var resolution = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/api/adjustments/{adjustment.Id}/resolve")
+        {
+            Content = JsonContent.Create(new
+            {
+                resolution = HoursAdjustmentResolution.Reject,
+                comment = "No documented manager agreement was found.",
+            }),
+        };
+        resolution.Headers.Add("Cookie", session.Cookies);
+        resolution.Headers.Add("X-Novolis-Hours-CSRF", session.AntiforgeryToken);
+
+        await Assert.That((await client.SendAsync(resolution)).StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var view = await hours.GetEmployeeViewAsync("ada");
+        await Assert.That(view.Adjustments.Single().State).IsEqualTo(HoursAdjustmentState.ResolvedRejected);
+        await Assert.That(view.FlexSaldo).IsEqualTo(TimeSpan.Zero);
+        await Assert.That(view.Anomalies.Single(anomaly => anomaly.Code == "adjustment.disputed").Message)
+            .Contains("resolved as rejected");
+    }
+
     private static string ReadJsonString(string json, string propertyName)
     {
         using var document = JsonDocument.Parse(json);
@@ -151,4 +498,36 @@ public sealed class HoursHostFeatureTests
         response.Headers.GetValues("Set-Cookie")
             .Select(value => value.Split(';', 2)[0])
             .ToArray();
+
+    private static WebApplication BuildJsonDemoHost(string dataPath) =>
+        HoursApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:UseInMemoryJournal"] = "false",
+                    ["Hours:DataPath"] = dataPath,
+                    ["Hours:EnableDemoAdminCredentials"] = "true",
+                });
+            });
+
+    private static async Task<(string Cookies, string AntiforgeryToken)> SignInDemoAsync(HttpClient client)
+    {
+        var antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
+        var antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
+        var antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
+        var login = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
+        {
+            Content = JsonContent.Create(new { login = "admin", password = "admin" }),
+        };
+        login.Headers.Add("Cookie", antiforgeryCookie);
+        login.Headers.Add("X-Novolis-Hours-CSRF", antiforgeryToken);
+        var response = await client.SendAsync(login);
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var sessionCookie = CookieHeader(response)
+            .Single(cookie => cookie.StartsWith("NovolisHours.Session=", StringComparison.Ordinal));
+        return ($"{antiforgeryCookie}; {sessionCookie}", antiforgeryToken);
+    }
 }

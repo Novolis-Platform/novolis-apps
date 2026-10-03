@@ -18,6 +18,14 @@ public sealed class HoursUserDirectory
     public ValueTask<HoursUserDocument?> FindAsync(Guid identityId, CancellationToken cancellationToken = default) =>
         repository.TryGetAsync(identityId, cancellationToken);
 
+    /// <summary>Finds the product profile and worktime configuration for an employment identifier.</summary>
+    public HoursUserDocument? FindByEmployeeId(string employeeId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        return repository.All().SingleOrDefault(item =>
+            string.Equals(item.EmployeeId, employeeId, StringComparison.Ordinal));
+    }
+
     /// <summary>Lists the registered product profiles in deterministic display order.</summary>
     public ImmutableArray<HoursUserDocument> List() =>
         repository.All()

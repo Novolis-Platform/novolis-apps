@@ -9,6 +9,9 @@ public enum HoursQueryKind
     /// <summary>Returns recorded actual presence rows.</summary>
     Entries,
 
+    /// <summary>Returns ISO-week rollups of recorded expected, actual, and flex duration.</summary>
+    Weekly,
+
     /// <summary>Returns proposed and resolved adjustment rows.</summary>
     Adjustments,
 

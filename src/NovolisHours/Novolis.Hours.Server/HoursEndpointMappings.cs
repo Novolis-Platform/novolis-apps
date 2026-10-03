@@ -57,8 +57,11 @@ public static class HoursEndpointMappings
             policy.LegalPreset.ApprovalSchedule.EmployeeSubmitBusinessDays,
             policy.LegalPreset.ApprovalSchedule.ManagerReviewBusinessDays,
             policy.LegalPreset.ApprovalSchedule.HrResolutionBusinessDays)));
+        api.MapGet("/legal/preset-catalog", GetLegalPresetCatalog);
         api.MapGet("/admin/users", ListUsers);
         api.MapPost("/admin/users", CreateUserAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPut("/admin/users/{employeeId}/worktime-settings", UpdateWorktimeSettingsAsync)
+            .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
     }
 
     private static async Task<IResult> LoginAsync(
@@ -85,7 +88,7 @@ public static class HoursEndpointMappings
                 CookieAuthenticationDefaults.AuthenticationScheme,
                 principal,
                 new AuthenticationProperties { AllowRefresh = true });
-            return Results.Ok(ToLoginResponse(HoursDemoAccount.User));
+            return Results.Ok(ToLoginResponse(HoursDemoAccount.User, isDemoAdministrator: true));
         }
 
         var signIn = await authentication.SignInAsync(
@@ -220,6 +223,25 @@ public static class HoursEndpointMappings
         return Results.Ok(await queries.ExecuteAsync(
             new HoursQuery(employeeId, queryKind, from, through),
             context.RequestAborted));
+    }
+
+    private static IResult GetLegalPresetCatalog()
+    {
+        var year = DateTime.UtcNow.Year;
+        var catalog = HoursPolicyCatalog.PresetIds
+            .Select(id => HoursPolicyCatalog.Create(id, year).LegalPreset)
+            .Select(preset => new LegalPresetResponse(
+                preset.Id,
+                preset.Version,
+                preset.CountryCode,
+                preset.Citation,
+                preset.ReviewState,
+                preset.OvertimeAgreementMessage,
+                preset.ApprovalSchedule.EmployeeSubmitBusinessDays,
+                preset.ApprovalSchedule.ManagerReviewBusinessDays,
+                preset.ApprovalSchedule.HrResolutionBusinessDays))
+            .ToArray();
+        return Results.Ok(catalog);
     }
 
     private static async Task<IResult> RegisterWorkAsync(
@@ -417,6 +439,14 @@ public static class HoursEndpointMappings
             });
         }
 
+        if (users.FindByEmployeeId(request.EmployeeId) is not null)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["employeeId"] = ["The employee identifier already has a Novolis Hours role profile."],
+            });
+        }
+
         var result = await authentication.RegisterAsync(
             request.Login,
             request.Password,
@@ -441,6 +471,70 @@ public static class HoursEndpointMappings
         return Results.Created($"/api/admin/users/{user.Id}", user);
     }
 
+    private static async Task<IResult> UpdateWorktimeSettingsAsync(
+        string employeeId,
+        UpdateWorktimeSettingsRequest request,
+        HttpContext context,
+        HoursUserDirectory users)
+    {
+        var forbidden = EnsureAdministrator(context.User);
+        if (forbidden is not null)
+        {
+            return forbidden;
+        }
+
+        if (request.WorkFraction is <= 0 or > 1)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["workFraction"] = ["Work fraction must be greater than zero and at most one."],
+            });
+        }
+
+        if (request.ExpectedIntervalOverrideStart.HasValue != request.ExpectedIntervalOverrideEnd.HasValue)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["expectedIntervalOverride"] = ["Expected interval overrides require both a start and an end."],
+            });
+        }
+
+        if (request.ExpectedIntervalOverrideStart is { } start &&
+            request.ExpectedIntervalOverrideEnd is { } end &&
+            end <= start)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["expectedIntervalOverride"] = ["Expected interval end must be after its start."],
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.LegalPresetId) &&
+            !HoursPolicyCatalog.PresetIds.Contains(request.LegalPresetId, StringComparer.Ordinal))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["legalPresetId"] = ["The legal preset is not supported by this host."],
+            });
+        }
+
+        var existing = users.FindByEmployeeId(employeeId);
+        if (existing is null)
+        {
+            return Results.NotFound();
+        }
+
+        var updated = existing with
+        {
+            LegalPresetId = request.LegalPresetId,
+            WorkFraction = request.WorkFraction,
+            ExpectedIntervalOverrideStart = request.ExpectedIntervalOverrideStart,
+            ExpectedIntervalOverrideEnd = request.ExpectedIntervalOverrideEnd,
+        };
+        await users.SaveAsync(updated, context.RequestAborted);
+        return Results.Ok(updated);
+    }
+
     private static IResult? EnsureCanView(System.Security.Claims.ClaimsPrincipal principal, string employeeId)
     {
         var actor = HoursPrincipalFactory.ToActor(principal);
@@ -455,8 +549,8 @@ public static class HoursEndpointMappings
             ? null
             : Results.Forbid();
 
-    private static LoginResponse ToLoginResponse(HoursUserDocument user) =>
-        new(user.EmployeeId, user.DisplayName, user.Role, user.Role == HoursActorRole.Administrator);
+    private static LoginResponse ToLoginResponse(HoursUserDocument user, bool isDemoAdministrator = false) =>
+        new(user.EmployeeId, user.DisplayName, user.Role, isDemoAdministrator);
 
     public sealed record AntiforgeryResponse(string Token);
 
@@ -536,6 +630,12 @@ public static class HoursEndpointMappings
         string Password,
         string DisplayName,
         HoursActorRole Role);
+
+    public sealed record UpdateWorktimeSettingsRequest(
+        string? LegalPresetId,
+        decimal WorkFraction,
+        TimeOnly? ExpectedIntervalOverrideStart,
+        TimeOnly? ExpectedIntervalOverrideEnd);
 
     public sealed record LegalPresetResponse(
         string Id,

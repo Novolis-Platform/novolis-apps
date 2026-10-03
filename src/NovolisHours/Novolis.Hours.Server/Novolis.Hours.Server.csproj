@@ -12,6 +12,8 @@
   <ItemGroup>
     <LibraryReference Include="Novolis.Security.Authentication" />
     <LibraryReference Include="Novolis.Security.Authentication.Storage" />
+    <LibraryReference Include="Novolis.Security.HaveIBeenPwned" />
+    <LibraryReference Include="Novolis.Markup.Html" />
     <LibraryReference Include="Novolis.Storage.Abstractions" />
     <LibraryReference Include="Novolis.Storage.InMemory" />
     <LibraryReference Include="Novolis.WorkflowEngine" />
