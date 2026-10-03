@@ -2226,3 +2226,528 @@ The implementation should therefore optimise for four things:
 > **Truth. Composition. Traceability. Simplicity.**
 
 Everything else is secondary.
+
+| Term | Meaning | Allegory |
+|---|---|---|
+| **WorkDay** | The bounded logical unit for one day’s work. It may contain multiple intervals and may continue past midnight until that workday actually ends. | **Git:** Pull request / change set |
+| **NominalDate** | The calendar date the WorkDay belongs to. It identifies the day conceptually, but does not constrain all work to 00:00–24:00. | |
+| **WorkInterval** | A concrete span during which work occurred. A WorkDay may contain one or many intervals. | **Git:** Individual changed hunk within the PR |
+| **WorkRegistration** | An immutable assertion that work happened, or that a previous assertion should be corrected. It records provenance, not legal interpretation. | **Git:** Commit |
+| **WorkRecordSource** | Who or what originated the registration: `Employee`, `Employer`, `Integration`, `System`. | **Git:** Commit author / automation identity |
+| **WorkRecordIntent** | Why the registration was made, for example `WorkedAsScheduled`, `ManualRegistration`, `Correction`. | **Git:** Commit intent/message category |
+| **WorkedAsScheduled** | Positive confirmation that the configured routine/schedule is an acceptable representation of the actual work performed. | **Git:** Commit accepting the existing expected shape |
+| **ManualRegistration** | Explicit registration of actual work rather than accepting the configured routine. | **Git:** Explicit commit |
+| **Correction** | A new assertion that supersedes or modifies the effective interpretation of an earlier registration without deleting it. | **Git:** Follow-up commit fixing an earlier commit |
+| **Rules** | Contextual facts and policies that affect interpretation, such as holidays, special paid days, statutory rules, collective agreements, local rules. | **Accounting:** Accounting policy / regulatory rules |
+| **Schedule** | The organisation-defined working structure, such as office hours, core hours, expected daily or weekly patterns. | **Accounting:** Standard posting framework / expected structure |
+| **Routine** | The employee’s normal expected pattern within the schedule, used to resolve `WorkedAsScheduled`. | **Git:** Baseline branch state |
+| **WorkDayDisposition** | A modifier describing the expected workload for the day, such as normal, half-day, or non-working, without tracking absence reasons. | |
+| **Configuration** | The composable set of rules, schedules, routines, workflow policies, classifiers, settlement rules, and other behaviour controlling interpretation. | **Accounting:** Chart/policy configuration |
+| **ConfigurationSnapshot** | Immutable identity of the exact configuration used when evaluating a WorkDay, so historical results remain reproducible. | **Git:** Commit SHA / immutable repository state |
+| **WorkDayResolution** | The process of converting registrations such as `WorkedAsScheduled` into effective concrete intervals for the logical WorkDay. | **Git:** Materializing the working tree from commits/configuration |
+| **WorkDayEvaluation** | Deterministic interpretation of a WorkDay using its registrations and configuration snapshot. Produces worked time, expected time, deductions, classifications, notices, etc. | **Accounting:** Journal processing / posting preparation |
+| **ActualWorkedTime** | The time determined to have actually been worked after resolving the registrations and applicable break semantics. | |
+| **ExpectedTime** | The expected amount or pattern of work derived from schedule, routine, disposition, and rules. | **Accounting:** Budget / expected position |
+| **Break** | A period deducted or excluded from worked time. It may be explicit or rule-derived, and that provenance should remain visible. | |
+| **Classifier** | A deterministic rule that assigns meaning to resolved work, such as regular time, flex, overtime, night work, holiday work, break deduction, etc. | **Accounting:** Account coding / transaction classification |
+| **Classification** | A derived interpretation attached to some part of worked time. Multiple classifications may coexist on the same interval. | **Accounting:** Account/category coding |
+| **RegularTime** | Worked time classified as ordinary contractual working time. | |
+| **FlexTime** | Derived positive or negative time affecting the employee’s flex balance. | **Accounting:** Balance-affecting posting |
+| **Overtime** | Worked time classified as overtime under the applicable rules/agreement. | **Accounting:** Special transaction classification |
+| **LegalNotice / Notice** | A derived warning or informational result indicating a rule firing or possible compliance issue. It does not alter the underlying registration. | **Git:** CI/check result |
+| **Ledger** | The balance system containing time movements whose current saldo matters. It is downstream of work determination and classification. | **Accounting:** General ledger |
+| **LedgerTransaction** | One atomic balance-changing event containing balanced postings. | **Accounting:** Journal entry |
+| **Posting** | One side of a ledger transaction, such as `EmployeeFlex +00:30`. | **Accounting:** Debit/credit posting |
+| **EmployeeFlex** | The employee-side balance account for flex time. | **Accounting:** Ledger account |
+| **OrganisationControl** | The equal-and-opposite control account balancing employee flex movements. | **Accounting:** Control / contra account |
+| **Saldo / Balance** | The current sum of ledger postings. It is derived, not authoritative source data. | **Accounting:** Account balance / trial balance |
+| **Adjustment** | A proposed or resolved balance-affecting change, represented as a new fact rather than mutation of history. | **Accounting:** Adjusting journal entry; **Git:** corrective commit |
+| **Workflow** | Configurable process governing who may register, correct, acknowledge, approve, dispute, or resolve work records. | **Git:** Review/approval process |
+| **Approval** | Workflow state indicating review or acceptance according to configured policy. It does not change whether the work happened. | **Git:** PR approval |
+| **Dispute** | Workflow state indicating disagreement with a registration, correction, or resulting interpretation while preserving all assertions. | **Git:** Review requesting changes / unresolved review thread |
+| **Resolution** | A workflow decision determining which assertion or interpretation becomes effective without deleting the competing history. | **Git:** Review resolution / accepted follow-up commit |
+| **EffectiveState** | The current authoritative interpretation of a WorkDay after applying registrations, corrections, workflow, and configuration. It is derived from history. | **Git:** Current branch contents |
+| **Projection** | Disposable/read-optimized representation derived from source history, evaluation and ledger data. | **Git:** Checked-out tree / generated view; **Accounting:** report |
+| **Report** | Human-readable projection across WorkDays, periods, classifications and ledger balances. It must be drillable back to provenance. | **Git:** `main` viewed at a point in time; **Accounting:** financial statement/report |
+| **Allocation** | Post-registration description of what determined worked time was spent on. It does not establish whether work occurred. | **Accounting:** Cost allocation |
+| **WorkAllocation** | A slice or annotation assigning worked time to dimensions such as project, customer, feature, task or category. | **Accounting:** Cost-centre/project allocation |
+| **Dimension** | A configurable categorisation axis such as project, customer, feature, cost centre, task or activity. | **Accounting:** Analytical dimension / cost centre |
+| **Tag** | A non-exclusive annotation on worked time. Multiple tags may overlap. | **Git:** Label/tag, loosely |
+| **Project** | A classification/allocation dimension applied after worked time has been determined. | **Accounting:** Project/cost object |
+| **Customer** | A classification/allocation dimension describing which customer the worked time relates to. | **Accounting:** Customer/cost object |
+| **Feature / Task / Category** | Additional configurable allocation dimensions applied to determined worked time. | **Accounting:** Analytical dimensions |
+| **AuditTrail** | The preserved chain from registration through configuration, evaluation, classification, ledger consequence, workflow and reporting. | **Git:** Full commit/review history; **Accounting:** audit trail |
+| **Provenance** | Metadata explaining who created a record, why, when, under which configuration, and how later derived values came from it. | **Git:** Author, commit history, parentage; **Accounting:** source-document trail |
+| **CorrectionChain** | The sequence linking an original registration to later corrections without removing any prior record. | **Git:** Series of corrective commits |
+| **EffectiveRegistration** | The registration currently selected by workflow/rules as operative for evaluation. Competing historical registrations remain preserved. | **Git:** Version currently represented in the branch |
+| **SettlementPeriod** | A reporting/accounting period over which balances may be reviewed, approved, carried or normalised. | **Accounting:** Accounting period |
+| **Normalization** | A configured balance adjustment, such as flex carry-cap handling, performed explicitly through ledger movement rather than rewriting history. | **Accounting:** Period-end adjusting entry |
+| **FinancialCompensationMarker** | A classification indicating that some worked time requires financial treatment elsewhere, without turning Hours into payroll. | **Accounting:** Posting flag / subledger handoff |
+| **Integration** | External source of registrations, such as a stamping machine or another timekeeping system. | **Git:** Bot/automation author |
+| **System** | Internal actor for deterministic derived activity where a non-human source is needed. It should not impersonate employee/employer provenance. | **Git:** CI/bot account |
+| **HistoricalReplay** | Re-running historical registrations through the exact configuration snapshot that originally applied. | **Git:** Checkout/rebuild from an old commit; **Accounting:** Reconstructing the ledger from journals |
+
+The core vocabulary is shaping into three distinct families:
+
+**Reality:** `WorkDay`, `WorkRegistration`, `WorkInterval`, `Source`, `Intent`.
+
+**Interpretation:** `Configuration`, `Resolution`, `Evaluation`, `Classifier`, `Classification`, `Workflow`.
+
+**Consequences and views:** `LedgerTransaction`, `Posting`, `Balance`, `Allocation`, `Projection`, `Report`.
+
+That separation is probably worth preserving explicitly in the codebase too.
+
+Yes. I think that is the better abstraction.
+
+`ICalendarRule` should not itself mutate a `DayShape`. It should answer:
+
+> **For this date, what `DayRule`s do I contribute?**
+
+And critically, calendars should be **sparse**. No rule means “I have nothing to say about this day”, not “normal workday”.
+
+Something like:
+
+```csharp
+public interface ICalendarRule
+{
+    IEnumerable<DayRule> GetRules(DateOnly date);
+}
+```
+
+Or, since this should normally be tiny:
+
+```csharp
+public interface ICalendarRule
+{
+    ImmutableArray<DayRule> GetRules(DateOnly date);
+}
+```
+
+Then `DayRule` is the actual semantic contribution:
+
+```csharp
+public abstract record DayRule;
+```
+
+with concepts such as:
+
+```csharp
+public sealed record WorkingDayRule(bool IsWorkingDay) : DayRule;
+
+public sealed record ExpectedWorkRule(TimeSpan Duration) : DayRule;
+
+public sealed record PaidTimeOffRule(TimeSpan Duration) : DayRule;
+
+public sealed record CoreHoursRule(TimeRange Range) : DayRule;
+
+public sealed record FlexEnvelopeRule(TimeRange Range) : DayRule;
+
+public sealed record RoutineIntervalRule(TimeRange Range) : DayRule;
+
+public sealed record BreakRule(TimeRange Range) : DayRule;
+```
+
+Now your **Norway calendar** can contribute only what Norway actually defines.
+
+Conceptually:
+
+```text
+Saturday
+    WorkingDay(false)
+
+Sunday
+    WorkingDay(false)
+
+17 May
+    WorkingDay(false)
+    PaidTimeOff(7:30)
+
+25 December
+    WorkingDay(false)
+    PaidTimeOff(7:30)
+```
+
+A gas station calendar layered above it can simply contribute:
+
+```text
+Saturday
+    WorkingDay(true)
+
+Sunday
+    WorkingDay(true)
+```
+
+It doesn't need to reproduce the entire Norwegian calendar.
+
+And Christmas Day can still remain:
+
+```text
+Norway:
+    WorkingDay(false)
+    PaidTimeOff(7:30)
+
+GasStation:
+    WorkingDay(true)
+```
+
+Now the final shape can legitimately become:
+
+```text
+WorkingDay:      true
+ExpectedWork:    according to employment schedule
+PaidTimeOff:     maybe still relevant according to applicable policy
+Holiday:         true
+```
+
+Which is exactly the interesting case for a 24/7 business: **the public holiday didn't cease to exist just because this employee works on it**.
+
+That means `DayRule`s should generally target **individual dimensions**, rather than having:
+
+```csharp
+new DayRule
+{
+    IsWorkingDay = true,
+    ExpectedHours = ...,
+    IsHoliday = ...
+}
+```
+
+because whole-object replacement would destroy information contributed by lower calendars.
+
+---
+
+## Then the hierarchy becomes very clean
+
+I'd see:
+
+```text
+ICalendarRule
+    projects zero-or-more DayRules for a date
+
+ICalendar
+    contains ordered ICalendarRules
+
+CalendarStack
+    contains ordered ICalendars
+
+DayShapeResolver
+    folds all resulting DayRules into DayShape
+```
+
+Perhaps:
+
+```csharp
+public interface ICalendar
+{
+    IEnumerable<DayRule> GetRules(DateOnly date);
+}
+```
+
+and:
+
+```csharp
+public sealed class Calendar(
+    ImmutableArray<ICalendarRule> rules) : ICalendar
+{
+    public IEnumerable<DayRule> GetRules(DateOnly date) =>
+        rules.SelectMany(x => x.GetRules(date));
+}
+```
+
+Then:
+
+```csharp
+public sealed class CalendarStack(
+    ImmutableArray<ICalendar> calendars)
+{
+    public DayShape GetDayShape(DateOnly date) =>
+        DayShape.Resolve(
+            date,
+            calendars.SelectMany(x => x.GetRules(date)));
+}
+```
+
+Although I'd eventually return a resolution containing provenance rather than naked `DayShape`.
+
+---
+
+## Recurrence rules become natural
+
+This avoids having a rule per date.
+
+You can have:
+
+```csharp
+public sealed record DaysOfWeekRule(
+    ImmutableHashSet<DayOfWeek> Days,
+    DayRule Rule) : ICalendarRule
+{
+    public ImmutableArray<DayRule> GetRules(DateOnly date) =>
+        Days.Contains(date.DayOfWeek)
+            ? [Rule]
+            : [];
+}
+```
+
+So Norway's baseline can contain:
+
+```text
+Sat/Sun → NonWorkingDay
+```
+
+while the gas-station overlay contains:
+
+```text
+Sat/Sun → WorkingDay
+```
+
+Similarly:
+
+```text
+FixedDateRule
+RecurringDateRule
+DateRangeRule
+NthWeekdayRule
+PublicHolidayRule
+EasterRelativeRule
+```
+
+but those are **selection mechanisms**, not business meaning.
+
+That's an important distinction:
+
+```text
+"Every Sunday"
+```
+
+is an `ICalendarRule` selector.
+
+```text
+"Non-working day"
+```
+
+is a `DayRule`.
+
+That separation feels right.
+
+---
+
+## And your corporate three-days example becomes trivial
+
+Norwegian baseline:
+
+```text
+Norway Calendar
+├─ weekends
+├─ statutory holidays
+└─ whatever national baseline applies
+```
+
+Company:
+
+```text
+Corporate Calendar
+├─ Christmas Eve     → PaidTimeOff + NonWorking
+├─ New Year's Eve    → PaidTimeOff + NonWorking
+└─ Wednesday before Easter → PaidTimeOff + NonWorking
+```
+
+Employment:
+
+```text
+Employment Calendar
+├─ Normal working day → ExpectedWork 7:30
+├─ Flex envelope      → 07:00–17:00
+└─ Core hours         → 09:00–15:00
+```
+
+Frank:
+
+```text
+Routine Calendar
+├─ Expected presence → 08:00–16:30
+└─ Lunch             → 11:30–12:30
+```
+
+Each calendar is mostly **silent**.
+
+That's the property I particularly like.
+
+A calendar should say:
+
+> “Here are the things I know that matter today.”
+
+not:
+
+> “Here is my complete opinion about today's entire shape.”
+
+Then stacking remains compositional rather than replacement-based.
+
+And yes, that gives you the exact useful behavior you identified: a 24/7 employer can override **weekends as working days** without accidentally deleting **Christmas being Christmas**.
+
+Yes. **That turns the calendar stack from “configuration convenience” into an auditable rule engine.** The killer part is not merely knowing Christmas Day exists. It’s being able to answer *why this particular employee/day resolved the way it did*.
+
+I’d make the day resolution carry both the final shape and the complete applied rule slice:
+
+```csharp
+public sealed record DayShapeResolution(
+    DayShape Shape,
+    ImmutableArray<AppliedDayRule> Rules);
+```
+
+Where each applied rule preserves provenance:
+
+```csharp
+public sealed record AppliedDayRule(
+    string RuleId,
+    string Source,
+    string SourceVersion,
+    string Calendar,
+    int Precedence,
+    DayRule Rule);
+```
+
+Then your gas-station Christmas example becomes wonderfully explicit:
+
+```text
+2026-12-25
+
+Norway:
+  PublicHoliday(ChristmasDay)
+  WorkingDay(false)
+  PaidTimeOff(7:30)
+
+GasStationCalendar:
+  WorkingDay(true)
+
+EmploymentCalendar:
+  ExpectedWork(7:30)
+
+Resolved:
+  IsHoliday       = true
+  IsWorkingDay    = true
+  ExpectedWork    = 7:30
+  PaidTimeOff     = 7:30   // depending on agreement semantics
+
+Rules:
+  [all four contributing rules, in order]
+```
+
+So the UI can literally expose:
+
+> **Why does this day look like this?**
+
+and show the exact deterministic chain.
+
+That’s excellent for:
+
+- auditors
+- employees disputing a result
+- managers debugging configuration
+- support
+- regression tests
+- explaining why two employees on the same date got different results
+
+## Code-genning holidays is better than hiding a runtime dependency
+
+I like your approach of consuming a holiday library/tool **during build or generation**, then emitting your own explicit rules.
+
+Rather than runtime:
+
+```text
+Hours
+→ HolidayLibrary
+→ magic answer for 2026-12-25
+```
+
+you get generated source/config such as:
+
+```text
+Rule:
+Id: norway.public-holiday.2026.christmas-day
+Date: 2026-12-25
+Kind: PublicHoliday
+GeneratedFrom:
+    Package: ...
+    Version: ...
+```
+
+That gives you several advantages.
+
+First, **reproducibility**. Updating the holiday package doesn’t silently reinterpret historical days.
+
+Second, **diffability**. A package update that changes a holiday produces a source/generated-data diff you can review.
+
+Third, **observability**. The final day can say exactly which generated rule fired.
+
+Fourth, **zero runtime dependence** on whatever semantics the holiday package happens to expose.
+
+The generated output effectively becomes a curated input to your domain.
+
+## I’d preserve generator provenance too
+
+Something like:
+
+```text
+Generated rule source
+  Provider: PublicHoliday
+  PackageVersion: 3.8.1
+  GeneratedAtBuild: ...
+  Jurisdiction: NO
+  Year: 2027
+```
+
+Possibly also content hash / generator version.
+
+Then if someone asks in 2029:
+
+> Why was 17 May 2027 classified this way?
+
+you can answer from persisted/generated rule identity rather than hoping the current NuGet package still produces the same result.
+
+## And `Rules` belongs directly on the resolution
+
+I agree strongly with this.
+
+Not just:
+
+```csharp
+DayShape Shape
+```
+
+but:
+
+```csharp
+DayShape Shape
+ImmutableArray<AppliedDayRule> Rules
+```
+
+because the rules are not debug metadata. They are part of the **explanation of the derived state**.
+
+That means reporting can drill:
+
+```text
+Monthly report
+→ Day
+→ Resolved shape
+→ Applied rules
+→ Source calendar
+→ Generated/source provenance
+```
+
+and then onward into:
+
+```text
+Registration
+→ Evaluation
+→ Classifications
+→ Ledger postings
+```
+
+At that point the entire system has a consistent property:
+
+> **Every derived number has a causal path back to explicit inputs and explicit rules.**
+
+That is much more valuable than merely having “audit logging”.
+
+You’re essentially building **explainable time accounting**. That phrase may actually be worth keeping around, because it captures the product property quite well.
