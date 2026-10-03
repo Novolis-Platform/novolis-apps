@@ -1,9 +1,9 @@
 <Solution>
-  <Folder Name="/Novolis.Hours.Client.Avalonia/">
-    <Project Path="Novolis.Hours.Client.Avalonia/Novolis.Hours.Client.Avalonia.csproj" />
-  </Folder>
   <Folder Name="/Novolis.Hours.Cli/">
     <Project Path="Novolis.Hours.Cli/Novolis.Hours.Cli.csproj" />
+  </Folder>
+  <Folder Name="/Novolis.Hours.Client.Avalonia/">
+    <Project Path="Novolis.Hours.Client.Avalonia/Novolis.Hours.Client.Avalonia.csproj" />
   </Folder>
   <Folder Name="/Novolis.Hours.Client/">
     <Project Path="Novolis.Hours.Client/Novolis.Hours.Client.csproj" />
@@ -11,11 +11,11 @@
   <Folder Name="/Novolis.Hours.Domain/">
     <Project Path="Novolis.Hours.Domain/Novolis.Hours.Domain.csproj" />
   </Folder>
-  <Folder Name="/Novolis.Hours.Storage/">
-    <Project Path="Novolis.Hours.Storage/Novolis.Hours.Storage.csproj" />
-  </Folder>
   <Folder Name="/Novolis.Hours.Server/">
     <Project Path="Novolis.Hours.Server/Novolis.Hours.Server.csproj" />
+  </Folder>
+  <Folder Name="/Novolis.Hours.Storage/">
+    <Project Path="Novolis.Hours.Storage/Novolis.Hours.Storage.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="../../tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj" />
