@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Novolis.Hours.Domain;
 using Novolis.Security.Authentication;
@@ -24,6 +25,7 @@ public static class HoursEndpointMappings
 
         endpoints.MapPost("/api/auth/login", LoginAsync)
             .AllowAnonymous()
+            .RequireRateLimiting(HoursRateLimitPolicies.Login)
             .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
 
         var api = endpoints.MapGroup("/api").RequireAuthorization();
@@ -33,6 +35,8 @@ public static class HoursEndpointMappings
             return Results.Ok(new CurrentUserResponse(actor.Id, actor.DisplayName, actor.Role));
         });
         api.MapPost("/auth/logout", LogoutAsync).WithMetadata(new RequireAntiforgeryTokenAttribute(true));
+        api.MapPost("/auth/password", ChangePasswordAsync)
+            .WithMetadata(new RequireAntiforgeryTokenAttribute(true));
 
         api.MapGet("/configuration/employees/{employeeId}", GetEmployeeConfiguration);
         api.MapGet("/employees/{employeeId}/view", GetEmployeeViewAsync);
@@ -80,6 +84,7 @@ public static class HoursEndpointMappings
         }
 
         if (options.EnableDemoAdminCredentials &&
+            HoursSecurityBoundary.IsLoopback(context) &&
             string.Equals(request.Login, HoursDemoAccount.Login, StringComparison.Ordinal) &&
             string.Equals(request.Password, HoursDemoAccount.Password, StringComparison.Ordinal))
         {
@@ -116,6 +121,52 @@ public static class HoursEndpointMappings
             authenticatedPrincipal,
             new AuthenticationProperties { AllowRefresh = true });
         return Results.Ok(ToLoginResponse(user));
+    }
+
+    private static async Task<IResult> ChangePasswordAsync(
+        ChangePasswordRequest request,
+        HttpContext context,
+        AuthenticationFacade authentication,
+        HoursUserDirectory users)
+    {
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword) ||
+            string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["password"] = ["The current and new passwords are required."],
+            });
+        }
+
+        var identityText = context.User.FindFirst(HoursClaimTypes.IdentityId)?.Value;
+        if (!Guid.TryParse(identityText, out var identityId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var user = await users.FindAsync(identityId, context.RequestAborted);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await authentication.ChangePasswordAsync(
+            user.Login,
+            request.CurrentPassword,
+            request.NewPassword,
+            context.RequestAborted);
+        if (!result.Succeeded)
+        {
+            return result.Error is "password_too_short" or "password_forbidden" or "password_breached"
+                ? Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["password"] = ["The new password does not meet the configured security policy."],
+                })
+                : Results.Unauthorized();
+        }
+
+        await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> LogoutAsync(
@@ -555,6 +606,8 @@ public static class HoursEndpointMappings
     public sealed record AntiforgeryResponse(string Token);
 
     public sealed record LoginRequest(string Login, string Password);
+
+    public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
     public sealed record LoginResponse(
         string EmployeeId,

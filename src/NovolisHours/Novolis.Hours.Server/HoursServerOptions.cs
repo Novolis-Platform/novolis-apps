@@ -15,6 +15,9 @@ public sealed class HoursServerOptions
     /// <summary>Requires HTTPS for the application surface outside Development.</summary>
     public bool RequireHttps { get; set; } = true;
 
+    /// <summary>Proxy addresses allowed to supply forwarded scheme and client-address headers.</summary>
+    public string[] TrustedProxyAddresses { get; set; } = ["127.0.0.1", "::1"];
+
     /// <summary>Allows the documented local-only demo account; it is disabled unless explicitly requested in Development.</summary>
     public bool EnableDemoAdminCredentials { get; set; }
 

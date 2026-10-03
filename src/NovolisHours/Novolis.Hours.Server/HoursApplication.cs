@@ -1,11 +1,16 @@
+using System.Net;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Novolis.Hours.Domain;
 using Novolis.Hours.Infrastructure;
@@ -39,6 +44,12 @@ public static class HoursApplication
         configureBuilder?.Invoke(builder);
 
         var options = builder.Configuration.GetSection("Hours").Get<HoursServerOptions>() ?? new HoursServerOptions();
+        if (!builder.Environment.IsDevelopment() && options.EnableDemoAdminCredentials)
+        {
+            throw new InvalidOperationException(
+                "Hours__EnableDemoAdminCredentials is development-only and cannot be enabled outside Development.");
+        }
+
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(TimeProvider.System);
         ConfigureStorage(builder.Services, options);
@@ -63,21 +74,29 @@ public static class HoursApplication
             provider.GetRequiredService<IHoursPolicyProvider>(),
             provider.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<HoursQueryService>();
+        builder.Services.AddHealthChecks()
+            .AddCheck(
+                "hours-ready",
+                () => HealthCheckResult.Healthy("The Hours host has started its storage and security services."));
+        builder.Services.AddRateLimiter(HoursRateLimitPolicies.AddTo);
         builder.Services.AddSignalR();
         builder.Services.AddAntiforgery(antiforgery =>
         {
             antiforgery.HeaderName = "X-Novolis-Hours-CSRF";
-            antiforgery.Cookie.Name = "NovolisHours.Antiforgery";
+            antiforgery.Cookie.Name = "__Host-NovolisHours.Antiforgery";
             antiforgery.Cookie.HttpOnly = false;
-            antiforgery.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            antiforgery.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            antiforgery.Cookie.Path = "/";
+            antiforgery.Cookie.SameSite = SameSiteMode.Strict;
         });
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
-                options.Cookie.Name = "NovolisHours.Session";
+                options.Cookie.Name = "__Host-NovolisHours.Session";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Strict;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                options.Cookie.Path = "/";
                 options.Events = new CookieAuthenticationEvents
                 {
                     OnValidatePrincipal = ValidateSessionAsync,
@@ -104,12 +123,60 @@ public static class HoursApplication
         builder.Services.AddHostedService<HoursFlexSettlementScheduler>();
 
         var app = builder.Build();
-        app.UseForwardedHeaders(new ForwardedHeadersOptions
+        app.UseExceptionHandler(errorApplication =>
+            errorApplication.Run(async context =>
+            {
+                var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+                var (statusCode, title) = ClassifyException(exception);
+                context.Response.Headers.CacheControl = "no-store";
+                await Results.Problem(
+                    statusCode: statusCode,
+                    title: title,
+                    detail: statusCode >= StatusCodes.Status500InternalServerError
+                        ? "The request could not be completed."
+                        : "The request was not accepted.")
+                    .ExecuteAsync(context);
+            }));
+
+        var forwardedHeaders = new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-        });
+        };
+        forwardedHeaders.KnownProxies.Clear();
+        forwardedHeaders.KnownIPNetworks.Clear();
+        foreach (var addressText in options.TrustedProxyAddresses)
+        {
+            if (IPAddress.TryParse(addressText, out var address))
+            {
+                forwardedHeaders.KnownProxies.Add(address);
+            }
+            else
+            {
+                app.Logger.LogWarning(
+                    "Ignoring invalid Hours trusted proxy address {TrustedProxyAddress}.",
+                    addressText);
+            }
+        }
+
+        app.UseForwardedHeaders(forwardedHeaders);
         app.Use(async (context, next) =>
         {
+            if (options.RequireHttps &&
+                !app.Environment.IsDevelopment() &&
+                !context.Request.IsHttps &&
+                !HoursSecurityBoundary.IsHealthProbe(context.Request.Path))
+            {
+                context.Response.StatusCode = StatusCodes.Status426UpgradeRequired;
+                context.Response.Headers.Location =
+                    $"{Uri.UriSchemeHttps}://{context.Request.Host}{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}";
+                await Results.Problem(
+                        statusCode: StatusCodes.Status426UpgradeRequired,
+                        title: "HTTPS is required.",
+                        detail: "Use the HTTPS endpoint for the Hours service.")
+                    .ExecuteAsync(context);
+                return;
+            }
+
             context.Response.Headers["X-Content-Type-Options"] = "nosniff";
             context.Response.Headers["X-Frame-Options"] = "DENY";
             context.Response.Headers["Referrer-Policy"] = "no-referrer";
@@ -118,11 +185,16 @@ public static class HoursApplication
         });
         app.UseStaticFiles();
         app.UseRouting();
+        app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
         app.UseAntiforgery();
 
-        app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+        app.MapHealthChecks("/health/live", new HealthCheckOptions
+        {
+            Predicate = _ => false,
+        }).AllowAnonymous();
+        app.MapHealthChecks("/health/ready").AllowAnonymous();
         app.MapHub<HoursHub>("/hubs/hours");
         HoursEndpointMappings.Map(app);
         app.MapFallbackToFile("index.html");
@@ -178,7 +250,8 @@ public static class HoursApplication
             StringComparison.Ordinal);
         if (isDemo)
         {
-            if (!options.EnableDemoAdminCredentials)
+            if (!options.EnableDemoAdminCredentials ||
+                !HoursSecurityBoundary.IsLoopback(context.HttpContext))
             {
                 context.RejectPrincipal();
             }
@@ -202,6 +275,28 @@ public static class HoursApplication
         if (authenticatedIdentity is null || authenticatedIdentity.Value != claimedIdentity)
         {
             context.RejectPrincipal();
+            return;
         }
+
+        var users = context.HttpContext.RequestServices.GetRequiredService<HoursUserDirectory>();
+        var user = await users.FindAsync(claimedIdentity.Value, context.HttpContext.RequestAborted);
+        if (user is null)
+        {
+            context.RejectPrincipal();
+            return;
+        }
+
+        context.ReplacePrincipal(HoursPrincipalFactory.Create(user, claimedIdentity, sessionId));
+        context.ShouldRenew = true;
     }
+
+    private static (int StatusCode, string Title) ClassifyException(Exception? exception) =>
+        exception switch
+        {
+            UnauthorizedAccessException => (StatusCodes.Status403Forbidden, "The authenticated principal is not allowed."),
+            KeyNotFoundException => (StatusCodes.Status404NotFound, "The requested Hours record was not found."),
+            ArgumentException => (StatusCodes.Status400BadRequest, "The request contains invalid values."),
+            InvalidOperationException => (StatusCodes.Status409Conflict, "The Hours operation is not valid in its current state."),
+            _ => (StatusCodes.Status500InternalServerError, "The Hours service encountered an error."),
+        };
 }
