@@ -946,6 +946,153 @@
       },
       "update": { "enabled": false, "appId": "Novolis.Hours", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "http-studio",
+      "choice": "HttpStudio",
+      "displayName": "HTTP Studio",
+      "sourceRoot": "src/HttpStudio",
+      "solution": "src/HttpStudio/HttpStudio.slnx",
+      "artifactPrefix": "HttpStudio",
+      "stack": "avalonia-desktop",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/HttpStudio/HttpStudio.csproj",
+        "linuxCi": [],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": ["src/HttpStudio/HttpStudio.csproj"]
+      },
+      "local": ["windows"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/HttpStudio/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsCi": true,
+        "windowsWorkload": false,
+        "linuxCi": false,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "Novolis.HttpStudio.exe",
+        "appId": "Novolis.HttpStudio",
+        "installDir": "Novolis\\HTTP Studio",
+        "groupName": "HTTP Studio",
+        "setupBase": "HttpStudioSetup",
+        "scriptFile": "http-studio.iss",
+        "closeApplicationsFilter": "Novolis.HttpStudio.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\http-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\http-studio\\cache",
+        "credentialsNamespace": "Novolis.HttpStudio",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": false, "appId": "Novolis.HttpStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "query-studio",
+      "choice": "QueryStudio",
+      "displayName": "Query Studio",
+      "sourceRoot": "src/QueryStudio",
+      "solution": "src/QueryStudio/QueryStudio.slnx",
+      "artifactPrefix": "QueryStudio",
+      "stack": "avalonia-desktop",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/QueryStudio/QueryStudio.csproj",
+        "linuxCi": [],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": ["src/QueryStudio/QueryStudio.csproj"]
+      },
+      "local": ["windows"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/QueryStudio/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsCi": true,
+        "windowsWorkload": false,
+        "linuxCi": false,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "Novolis.QueryStudio.exe",
+        "appId": "Novolis.QueryStudio",
+        "installDir": "Novolis\\Query Studio",
+        "groupName": "Query Studio",
+        "setupBase": "QueryStudioSetup",
+        "scriptFile": "query-studio.iss",
+        "closeApplicationsFilter": "Novolis.QueryStudio.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\query-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\query-studio\\cache",
+        "credentialsNamespace": "Novolis.QueryStudio",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": false, "appId": "Novolis.QueryStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "robosharp-studio",
+      "choice": "RoboSharpStudio",
+      "displayName": "RoboSharp Studio",
+      "sourceRoot": "src/RoboSharpStudio",
+      "solution": "src/RoboSharpStudio/RoboSharpStudio.slnx",
+      "artifactPrefix": "RoboSharpStudio",
+      "stack": "avalonia-desktop",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/RoboSharpStudio/RoboSharpStudio.csproj",
+        "linuxCi": [],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": ["src/RoboSharpStudio/RoboSharpStudio.csproj"]
+      },
+      "local": ["windows"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/RoboSharpStudio/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsCi": true,
+        "windowsWorkload": false,
+        "linuxCi": false,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "Novolis.RoboSharpStudio.exe",
+        "appId": "Novolis.RoboSharpStudio",
+        "installDir": "Novolis\\RoboSharp Studio",
+        "groupName": "RoboSharp Studio",
+        "setupBase": "RoboSharpStudioSetup",
+        "scriptFile": "robosharp-studio.iss",
+        "closeApplicationsFilter": "Novolis.RoboSharpStudio.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\robosharp-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\robosharp-studio\\cache",
+        "credentialsNamespace": "Novolis.RoboSharpStudio",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": false, "appId": "Novolis.RoboSharpStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
+      "release": { "githubRelease": true, "checksums": true }
     }
   ]
 }
