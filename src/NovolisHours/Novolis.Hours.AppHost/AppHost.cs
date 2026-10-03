@@ -31,4 +31,12 @@ var hours = builder
 // Keep one server instance while the JSON journal is the authoritative writer.
 _ = hours;
 
+builder.AddProject<Projects.Novolis_Hours_Client_Avalonia>("hours-client-avalonia")
+    .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", hours.GetEndpoint("https"))
+    .WithExplicitStart();
+
+builder.AddProject<Projects.Novolis_Hours_Client_Maui>("hours-client-maui")
+    .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", hours.GetEndpoint("https"))
+    .WithExplicitStart();
+
 builder.Build().Run();

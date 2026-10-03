@@ -18,6 +18,9 @@ public sealed class HoursAspireSmokeTests
             .CreateAsync<Projects.Novolis_Hours_AppHost>(cancellationToken)
             .WaitAsync(StartupTimeout, cancellationToken);
 
+        await Assert.That(appHost.Resources.TryGetByName("hours-client-avalonia", out _)).IsTrue();
+        await Assert.That(appHost.Resources.TryGetByName("hours-client-maui", out _)).IsTrue();
+
         appHost.Configuration["Parameters:hours-initial-administrator-password"] =
             "AspireFeatureTest-StrongPassword-2026!";
         appHost.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Warning));
