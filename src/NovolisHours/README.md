@@ -55,6 +55,7 @@ All included presets start as `Draft`; a tenant must complete country-specific l
 - `Novolis.Hours.Client` — authenticated cookie and antiforgery API client shared by native hosts.
 - `Novolis.Hours.Client.Avalonia` — shared-profile native client with real service sign-in and summary loading.
 - `Novolis.Hours.Client.Maui` — shared-profile mobile and Windows client with real service sign-in and summary loading.
+- `Novolis.Hours.AppHost` — Aspire process composition for the server and both native clients. The clients are explicit-start resources and receive the server's managed HTTPS endpoint through an endpoint reference.
 
 The local demonstration host supports `admin/admin` only when explicitly started with `serve --demo`, so a fresh JSON-backed run can be tried in one command. The default is secure: a non-demo host starts only when an administrator already exists or `Hours__InitialAdministratorPassword` is supplied through secure configuration. Production bootstrap checks passwords through the Novolis Security breach-checking adapter.
 
@@ -92,8 +93,17 @@ Run the feature suite:
 dotnet test tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj -p:NovolisUseProjectReferences=true
 ```
 
-## Container
+## Aspire host
 
-`Dockerfile` builds the server using an authenticated NuGet configuration mounted as a BuildKit secret; no GitHub Packages credential is copied into the image. The runtime stores JSON data at `/data` and disables the local demo account by default. `compose.yaml` requires `HOURS_INITIAL_ADMINISTRATOR_PASSWORD` so its first administrator is created through Novolis Security; do not place that secret in source control.
+The supported local composition is the project-based Aspire AppHost. It starts
+exactly one `Novolis.Hours.Server` process, stores the JSON journal in the
+configured local application-data directory, and exposes the server through an
+Aspire-managed HTTPS endpoint. It does not require Docker or another container
+runtime.
 
-`compose.yaml` mounts that data directory as the `novolis-hours-data` volume.
+The AppHost keeps the bootstrap administrator password as a secret parameter,
+disables demo credentials, and wires `/health/ready` into resource readiness.
+The server exports structured logs, traces, and metrics to the Aspire dashboard
+when Aspire supplies `OTEL_EXPORTER_OTLP_ENDPOINT`; direct CLI runs retain
+local structured logging and in-process Activities/Meters without requiring a
+collector.

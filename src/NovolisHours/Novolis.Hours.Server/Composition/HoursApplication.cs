@@ -16,6 +16,11 @@ using Microsoft.Extensions.Hosting;
 using Novolis.Hours.Application;
 using Novolis.Hours.Domain;
 using Novolis.Hours.Storage;
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Novolis.Security.Authentication;
 using Novolis.Security.Authentication.Storage;
 using Novolis.Security.HaveIBeenPwned;
@@ -44,6 +49,7 @@ public static class HoursApplication
             ContentRootPath = AppContext.BaseDirectory,
         });
         configureBuilder?.Invoke(builder);
+        ConfigureObservability(builder);
 
         var options = builder.Configuration.GetSection("Hours").Get<HoursServerOptions>() ?? new HoursServerOptions();
         if (!builder.Environment.IsDevelopment() && options.EnableDemoAdminCredentials)
@@ -267,6 +273,42 @@ public static class HoursApplication
         }
 
         services.AddJsonHoursJournal(options.DataPath);
+    }
+
+    private static void ConfigureObservability(WebApplicationBuilder builder)
+    {
+        builder.Logging.AddOpenTelemetry(logging =>
+        {
+            logging.IncludeFormattedMessage = true;
+            logging.IncludeScopes = true;
+            logging.ParseStateValues = true;
+        });
+
+        var serviceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "Novolis.Hours.Server";
+        var serviceVersion = typeof(HoursApplication).Assembly.GetName().Version?.ToString();
+        var telemetry = builder.Services
+            .AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService(
+                serviceName: serviceName,
+                serviceVersion: serviceVersion,
+                serviceInstanceId: Environment.MachineName))
+            .WithTracing(tracing => tracing
+                .AddAspNetCoreInstrumentation(options => options.RecordException = true)
+                .AddHttpClientInstrumentation(options => options.RecordException = true)
+                .AddSource(HoursTelemetry.ActivitySource.Name))
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddRuntimeInstrumentation()
+                .AddMeter(HoursTelemetry.Meter.Name));
+
+        // Aspire supplies this endpoint to a managed process resource. A direct
+        // CLI run still keeps local logging, metrics, and Activities enabled
+        // without repeatedly trying to reach a collector that is not present.
+        if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
+        {
+            telemetry.UseOtlpExporter();
+        }
     }
 
     private static HoursPolicy CreatePolicy(HoursServerOptions options, int year)

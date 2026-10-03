@@ -1,4 +1,10 @@
 <Solution>
+  <Folder Name="/Novolis.Hours.AppHost/">
+    <Project Path="Novolis.Hours.AppHost/Novolis.Hours.AppHost.csproj" />
+  </Folder>
+  <Folder Name="/Novolis.Hours.Application/">
+    <Project Path="Novolis.Hours.Application/Novolis.Hours.Application.csproj" />
+  </Folder>
   <Folder Name="/Novolis.Hours.Cli/">
     <Project Path="Novolis.Hours.Cli/Novolis.Hours.Cli.csproj" />
   </Folder>
@@ -11,6 +17,9 @@
   <Folder Name="/Novolis.Hours.Client/">
     <Project Path="Novolis.Hours.Client/Novolis.Hours.Client.csproj" />
   </Folder>
+  <Folder Name="/Novolis.Hours.Contracts/">
+    <Project Path="Novolis.Hours.Contracts/Novolis.Hours.Contracts.csproj" />
+  </Folder>
   <Folder Name="/Novolis.Hours.Domain/">
     <Project Path="Novolis.Hours.Domain/Novolis.Hours.Domain.csproj" />
   </Folder>
@@ -21,6 +30,7 @@
     <Project Path="Novolis.Hours.Storage/Novolis.Hours.Storage.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="../../tests/Novolis.Hours.AspireTests/Novolis.Hours.AspireTests.csproj" />
     <Project Path="../../tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj" />
   </Folder>
 </Solution>

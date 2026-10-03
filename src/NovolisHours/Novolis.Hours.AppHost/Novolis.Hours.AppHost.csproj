@@ -1,0 +1,17 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.0">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AspireUseCliBundle>true</AspireUseCliBundle>
+    <NovolisEnableWindowIcon>false</NovolisEnableWindowIcon>
+    <NovolisCopyBrandIcon>false</NovolisCopyBrandIcon>
+    <!-- Transitive Novolis analyzers are build-time dependencies, not Aspire resources. -->
+    <NoWarn>$(NoWarn);ASPIRE004</NoWarn>
+    <UserSecretsId>novolis-hours-apphost-2026</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Novolis.Hours.Server\Novolis.Hours.Server.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting" />
+  </ItemGroup>
+</Project>

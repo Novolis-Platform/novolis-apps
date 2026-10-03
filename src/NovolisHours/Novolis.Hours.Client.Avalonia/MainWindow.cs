@@ -24,7 +24,7 @@ public sealed class MainWindow : Window
 
         var endpoint = new TextBox
         {
-            Text = "https://localhost:5001",
+            Text = Environment.GetEnvironmentVariable("NOVOLIS_HOURS_SERVICE_URL") ?? string.Empty,
             PlaceholderText = "Hours service URL",
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };

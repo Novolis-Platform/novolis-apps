@@ -16,7 +16,7 @@ public sealed class MainPage : ContentPage
         BackgroundColor = GraphicalProfile.Background;
         var serviceUrl = new Entry
         {
-            Text = "https://localhost:5001",
+            Text = Environment.GetEnvironmentVariable("NOVOLIS_HOURS_SERVICE_URL") ?? string.Empty,
             Placeholder = "Hours service URL",
             Keyboard = Keyboard.Url,
         };
