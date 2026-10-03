@@ -1,0 +1,190 @@
+@page "/"
+@implements IDisposable
+@inject IConfiguration Configuration
+
+<PageTitle>Novolis Hours</PageTitle>
+
+<header class="hero">
+    <p class="eyebrow">Novolis Hours · standalone browser client</p>
+    <h1>Worktime, presence, and flex traceability</h1>
+    <p>
+        Record when work happened relative to the expected working day. This client does not calculate pay or leave.
+    </p>
+</header>
+
+<section class="card">
+    <h2>Sign in</h2>
+    <div class="form-grid">
+        <label>
+            Hours service URL
+            <input @bind="serviceUrl" type="url" autocomplete="url" />
+        </label>
+        <label>
+            Login
+            <input @bind="login" autocomplete="username" />
+        </label>
+        <label>
+            Password
+            <input @bind="password" type="password" autocomplete="current-password" />
+        </label>
+    </div>
+    <button @onclick="SignInAsync" disabled="@busy">@(busy ? "Signing in…" : "Sign in")</button>
+</section>
+
+@if (currentUser is not null)
+{
+    <section class="card">
+        <div class="toolbar">
+            <div>
+                <h2>Welcome, @currentUser.DisplayName</h2>
+                <p class="muted">@currentUser.EmployeeId · @currentUser.Role</p>
+            </div>
+            <button @onclick="SignOut" disabled="@busy">Sign out</button>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Register presence</h2>
+        <p class="muted">
+            Presence is the fact being recorded. Financial-compensation classification and approvals remain explicit
+            server-side records.
+        </p>
+        <div class="form-grid">
+            <label>Employee ID <input @bind="employeeId" /></label>
+            <label>Day <input @bind="day" type="date" /></label>
+            <label>Started <input @bind="startedAt" type="time" /></label>
+            <label>Ended <input @bind="endedAt" type="time" /></label>
+            <label>Break started <input @bind="breakStartedAt" type="time" /></label>
+            <label>Break ended <input @bind="breakEndedAt" type="time" /></label>
+            <label class="wide">Comment <input @bind="comment" /></label>
+        </div>
+        <button @onclick="RegisterWorkAsync" disabled="@busy">Register worktime</button>
+    </section>
+
+    @if (summary is not null)
+    {
+        <section class="card">
+            <h2>Current summary</h2>
+            <div class="summary-grid">
+                <div><span class="muted">Flex saldo</span><strong>@summary.FlexSaldo</strong></div>
+                <div><span class="muted">Presence records</span><strong>@summary.PresenceRecordCount</strong></div>
+                <div><span class="muted">Adjustments</span><strong>@summary.AdjustmentCount</strong></div>
+                <div><span class="muted">Anomalies</span><strong>@summary.AnomalyCount</strong></div>
+            </div>
+        </section>
+    }
+}
+
+@if (!string.IsNullOrWhiteSpace(status))
+{
+    <p class="status" role="status">@status</p>
+}
+
+@code {
+    private HoursApiClient? apiClient;
+    private HoursClientUser? currentUser;
+    private HoursEmployeeSummary? summary;
+    private string serviceUrl = "https://localhost:5700/";
+    private string login = "admin";
+    private string password = string.Empty;
+    private string employeeId = "admin";
+    private DateTime day = DateTime.Today;
+    private TimeOnly startedAt = new(8, 0);
+    private TimeOnly endedAt = new(16, 0);
+    private TimeOnly? breakStartedAt = new(11, 30);
+    private TimeOnly? breakEndedAt = new(12, 0);
+    private string comment = "Working day";
+    private string status = string.Empty;
+    private bool busy;
+
+    protected override void OnInitialized()
+    {
+        serviceUrl = Configuration["HoursServiceUrl"] ?? serviceUrl;
+    }
+
+    private async Task SignInAsync()
+    {
+        await RunAsync(async () =>
+        {
+            if (!Uri.TryCreate(serviceUrl, UriKind.Absolute, out var endpoint))
+            {
+                throw new InvalidOperationException("Enter an absolute HTTPS Hours service URL.");
+            }
+
+            apiClient?.Dispose();
+            apiClient = new HoursApiClient(
+                new HttpClient { BaseAddress = EnsureTrailingSlash(endpoint) },
+                request => request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include));
+            currentUser = await apiClient.SignInAsync(login, password);
+            employeeId = currentUser.EmployeeId;
+            await RefreshSummaryAsync();
+            status = "Signed in.";
+        });
+    }
+
+    private async Task RegisterWorkAsync()
+    {
+        await RunAsync(async () =>
+        {
+            if (apiClient is null)
+            {
+                throw new InvalidOperationException("Sign in before registering worktime.");
+            }
+
+            await apiClient.RegisterWorkAsync(new HoursWorkRegistration(
+                employeeId,
+                DateOnly.FromDateTime(day),
+                startedAt,
+                endedAt,
+                breakStartedAt,
+                breakEndedAt,
+                [],
+                comment,
+                ManagerAgreementRecorded: false));
+            await RefreshSummaryAsync();
+            status = "Presence record created.";
+        });
+    }
+
+    private async Task RefreshSummaryAsync()
+    {
+        if (apiClient is not null && currentUser is not null)
+        {
+            summary = await apiClient.GetEmployeeSummaryAsync(employeeId);
+        }
+    }
+
+    private void SignOut()
+    {
+        apiClient?.Dispose();
+        apiClient = null;
+        currentUser = null;
+        summary = null;
+        status = "Signed out. The browser session remains protected by the server.";
+    }
+
+    private async Task RunAsync(Func<Task> operation)
+    {
+        busy = true;
+        status = string.Empty;
+        try
+        {
+            await operation();
+        }
+        catch (Exception exception)
+        {
+            status = exception.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    public void Dispose() => apiClient?.Dispose();
+
+    private static Uri EnsureTrailingSlash(Uri value) =>
+        value.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
+            ? value
+            : new Uri($"{value.AbsoluteUri}/", UriKind.Absolute);
+}

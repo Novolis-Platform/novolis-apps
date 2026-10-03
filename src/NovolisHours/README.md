@@ -50,12 +50,13 @@ All included presets start as `Draft`; a tenant must complete country-specific l
 
 ## Hosts
 
-- `Novolis.Hours.Server` — ASP.NET Core API, SignalR hub, JSON persistence, SPA delivery, workflow scheduling, and HTML report export.
+- `Novolis.Hours.Server` — ASP.NET Core API, SignalR hub, selectable JSON/Azure Table persistence, SPA delivery, workflow scheduling, and HTML report export.
 - `Novolis.Hours.Cli` — prints the listening URL after starting the host.
 - `Novolis.Hours.Client` — authenticated cookie and antiforgery API client shared by native hosts.
-- `Novolis.Hours.Client.Avalonia` — shared-profile native client with real service sign-in and summary loading.
-- `Novolis.Hours.Client.Maui` — shared-profile mobile and Windows client with real service sign-in and summary loading.
-- `Novolis.Hours.AppHost` — Aspire process composition for the server and both native clients. The clients are explicit-start resources and receive the server's managed HTTPS endpoint through an endpoint reference.
+- `Novolis.Hours.Client.Avalonia` — shared-profile native client with real service sign-in, summary loading, and an opt-in UI agent hook.
+- `Novolis.Hours.Client.Maui` — shared-profile mobile and Windows client with real service sign-in, summary loading, and an opt-in UI agent hook.
+- `Novolis.Hours.Client.Blazor` — standalone Blazor WebAssembly client using the same protected API and browser credentials.
+- `Novolis.Hours.AppHost` — Aspire process composition for the server, Azurite Table Storage, and all three clients. The clients are explicit-start resources and receive the server's managed HTTPS endpoint through an endpoint reference.
 
 The local demonstration host supports `admin/admin` only when explicitly started with `serve --demo`, so a fresh JSON-backed run can be tried in one command. The default is secure: a non-demo host starts only when an administrator already exists or `Hours__InitialAdministratorPassword` is supplied through secure configuration. Production bootstrap checks passwords through the Novolis Security breach-checking adapter.
 
@@ -72,10 +73,12 @@ Internal:
 
 - `Novolis.Time`, `Calendar`, `Calendar.PublicHoliday`, `Week`, `Worktime`, and `Worktime.Legal`
 - `Novolis.Storage.Json` and `Novolis.Storage.InMemory`
+- `Novolis.Storage.AzureTables` and `Azure.Data.Tables` for Azure Table Storage/Azurite persistence
 - `Novolis.Security.Authentication`, storage adapters, and `Novolis.Security.HaveIBeenPwned` for non-demo bootstrap checks
 - `Novolis.WorkflowEngine`
 - `Novolis.Markup.Html` for traceable, escaped HTML exports
 - `Novolis.Avalonia.GraphicalProfile` and `Novolis.Maui.GraphicalProfile`
+- `Novolis.Avalonia.Agent` and `Novolis.Maui.Agent` for controllable native UI surfaces
 
 ## Verification
 
@@ -93,17 +96,27 @@ Run the feature suite:
 dotnet test tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj -p:NovolisUseProjectReferences=true
 ```
 
+Run the Podman-backed Aspire smoke test explicitly:
+
+```powershell
+$env:NOVOLIS_HOURS_RUN_PODMAN_TESTS = "1"
+dotnet test tests/Novolis.Hours.AspireTests/Novolis.Hours.AspireTests.csproj -p:NovolisUseProjectReferences=true
+```
+
 ## Aspire host
 
 The supported local composition is the project-based Aspire AppHost. It starts
-exactly one `Novolis.Hours.Server` process, stores the JSON journal in the
-configured local application-data directory, and exposes the server through an
-Aspire-managed HTTPS endpoint. It does not require Docker or another container
-runtime.
+exactly one `Novolis.Hours.Server` process and one persistent Azurite Table
+Storage container under Podman. The server connects through the Azurite
+development-storage connection string and exposes `/health/ready` only after
+the Table service is reachable. The standalone Blazor client is available as a
+separate HTTPS resource.
 
-The AppHost keeps the bootstrap administrator password as a secret parameter,
-disables demo credentials, and wires `/health/ready` into resource readiness.
-The server exports structured logs, traces, and metrics to the Aspire dashboard
-when Aspire supplies `OTEL_EXPORTER_OTLP_ENDPOINT`; direct CLI runs retain
-local structured logging and in-process Activities/Meters without requiring a
-collector.
+The AppHost forces `ASPIRE_CONTAINER_RUNTIME=podman`, keeps the bootstrap
+administrator password as a secret parameter, disables demo credentials, and
+wires `/health/ready` into resource readiness. The server exports structured
+logs, traces, and metrics to the Aspire dashboard when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is supplied; direct CLI runs retain local
+structured logging and in-process Activities/Meters without requiring a
+collector. Set `NOVOLIS_AVALONIA_AGENT=1` or `NOVOLIS_MAUI_AGENT=1` to attach
+the native UI agent surfaces; Aspire enables both for its client resources.

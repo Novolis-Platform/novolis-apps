@@ -279,6 +279,64 @@ public sealed class HoursHostFeatureTests
     }
 
     [Test]
+    public async Task The_real_azure_table_host_round_trips_security_profiles_and_work_events_without_mocks()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            "NOVOLIS_HOURS_AZURITE_CONNECTION_STRING");
+        Skip.Unless(
+            !string.IsNullOrWhiteSpace(connectionString),
+            "Set NOVOLIS_HOURS_AZURITE_CONNECTION_STRING to an Azurite Table connection string.");
+
+        var tablePrefix = $"novolishourstest{Guid.NewGuid():N}";
+        const string password = "AzureFeatureTest-StrongPassword-2026!";
+
+        await using (var first = BuildAzureHost(connectionString!, tablePrefix, password))
+        {
+            await first.StartAsync();
+            var client = first.GetTestClient();
+            var session = await SignInAsync(client, "admin", password);
+
+            var work = new HttpRequestMessage(HttpMethod.Post, "/api/work")
+            {
+                Content = JsonContent.Create(new
+                {
+                    employeeId = "admin",
+                    day = "2026-10-01",
+                    startedAt = "08:00",
+                    endedAt = "16:00",
+                    breakStartedAt = "11:30",
+                    breakEndedAt = "12:00",
+                    financialCompensationSlices = Array.Empty<object>(),
+                    comment = "Azurite round-trip verification.",
+                    managerAgreementRecorded = false,
+                }),
+            };
+            work.Headers.Add("Cookie", session.Cookies);
+            work.Headers.Add("X-Novolis-Hours-CSRF", session.AntiforgeryToken);
+
+            await Assert.That((await client.SendAsync(work)).StatusCode)
+                .IsEqualTo(HttpStatusCode.Created);
+        }
+
+        await using (var second = BuildAzureHost(connectionString!, tablePrefix, password))
+        {
+            await second.StartAsync();
+            var client = second.GetTestClient();
+            var session = await SignInAsync(client, "admin", password);
+            var view = new HttpRequestMessage(HttpMethod.Get, "/api/employees/admin/view");
+            view.Headers.Add("Cookie", session.Cookies);
+
+            using var document = JsonDocument.Parse(
+                await (await client.SendAsync(view)).Content.ReadAsStringAsync());
+            await Assert.That(document.RootElement.GetProperty("entries").GetArrayLength())
+                .IsEqualTo(1);
+            await Assert.That(
+                    document.RootElement.GetProperty("entries")[0].GetProperty("comment").GetString())
+                .IsEqualTo("Azurite round-trip verification.");
+        }
+    }
+
+    [Test]
     public async Task An_administrator_can_persist_individual_policy_and_work_fraction_settings_before_registration()
     {
         await using var app = HoursApplication.Build(
@@ -305,7 +363,7 @@ public sealed class HoursHostFeatureTests
         var client = app.GetTestClient();
         var antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
         var antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
-        var antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
+        var antiforgeryCookie = AntiforgeryCookie(antiforgeryResponse);
         var login = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
         {
             Content = JsonContent.Create(new { login = "admin", password = "admin" }),
@@ -534,14 +592,40 @@ public sealed class HoursHostFeatureTests
             },
             environmentName: "Development");
 
+    private static WebApplication BuildAzureHost(
+        string connectionString,
+        string tablePrefix,
+        string administratorPassword) =>
+        HoursApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:StorageProvider"] = "azure-tables",
+                    ["Hours:AzureTablesConnectionString"] = connectionString,
+                    ["Hours:AzureTablesTablePrefix"] = tablePrefix,
+                    ["Hours:InitialAdministratorPassword"] = administratorPassword,
+                    ["Hours:EnableDemoAdminCredentials"] = "false",
+                });
+            },
+            environmentName: "Development");
+
     private static async Task<(string Cookies, string AntiforgeryToken)> SignInDemoAsync(HttpClient client)
+        => await SignInAsync(client, "admin", "admin");
+
+    private static async Task<(string Cookies, string AntiforgeryToken)> SignInAsync(
+        HttpClient client,
+        string loginName,
+        string password)
     {
         var antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
         var antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
         var antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
         var login = new HttpRequestMessage(HttpMethod.Post, "/api/auth/login")
         {
-            Content = JsonContent.Create(new { login = "admin", password = "admin" }),
+            Content = JsonContent.Create(new { login = loginName, password }),
         };
         login.Headers.Add("Cookie", antiforgeryCookie);
         login.Headers.Add("X-Novolis-Hours-CSRF", antiforgeryToken);
@@ -555,7 +639,11 @@ public sealed class HoursHostFeatureTests
         refreshedAntiforgeryRequest.Headers.Add("Cookie", sessionCookie);
         antiforgeryResponse = await client.SendAsync(refreshedAntiforgeryRequest);
         antiforgeryToken = ReadJsonString(await antiforgeryResponse.Content.ReadAsStringAsync(), "token");
-        antiforgeryCookie = CookieHeader(antiforgeryResponse).Single();
+        antiforgeryCookie = AntiforgeryCookie(antiforgeryResponse);
         return ($"{antiforgeryCookie}; {sessionCookie}", antiforgeryToken);
     }
+
+    private static string AntiforgeryCookie(HttpResponseMessage response) =>
+        CookieHeader(response)
+            .Single(cookie => cookie.Contains(".Antiforgery=", StringComparison.Ordinal));
 }

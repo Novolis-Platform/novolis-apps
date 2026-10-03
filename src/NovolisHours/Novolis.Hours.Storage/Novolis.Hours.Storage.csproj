@@ -9,7 +9,9 @@
     <ProjectReference Include="..\Novolis.Hours.Domain\Novolis.Hours.Domain.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Azure.Data.Tables" />
     <LibraryReference Include="Novolis.Storage.Abstractions" />
+    <LibraryReference Include="Novolis.Storage.AzureTables" />
     <LibraryReference Include="Novolis.Storage.Json" />
   </ItemGroup>
 </Project>

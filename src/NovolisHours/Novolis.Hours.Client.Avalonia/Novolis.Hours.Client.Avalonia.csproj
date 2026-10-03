@@ -12,6 +12,7 @@
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <LibraryReference Include="Novolis.Avalonia.Agent" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
   </ItemGroup>
   <ItemGroup>

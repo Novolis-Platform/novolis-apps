@@ -12,6 +12,7 @@
     <ProjectReference Include="..\Novolis.Hours.Server\Novolis.Hours.Server.csproj" />
     <ProjectReference Include="..\Novolis.Hours.Client.Avalonia\Novolis.Hours.Client.Avalonia.csproj" />
     <ProjectReference Include="..\Novolis.Hours.Client.Maui\Novolis.Hours.Client.Maui.csproj" />
+    <ProjectReference Include="..\Novolis.Hours.Client.Blazor\Novolis.Hours.Client.Blazor.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting" />

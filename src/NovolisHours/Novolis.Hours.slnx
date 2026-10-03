@@ -11,6 +11,9 @@
   <Folder Name="/Novolis.Hours.Client.Avalonia/">
     <Project Path="Novolis.Hours.Client.Avalonia/Novolis.Hours.Client.Avalonia.csproj" />
   </Folder>
+  <Folder Name="/Novolis.Hours.Client.Blazor/">
+    <Project Path="Novolis.Hours.Client.Blazor/Novolis.Hours.Client.Blazor.csproj" />
+  </Folder>
   <Folder Name="/Novolis.Hours.Client.Maui/">
     <Project Path="Novolis.Hours.Client.Maui/Novolis.Hours.Client.Maui.csproj" />
   </Folder>

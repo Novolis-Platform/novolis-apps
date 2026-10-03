@@ -14,12 +14,16 @@ public sealed class HoursApiClient : IDisposable
     };
 
     private readonly HttpClient httpClient;
+    private readonly Action<HttpRequestMessage>? configureRequest;
     private string? antiforgeryToken;
 
     /// <summary>Initializes the client over an already configured HTTP client.</summary>
-    public HoursApiClient(HttpClient httpClient)
+    public HoursApiClient(
+        HttpClient httpClient,
+        Action<HttpRequestMessage>? configureRequest = null)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        this.configureRequest = configureRequest;
         if (this.httpClient.BaseAddress is null)
         {
             throw new ArgumentException("The HTTP client must have a base address.", nameof(httpClient));
@@ -62,7 +66,7 @@ public sealed class HoursApiClient : IDisposable
             Content = JsonContent.Create(new LoginRequest(login, password), options: JsonOptions),
         };
         request.Headers.Add("X-Novolis-Hours-CSRF", token);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         var payload = await response.Content.ReadFromJsonAsync<LoginResponse>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("The Hours host returned an empty login response.");
@@ -78,7 +82,9 @@ public sealed class HoursApiClient : IDisposable
     /// <summary>Gets the profile associated with the active Hours session.</summary>
     public async Task<HoursClientUser> GetCurrentUserAsync(CancellationToken cancellationToken = default)
     {
-        using var response = await httpClient.GetAsync("api/auth/me", cancellationToken);
+        using var response = await SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "api/auth/me"),
+            cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         var payload = await response.Content.ReadFromJsonAsync<CurrentUserResponse>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("The Hours host returned an empty current-user response.");
@@ -91,8 +97,10 @@ public sealed class HoursApiClient : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
-        using var response = await httpClient.GetAsync(
-            $"api/employees/{Uri.EscapeDataString(employeeId)}/view",
+        using var response = await SendAsync(
+            new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/employees/{Uri.EscapeDataString(employeeId)}/view"),
             cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         using var document = JsonDocument.Parse(
@@ -120,7 +128,7 @@ public sealed class HoursApiClient : IDisposable
             Content = JsonContent.Create(registration, options: JsonOptions),
         };
         request.Headers.Add("X-Novolis-Hours-CSRF", token);
-        using var response = await httpClient.SendAsync(request, cancellationToken);
+        using var response = await SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
@@ -134,7 +142,9 @@ public sealed class HoursApiClient : IDisposable
             return antiforgeryToken;
         }
 
-        using var response = await httpClient.GetAsync("api/auth/antiforgery", cancellationToken);
+        using var response = await SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "api/auth/antiforgery"),
+            cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         var payload = await response.Content.ReadFromJsonAsync<AntiforgeryResponse>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("The Hours host returned an empty antiforgery response.");
@@ -167,6 +177,14 @@ public sealed class HoursApiClient : IDisposable
         serviceUri.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
             ? serviceUri
             : new Uri($"{serviceUri.AbsoluteUri}/", UriKind.Absolute);
+
+    private async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        configureRequest?.Invoke(request);
+        return await httpClient.SendAsync(request, cancellationToken);
+    }
 
     private sealed record AntiforgeryResponse(string Token);
 

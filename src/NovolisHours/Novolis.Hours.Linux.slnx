@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Novolis.Hours.Client.Blazor/">
+    <Project Path="Novolis.Hours.Client.Blazor/Novolis.Hours.Client.Blazor.csproj" />
+  </Folder>
   <Folder Name="/Novolis.Hours.Client/">
     <Project Path="Novolis.Hours.Client/Novolis.Hours.Client.csproj" />
   </Folder>

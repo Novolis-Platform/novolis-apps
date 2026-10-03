@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Novolis.Avalonia.GraphicalProfile;
+using Novolis.Avalonia.Agent;
 using Novolis.Hours.Client;
 
 namespace Novolis.Hours.Client.Avalonia;
@@ -11,6 +12,7 @@ namespace Novolis.Hours.Client.Avalonia;
 public sealed class MainWindow : Window
 {
     private HoursApiClient? apiClient;
+    private AgentHost? agentHost;
 
     /// <summary>Initializes the native client shell.</summary>
     public MainWindow()
@@ -28,28 +30,33 @@ public sealed class MainWindow : Window
             PlaceholderText = "Hours service URL",
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
+        AgentProperties.SetId(endpoint, "hours.service-url");
         var login = new TextBox
         {
             Text = "admin",
             PlaceholderText = "Login",
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
+        AgentProperties.SetId(login, "hours.login");
         var password = new TextBox
         {
             PasswordChar = '●',
             PlaceholderText = "Password",
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
+        AgentProperties.SetId(password, "hours.password");
         var connect = new Button
         {
             Content = "Sign in and load summary",
             HorizontalAlignment = HorizontalAlignment.Left,
         };
+        AgentProperties.SetId(connect, "hours.sign-in");
         var status = new TextBlock
         {
             Text = "Enter a secure Hours service URL and sign in.",
             TextWrapping = TextWrapping.Wrap,
         };
+        AgentProperties.SetId(status, "hours.status");
         connect.Click += async (_, _) =>
         {
             connect.IsEnabled = false;
@@ -102,12 +109,16 @@ public sealed class MainWindow : Window
             },
         };
         Content = content;
+        agentHost = AgentHost.TryAttachFromEnvironment(this);
     }
 
     /// <inheritdoc />
     protected override void OnClosed(EventArgs e)
     {
         apiClient?.Dispose();
+        var host = agentHost;
+        agentHost = null;
+        _ = host?.DisposeAsync();
         base.OnClosed(e);
     }
 }

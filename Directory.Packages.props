@@ -20,6 +20,8 @@
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.3" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" />
+    <PackageVersion Include="Azure.Data.Tables" Version="12.11.0" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
@@ -145,6 +147,7 @@
     <PackageVersion Include="Novolis.MachineLearning.Neural" Version="2026.1.*" />
     <PackageVersion Include="Novolis.MachineLearning.Neural.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Storage.Abstractions" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Storage.AzureTables" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Storage.Json" Version="2026.1.*" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
         <PackageVersion Include="Novolis.Avalonia.Manuscript" Version="2026.1.*" />

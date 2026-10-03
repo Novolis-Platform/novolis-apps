@@ -23,6 +23,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
+    <LibraryReference Include="Novolis.Maui.Agent" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
   </ItemGroup>
   <ItemGroup>

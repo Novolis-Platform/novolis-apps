@@ -1,4 +1,5 @@
 using Microsoft.Maui.Controls.Shapes;
+using Novolis.Maui.Agent;
 using Novolis.Maui.GraphicalProfile;
 using Novolis.Hours.Client;
 
@@ -8,6 +9,7 @@ namespace Novolis.Hours.Client.Maui;
 public sealed class MainPage : ContentPage
 {
     private HoursApiClient? apiClient;
+    private AgentHost? agentHost;
 
     /// <summary>Initializes the native Hours client page.</summary>
     public MainPage()
@@ -19,22 +21,30 @@ public sealed class MainPage : ContentPage
             Text = Environment.GetEnvironmentVariable("NOVOLIS_HOURS_SERVICE_URL") ?? string.Empty,
             Placeholder = "Hours service URL",
             Keyboard = Keyboard.Url,
+            AutomationId = "hours.service-url",
         };
         var login = new Entry
         {
             Text = "admin",
             Placeholder = "Login",
+            AutomationId = "hours.login",
         };
         var password = new Entry
         {
             Placeholder = "Password",
             IsPassword = true,
+            AutomationId = "hours.password",
         };
-        var signIn = new Button { Text = "Sign in and load summary" };
+        var signIn = new Button
+        {
+            Text = "Sign in and load summary",
+            AutomationId = "hours.sign-in",
+        };
         var status = new Label
         {
             Text = "Enter a secure Hours service URL and sign in.",
             TextColor = GraphicalProfile.Muted,
+            AutomationId = "hours.status",
         };
         signIn.Clicked += async (_, _) =>
         {
@@ -104,6 +114,7 @@ public sealed class MainPage : ContentPage
                 },
             },
         };
+        agentHost = AgentHost.TryAttachFromEnvironment(this);
     }
 
     /// <inheritdoc />
@@ -111,6 +122,9 @@ public sealed class MainPage : ContentPage
     {
         apiClient?.Dispose();
         apiClient = null;
+        var host = agentHost;
+        agentHost = null;
+        _ = host?.DisposeAsync();
         base.OnDisappearing();
     }
 }

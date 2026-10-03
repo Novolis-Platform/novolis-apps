@@ -890,7 +890,8 @@
         "publishWindows": "src/NovolisHours/Novolis.Hours.Client.Maui/Novolis.Hours.Client.Maui.csproj",
         "linuxCi": [
           "src/NovolisHours/Novolis.Hours.Server/Novolis.Hours.Server.csproj",
-          "src/NovolisHours/Novolis.Hours.Client/Novolis.Hours.Client.csproj"
+          "src/NovolisHours/Novolis.Hours.Client/Novolis.Hours.Client.csproj",
+          "src/NovolisHours/Novolis.Hours.Client.Blazor/Novolis.Hours.Client.Blazor.csproj"
         ],
         "android": "src/NovolisHours/Novolis.Hours.Client.Maui/Novolis.Hours.Client.Maui.csproj",
         "maui": "src/NovolisHours/Novolis.Hours.Client.Maui/Novolis.Hours.Client.Maui.csproj",
@@ -906,6 +907,7 @@
           "src/NovolisHours/Novolis.Hours.Client.Avalonia/Novolis.Hours.Client.Avalonia.csproj",
           "src/NovolisHours/Novolis.Hours.AppHost/Novolis.Hours.AppHost.csproj",
           "src/NovolisHours/Novolis.Hours.Client.Maui/Novolis.Hours.Client.Maui.csproj",
+          "src/NovolisHours/Novolis.Hours.Client.Blazor/Novolis.Hours.Client.Blazor.csproj",
           "tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj",
           "tests/Novolis.Hours.AspireTests/Novolis.Hours.AspireTests.csproj"
         ]

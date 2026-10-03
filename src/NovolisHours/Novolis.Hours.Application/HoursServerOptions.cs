@@ -1,13 +1,22 @@
 namespace Novolis.Hours.Application;
 
-/// <summary>Host configuration for local JSON storage and the explicitly development-only demo sign-in.</summary>
+/// <summary>Host configuration for storage, client origins, and the explicitly development-only demo sign-in.</summary>
 public sealed class HoursServerOptions
 {
+    /// <summary>Storage provider name: <c>json</c>, <c>azure-tables</c>, or <c>in-memory</c>.</summary>
+    public string StorageProvider { get; set; } = "json";
+
     /// <summary>JSON directory used by the self-contained host.</summary>
     public string DataPath { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Novolis",
         "Hours");
+
+    /// <summary>Azure Table or Azurite connection string used when <see cref="StorageProvider"/> is <c>azure-tables</c>.</summary>
+    public string? AzureTablesConnectionString { get; set; }
+
+    /// <summary>Prefix used to isolate this Hours tenant's Azure Tables.</summary>
+    public string AzureTablesTablePrefix { get; set; } = "novolis-hours";
 
     /// <summary>Uses a real in-memory journal for feature harnesses instead of the JSON journal.</summary>
     public bool UseInMemoryJournal { get; set; }
@@ -17,6 +26,9 @@ public sealed class HoursServerOptions
 
     /// <summary>Proxy addresses allowed to supply forwarded scheme and client-address headers.</summary>
     public string[] TrustedProxyAddresses { get; set; } = ["127.0.0.1", "::1"];
+
+    /// <summary>Origins allowed to call the protected API from a standalone browser client.</summary>
+    public string[] AllowedClientOrigins { get; set; } = [];
 
     /// <summary>Allows the documented local-only demo account; it is disabled unless explicitly requested in Development.</summary>
     public bool EnableDemoAdminCredentials { get; set; }

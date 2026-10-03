@@ -32,7 +32,7 @@ using AuthenticationFacade = Novolis.Security.Authentication.IAuthenticationServ
 
 namespace Novolis.Hours.Server;
 
-/// <summary>Composes the self-contained Novolis Hours server, JSON store, SPA, API, security, workflows, and realtime transport.</summary>
+/// <summary>Composes the self-contained Novolis Hours server, selected store, SPA, API, security, workflows, and realtime transport.</summary>
 public static class HoursApplication
 {
     /// <summary>Builds a complete host and exposes a builder hook for the no-mock TestServer harness.</summary>
@@ -61,6 +61,26 @@ public static class HoursApplication
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(TimeProvider.System);
         ConfigureStorage(builder.Services, options);
+        builder.Services.AddCors(cors =>
+        {
+            cors.AddPolicy(
+                "hours-browser-client",
+                policy =>
+                {
+                    var origins = options.AllowedClientOrigins
+                        .Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out _))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+                    if (origins.Length > 0)
+                    {
+                        policy
+                            .WithOrigins(origins)
+                            .AllowAnyHeader()
+                            .AllowAnyMethod()
+                            .AllowCredentials();
+                    }
+                });
+        });
         if (!builder.Environment.IsDevelopment() && !options.EnableDemoAdminCredentials)
         {
             builder.Services.AddNovolisPasswordBreachCheck();
@@ -83,6 +103,7 @@ public static class HoursApplication
             provider.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<HoursQueryService>();
         builder.Services.AddHealthChecks()
+            .AddCheck<HoursStorageHealthCheck>("hours-storage")
             .AddCheck(
                 "hours-ready",
                 () => HealthCheckResult.Healthy("The Hours host has started its storage and security services."));
@@ -199,6 +220,7 @@ public static class HoursApplication
         });
         app.UseStaticFiles();
         app.UseRouting();
+        app.UseCors("hours-browser-client");
         app.UseRateLimiter();
         app.UseAuthentication();
         app.UseAuthorization();
@@ -265,10 +287,25 @@ public static class HoursApplication
 
     private static void ConfigureStorage(IServiceCollection services, HoursServerOptions options)
     {
-        if (options.UseInMemoryJournal)
+        if (options.UseInMemoryJournal ||
+            string.Equals(options.StorageProvider, "in-memory", StringComparison.OrdinalIgnoreCase))
         {
             services.AddStorage(storage => storage.AddInMemoryProvider());
             services.AddInMemoryHoursJournal();
+            return;
+        }
+
+        if (string.Equals(options.StorageProvider, "azure-tables", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(options.AzureTablesConnectionString))
+            {
+                throw new InvalidOperationException(
+                    "Hours Azure Table storage requires Hours__AzureTablesConnectionString.");
+            }
+
+            services.AddAzureTableHoursStorage(
+                options.AzureTablesConnectionString,
+                options.AzureTablesTablePrefix);
             return;
         }
 
