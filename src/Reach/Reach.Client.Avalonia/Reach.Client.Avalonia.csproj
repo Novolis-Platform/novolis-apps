@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Novolis.Avalonia.Reach</RootNamespace>
+    <AssemblyName>Novolis.Reach.Client.Avalonia</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Reach.Client\Reach.Client.csproj" />
+    <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
+    <LibraryReference Include="Novolis.Avalonia.Video" />
+    <LibraryReference Include="Novolis.Video.Abstractions" />
+  </ItemGroup>
+</Project>

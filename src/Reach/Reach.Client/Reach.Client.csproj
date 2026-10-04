@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Novolis.Reach.Client</RootNamespace>
+    <AssemblyName>Novolis.Reach.Client</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
+    <ProjectReference Include="..\Reach.Transport\Reach.Transport.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <LibraryReference Include="Novolis.Transports.Discovery" />
+    <LibraryReference Include="Novolis.Transports.Framing" />
+    <LibraryReference Include="Novolis.Transports.Tailscale" />
+    <LibraryReference Include="Novolis.Video.Abstractions" />
+  </ItemGroup>
+</Project>

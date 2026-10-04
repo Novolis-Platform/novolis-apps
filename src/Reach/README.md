@@ -31,10 +31,12 @@ candidate. A successful QUIC session receives an authenticated AES-GCM UDP
 media offer on `19801`; clients fall back to QUIC streams or TCP when UDP is
 unavailable.
 
-Libraries live in [`novolis-reach`](https://github.com/Novolis-Platform/novolis-reach)
-(`Novolis.Reach.Protocol`, `.Transport`, `.Client`, `.Host.Server`,
-`.Host.Windows.Session`) and `Novolis.Avalonia.Reach`. This folder keeps the
-product executables.
+Product-private libraries live next to the executables in this folder
+(`Reach.Protocol`, `Reach.Transport`, `Reach.Client`, `Reach.Host.Server`,
+`Reach.Host.Windows.Session`, `Reach.Client.Avalonia`). They are not NuGet
+packages. Generic fit, stream gating, datagram reassembly, and the video
+surface live in `Novolis.Video.*`, `Novolis.Transports.Datagrams`, and
+`Novolis.Avalonia.Video`.
 
 ## Run locally
 

@@ -1,25 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <RootNamespace>Novolis.Reach.Host.Windows.Service</RootNamespace>
-    <AssemblyName>Novolis.Reach.Host.Windows.Service</AssemblyName>
-    <ApplicationTitle>Novolis Reach Host Service</ApplicationTitle>
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>Novolis.Reach.Host.Server</RootNamespace>
+    <AssemblyName>Novolis.Reach.Host.Server</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
     <ProjectReference Include="..\Reach.Transport\Reach.Transport.csproj" />
-    <ProjectReference Include="..\Reach.Host.Server\Reach.Host.Server.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
     <LibraryReference Include="Novolis.Transports.Datagrams" />
     <LibraryReference Include="Novolis.Transports.Discovery" />
     <LibraryReference Include="Novolis.Transports.Framing" />
     <LibraryReference Include="Novolis.Transports.LocalIpc" />
+    <LibraryReference Include="Novolis.Transports.Quic" />
+    <LibraryReference Include="Novolis.Transports.Tcp" />
     <LibraryReference Include="Novolis.Transports.Tailscale" />
     <LibraryReference Include="Novolis.Transports.Udp" />
     <LibraryReference Include="Novolis.Windows.Sessions" />

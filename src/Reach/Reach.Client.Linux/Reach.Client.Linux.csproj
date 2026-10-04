@@ -7,8 +7,8 @@
     <ApplicationTitle>Novolis Reach</ApplicationTitle>
   </PropertyGroup>
   <ItemGroup>
-    <LibraryReference Include="Novolis.Reach.Client" />
-    <LibraryReference Include="Novolis.Avalonia.Reach" />
+    <ProjectReference Include="..\Reach.Client\Reach.Client.csproj" />
+    <ProjectReference Include="..\Reach.Client.Avalonia\Reach.Client.Avalonia.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
