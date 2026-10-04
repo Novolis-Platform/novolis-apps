@@ -9,6 +9,10 @@
 {
     <section class="card"><p role="alert">Sign in before opening a day.</p><a href="/">Return to sign in</a></section>
 }
+else if (!string.IsNullOrWhiteSpace(error) && studio is null)
+{
+    <section class="card"><p role="alert">@error</p><a href="/">Return to this week</a></section>
+}
 else if (studio is null)
 {
     <section class="card"><p>Loading day…</p></section>
@@ -18,23 +22,35 @@ else
     <section class="card">
         <div class="toolbar">
             <div>
-                <p class="eyebrow">@studio.Day.OrganisationId · @studio.Day.Configuration.TimeZoneId</p>
+                <p class="eyebrow">@studio.WorkplaceName · @studio.Day.Configuration.TimeZoneId</p>
                 <h1>@title</h1>
-                <p class="muted">@(studio.Day.IsWorkingDay ? "Working day" : "Non-working day")</p>
+                <p class="muted">@(studio.AttendanceConfirmationOnly
+                    ? (studio.Day.IsWorkingDay ? "Shop hours" : "Closed")
+                    : (studio.Day.IsWorkingDay ? "Working day" : "Non-working day"))</p>
             </div>
             <div class="toolbar">
-                <button class="action" @onclick="WorkedAsScheduledAsync" disabled="@busy">Worked as scheduled</button>
-                <button @onclick="() => paintMode = !paintMode">@(paintMode ? "Adjust times" : "Paint")</button>
+                <button class="action" @onclick="WorkedAsScheduledAsync" disabled="@busy">@studio.CommitLabel</button>
+                @if (studio.AllowsPaint)
+                {
+                    <button @onclick="() => paintMode = !paintMode">@(paintMode ? "Adjust times" : "Paint")</button>
+                }
                 <a href="/">Week</a>
             </div>
         </div>
         <div class="summary-grid">
             <div><span class="muted">Expected</span><strong>@studio.ExpectedLabel</strong></div>
             <div><span class="muted">Actual</span><strong>@HoursClock.Format(studio.ActualWork)</strong></div>
-            <div><span class="muted">Flex</span><strong>@HoursClock.Format(studio.Flex, signed: true)</strong></div>
+            @if (studio.AllowsFlex)
+            {
+                <div><span class="muted">Flex</span><strong>@HoursClock.Format(studio.Flex, signed: true)</strong></div>
+            }
+            else
+            {
+                <div><span class="muted">Attendance</span><strong>@studio.BalanceLabel</strong></div>
+            }
             <div><span class="muted">Paid</span><strong>@HoursClock.Format(studio.Day.PaidEntitlement)</strong></div>
         </div>
-        <div class="strip" @ref="stripRef" @onpointerdown="OnPointerDown" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointerleave="OnPointerUp">
+        <div class="strip @(studio.AllowsFlex ? null : "locked")" @ref="stripRef" @onpointerdown="OnPointerDown" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointerleave="OnPointerUp">
             @if (studio.Day.WorkEnvelopeRange is { } envelope)
             {
                 <div class="strip-lane" style="@Lane(envelope, 8, "var(--ngp-border)")"></div>
@@ -139,16 +155,30 @@ else
     protected override async Task OnParametersSetAsync()
     {
         error = string.Empty;
+        studio = null;
         await Session.RestoreAsync();
-        if (Session.ApiClient is null || !DateOnly.TryParse(DateText, out var date))
+        if (Session.ApiClient is null || Session.CurrentUser is null)
+        {
+            error = "Sign in before opening a day.";
+            return;
+        }
+
+        if (!DateOnly.TryParse(DateText, out var date))
         {
             error = "A signed-in session and a valid nominal date are required.";
             return;
         }
 
-        var day = await Session.ApiClient.GetWorkDayAsync(EmployeeId, date);
-        studio = new DayStudioModel(day);
-        title = $"{HoursClock.FormatDate(date)} · {day.OrganisationId}";
+        try
+        {
+            var day = await Session.ApiClient.GetWorkDayAsync(EmployeeId, date);
+            studio = new DayStudioModel(day);
+            title = $"{HoursClock.FormatDate(date)} · {studio.WorkplaceName}";
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+        }
     }
 
     private async Task WorkedAsScheduledAsync()
@@ -167,7 +197,7 @@ else
                 WorkRegistrationIntent.WorkedAsScheduled,
                 [],
                 null,
-                "Worked as scheduled."));
+                studio.CommitNote));
             studio.ApplyScheduledRoutine();
             var day = await Session.ApiClient.GetWorkDayAsync(EmployeeId, studio.Day.NominalDate);
             studio = new DayStudioModel(day);
@@ -223,6 +253,11 @@ else
     private async Task OnPointerDown(PointerEventArgs args)
     {
         if (studio is null)
+        {
+            return;
+        }
+
+        if (!studio.AllowsFlex && !paintMode)
         {
             return;
         }

@@ -72,6 +72,73 @@ public sealed class PresentationFeatureTests
     }
 
     [Test]
+    public async Task Norwegian_office_studio_keeps_flex_paint_and_worked_as_scheduled()
+    {
+        var studio = new DayStudioModel(SampleDay(registered: true));
+        var week = new WeekStudioModel(
+            [
+                SampleDay(new DateOnly(2026, 10, 1), working: true, holiday: false, registered: true),
+                SampleDay(new DateOnly(2026, 10, 3), working: false, holiday: false),
+            ],
+            new DateOnly(2026, 10, 1));
+        var review = new ReviewMonthModel(
+            SampleReview(
+                "cascading-approval",
+                allowsDispute: true,
+                attendance: false,
+                ("employee-submit", "Submit"),
+                ("manager-level-1", "Approve"),
+                ("hr-final", "Approve")),
+            [SampleDay(registered: true)]);
+
+        await Assert.That(studio.CommitLabel).IsEqualTo("Worked as scheduled");
+        await Assert.That(studio.AllowsPaint).IsTrue();
+        await Assert.That(studio.WorkplaceName).IsEqualTo("Nordvik");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 10, 1)).Chip)
+            .IsEqualTo("Recorded");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 10, 3)).Chip)
+            .IsEqualTo("Weekend");
+        await Assert.That(review.EmployeePrimaryLabel).IsEqualTo("Submit");
+        await Assert.That(review.AllowsDispute).IsTrue();
+    }
+
+    [Test]
+    public async Task Game_studio_is_attendance_only_without_flex_or_dispute()
+    {
+        var studio = new DayStudioModel(SampleGameDay(registered: false));
+        studio.BeginDrag(DayStripGeometry.ToRatio(new TimeOnly(10, 0)), paint: false);
+        await Assert.That(studio.IsDragging).IsFalse();
+        var week = new WeekStudioModel(
+            [
+                SampleGameDay(new DateOnly(2026, 3, 9), working: true, registered: false),
+                SampleGameDay(new DateOnly(2026, 3, 14), working: true, registered: true),
+                SampleGameDay(new DateOnly(2026, 3, 15), working: false, registered: false),
+            ],
+            new DateOnly(2026, 3, 9));
+        var review = new ReviewMonthModel(
+            SampleReview(
+                "attendance-hr",
+                allowsDispute: false,
+                attendance: true,
+                ("employee-confirm", "Acknowledge"),
+                ("hr-attendance", "Approve")),
+            [SampleGameDay(registered: true)]);
+
+        await Assert.That(studio.CommitLabel).IsEqualTo("I was here");
+        await Assert.That(studio.AllowsPaint).IsFalse();
+        await Assert.That(studio.WorkplaceName).IsEqualTo("Game");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 3, 9)).Chip)
+            .IsEqualTo("Confirm");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 3, 14)).Chip)
+            .IsEqualTo("Here");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 3, 15)).Chip)
+            .IsEqualTo("Weekend");
+        await Assert.That(review.EmployeePrimaryLabel).IsEqualTo("Confirm attendance");
+        await Assert.That(review.AllowsDispute).IsFalse();
+        await Assert.That(review.HasSubmitStage).IsFalse();
+    }
+
+    [Test]
     public async Task Human_clocks_drop_seconds()
     {
         await Assert.That(HoursClock.Format(TimeSpan.FromHours(7.5))).IsEqualTo("7:30");
@@ -80,14 +147,67 @@ public sealed class PresentationFeatureTests
             .Contains("Thursday");
     }
 
+    private static ReviewProjectionResponse SampleReview(
+        string policyId,
+        bool allowsDispute,
+        bool attendance,
+        params (string Id, string Action)[] stages) =>
+        new(
+            Guid.CreateVersion7(),
+            attendance ? "jamie" : "ada",
+            new DateOnly(2026, 10, 1),
+            new DateOnly(2026, 10, 31),
+            policyId,
+            "Open",
+            false,
+            [],
+            stages.Select(stage => new ReviewStageResponse(
+                stage.Id,
+                stage.Action,
+                stage.Action == "Approve" ? "HumanResources" : "Employee",
+                null,
+                new DateOnly(2026, 10, 5),
+                false,
+                false,
+                null)).ToImmutableArray(),
+            [],
+            [],
+            null,
+            allowsDispute,
+            attendance);
+
+    private static WorkDayResponse SampleGameDay(
+        DateOnly? date = null,
+        bool working = true,
+        bool registered = false) =>
+        SampleDay(
+            date,
+            working,
+            holiday: false,
+            registered,
+            "jamie",
+            "game-retail",
+            "Game",
+            "Europe/London",
+            allowsFlex: false,
+            allowsDispute: false,
+            attendance: true);
+
     private static WorkDayResponse SampleDay(
         DateOnly? date = null,
         bool working = true,
         bool holiday = false,
-        bool registered = false) =>
+        bool registered = false,
+        string employeeId = "ada",
+        string organisationId = "nordvik-office",
+        string organisationName = "Nordvik",
+        string timeZoneId = "Europe/Oslo",
+        bool allowsFlex = true,
+        bool allowsDispute = true,
+        bool attendance = false) =>
         new(
-            "ada",
-            "nordvik-office",
+            employeeId,
+            organisationId,
             date ?? new DateOnly(2026, 10, 1),
             working,
             TimeSpan.FromHours(7.5),
@@ -129,14 +249,14 @@ public sealed class PresentationFeatureTests
             registered
                 ? new WorkRegistrationResponse(
                     Guid.CreateVersion7(),
-                    "ada",
+                    employeeId,
                     date ?? new DateOnly(2026, 10, 1),
                     "Employee",
                     WorkRegistrationIntent.WorkedAsScheduled,
                     [],
                     null,
                     null,
-                    "ada",
+                    employeeId,
                     "Employee",
                     DateTimeOffset.UtcNow,
                     Guid.CreateVersion7())
@@ -163,7 +283,7 @@ public sealed class PresentationFeatureTests
                 "v1",
                 "v1",
                 "v1",
-                "Europe/Oslo"),
+                timeZoneId),
             new LocalTimeRangeDto(new TimeOnly(7, 0), new TimeOnly(17, 0)),
             [new LocalTimeRangeDto(new TimeOnly(9, 0), new TimeOnly(15, 0))],
             [
@@ -175,5 +295,9 @@ public sealed class PresentationFeatureTests
                     "customer",
                     "Customer",
                     [new DimensionBrushValueResponse("acme", "ACME")]),
-            ]);
+            ],
+            allowsFlex,
+            allowsDispute,
+            attendance,
+            organisationName);
 }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Novolis.Hours.Application;
 using Novolis.Hours.Domain;
 
 namespace Novolis.Hours.Server;
@@ -37,6 +38,12 @@ public sealed class HoursServerFlexSettlementScheduler : BackgroundService
                      .Select(item => item.EmployeeId)
                      .Distinct(StringComparer.Ordinal))
         {
+            if (string.Equals(employeeId, "system", StringComparison.OrdinalIgnoreCase) ||
+                !HoursCustomerCatalog.ForEmployee(employeeId).AllowsFlex)
+            {
+                continue;
+            }
+
             var cutoff = policies.GetPolicy(employeeId).SettlementPolicy.MostRecentClosedDate(assessedOn);
             if (cutoff is null)
             {

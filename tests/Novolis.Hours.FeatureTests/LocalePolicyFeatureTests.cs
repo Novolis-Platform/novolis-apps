@@ -12,6 +12,7 @@ public sealed class LocalePolicyFeatureTests
     [Arguments("norway.state.flex", "NO")]
     [Arguments("belgium.office.flex", "BE")]
     [Arguments("england.office.flex", "GB")]
+    [Arguments("england.retail.rigid", "GB")]
     [Arguments("france.annualisation", "FR")]
     [Arguments("poland.okres-rozliczeniowy", "PL")]
     [Arguments("finland.liukuva-tyoaika", "FI")]

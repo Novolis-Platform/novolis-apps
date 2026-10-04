@@ -73,7 +73,7 @@ public sealed class HoursHostFeatureTests
         var catalogRequest = new HttpRequestMessage(HttpMethod.Get, "/api/legal/preset-catalog");
         catalogRequest.Headers.Add("Cookie", $"{antiforgeryCookie}; {sessionCookie}");
         using var catalogDocument = JsonDocument.Parse(await (await client.SendAsync(catalogRequest)).Content.ReadAsStringAsync());
-        await Assert.That(catalogDocument.RootElement.GetArrayLength()).IsEqualTo(7);
+        await Assert.That(catalogDocument.RootElement.GetArrayLength()).IsEqualTo(8);
 
         var work = new HttpRequestMessage(HttpMethod.Post, "/api/work")
         {

@@ -152,22 +152,25 @@ public static class HoursServerRewriteEndpointMappings
                 .Select(entry => entry.ReadPayload<Novolis.Hours.Domain.Ledger.LedgerTransaction>())
                 .SingleOrDefault(transaction => transaction.SourceRegistrationId == correctedId)
             : null;
-        if (originalTransaction is null)
+        if (HoursCustomerCatalog.ForEmployee(request.EmployeeId).AllowsFlex)
         {
-            await ledger.AppendTransactionAsync(
-                registration,
-                dimensions,
-                ledgerProjector,
-                context.RequestAborted);
-        }
-        else
-        {
-            await ledger.AppendCorrectionTransactionAsync(
-                originalTransaction,
-                registration,
-                dimensions,
-                ledgerProjector,
-                context.RequestAborted);
+            if (originalTransaction is null)
+            {
+                await ledger.AppendTransactionAsync(
+                    registration,
+                    dimensions,
+                    ledgerProjector,
+                    context.RequestAborted);
+            }
+            else
+            {
+                await ledger.AppendCorrectionTransactionAsync(
+                    originalTransaction,
+                    registration,
+                    dimensions,
+                    ledgerProjector,
+                    context.RequestAborted);
+            }
         }
         HoursServerTelemetry.JournalAppends.Add(1);
         return Results.Created(
@@ -653,23 +656,48 @@ public static class HoursServerRewriteEndpointMappings
             return false;
         }
 
+        var policy = HoursReviewWorkflowCatalog.ForEmployee(employeeId);
         return kind switch
         {
-            ReviewActionKind.Submit or ReviewActionKind.Dispute =>
-                actor.Role == HoursActorRole.Employee &&
-                string.Equals(actor.Id, employeeId, StringComparison.Ordinal),
+            ReviewActionKind.Submit =>
+                PolicyHasStage(policy, ReviewActionKind.Submit, ResponsibilityRole.Employee) &&
+                IsSelfEmployee(actor, employeeId),
+            ReviewActionKind.Dispute =>
+                policy.AllowsDispute &&
+                IsSelfEmployee(actor, employeeId),
             ReviewActionKind.Acknowledge =>
-                actor.Role == HoursActorRole.Employee &&
-                string.Equals(actor.Id, employeeId, StringComparison.Ordinal) ||
-                actor.Role is HoursActorRole.Manager or HoursActorRole.HumanResources or HoursActorRole.Higher or HoursActorRole.Administrator,
+                IsSelfEmployee(actor, employeeId) &&
+                PolicyHasStage(policy, ReviewActionKind.Acknowledge, ResponsibilityRole.Employee),
             ReviewActionKind.Approve =>
-                actor.Role is HoursActorRole.Manager or HoursActorRole.HumanResources or HoursActorRole.Higher or HoursActorRole.Administrator,
+                policy.Stages.Any(stage =>
+                    stage.RequiredAction == ReviewActionKind.Approve &&
+                    RoleFitsApprove(actor.Role, stage.Role)),
             ReviewActionKind.Resolve =>
+                policy.AllowsDispute &&
                 actor.Role is HoursActorRole.HumanResources or HoursActorRole.Higher or HoursActorRole.Administrator,
             ReviewActionKind.Comment => true,
             _ => false,
         };
     }
+
+    private static bool IsSelfEmployee(HoursActor actor, string employeeId) =>
+        actor.Role == HoursActorRole.Employee &&
+        string.Equals(actor.Id, employeeId, StringComparison.Ordinal);
+
+    private static bool PolicyHasStage(
+        ReviewPolicy policy,
+        ReviewActionKind kind,
+        ResponsibilityRole role) =>
+        policy.Stages.Any(stage => stage.RequiredAction == kind && stage.Role == role);
+
+    private static bool RoleFitsApprove(HoursActorRole actorRole, ResponsibilityRole required) =>
+        required switch
+        {
+            ResponsibilityRole.Manager => actorRole == HoursActorRole.Manager,
+            ResponsibilityRole.HumanResources =>
+                actorRole is HoursActorRole.HumanResources or HoursActorRole.Higher or HoursActorRole.Administrator,
+            _ => false,
+        };
 
     private static bool CanReadReports(HoursActor actor) =>
         actor.Role is HoursActorRole.Manager or HoursActorRole.HumanResources or HoursActorRole.Higher or HoursActorRole.Auditor or HoursActorRole.Administrator or HoursActorRole.System;

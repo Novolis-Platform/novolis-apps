@@ -92,7 +92,11 @@ public sealed record WorkDayResponse(
     LocalTimeRangeDto? WorkEnvelopeRange,
     ImmutableArray<LocalTimeRangeDto> CoreHourRanges,
     ImmutableArray<LocalTimeRangeDto> RoutineRanges,
-    ImmutableArray<DimensionBrushResponse> BrushCatalog);
+    ImmutableArray<DimensionBrushResponse> BrushCatalog,
+    bool AllowsFlex = true,
+    bool AllowsDispute = true,
+    bool AttendanceConfirmationOnly = false,
+    string OrganisationName = "");
 
 /// <summary>Review action returned with actor and approval provenance.</summary>
 public sealed record ReviewActionResponse(
@@ -129,7 +133,9 @@ public sealed record ReviewProjectionResponse(
     ImmutableArray<ReviewStageResponse> Stages,
     ImmutableArray<string> Anomalies,
     ImmutableArray<string> Escalations,
-    Guid? JournalHead);
+    Guid? JournalHead,
+    bool AllowsDispute = true,
+    bool AttendanceConfirmationOnly = false);
 
 /// <summary>Creates a review period for an employee.</summary>
 public sealed record CreateReviewPeriodRequest(

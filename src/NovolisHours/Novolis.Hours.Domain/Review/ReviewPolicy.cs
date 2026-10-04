@@ -11,7 +11,8 @@ public sealed class ReviewPolicy
         string version,
         IEnumerable<ReviewStage> stages,
         ReviewEscalationTarget disputeTarget = ReviewEscalationTarget.HumanResources,
-        bool reopenAfterCorrection = true)
+        bool reopenAfterCorrection = true,
+        bool allowsDispute = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(version);
@@ -36,6 +37,7 @@ public sealed class ReviewPolicy
         Stages = materialized;
         DisputeTarget = disputeTarget;
         ReopenAfterCorrection = reopenAfterCorrection;
+        AllowsDispute = allowsDispute;
     }
 
     /// <summary>Stable policy identity.</summary>
@@ -52,4 +54,7 @@ public sealed class ReviewPolicy
 
     /// <summary>Whether a later fact makes prior completion outstanding again.</summary>
     public bool ReopenAfterCorrection { get; }
+
+    /// <summary>Whether an employee may open a dispute on this policy.</summary>
+    public bool AllowsDispute { get; }
 }

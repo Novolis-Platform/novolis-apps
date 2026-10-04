@@ -44,6 +44,30 @@ public static class HoursPolicyCatalog
                 TimeSpan.FromHours(37.5),
                 TimeSpan.FromHours(7.5),
                 FlexSettlementCadence.Monthly),
+            "england.retail.rigid" => CreateOfficeStarter(
+                "england.retail.rigid",
+                "Game retail attendance",
+                new WorktimeLegalPreset(
+                    "england.retail.rigid",
+                    WorktimeLegalPresets.England.Version,
+                    WorktimeLegalPresets.England.CountryCode,
+                    WorktimeLegalPresets.England.Citation,
+                    WorktimeLegalPresets.England.DailyOrdinaryLimit,
+                    new FlexCarryPolicy("england.retail.rigid", TimeSpan.Zero, TimeSpan.Zero),
+                    WorktimeLegalPresets.England.ApprovalSchedule,
+                    false,
+                    "Game retail attendance does not classify overtime or flex. Confirmation records presence against contracted shop hours.",
+                    WorktimeLegalPresets.England.ReviewState),
+                new TimeOnly(9, 0),
+                new TimeOnly(18, 0),
+                new TimeOnly(9, 0),
+                new TimeOnly(18, 0),
+                new TimeOnly(13, 0),
+                new TimeOnly(14, 0),
+                TimeSpan.FromHours(48),
+                TimeSpan.FromHours(8),
+                FlexSettlementCadence.Manual,
+                PresenceClassification.Ordinary),
             "france.annualisation" => CreateOfficeStarter(
                 "france.annualisation",
                 "France annualisation starter",
@@ -97,6 +121,7 @@ public static class HoursPolicyCatalog
         WorktimeLegalPresets.NorwayState.Id,
         WorktimeLegalPresets.Belgium.Id,
         WorktimeLegalPresets.England.Id,
+        "england.retail.rigid",
         WorktimeLegalPresets.France.Id,
         WorktimeLegalPresets.Poland.Id,
         WorktimeLegalPresets.Finland.Id,
@@ -114,7 +139,8 @@ public static class HoursPolicyCatalog
         TimeOnly lunchEnd,
         TimeSpan weekHours,
         TimeSpan dayHours,
-        FlexSettlementCadence cadence)
+        FlexSettlementCadence cadence,
+        PresenceClassification classification = PresenceClassification.Flex)
     {
         var calendar = PolicyCalendarFactory.CreateOfficeCalendar(
             $"{id}.calendar",
@@ -129,7 +155,7 @@ public static class HoursPolicyCatalog
             new ClockInterval(lunchStart, lunchEnd),
             weekHours,
             dayHours,
-            PresenceClassification.Flex);
+            classification);
         var template = new ExpectedDayTemplate(
             $"{id}.template",
             $"{profileName} expected weekday",

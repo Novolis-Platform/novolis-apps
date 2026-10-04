@@ -62,6 +62,9 @@ helen        HR
 audrey       Auditor
 
 system       System actor, organisation `hours-platform`, reads and stamps every customer
+
+jamie        Game retail employee (GB, attendance confirmation)
+priya        Game retail HR
 ```
 
 Where relevant, different employees should also have different:
@@ -1398,7 +1401,7 @@ Use the Blazor client, not the retired server landing page.
 1. Sign in with login and password only (service URL stays in Settings). Home is this week, defaulting to today.
 2. Open a DayShape tile. The 06:00–20:00 strip shows envelope, core, routine, actual, and paint. Drag actual blocks to move or resize; paint mode writes only on actual work.
 3. While the pointer is down, the layer rail stays live. Silent layers stay empty. Overflow past the envelope lights Organisation.
-4. One commit action: *Worked as scheduled*. Evidence (snapshot ids, AppliedRules) stays folded.
+4. Nordvik (`ada`): one commit action *Worked as scheduled*, plus Flex saldo and paint on the strip. Game (`jamie`): one commit action *I was here*, no Flex line, no paint, no drag. Evidence stays folded.
 
 # 32. Diverging review workflows
 
@@ -1411,5 +1414,28 @@ Each customer carries its own review policy. Opening a review shows that policy 
 | atelier-curie | pierre, marc | `single-approver` | Submit → one Manager |
 | warsaw-settlement | anna, kasia | `employer-only` | Manager Approve (no employee submit) |
 | helsinki-flex | liisa, helen | `employee-hr` | Submit → HR |
+| game-retail | jamie, priya | `attendance-hr` | Confirm attendance → HR. No dispute. No manager. |
 
 `system` is not a customer employee. It belongs to `hours-platform`, may read every WorkDay and report, and may stamp Integration assertions onto any customer. It does not approve human review stages.
+
+# 33. Game retail attendance (GB)
+
+Jamie works the defunct British high-street chain **Game**.
+
+```text
+Legal preset     england.retail.rigid
+Time zone        Europe/London
+Shop hours       Monday–Saturday 09:00–18:00, lunch 13:00–14:00
+Expected         8:00 per shop day (48:00 week)
+Sunday           closed
+Public holidays  observed (Christmas 2026-12-25; Boxing Day bank holiday 2026-12-28)
+Flex / OT        not a concept. Surplus is not classified.
+Review           jamie Acknowledge (“Confirm attendance”) → priya HR Approve
+Dispute          unavailable (403)
+```
+
+Jamie’s week tiles say Confirm / Here, not Open / Recorded. The day commit is *I was here*. Chrome says Game · Europe/London · Shop hours.
+
+Ada at Nordvik remains the Norwegian flex default: *Worked as scheduled*, Flex saldo, paint, Saturday Weekend, Submit + Dispute, manager ladder then Helen.
+
+Alice (Nordvik manager) cannot open Jamie’s WorkDay or review. Priya cannot be replaced by a store manager Approve.

@@ -151,6 +151,8 @@ public sealed class HoursServerAcceptanceSeedService : IHostedService
         new("anna", "anna", "Anna Kowalska", HoursActorRole.Employee, "poland.okres-rozliczeniowy", HoursCustomerCatalog.WarsawSettlement, "division-poland", "team-poland"),
         new("kasia", "kasia", "Kasia Employer", HoursActorRole.Manager, "poland.okres-rozliczeniowy", HoursCustomerCatalog.WarsawSettlement, "division-poland", "team-poland", 1),
         new("liisa", "liisa", "Liisa Virtanen", HoursActorRole.Employee, "finland.liukuva-tyoaika", HoursCustomerCatalog.HelsinkiFlex, "division-finland", "team-finland"),
+        new("jamie", "jamie", "Jamie Shaw", HoursActorRole.Employee, "england.retail.rigid", HoursCustomerCatalog.GameRetail, "division-uk", "team-high-street"),
+        new("priya", "priya", "Priya Shah", HoursActorRole.HumanResources, "england.retail.rigid", HoursCustomerCatalog.GameRetail, "division-uk", null),
     ];
 
     private sealed record AcceptanceIdentity(

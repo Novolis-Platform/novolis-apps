@@ -14,7 +14,7 @@ else if (month is null && string.IsNullOrWhiteSpace(error))
 else if (month is not null)
 {
     <section class="card">
-        <p class="eyebrow">Review</p>
+        <p class="eyebrow">@month.WorkplaceName · Review</p>
         <h1>@HoursClock.FormatDate(month.Review.From) – @HoursClock.FormatDate(month.Review.Through)</h1>
         <p class="muted">@month.Review.EmployeeId · @month.Review.PolicyId · @month.Review.State</p>
         <div class="summary-grid">
@@ -27,7 +27,7 @@ else if (month is not null)
                 <a class="week-tile" href="/workdays/@day.EmployeeId/@day.NominalDate.ToString("yyyy-MM-dd")">
                     <span class="muted">@HoursClock.FormatDate(day.NominalDate).Split(' ')[0]</span>
                     <strong>@HoursClock.Format(day.ExpectedWork)</strong>
-                    <span class="muted">@(day.Registration is null ? "Open" : "Recorded")</span>
+                    <span class="muted">@WeekStudioModel.ChipFor(day)</span>
                 </a>
             }
         </div>
@@ -43,16 +43,23 @@ else if (month is not null)
             @if (Session.CurrentUser?.Role == HoursClientRole.Employee &&
                 Session.CurrentUser.EmployeeId == month.Review.EmployeeId)
             {
-                <button @onclick='() => RecordAsync("Submit")'>Submit</button>
-                <button @onclick='() => RecordAsync("Acknowledge")'>Acknowledge</button>
-                <button @onclick='() => RecordAsync("Dispute")'>Dispute</button>
+                <button class="action" @onclick="() => RecordAsync(month.EmployeePrimaryAction)">@month.EmployeePrimaryLabel</button>
+                @if (month.HasAcknowledgeStage && month.HasSubmitStage)
+                {
+                    <button @onclick='() => RecordAsync("Acknowledge")'>Acknowledge</button>
+                }
+                @if (month.AllowsDispute)
+                {
+                    <button @onclick='() => RecordAsync("Dispute")'>Dispute</button>
+                }
             }
-            @if (Session.CurrentUser?.Role is HoursClientRole.Manager or HoursClientRole.HumanResources or HoursClientRole.Higher or HoursClientRole.Administrator)
+            @if (month.HasApproveStage &&
+                Session.CurrentUser?.Role is HoursClientRole.Manager or HoursClientRole.HumanResources or HoursClientRole.Higher or HoursClientRole.Administrator)
             {
-                <button @onclick='() => RecordAsync("Approve")'>Approve</button>
-                <button @onclick='() => RecordAsync("Acknowledge")'>Acknowledge</button>
+                <button class="action" @onclick='() => RecordAsync("Approve")'>Approve</button>
             }
-            @if (Session.CurrentUser?.Role is HoursClientRole.HumanResources or HoursClientRole.Higher or HoursClientRole.Administrator)
+            @if (month.AllowsDispute &&
+                Session.CurrentUser?.Role is HoursClientRole.HumanResources or HoursClientRole.Higher or HoursClientRole.Administrator)
             {
                 <button @onclick='() => RecordAsync("Resolve")'>Resolve</button>
             }

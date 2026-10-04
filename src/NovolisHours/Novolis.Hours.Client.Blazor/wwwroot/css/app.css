@@ -156,6 +156,10 @@ button {
   touch-action: none;
 }
 
+.strip.locked {
+  cursor: default;
+}
+
 .strip-lane {
   position: absolute;
   height: 12px;

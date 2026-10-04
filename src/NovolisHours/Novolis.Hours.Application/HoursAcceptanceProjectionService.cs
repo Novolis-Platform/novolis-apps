@@ -138,7 +138,9 @@ public sealed class HoursAcceptanceProjectionService
             projection.Escalations
                 .Select(escalation => $"{escalation.Target}: {escalation.Reason}")
                 .ToImmutableArray(),
-            GetJournalHead(events));
+            GetJournalHead(events),
+            projection.Policy.AllowsDispute,
+            HoursCustomerCatalog.ForEmployee(projection.Period.EmployeeId).AttendanceConfirmationOnly);
     }
 
     /// <summary>Returns the latest event identity used for optimistic review concurrency.</summary>
@@ -244,6 +246,7 @@ public sealed class HoursAcceptanceProjectionService
     {
         var retainedEvents = employeeEvents.ToImmutableArray();
         var publications = ReadPublications(retainedEvents);
+        var customer = HoursCustomerCatalog.ForEmployee(employeeId);
         var snapshot = configuration.GetSnapshot(employeeId, date, publications);
         var retainedSnapshot = retainedEvents
             .Where(entry => entry.Type == HoursEventType.ConfigurationSnapshotRecorded)
@@ -289,7 +292,11 @@ public sealed class HoursAcceptanceProjectionService
                 ToDtoOptional(shape.WorkEnvelope),
                 shape.CoreHours.Select(ToDto).ToImmutableArray(),
                 shape.RoutineWork.Select(ToDto).ToImmutableArray(),
-                ToBrushes(employeeId));
+                ToBrushes(employeeId),
+                customer.AllowsFlex,
+                customer.AllowsDispute,
+                customer.AttendanceConfirmationOnly,
+                WorkplaceName(customer));
         }
 
         var resolved = new WorkDayResolver().Resolve(registration, shape);
@@ -358,7 +365,11 @@ public sealed class HoursAcceptanceProjectionService
             ToDtoOptional(shape.WorkEnvelope),
             shape.CoreHours.Select(ToDto).ToImmutableArray(),
             shape.RoutineWork.Select(ToDto).ToImmutableArray(),
-            ToBrushes(employeeId));
+            ToBrushes(employeeId),
+            customer.AllowsFlex,
+            customer.AllowsDispute,
+            customer.AttendanceConfirmationOnly,
+            WorkplaceName(customer));
     }
 
     private DimensionEvaluation ToEvaluation(WorkDayResponse response)
@@ -528,6 +539,9 @@ public sealed class HoursAcceptanceProjectionService
 
     private static LocalTimeRangeDto ToDto(LocalTimeRange range) =>
         new(range.Start, range.End);
+
+    private static string WorkplaceName(HoursCustomer customer) =>
+        string.IsNullOrWhiteSpace(customer.DisplayName) ? customer.Id : customer.DisplayName;
 
     private ImmutableArray<DimensionBrushResponse> ToBrushes(string employeeId) =>
         configuration.GetDimensions(employeeId).Definitions

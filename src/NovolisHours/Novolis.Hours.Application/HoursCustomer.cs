@@ -14,4 +14,9 @@ public sealed record HoursCustomer(
     LocalTimeRange RoutineMorning,
     LocalTimeRange RoutineAfternoon,
     bool ObservesPublicHolidays,
-    bool SevenDayOperation);
+    bool SevenDayOperation,
+    bool SaturdayIsWorkingDay = false,
+    bool AllowsFlex = true,
+    bool AllowsDispute = true,
+    bool AttendanceConfirmationOnly = false,
+    string DisplayName = "");

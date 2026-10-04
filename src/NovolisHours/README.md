@@ -132,7 +132,7 @@ dotnet test tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj -
 ```
 
 The acceptance regime uses real development identities (`ada`, `bob`, `alice`,
-`charlie`, `helen`, and `audrey`) when the AppHost is running. Supply both
+`charlie`, `helen`, `audrey`, `jamie`, and `priya`) when the AppHost is running. Supply both
 secret parameters in Aspire, then open the Blazor resource. The identities use
 the acceptance seed password entered for that run; they are real
 Novolis Security accounts and are never enabled outside Development.

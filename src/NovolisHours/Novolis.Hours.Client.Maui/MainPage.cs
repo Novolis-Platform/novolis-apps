@@ -180,11 +180,23 @@ public sealed class MainPage : ContentPage
         var week = new WeekStudioModel(days, DateOnly.FromDateTime(DateTime.Today));
         if (week.Tiles.Length > 0)
         {
-            organisation.Text = $"{week.Tiles[0].Day.OrganisationId} · {week.Tiles[0].Day.Configuration.TimeZoneId}";
+            var first = week.Tiles[0].Day;
+            var workplace = string.IsNullOrWhiteSpace(first.OrganisationName)
+                ? first.OrganisationId
+                : first.OrganisationName;
+            organisation.Text = $"{workplace} · {first.Configuration.TimeZoneId}";
+            if (first.AllowsFlex)
+            {
+                var summary = await apiClient.GetEmployeeSummaryAsync(currentUser.EmployeeId);
+                flex.Text = $"Flex {HoursClock.Format(summary.FlexSaldo, signed: true)}";
+                flex.IsVisible = true;
+            }
+            else
+            {
+                flex.Text = first.AttendanceConfirmationOnly ? "Shop hours" : string.Empty;
+                flex.IsVisible = !string.IsNullOrWhiteSpace(flex.Text);
+            }
         }
-
-        var summary = await apiClient.GetEmployeeSummaryAsync(currentUser.EmployeeId);
-        flex.Text = $"Flex {HoursClock.Format(summary.FlexSaldo, signed: true)}";
         var tiles = new HorizontalStackLayout { Spacing = 8 };
         foreach (var tile in week.Tiles)
         {
@@ -217,7 +229,7 @@ public sealed class MainPage : ContentPage
 
         var day = await apiClient.GetWorkDayAsync(currentUser.EmployeeId, date);
         studio = new DayStudioModel(day);
-        organisation.Text = $"{day.OrganisationId} · {day.Configuration.TimeZoneId}";
+        organisation.Text = $"{studio.WorkplaceName} · {day.Configuration.TimeZoneId}";
         var expected = new Label { TextColor = GraphicalProfile.Text };
         var actual = new Label { TextColor = GraphicalProfile.Text };
         var flexDay = new Label { TextColor = GraphicalProfile.Text };
@@ -236,7 +248,9 @@ public sealed class MainPage : ContentPage
 
             expected.Text = studio.ExpectedLabel;
             actual.Text = HoursClock.Format(studio.ActualWork);
-            flexDay.Text = HoursClock.Format(studio.Flex, signed: true);
+            flexDay.Text = studio.AllowsFlex
+                ? HoursClock.Format(studio.Flex, signed: true)
+                : studio.BalanceLabel;
             rail.Children.Clear();
             foreach (var row in studio.LayerRail())
             {
@@ -256,7 +270,7 @@ public sealed class MainPage : ContentPage
         Refresh();
         var commit = new Button
         {
-            Text = "Worked as scheduled",
+            Text = studio.CommitLabel,
             AutomationId = "hours.worked-as-scheduled",
             BackgroundColor = GraphicalProfile.Action,
             TextColor = GraphicalProfile.OnAction,
@@ -274,7 +288,7 @@ public sealed class MainPage : ContentPage
                 WorkRegistrationIntent.WorkedAsScheduled,
                 [],
                 null,
-                "Worked as scheduled."));
+                studio.CommitNote));
             studio.ApplyScheduledRoutine();
             status.Text = "Scheduled work recorded.";
             Refresh();
@@ -286,13 +300,19 @@ public sealed class MainPage : ContentPage
             strip.PaintMode = paintMode;
             paint.Text = paintMode ? "Adjust times" : "Paint";
         };
+        var actions = new HorizontalStackLayout { Spacing = 8, Children = { commit } };
+        if (studio.AllowsPaint)
+        {
+            actions.Children.Add(paint);
+        }
+
         ReplaceBody(
-            Eyebrow($"{day.OrganisationId} · {day.Configuration.TimeZoneId}"),
-            Heading($"{HoursClock.FormatDate(date)} · {day.OrganisationId}"),
-            new HorizontalStackLayout { Spacing = 8, Children = { commit, paint } },
+            Eyebrow($"{studio.WorkplaceName} · {day.Configuration.TimeZoneId}"),
+            Heading($"{HoursClock.FormatDate(date)} · {studio.WorkplaceName}"),
+            actions,
             Metric("Expected", expected),
             Metric("Actual", actual),
-            Metric("Flex", flexDay),
+            Metric(studio.AllowsFlex ? "Flex" : "Attendance", flexDay),
             new ScrollView
             {
                 Orientation = ScrollOrientation.Horizontal,

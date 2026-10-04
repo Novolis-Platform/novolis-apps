@@ -125,9 +125,42 @@ public sealed class DayStudioModel
     /// <summary>Flex for the in-progress strip.</summary>
     public TimeSpan Flex => ActualWork - Day.ExpectedWork;
 
+    /// <summary>Whether this workplace treats surplus as flex.</summary>
+    public bool AllowsFlex => Day.AllowsFlex;
+
+    /// <summary>Whether the employee writes attendance instead of a flex timesheet.</summary>
+    public bool AttendanceConfirmationOnly => Day.AttendanceConfirmationOnly;
+
+    /// <summary>Whether paint and drag belong on this strip.</summary>
+    public bool AllowsPaint => Day.AllowsFlex;
+
+    /// <summary>Primary commit label for this workplace.</summary>
+    public string CommitLabel =>
+        Day.AttendanceConfirmationOnly ? "I was here" : "Worked as scheduled";
+
+    /// <summary>Registration note written with the primary commit.</summary>
+    public string CommitNote =>
+        Day.AttendanceConfirmationOnly
+            ? "I confirm I attended the contracted shop hours."
+            : "Worked as scheduled.";
+
+    /// <summary>Workplace name shown in chrome.</summary>
+    public string WorkplaceName =>
+        string.IsNullOrWhiteSpace(Day.OrganisationName) ? Day.OrganisationId : Day.OrganisationName;
+
+    /// <summary>Chrome balance line: flex saldo or shop-hours attendance.</summary>
+    public string BalanceLabel =>
+        Day.AllowsFlex ? HoursClock.Format(Flex, signed: true) : "Shop hours";
+
     /// <summary>Starts a drag on the actual lane, or a paint stroke when <paramref name="paint"/> is true.</summary>
     public void BeginDrag(double ratio, bool paint)
     {
+        if (paint && !AllowsPaint || !paint && !Day.AllowsFlex)
+        {
+            dragKind = DayStripDragKind.None;
+            return;
+        }
+
         var hit = DayStripGeometry.HitTest(ratio, actual);
         dragOrigin = hit.Time;
         if (paint)

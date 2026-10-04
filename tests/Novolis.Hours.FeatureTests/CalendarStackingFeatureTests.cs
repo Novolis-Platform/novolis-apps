@@ -155,6 +155,28 @@ public sealed class CalendarStackingFeatureTests
     }
 
     [Test]
+    public async Task Game_retail_keeps_saturday_shop_hours_and_closes_sunday()
+    {
+        var saturday = Shape("jamie", new DateOnly(2026, 3, 14));
+        var sunday = Shape("jamie", new DateOnly(2026, 3, 15));
+        var christmas = Shape("jamie", new DateOnly(2026, 12, 25));
+        var boxingObserved = Shape("jamie", new DateOnly(2026, 12, 28));
+
+        await Assert.That(saturday.IsWorkingDay).IsTrue();
+        await Assert.That(saturday.ExpectedWork).IsEqualTo(TimeSpan.FromHours(8));
+        await Assert.That(saturday.TimeZoneId).IsEqualTo("Europe/London");
+        await Assert.That(saturday.WorkEnvelope).IsEqualTo(new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(18, 0)));
+        await Assert.That(sunday.IsWorkingDay).IsFalse();
+        await Assert.That(christmas.IsWorkingDay).IsFalse();
+        await Assert.That(christmas.Tags).Contains(tag => tag.Key == "PublicHoliday");
+        await Assert.That(boxingObserved.IsWorkingDay).IsFalse();
+        await Assert.That(boxingObserved.Tags).Contains(tag =>
+            tag.Key == "PublicHoliday" && tag.Value.Contains("Boxing", StringComparison.OrdinalIgnoreCase));
+        await Assert.That(HoursCustomerCatalog.OrganisationId("jamie")).IsEqualTo(HoursCustomerCatalog.GameRetail);
+        await Assert.That(HoursCustomerCatalog.ForEmployee("jamie").AttendanceConfirmationOnly).IsTrue();
+    }
+
+    [Test]
     public async Task Sparse_later_working_day_does_not_erase_an_earlier_public_holiday_tag()
     {
         var shape = Shape("bob", new DateOnly(2026, 12, 25));

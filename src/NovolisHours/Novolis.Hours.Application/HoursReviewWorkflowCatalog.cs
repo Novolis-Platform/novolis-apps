@@ -2,7 +2,7 @@ using Novolis.Hours.Domain.Review;
 
 namespace Novolis.Hours.Application;
 
-/// <summary>Per-customer review policies. One host, five workplaces.</summary>
+/// <summary>Per-customer review policies. One host, six workplaces.</summary>
 public static class HoursReviewWorkflowCatalog
 {
     /// <summary>Ada's office: submit, two manager levels, then HR.</summary>
@@ -20,6 +20,9 @@ public static class HoursReviewWorkflowCatalog
     /// <summary>Liisa's flex shop: employee submits, HR closes.</summary>
     public const string EmployeeHr = "employee-hr";
 
+    /// <summary>Game retail: employee confirms attendance, HR closes. No dispute.</summary>
+    public const string AttendanceHr = "attendance-hr";
+
     /// <summary>Resolves the review policy that applies to an acceptance identity.</summary>
     public static ReviewPolicy ForEmployee(string employeeId)
     {
@@ -30,6 +33,7 @@ public static class HoursReviewWorkflowCatalog
             HoursCustomerCatalog.AtelierCurie => SingleApproverPolicy,
             HoursCustomerCatalog.WarsawSettlement => EmployerOnlyPolicy,
             HoursCustomerCatalog.HelsinkiFlex => EmployeeHrPolicy,
+            HoursCustomerCatalog.GameRetail => AttendanceHrPolicy,
             _ => CascadingApprovalPolicy,
         };
     }
@@ -77,4 +81,13 @@ public static class HoursReviewWorkflowCatalog
             new ReviewStage("employee-submit", ReviewActionKind.Submit, ResponsibilityRole.Employee, null, 2),
             new ReviewStage("hr-close", ReviewActionKind.Approve, ResponsibilityRole.HumanResources, null, 2),
         ]);
+
+    private static ReviewPolicy AttendanceHrPolicy { get; } = new(
+        AttendanceHr,
+        "1",
+        [
+            new ReviewStage("employee-confirm", ReviewActionKind.Acknowledge, ResponsibilityRole.Employee, null, 2),
+            new ReviewStage("hr-attendance", ReviewActionKind.Approve, ResponsibilityRole.HumanResources, null, 2),
+        ],
+        allowsDispute: false);
 }

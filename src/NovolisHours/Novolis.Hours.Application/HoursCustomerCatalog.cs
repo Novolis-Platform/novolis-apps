@@ -4,7 +4,7 @@ using Novolis.Time.Week;
 
 namespace Novolis.Hours.Application;
 
-/// <summary>Named five-customer calendar stacks used by the Hours acceptance regime.</summary>
+/// <summary>Named customer calendar stacks used by the Hours acceptance regime.</summary>
 public static class HoursCustomerCatalog
 {
     /// <summary>Norwegian private 37.5-hour office flex customer.</summary>
@@ -21,6 +21,9 @@ public static class HoursCustomerCatalog
 
     /// <summary>Finnish flexible-work customer.</summary>
     public const string HelsinkiFlex = "helsinki-flex";
+
+    /// <summary>British high-street Game retail: rigid shop hours, attendance only.</summary>
+    public const string GameRetail = "game-retail";
 
     /// <summary>Cross-customer platform identity used by the System actor.</summary>
     public const string Platform = "hours-platform";
@@ -39,6 +42,7 @@ public static class HoursCustomerCatalog
             "pierre" or "marc" => AtelierCurieCustomer,
             "anna" or "kasia" => WarsawSettlementCustomer,
             "liisa" => HelsinkiFlexCustomer,
+            "jamie" or "priya" => GameRetailCustomer,
             _ => NordvikOfficeCustomer,
         };
     }
@@ -319,8 +323,12 @@ public static class HoursCustomerCatalog
         return new WeeklyPattern<HoursWeekday>(
             Enum.GetValues<DayOfWeek>().Select(day =>
             {
-                var working = customer.SevenDayOperation ||
-                    day is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+                var working = day switch
+                {
+                    DayOfWeek.Sunday => customer.SevenDayOperation,
+                    DayOfWeek.Saturday => customer.SevenDayOperation || customer.SaturdayIsWorkingDay,
+                    _ => true,
+                };
                 return new KeyValuePair<DayOfWeek, HoursWeekday>(day, working ? weekday : weekend);
             }));
     }
@@ -364,7 +372,10 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(0, 0), new TimeOnly(0, 1)),
         new LocalTimeRange(new TimeOnly(0, 0), new TimeOnly(0, 1)),
         ObservesPublicHolidays: false,
-        SevenDayOperation: false);
+        SevenDayOperation: false,
+        AllowsFlex: false,
+        AllowsDispute: false,
+        DisplayName: "Hours");
 
     private static HoursCustomer NordvikOfficeCustomer { get; } = new(
         NordvikOffice,
@@ -377,7 +388,8 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(11, 30)),
         new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
         ObservesPublicHolidays: true,
-        SevenDayOperation: false);
+        SevenDayOperation: false,
+        DisplayName: "Nordvik");
 
     private static HoursCustomer NordvikStationCustomer { get; } = new(
         NordvikStation,
@@ -390,7 +402,8 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(11, 30)),
         new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
         ObservesPublicHolidays: false,
-        SevenDayOperation: true);
+        SevenDayOperation: true,
+        DisplayName: "Nordvik Station");
 
     private static HoursCustomer AtelierCurieCustomer { get; } = new(
         AtelierCurie,
@@ -403,7 +416,8 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(12, 0)),
         new LocalTimeRange(new TimeOnly(13, 0), new TimeOnly(17, 0)),
         ObservesPublicHolidays: true,
-        SevenDayOperation: false);
+        SevenDayOperation: false,
+        DisplayName: "Atelier Curie");
 
     private static HoursCustomer WarsawSettlementCustomer { get; } = new(
         WarsawSettlement,
@@ -416,7 +430,8 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(12, 0)),
         new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
         ObservesPublicHolidays: true,
-        SevenDayOperation: false);
+        SevenDayOperation: false,
+        DisplayName: "Warsaw Settlement");
 
     private static HoursCustomer HelsinkiFlexCustomer { get; } = new(
         HelsinkiFlex,
@@ -429,5 +444,24 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(11, 30)),
         new LocalTimeRange(new TimeOnly(12, 0), new TimeOnly(16, 0)),
         ObservesPublicHolidays: true,
-        SevenDayOperation: false);
+        SevenDayOperation: false,
+        DisplayName: "Helsinki Flex");
+
+    private static HoursCustomer GameRetailCustomer { get; } = new(
+        GameRetail,
+        "GB",
+        "Europe/London",
+        "england.retail.rigid",
+        TimeSpan.FromHours(8),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(18, 0)),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(18, 0)),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(13, 0)),
+        new LocalTimeRange(new TimeOnly(14, 0), new TimeOnly(18, 0)),
+        ObservesPublicHolidays: true,
+        SevenDayOperation: false,
+        SaturdayIsWorkingDay: true,
+        AllowsFlex: false,
+        AllowsDispute: false,
+        AttendanceConfirmationOnly: true,
+        DisplayName: "Game");
 }

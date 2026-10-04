@@ -204,13 +204,25 @@ public sealed class MainWindow : Window
         week = new WeekStudioModel(days, DateOnly.FromDateTime(DateTime.Today));
         if (week.Tiles.Length > 0)
         {
-            organisation.Text = $"{week.Tiles[0].Day.OrganisationId} · {week.Tiles[0].Day.Configuration.TimeZoneId}";
-            session.OrganisationId = week.Tiles[0].Day.OrganisationId;
-            session.TimeZoneId = week.Tiles[0].Day.Configuration.TimeZoneId;
+            var first = week.Tiles[0].Day;
+            var workplace = string.IsNullOrWhiteSpace(first.OrganisationName)
+                ? first.OrganisationId
+                : first.OrganisationName;
+            organisation.Text = $"{workplace} · {first.Configuration.TimeZoneId}";
+            session.OrganisationId = first.OrganisationId;
+            session.TimeZoneId = first.Configuration.TimeZoneId;
+            if (first.AllowsFlex)
+            {
+                var summary = await apiClient.GetEmployeeSummaryAsync(currentUser.EmployeeId);
+                flex.Text = $"Flex {HoursClock.Format(summary.FlexSaldo, signed: true)}";
+                flex.IsVisible = true;
+            }
+            else
+            {
+                flex.Text = first.AttendanceConfirmationOnly ? "Shop hours" : string.Empty;
+                flex.IsVisible = !string.IsNullOrWhiteSpace(flex.Text);
+            }
         }
-
-        var summary = await apiClient.GetEmployeeSummaryAsync(currentUser.EmployeeId);
-        flex.Text = $"Flex {HoursClock.Format(summary.FlexSaldo, signed: true)}";
         var tiles = new WrapPanel { Orientation = Orientation.Horizontal };
         foreach (var tile in week.Tiles)
         {
@@ -274,7 +286,9 @@ public sealed class MainWindow : Window
         {
             expected.Text = studio.ExpectedLabel;
             actual.Text = HoursClock.Format(studio.ActualWork);
-            flexDay.Text = HoursClock.Format(studio.Flex, signed: true);
+            flexDay.Text = studio.AllowsFlex
+                ? HoursClock.Format(studio.Flex, signed: true)
+                : studio.BalanceLabel;
             strip.InvalidateVisual();
         }
 
@@ -290,7 +304,7 @@ public sealed class MainWindow : Window
 
         var commit = new Button
         {
-            Content = "Worked as scheduled",
+            Content = studio.CommitLabel,
             Background = GraphicalProfile.ActionBrush,
             Foreground = GraphicalProfile.OnActionBrush,
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -309,7 +323,7 @@ public sealed class MainWindow : Window
                 WorkRegistrationIntent.WorkedAsScheduled,
                 [],
                 null,
-                "Worked as scheduled."));
+                studio.CommitNote));
             studio.ApplyScheduledRoutine();
             status.Text = "Scheduled work recorded.";
             Refresh();
@@ -352,9 +366,9 @@ public sealed class MainWindow : Window
             Spacing = 12,
             Children =
             {
-                Eyebrow($"{day.OrganisationId} · {day.Configuration.TimeZoneId}"),
-                Heading($"{HoursClock.FormatDate(date)} · {day.OrganisationId}"),
-                CommitRow(commit, paint),
+                Eyebrow($"{studio.WorkplaceName} · {day.Configuration.TimeZoneId}"),
+                Heading($"{HoursClock.FormatDate(date)} · {studio.WorkplaceName}"),
+                studio.AllowsPaint ? CommitRow(commit, paint) : CommitRow(commit),
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
@@ -363,7 +377,7 @@ public sealed class MainWindow : Window
                     {
                         Metric("Expected", expected),
                         Metric("Actual", actual),
-                        Metric("Flex", flexDay),
+                        Metric(studio.AllowsFlex ? "Flex" : "Attendance", flexDay),
                     },
                 },
                 strip,
@@ -408,14 +422,19 @@ public sealed class MainWindow : Window
             },
         };
 
-    private static Control CommitRow(Button commit, Button paint)
+    private static Control CommitRow(Button commit, Button? paint = null)
     {
         var row = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 12,
-            Children = { commit, paint },
+            Children = { commit },
         };
+        if (paint is not null)
+        {
+            row.Children.Add(paint);
+        }
+
         AgentProperties.SetId(row, "hours.commit");
         return row;
     }

@@ -30,7 +30,7 @@ public sealed class WeekStudioModel
                 day.IsWorkingDay,
                 day.Registration is not null,
                 day.NominalDate == today,
-                Chip(day),
+                ChipFor(day),
                 day));
         }
 
@@ -64,8 +64,10 @@ public sealed class WeekStudioModel
         return date.AddDays(-offset);
     }
 
-    private static string Chip(WorkDayResponse day)
+    /// <summary>Status chip for one day tile, including attendance-only workplaces.</summary>
+    public static string ChipFor(WorkDayResponse day)
     {
+        ArgumentNullException.ThrowIfNull(day);
         if (day.Tags.Any(tag => tag.Contains("PublicHoliday", StringComparison.OrdinalIgnoreCase)))
         {
             return "Holiday";
@@ -85,6 +87,11 @@ public sealed class WeekStudioModel
         if (!day.IsWorkingDay)
         {
             return "Weekend";
+        }
+
+        if (day.AttendanceConfirmationOnly)
+        {
+            return day.Registration is null ? "Confirm" : "Here";
         }
 
         return day.Registration is null ? "Open" : "Recorded";

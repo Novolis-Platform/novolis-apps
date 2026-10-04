@@ -21,6 +21,9 @@ public sealed class HoursBrowserSession : IDisposable
     /// <summary>Configured absolute service URL.</summary>
     public string ServiceUrl { get; set; }
 
+    /// <summary>Raised after sign-in, sign-out, or session restore so chrome can refresh.</summary>
+    public event Action? Changed;
+
     /// <summary>Current authenticated user, when signed in.</summary>
     public HoursClientUser? CurrentUser { get; private set; }
 
@@ -64,6 +67,7 @@ public sealed class HoursBrowserSession : IDisposable
             CurrentUser = await client.GetCurrentUserAsync(cancellationToken);
             ApiClient = client;
             client = null;
+            NotifyChanged();
         }
         catch
         {
@@ -90,6 +94,7 @@ public sealed class HoursBrowserSession : IDisposable
             request => request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include));
         CurrentUser = await ApiClient.SignInAsync(login, password, cancellationToken);
         await PersistServiceUrlAsync();
+        NotifyChanged();
     }
 
     /// <summary>Signs out and clears the authenticated browser session.</summary>
@@ -109,6 +114,7 @@ public sealed class HoursBrowserSession : IDisposable
         }
 
         CurrentUser = null;
+        NotifyChanged();
     }
 
     /// <summary>Gets the configured service endpoint for diagnostics.</summary>
@@ -143,6 +149,8 @@ public sealed class HoursBrowserSession : IDisposable
         ApiClient = null;
         CurrentUser = null;
     }
+
+    private void NotifyChanged() => Changed?.Invoke();
 
     private static Uri EnsureTrailingSlash(Uri serviceUri) =>
         serviceUri.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)

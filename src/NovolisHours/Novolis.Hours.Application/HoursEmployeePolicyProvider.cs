@@ -49,7 +49,8 @@ public sealed class HoursEmployeePolicyProvider : IHoursPolicyProvider
 
     private HoursPolicy CreateTenantPolicy(string? employeePresetId)
     {
-        if (string.IsNullOrWhiteSpace(employeePresetId))
+        if (string.IsNullOrWhiteSpace(employeePresetId) ||
+            string.Equals(employeePresetId, "hours.platform", StringComparison.OrdinalIgnoreCase))
         {
             return tenantBaseline;
         }

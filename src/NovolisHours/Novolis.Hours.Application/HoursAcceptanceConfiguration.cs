@@ -86,6 +86,7 @@ public sealed class HoursAcceptanceConfiguration
     public DimensionConfiguration GetDimensions(string employeeId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        var customer = HoursCustomerCatalog.ForEmployee(employeeId);
         var flexRule = new DimensionRuleRegistration(
             "routine-difference-to-flex",
             100,
@@ -145,7 +146,7 @@ public sealed class HoursAcceptanceConfiguration
                 "acceptance.dimensions.organisation.v1",
                 10,
                 definitions,
-                [flexRule],
+                customer.AllowsFlex ? [flexRule] : [],
                 RuleSource.Manual),
         ]);
     }
@@ -154,31 +155,37 @@ public sealed class HoursAcceptanceConfiguration
     public IReadOnlyList<ComplianceRuleRegistration> GetComplianceRules(string employeeId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
-        return
-        [
-            new ComplianceRuleRegistration(
+        var customer = HoursCustomerCatalog.ForEmployee(employeeId);
+        var rules = new List<ComplianceRuleRegistration>
+        {
+            new(
                 "long-workday",
                 10,
                 new RuleRef("long-workday", "1", RuleSource.Manual),
                 new LongWorkdayComplianceRule(TimeSpan.FromHours(8), new RuleRef("long-workday", "1", RuleSource.Manual))),
-            new ComplianceRuleRegistration(
+            new(
                 "night-work",
                 20,
                 new RuleRef("night-work", "1", RuleSource.Manual),
                 new NightWorkComplianceRule(new TimeOnly(22, 0), new TimeOnly(6, 0), new RuleRef("night-work", "1", RuleSource.Manual))),
-            new ComplianceRuleRegistration(
+            new(
                 "daily-rest",
                 25,
                 new RuleRef("daily-rest", "1", RuleSource.Manual),
                 new InsufficientDailyRestComplianceRule(
                     TimeSpan.FromHours(11),
                     new RuleRef("daily-rest", "1", RuleSource.Manual))),
-            new ComplianceRuleRegistration(
+        };
+        if (!customer.SaturdayIsWorkingDay)
+        {
+            rules.Add(new ComplianceRuleRegistration(
                 "weekend-work",
                 30,
                 new RuleRef("weekend-work", "1", RuleSource.Manual),
-                new WeekendWorkComplianceRule(new RuleRef("weekend-work", "1", RuleSource.Manual))),
-        ];
+                new WeekendWorkComplianceRule(new RuleRef("weekend-work", "1", RuleSource.Manual))));
+        }
+
+        return rules;
     }
 
     /// <summary>Gets the review policy that applies to one employee's customer.</summary>
