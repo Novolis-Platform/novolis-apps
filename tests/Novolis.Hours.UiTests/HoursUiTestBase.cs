@@ -40,18 +40,25 @@ public abstract class HoursUiTestBase : PlaywrightTestBase
     {
         BaseUrl = host?.ClientUri,
         ArtifactDirectory = PlaywrightArtifactStore.ForCurrentTest(),
-        WalkthroughTitle = TestContext.Current?.Metadata.TestName ?? "Hours scenario",
+        WalkthroughTitle = PlaywrightWalkthroughTitle.Display(
+            TestContext.Current?.Metadata.TestName ?? "Hours scenario"),
         FrameHoldMilliseconds = 4000,
     };
 
-    /// <summary>Starts a recording part.</summary>
+    /// <summary>Opens a top-level section of the scenario.</summary>
     protected void Part(string name) => Session.BeginPart(name);
 
-    /// <summary>Starts a nested recording flow. Dispose to leave it.</summary>
+    /// <summary>Opens a nestable section. Omit <paramref name="heading"/> for indent only.</summary>
+    protected PlaywrightWalkthroughFlow Section(
+        string? heading = null,
+        PlaywrightWalkthroughFlowKind kind = PlaywrightWalkthroughFlowKind.Default) =>
+        Session.BeginSection(heading, kind);
+
+    /// <summary>Opens a named nested section. Same as <see cref="Section"/>.</summary>
     protected PlaywrightWalkthroughFlow Flow(
         string name,
         PlaywrightWalkthroughFlowKind kind = PlaywrightWalkthroughFlowKind.Default) =>
-        Session.BeginFlow(name, kind);
+        Session.BeginSection(name, kind);
 
     /// <summary>Signs in through the door after pointing the WASM session at the in-process API.</summary>
     protected async Task SignInAsync(string login, string password, string narration)
