@@ -35,6 +35,28 @@ public static class HoursServerPrincipalFactory
         return new HoursActor(employeeId, displayName, role);
     }
 
+    /// <summary>Every Hours role claim on the session, primary first.</summary>
+    public static IReadOnlyList<HoursActorRole> AssignedRoles(ClaimsPrincipal principal)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        var roles = new List<HoursActorRole>();
+        foreach (var claim in principal.FindAll(HoursServerClaimTypes.Role))
+        {
+            if (Enum.TryParse<HoursActorRole>(claim.Value, ignoreCase: true, out var role) &&
+                !roles.Contains(role))
+            {
+                roles.Add(role);
+            }
+        }
+
+        return roles;
+    }
+
+    /// <summary>Whether the session holds <paramref name="role"/>.</summary>
+    public static bool HasRole(ClaimsPrincipal principal, HoursActorRole role) =>
+        AssignedRoles(principal).Contains(role);
+
+
     private static ClaimsPrincipal Create(
         HoursUserDocument user,
         Guid identityId,
@@ -47,10 +69,13 @@ public static class HoursServerPrincipalFactory
             new(HoursServerClaimTypes.IdentityId, identityId.ToString("D")),
             new(ClaimTypes.Name, user.DisplayName),
             new(HoursServerClaimTypes.EmployeeId, user.EmployeeId),
-            new(HoursServerClaimTypes.Role, user.Role.ToString()),
-            new(ClaimTypes.Role, user.Role.ToString()),
             new(HoursServerClaimTypes.SessionId, sessionId),
         };
+        foreach (var role in user.AssignedRoles)
+        {
+            claims.Add(new Claim(HoursServerClaimTypes.Role, role.ToString()));
+            claims.Add(new Claim(ClaimTypes.Role, role.ToString()));
+        }
         if (isDemo)
         {
             claims.Add(new Claim(HoursServerClaimTypes.Demo, bool.TrueString));

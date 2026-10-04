@@ -105,6 +105,95 @@ public sealed class AdminCustomerSetupFeatureTests
     }
 
     [Test]
+    public async Task System_opens_a_customer_from_location_and_admin_sets_saturday()
+    {
+        await using var fixture = await HoursAcceptanceFixture.StartAsync();
+        using var system = await fixture.ConnectAsync("system");
+        var locations = await system.ListLocationsAsync();
+        await Assert.That(locations.Select(item => item.Id)).Contains("united-kingdom");
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var organisationId = $"game-loc-{suffix}";
+        var customer = await system.CreateCustomerAsync(new CreateCustomerRequest(
+            organisationId,
+            "Game High Street",
+            TemplateId: null,
+            LocationId: "united-kingdom"));
+        await Assert.That(customer.CountryCode).IsEqualTo("GB");
+        await Assert.That(customer.TimeZoneId).IsEqualTo("Europe/London");
+        await Assert.That(customer.SaturdayIsWorkingDay).IsFalse();
+        await Assert.That(customer.AllowsFlex).IsFalse();
+        await system.CreateUserAsync(new CreateUserRequest(
+            $"pat-{suffix}",
+            $"pat-{suffix}",
+            "Workplace-2026-Strong!",
+            "Pat Shop Admin",
+            HoursClientRole.Administrator,
+            customer.Id,
+            "division-uk",
+            "team-high-street"));
+        using var pat = await fixture.ConnectAsync($"pat-{suffix}", "Workplace-2026-Strong!");
+        var saved = await pat.UpdateCustomerRulesAsync(
+            customer.Id,
+            new UpdateCustomerRulesRequest(true, false, false, "attendance-hr"));
+        await Assert.That(saved.SaturdayIsWorkingDay).IsTrue();
+        await pat.CreateUserAsync(new CreateUserRequest(
+            $"robin-{suffix}",
+            $"robin-{suffix}",
+            "Workplace-2026-Strong!",
+            "Robin Clerk",
+            HoursClientRole.Employee,
+            customer.Id,
+            "division-uk",
+            "team-high-street"));
+        using var robin = await fixture.ConnectAsync($"robin-{suffix}", "Workplace-2026-Strong!");
+        var saturday = await robin.GetWorkDayAsync($"robin-{suffix}", new DateOnly(2026, 10, 3));
+        await Assert.That(saturday.IsWorkingDay).IsTrue();
+        await robin.UpdateUsualHoursAsync(
+            $"robin-{suffix}",
+            new UpdateUsualHoursRequest(new TimeOnly(10, 0), new TimeOnly(18, 0)));
+        var afterUsual = await robin.GetWorkDayAsync($"robin-{suffix}", new DateOnly(2026, 10, 1));
+        await Assert.That(afterUsual.ExpectedWork).IsEqualTo(TimeSpan.FromHours(8));
+        await Assert.That(afterUsual.RoutineRanges.Single().Start).IsEqualTo(new TimeOnly(10, 0));
+        await Assert.That(afterUsual.RoutineRanges.Single().End).IsEqualTo(new TimeOnly(18, 0));
+    }
+
+    [Test]
+    public async Task System_provisions_a_Game_shop()
+    {
+        await using var fixture = await HoursAcceptanceFixture.StartAsync();
+        using var system = await fixture.ConnectAsync("system");
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var workplace = await system.CreateCustomerAsync(new CreateCustomerRequest(
+            $"game-sys-{suffix}",
+            "Game System Shop",
+            "game-retail"));
+        await Assert.That(workplace.AttendanceConfirmationOnly).IsTrue();
+        await Assert.That(workplace.ReviewPolicyId).IsEqualTo("attendance-hr");
+        await system.CreateUserAsync(new CreateUserRequest(
+            $"pat-{suffix}",
+            $"pat-{suffix}",
+            "Workplace-2026-Strong!",
+            "Pat Shop Admin",
+            HoursClientRole.Administrator,
+            workplace.Id,
+            "division-uk",
+            "team-high-street"));
+        using var pat = await fixture.ConnectAsync($"pat-{suffix}", "Workplace-2026-Strong!");
+        await pat.CreateUserAsync(new CreateUserRequest(
+            $"robin-{suffix}",
+            $"robin-{suffix}",
+            "Workplace-2026-Strong!",
+            "Robin Clerk",
+            HoursClientRole.Employee,
+            workplace.Id,
+            "division-uk",
+            "team-high-street"));
+        using var robin = await fixture.ConnectAsync($"robin-{suffix}", "Workplace-2026-Strong!");
+        var thursday = await robin.GetWorkDayAsync($"robin-{suffix}", new DateOnly(2026, 10, 1));
+        await Assert.That(thursday.AttendanceConfirmationOnly).IsTrue();
+    }
+
+    [Test]
     public async Task Employee_cannot_create_a_workplace()
     {
         await using var fixture = await HoursAcceptanceFixture.StartAsync();

@@ -39,6 +39,7 @@ public static class HoursServerRewriteEndpointMappings
         api.MapGet(
             "/employees/{employeeId}/workdays",
             ReadWorkDaysAsync);
+        api.MapGet("/reviews", ListReviewsAsync);
         api.MapGet("/reviews/{periodId:guid}", ReadReviewAsync);
         api.MapPost("/reviews", CreateReviewPeriodAsync);
         api.MapPost("/reviews/{periodId:guid}/actions", RecordReviewActionAsync);
@@ -415,6 +416,35 @@ public static class HoursServerRewriteEndpointMappings
             context.RequestAborted));
     }
 
+    private static async Task<IResult> ListReviewsAsync(
+        HttpContext context,
+        HoursAcceptanceProjectionService projections,
+        HoursUserDirectory users)
+    {
+        var actor = HoursServerPrincipalFactory.ToActor(context.User);
+        if (!CanReadReports(actor))
+        {
+            return Results.Forbid();
+        }
+
+        var actorUser = users.FindByEmployeeId(actor.Id);
+        var items = await projections.ListReviewsAsync(context.RequestAborted);
+        var visible = items.Where(item => CanView(actor, item.EmployeeId, users));
+        if (HasAny(actor, users, HoursActorRole.HumanResources, HoursActorRole.Manager, HoursActorRole.Auditor) &&
+            !Has(actor, users, HoursActorRole.System) &&
+            actorUser is not null)
+        {
+            visible = visible.Where(item =>
+            {
+                var target = users.FindByEmployeeId(item.EmployeeId);
+                return target is not null &&
+                    string.Equals(target.OrganisationId, actorUser.OrganisationId, StringComparison.Ordinal);
+            });
+        }
+
+        return Results.Ok(visible.ToArray());
+    }
+
     private static async Task<IResult> ReadReviewAsync(
         Guid periodId,
         HttpContext context,
@@ -437,7 +467,7 @@ public static class HoursServerRewriteEndpointMappings
         ArgumentNullException.ThrowIfNull(request);
         var actor = HoursServerPrincipalFactory.ToActor(context.User);
         if (!CanView(actor, request.EmployeeId, users) ||
-            actor.Role == HoursActorRole.Auditor)
+            AuditorOnly(actor, users))
         {
             return Results.Forbid();
         }
@@ -593,12 +623,39 @@ public static class HoursServerRewriteEndpointMappings
             .Select(entry => entry.ReadPayload<ConfigurationPublication>())
             .ToImmutableArray();
 
+    private static IReadOnlyList<HoursActorRole> RolesOf(HoursActor actor, HoursUserDirectory users) =>
+        users.FindByEmployeeId(actor.Id)?.AssignedRoles ?? [actor.Role];
+
+    private static bool Has(HoursActor actor, HoursUserDirectory users, HoursActorRole role) =>
+        HoursRoleSet.Has(RolesOf(actor, users), role);
+
+    private static bool HasAny(HoursActor actor, HoursUserDirectory users, params HoursActorRole[] roles) =>
+        roles.Any(role => Has(actor, users, role));
+
+    private static bool AuditorOnly(HoursActor actor, HoursUserDirectory users) =>
+        Has(actor, users, HoursActorRole.Auditor) &&
+        !HasAny(
+            actor,
+            users,
+            HoursActorRole.Employee,
+            HoursActorRole.Manager,
+            HoursActorRole.HumanResources,
+            HoursActorRole.Administrator,
+            HoursActorRole.Higher);
+
     private static bool CanView(
         HoursActor actor,
         string employeeId,
         HoursUserDirectory users)
     {
-        if (actor.Role is HoursActorRole.Administrator or HoursActorRole.HumanResources or HoursActorRole.Higher or HoursActorRole.Auditor or HoursActorRole.System)
+        if (HasAny(
+            actor,
+            users,
+            HoursActorRole.Administrator,
+            HoursActorRole.HumanResources,
+            HoursActorRole.Higher,
+            HoursActorRole.Auditor,
+            HoursActorRole.System))
         {
             return true;
         }
@@ -608,7 +665,7 @@ public static class HoursServerRewriteEndpointMappings
             return true;
         }
 
-        if (actor.Role != HoursActorRole.Manager)
+        if (!Has(actor, users, HoursActorRole.Manager))
         {
             return false;
         }
@@ -630,20 +687,26 @@ public static class HoursServerRewriteEndpointMappings
         string employeeId,
         HoursUserDirectory users,
         DomainWorkSource? requestedSource = null) =>
-        actor.Role == HoursActorRole.System
+        Has(actor, users, HoursActorRole.System)
             ? requestedSource is null or DomainWorkSource.Integration
-            : actor.Role == HoursActorRole.Employee
+            : string.Equals(actor.Id, employeeId, StringComparison.Ordinal) &&
+              Has(actor, users, HoursActorRole.Employee)
                 ? requestedSource is null or DomainWorkSource.Employee
                 : requestedSource != DomainWorkSource.Integration &&
                   requestedSource != DomainWorkSource.System &&
-                  actor.Role is not HoursActorRole.Auditor &&
+                  !AuditorOnly(actor, users) &&
                   CanView(actor, employeeId, users);
 
     private static bool CanPublishConfiguration(
         HoursActor actor,
         string employeeId,
         HoursUserDirectory users) =>
-        actor.Role is HoursActorRole.Administrator or HoursActorRole.HumanResources or HoursActorRole.Higher &&
+        HasAny(
+            actor,
+            users,
+            HoursActorRole.Administrator,
+            HoursActorRole.HumanResources,
+            HoursActorRole.Higher) &&
         CanView(actor, employeeId, users);
 
     private static bool CanRecordReview(
@@ -653,38 +716,43 @@ public static class HoursServerRewriteEndpointMappings
         HoursUserDirectory users,
         HoursWorkplaceDirectory workplaces)
     {
-        if (!CanView(actor, employeeId, users) ||
-            actor.Role == HoursActorRole.Auditor)
+        if (!CanView(actor, employeeId, users) || AuditorOnly(actor, users))
         {
             return false;
         }
 
         var policy = workplaces.GetReviewPolicy(employeeId);
+        var roles = RolesOf(actor, users);
         return kind switch
         {
             ReviewActionKind.Submit =>
                 PolicyHasStage(policy, ReviewActionKind.Submit, ResponsibilityRole.Employee) &&
-                IsSelfEmployee(actor, employeeId),
+                IsSelfEmployee(actor, employeeId, users),
             ReviewActionKind.Dispute =>
                 policy.AllowsDispute &&
-                IsSelfEmployee(actor, employeeId),
+                IsSelfEmployee(actor, employeeId, users),
             ReviewActionKind.Acknowledge =>
-                IsSelfEmployee(actor, employeeId) &&
+                IsSelfEmployee(actor, employeeId, users) &&
                 PolicyHasStage(policy, ReviewActionKind.Acknowledge, ResponsibilityRole.Employee),
             ReviewActionKind.Approve =>
                 policy.Stages.Any(stage =>
                     stage.RequiredAction == ReviewActionKind.Approve &&
-                    RoleFitsApprove(actor.Role, stage.Role)),
+                    roles.Any(role => RoleFitsApprove(role, stage.Role))),
             ReviewActionKind.Resolve =>
                 policy.AllowsDispute &&
-                actor.Role is HoursActorRole.HumanResources or HoursActorRole.Higher or HoursActorRole.Administrator,
+                HasAny(
+                    actor,
+                    users,
+                    HoursActorRole.HumanResources,
+                    HoursActorRole.Higher,
+                    HoursActorRole.Administrator),
             ReviewActionKind.Comment => true,
             _ => false,
         };
     }
 
-    private static bool IsSelfEmployee(HoursActor actor, string employeeId) =>
-        actor.Role == HoursActorRole.Employee &&
+    private static bool IsSelfEmployee(HoursActor actor, string employeeId, HoursUserDirectory users) =>
+        Has(actor, users, HoursActorRole.Employee) &&
         string.Equals(actor.Id, employeeId, StringComparison.Ordinal);
 
     private static bool PolicyHasStage(
@@ -702,8 +770,19 @@ public static class HoursServerRewriteEndpointMappings
             _ => false,
         };
 
-    private static bool CanReadReports(HoursActor actor) =>
-        actor.Role is HoursActorRole.Manager or HoursActorRole.HumanResources or HoursActorRole.Higher or HoursActorRole.Auditor or HoursActorRole.Administrator or HoursActorRole.System;
+    private static bool CanReadReports(HoursActor actor, HoursUserDirectory? users = null) =>
+        actor.Role is HoursActorRole.Manager or HoursActorRole.HumanResources or HoursActorRole.Higher
+            or HoursActorRole.Auditor or HoursActorRole.Administrator or HoursActorRole.System ||
+        users is not null &&
+        HasAny(
+            actor,
+            users,
+            HoursActorRole.Manager,
+            HoursActorRole.HumanResources,
+            HoursActorRole.Higher,
+            HoursActorRole.Auditor,
+            HoursActorRole.Administrator,
+            HoursActorRole.System);
 
     private static bool CanReadReportScope(
         HoursActor actor,
@@ -721,12 +800,19 @@ public static class HoursServerRewriteEndpointMappings
             return true;
         }
 
-        if (actor.Role is HoursActorRole.Administrator or HoursActorRole.HumanResources or HoursActorRole.Higher or HoursActorRole.Auditor or HoursActorRole.System)
+        if (HasAny(
+            actor,
+            users,
+            HoursActorRole.Administrator,
+            HoursActorRole.HumanResources,
+            HoursActorRole.Higher,
+            HoursActorRole.Auditor,
+            HoursActorRole.System))
         {
             return true;
         }
 
-        if (actor.Role != HoursActorRole.Manager)
+        if (!Has(actor, users, HoursActorRole.Manager))
         {
             return false;
         }

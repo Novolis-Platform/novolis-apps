@@ -1440,18 +1440,21 @@ Ada at Nordvik remains the Norwegian flex default: *Worked as scheduled*, Flex s
 
 Alice (Nordvik manager) cannot open Jamie’s WorkDay or review. Priya cannot be replaced by a store manager Approve.
 
-# 34. Administrator workplace setup
+# 34. Game shop month scenario (one recording)
 
-An administrator signs in and opens Setup.
+`HoursGameMonthScenarioTests` is one TUnit.Playwright recording with parts and every UI step:
 
-1. Choose a pattern: **Nordvik office** (flex, paint, cascading review) or **Game shop** (attendance, HR only, no dispute).
-2. Name the workplace (slug + display name). The host clones the pattern; built-in seed identities stay as they are.
-3. Add people on that workplace. Game needs a clerk and HR. Nordvik needs an employee and a manager.
-4. The new clerk’s week uses Confirm / Here and *I was here*. The new office employee keeps *Worked as scheduled* and Flex.
+1. **Platform** signs in as `system` to **Backoffice** (no week) and uses Setup to add a Game shop plus a customer administrator. The System role is a backoffice surface; it does not have a timesheet.
+2. **Customer administrator** uses People to add two clerks, HR, and an auditor.
+3. **First clerk** confirms every shop day in the current month (`I was here`, Confirm → Here). Saturday is a shop day.
+4. **Second clerk** confirms the same month with one Friday left on Confirm, and opens a Sunday that says Closed.
+5. Each clerk uses **Open this month for review** and **Confirm attendance**. There is no Dispute or Submit.
+6. **HR** opens **Reviews** (the workplace inbox) and Approves both periods. No Resolve.
+7. **Auditor** opens Audit, reads the first clerk’s append-only trail (`review.period-created.v1`), and cannot Approve.
 
-A non-administrator cannot POST `/api/admin/customers`.
+The platform system may POST `/api/admin/customers`. An employee still cannot. HR lists periods at `GET /api/v2/reviews`.
 
-Full UI flows live in `Novolis.Hours.UiTests` (`TUnit.Playwright` `PageTest` plus `Novolis.Testing.Playwright` walkthrough storage). The suite walks Game shop (attendance, HR-only, no flex/dispute) and Nordvik office (flex, paint, submit, dispute) as the browser sees them. Each test writes `{TestName}.webm`, `frames/`, `walkthrough.html`, and `trace.zip` under `artifacts/playwright`.
+The watchable artifact is `walkthrough.html` (parts, narration, paused start, 4s frame hold) under `artifacts/playwright`. Do not treat a raw WebM as the recording.
 
 ```powershell
 dotnet build d:\novolis\novolis-apps\tests\Novolis.Hours.UiTests\Novolis.Hours.UiTests.csproj -p:NovolisUseProjectReferences=true

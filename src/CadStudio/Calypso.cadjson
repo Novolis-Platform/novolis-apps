@@ -1,0 +1,2895 @@
+{
+  "format": "novolis.cad",
+  "schemaVersion": 1,
+  "name": "Starter sketch",
+  "generator": {
+    "name": "Novolis.Avalonia.Cad",
+    "version": "2026.1.0"
+  },
+  "createdAt": "2026-10-04T18:56:39.1874943Z",
+  "modifiedAt": "2026-10-04T18:57:36.5745514Z",
+  "unitScaleMeters": 1,
+  "linearUnit": "meter",
+  "angleUnit": "radian",
+  "coordinateSystem": {
+    "handedness": "right",
+    "upAxis": "y",
+    "forwardAxis": "z"
+  },
+  "layers": [
+    {
+      "id": "a0000000-0000-4000-8000-000000000001",
+      "name": "0",
+      "visible": true,
+      "locked": false,
+      "color": [
+        0.8,
+        0.8,
+        0.8
+      ]
+    }
+  ],
+  "linetypes": [
+    {
+      "name": "Continuous"
+    }
+  ],
+  "entities": [
+    {
+      "id": "f4451593-9433-4f0a-ad5e-3a4d85905161",
+      "name": "Baseline",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "line",
+      "style": {
+        "linetype": "Continuous",
+        "lineWeightMm": 0.25
+      },
+      "color": [
+        0.7,
+        0.75,
+        0.9
+      ],
+      "a": [
+        0,
+        0,
+        -2
+      ],
+      "b": [
+        0,
+        0,
+        2
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "cf74786c-f29f-4884-ba57-d1fb99260a8d",
+      "name": "Origin circle",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "circle",
+      "color": [
+        0.55,
+        0.8,
+        0.7
+      ],
+      "center": [
+        0,
+        0,
+        0
+      ],
+      "radius": 1,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "97bdb454-5ab4-476b-aaf8-90945d15ba28",
+      "name": "Wall 1",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -1.75,
+        0.2,
+        0
+      ],
+      "b": [
+        -5,
+        0.2,
+        3.25
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "b9734676-7d0e-426f-b9c6-934ea1851f1a",
+      "name": "Wall 2",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -5,
+        0.2,
+        3.25
+      ],
+      "b": [
+        -8.5,
+        0.2,
+        10
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "1fd9e1de-eb0f-4289-8a0c-47339bcc34e9",
+      "name": "Wall 3",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -8.5,
+        0.2,
+        10
+      ],
+      "b": [
+        -10,
+        0.2,
+        17
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "78f024fe-019f-4a67-8aaa-9e76066cd7c3",
+      "name": "Wall 4",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -10,
+        0.2,
+        17
+      ],
+      "b": [
+        -10,
+        0.2,
+        62.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "55315fbd-2899-4c8d-9f76-b6439d59ec78",
+      "name": "Wall 5",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -10,
+        0.2,
+        62.492
+      ],
+      "b": [
+        -7.5,
+        0.2,
+        66.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "814c4614-3d2a-4f18-a431-3385eb2cf45b",
+      "name": "Wall 6",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -7.5,
+        0.2,
+        66.492
+      ],
+      "b": [
+        7.5,
+        0.2,
+        66.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "948fcbb1-11f1-4e93-a638-12934efcab1c",
+      "name": "Wall 7",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        7.5,
+        0.2,
+        66.492
+      ],
+      "b": [
+        10,
+        0.2,
+        62.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "8cfb54d3-09d7-495d-82a3-34d6dff517a9",
+      "name": "Wall 8",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        10,
+        0.2,
+        62.492
+      ],
+      "b": [
+        10,
+        0.2,
+        17
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "9b0386a5-f459-434f-bb5d-8d13e9fa3b28",
+      "name": "Wall 9",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        10,
+        0.2,
+        17
+      ],
+      "b": [
+        8.5,
+        0.2,
+        10
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "7913130d-7386-46e4-876c-a7f87ac90aa9",
+      "name": "Wall 10",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        8.5,
+        0.2,
+        10
+      ],
+      "b": [
+        5,
+        0.2,
+        3.25
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "df7e0e0c-9dad-434b-b7ce-83442969c0c0",
+      "name": "Wall 11",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        5,
+        0.2,
+        3.25
+      ],
+      "b": [
+        1.75,
+        0.2,
+        0
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "d33f3978-9aad-4029-aa8d-2efb93532d35",
+      "name": "Wall 12",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        1.75,
+        0.2,
+        0
+      ],
+      "b": [
+        -1.75,
+        0.2,
+        0
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.25,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "15c2aed6-f45a-4be2-a8ae-ba74d56873d5",
+      "name": "Wall 13",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -9.5,
+        0.2,
+        43.3
+      ],
+      "b": [
+        9.5,
+        0.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "7e50888e-7c34-4a23-a8a6-f98318c08c9f",
+      "name": "Wall 14",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -9.5,
+        0.2,
+        49.3
+      ],
+      "b": [
+        9.5,
+        0.2,
+        49.3
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "142e295c-fce7-4cba-b1c9-06c2c5ae590b",
+      "name": "Wall 15",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -9.5,
+        0.2,
+        62.492
+      ],
+      "b": [
+        9.5,
+        0.2,
+        62.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "e61dcb18-c5b7-4aea-b7f4-891e101756cf",
+      "name": "Wall 16",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -1,
+        0.2,
+        19
+      ],
+      "b": [
+        -1,
+        0.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.15,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "9f71b498-6710-4908-af20-2c1c0b44439b",
+      "name": "Wall 17",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        1,
+        0.2,
+        19
+      ],
+      "b": [
+        1,
+        0.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.15,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "238c189e-dc40-404b-aacd-013f73bdc4b4",
+      "name": "Box 1",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        -6.096,
+        4.2,
+        55.396
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        1.219,
+        3.9,
+        6.096
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "08c60f97-0448-475e-b09a-165cf27e481a",
+      "name": "Box 2",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        -3.258,
+        4.2,
+        55.396
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        1.219,
+        3.9,
+        6.096
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "d463f86a-fc95-4413-aab6-c7e1a07cbfe5",
+      "name": "Box 3",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        -0.42,
+        4.2,
+        55.396
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        1.219,
+        3.9,
+        6.096
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "7854b08e-57a8-49cb-a74d-b0b582bebed8",
+      "name": "Box 4",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        2.418,
+        4.2,
+        55.396
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        1.219,
+        3.9,
+        6.096
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "1461b627-9081-4da1-9041-1839b7db2dde",
+      "name": "Box 5",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        5.256,
+        4.2,
+        55.396
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        1.219,
+        3.9,
+        6.096
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "18f54df0-baca-40db-a7d8-025c2e624f60",
+      "name": "Box 6",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        0,
+        0.45,
+        64.492
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        6.495,
+        0.25,
+        2
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "02bd3060-3e73-4b36-8d75-63669178ca71",
+      "name": "Wall 18",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -1.75,
+        4.2,
+        0
+      ],
+      "b": [
+        -5,
+        4.2,
+        3.25
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "e5112073-2cc5-457a-ab76-18fa85df9699",
+      "name": "Wall 19",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -5,
+        4.2,
+        3.25
+      ],
+      "b": [
+        -8.5,
+        4.2,
+        10
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "d6f50c29-7e75-49e4-93b3-cae39576aeac",
+      "name": "Wall 20",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -8.5,
+        4.2,
+        10
+      ],
+      "b": [
+        -10,
+        4.2,
+        17
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "06782230-aeae-438e-87d5-c4413545a134",
+      "name": "Wall 21",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -10,
+        4.2,
+        17
+      ],
+      "b": [
+        -10,
+        4.2,
+        62.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "cd29740c-fa4a-4043-a8fe-81e8cc379831",
+      "name": "Wall 22",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -10,
+        4.2,
+        62.492
+      ],
+      "b": [
+        -7.5,
+        4.2,
+        66.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "62fc1e3e-7007-487c-a310-d033ac5e7c67",
+      "name": "Wall 23",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -7.5,
+        4.2,
+        66.492
+      ],
+      "b": [
+        7.5,
+        4.2,
+        66.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "d9fb3bc2-f714-456a-b6e6-bc9dbd4f7e35",
+      "name": "Wall 24",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        7.5,
+        4.2,
+        66.492
+      ],
+      "b": [
+        10,
+        4.2,
+        62.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "569b6503-eba5-440b-8f95-a73053e33bca",
+      "name": "Wall 25",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        10,
+        4.2,
+        62.492
+      ],
+      "b": [
+        10,
+        4.2,
+        17
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "77480a6f-4576-4c65-93fd-2dcbdef3795d",
+      "name": "Wall 26",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        10,
+        4.2,
+        17
+      ],
+      "b": [
+        8.5,
+        4.2,
+        10
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "0cf6ba19-ae3b-437a-9ccb-bbbd946de6a1",
+      "name": "Wall 27",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        8.5,
+        4.2,
+        10
+      ],
+      "b": [
+        5,
+        4.2,
+        3.25
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "993b15ca-4e67-4034-be1e-0a33b9642212",
+      "name": "Wall 28",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        5,
+        4.2,
+        3.25
+      ],
+      "b": [
+        1.75,
+        4.2,
+        0
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "06c3690a-ff93-4ec9-a237-a1b596bbfcba",
+      "name": "Wall 29",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        1.75,
+        4.2,
+        0
+      ],
+      "b": [
+        -1.75,
+        4.2,
+        0
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "aff04d95-9742-4093-a43c-b259280e7fa5",
+      "name": "Box 7",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        0,
+        5.7,
+        8
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        7,
+        1.3,
+        3.5
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "1ab3deab-1f4b-4fd8-b020-54a222072a6b",
+      "name": "Wall 30",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -7,
+        4.2,
+        19
+      ],
+      "b": [
+        7,
+        4.2,
+        19
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.15,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "af4e6f91-6eec-4217-b885-9d871f7d1b7c",
+      "name": "Wall 31",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -7,
+        4.2,
+        21
+      ],
+      "b": [
+        -7,
+        4.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.15,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "e49ac6fd-9156-4f95-bcc5-5eef40f6d303",
+      "name": "Wall 32",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        7,
+        4.2,
+        21
+      ],
+      "b": [
+        7,
+        4.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.15,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "dc6f602a-5b2f-488e-a687-3e59db58e3b7",
+      "name": "Wall 33",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -5,
+        4.2,
+        21
+      ],
+      "b": [
+        -5,
+        4.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "2c74bf93-3d81-4659-8e53-69b5b1baac5b",
+      "name": "Wall 34",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -3,
+        4.2,
+        21
+      ],
+      "b": [
+        -3,
+        4.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "3990ad6a-c8ea-431a-9943-26d9d95fae29",
+      "name": "Wall 35",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -1,
+        4.2,
+        21
+      ],
+      "b": [
+        -1,
+        4.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "bbae5f5b-ef5b-46dc-8362-02e58cedc9b2",
+      "name": "Wall 36",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        1,
+        4.2,
+        21
+      ],
+      "b": [
+        1,
+        4.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "cacbb983-4052-450e-bf63-acf290c63091",
+      "name": "Wall 37",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        3,
+        4.2,
+        21
+      ],
+      "b": [
+        3,
+        4.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "7d5c2d26-715c-4239-b608-96bf06750106",
+      "name": "Wall 38",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        5,
+        4.2,
+        21
+      ],
+      "b": [
+        5,
+        4.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "d1856fe1-8c49-4545-af5f-f293165766cd",
+      "name": "Wall 39",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -4.8,
+        4.2,
+        28.5
+      ],
+      "b": [
+        -4.8,
+        4.2,
+        35.1
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "5fbc7ca7-81af-4180-a7a0-9d1bced106d3",
+      "name": "Wall 40",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        0,
+        4.2,
+        28.5
+      ],
+      "b": [
+        0,
+        4.2,
+        35.1
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "3767fa53-fd8d-49d5-912d-12677c8632bd",
+      "name": "Wall 41",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        4.8,
+        4.2,
+        28.5
+      ],
+      "b": [
+        4.8,
+        4.2,
+        35.1
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "a91c7990-e2d6-4bc1-b9b1-151593212d7d",
+      "name": "Wall 42",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -4.8,
+        4.2,
+        28.5
+      ],
+      "b": [
+        4.8,
+        4.2,
+        28.5
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "9ea61774-1520-4fb6-aca2-dc6a47df700a",
+      "name": "Wall 43",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -4.8,
+        4.2,
+        35.1
+      ],
+      "b": [
+        4.8,
+        4.2,
+        35.1
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "e1f0275b-1076-4266-a6f7-fda114321ac5",
+      "name": "Wall 44",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -4.8,
+        4.2,
+        35.1
+      ],
+      "b": [
+        -4.8,
+        4.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.15,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "f8c68fd8-f946-4c72-819f-a99d00daa10d",
+      "name": "Wall 45",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        4.8,
+        4.2,
+        35.1
+      ],
+      "b": [
+        4.8,
+        4.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.15,
+      "deck": 1,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "3b966724-3ca9-4a52-b653-5696ae53224a",
+      "name": "Box 8",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        -2.4,
+        5.7,
+        31.8
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        2.4,
+        1.3,
+        3.3
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "9bbcc945-7699-4ca4-9d87-74518663730c",
+      "name": "Box 9",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        2.4,
+        5.7,
+        31.8
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        2.4,
+        1.3,
+        3.3
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "be2e5327-1499-453c-b9e4-f9cd77428e0a",
+      "name": "Box 10",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        0,
+        5.55,
+        39.2
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        4.8,
+        1.15,
+        4.1
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "bffe6f6f-28cc-413b-b8bd-830f85eab1a2",
+      "name": "Box 11",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        0,
+        4.45,
+        46.3
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        9.5,
+        0.125,
+        3
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "b797898e-1f50-4d21-a492-1aa3b600bf3e",
+      "name": "Wall 46",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -1.75,
+        8.2,
+        0
+      ],
+      "b": [
+        -5,
+        8.2,
+        3.25
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "15ff548f-9345-4d97-a4cc-fe459bfccb33",
+      "name": "Wall 47",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -5,
+        8.2,
+        3.25
+      ],
+      "b": [
+        -8.5,
+        8.2,
+        10
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "b3b19e97-d3e4-4d3f-bf7a-7230e106f4a9",
+      "name": "Wall 48",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -8.5,
+        8.2,
+        10
+      ],
+      "b": [
+        -10,
+        8.2,
+        17
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "e9ebb182-24de-44f5-bbca-ce6f6eb0bacd",
+      "name": "Wall 49",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -10,
+        8.2,
+        17
+      ],
+      "b": [
+        -10,
+        8.2,
+        62.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "33ad72f5-ee20-40c9-ac5a-b0add91b3445",
+      "name": "Wall 50",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -10,
+        8.2,
+        62.492
+      ],
+      "b": [
+        -7.5,
+        8.2,
+        66.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "dbed9ae8-098a-4fc0-93ba-902f4b7e457c",
+      "name": "Wall 51",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -7.5,
+        8.2,
+        66.492
+      ],
+      "b": [
+        7.5,
+        8.2,
+        66.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "4b66436e-ff29-4b32-95a8-4056132d3a7b",
+      "name": "Wall 52",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        7.5,
+        8.2,
+        66.492
+      ],
+      "b": [
+        10,
+        8.2,
+        62.492
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "fd017cab-59d3-4c40-943c-0a1fbeeb1293",
+      "name": "Wall 53",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        10,
+        8.2,
+        62.492
+      ],
+      "b": [
+        10,
+        8.2,
+        17
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "ec8897ae-2cda-410e-9d77-138cd14ed1c3",
+      "name": "Wall 54",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        10,
+        8.2,
+        17
+      ],
+      "b": [
+        8.5,
+        8.2,
+        10
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "6252f01a-af9d-43fd-9617-f8bb47c0b045",
+      "name": "Wall 55",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        8.5,
+        8.2,
+        10
+      ],
+      "b": [
+        5,
+        8.2,
+        3.25
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "e09c0f9c-30e4-4140-ad2f-696ec9bc6b2d",
+      "name": "Wall 56",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        5,
+        8.2,
+        3.25
+      ],
+      "b": [
+        1.75,
+        8.2,
+        0
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "6d219d04-2935-4c87-9991-2de97b40f889",
+      "name": "Wall 57",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        1.75,
+        8.2,
+        0
+      ],
+      "b": [
+        -1.75,
+        8.2,
+        0
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.2,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "96a5b127-ad08-4ba4-9d25-ed1c098f77b8",
+      "name": "Box 12",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        0,
+        9.7,
+        8
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        6,
+        1.3,
+        3.5
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "61e90932-9cf6-4e4d-a973-e8387781b32b",
+      "name": "Wall 58",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -7,
+        8.2,
+        19
+      ],
+      "b": [
+        7,
+        8.2,
+        19
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.15,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "47e05843-2a74-4202-9c29-77c5973a343d",
+      "name": "Wall 59",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -7,
+        8.2,
+        21
+      ],
+      "b": [
+        -7,
+        8.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.15,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "e8e34ab0-5162-42d1-b62e-49e534e41fa6",
+      "name": "Wall 60",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        7,
+        8.2,
+        21
+      ],
+      "b": [
+        7,
+        8.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.4,
+      "thickness": 0.15,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "6907a830-8fad-405a-903f-98dcbd5ac610",
+      "name": "Wall 61",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -5,
+        8.2,
+        21
+      ],
+      "b": [
+        -5,
+        8.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "dd2c46c5-b601-4467-ba5a-69cbaa3e3e73",
+      "name": "Wall 62",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -3,
+        8.2,
+        21
+      ],
+      "b": [
+        -3,
+        8.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "f2c19ab5-2c67-45f8-8c9e-c3a9be4cf002",
+      "name": "Wall 63",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -1,
+        8.2,
+        21
+      ],
+      "b": [
+        -1,
+        8.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "4e9ea04d-5cdf-4573-b720-d46cea467f9d",
+      "name": "Wall 64",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        1,
+        8.2,
+        21
+      ],
+      "b": [
+        1,
+        8.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "c7723b41-da55-42b9-811e-f1d2a03db1d4",
+      "name": "Wall 65",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        3,
+        8.2,
+        21
+      ],
+      "b": [
+        3,
+        8.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "117ed23a-7725-4e26-a799-926ac1ae72c1",
+      "name": "Wall 66",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        5,
+        8.2,
+        21
+      ],
+      "b": [
+        5,
+        8.2,
+        28.2
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "881d29fa-a962-46fb-bede-0be45d2f0ae6",
+      "name": "Wall 67",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -4.8,
+        8.2,
+        28.5
+      ],
+      "b": [
+        -4.8,
+        8.2,
+        35.1
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "0be11fa9-a4ae-4168-8770-6e66a02de472",
+      "name": "Wall 68",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        0,
+        8.2,
+        28.5
+      ],
+      "b": [
+        0,
+        8.2,
+        35.1
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "f13d0f76-bca3-407c-8969-f4f7626e342e",
+      "name": "Wall 69",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        4.8,
+        8.2,
+        28.5
+      ],
+      "b": [
+        4.8,
+        8.2,
+        35.1
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "8d9bbcd4-ae21-404a-96cf-661912f84134",
+      "name": "Wall 70",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -4.8,
+        8.2,
+        28.5
+      ],
+      "b": [
+        4.8,
+        8.2,
+        28.5
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "4604d03b-27aa-4a58-b1f7-84cbe70d2b5f",
+      "name": "Wall 71",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -4.8,
+        8.2,
+        35.1
+      ],
+      "b": [
+        4.8,
+        8.2,
+        35.1
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.12,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "bce2d252-944f-419d-ad92-04e77190c50e",
+      "name": "Wall 72",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        -4.8,
+        8.2,
+        35.1
+      ],
+      "b": [
+        -4.8,
+        8.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.15,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "022fee48-f612-4e2c-b8d6-4d2615e056c7",
+      "name": "Wall 73",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "wall",
+      "a": [
+        4.8,
+        8.2,
+        35.1
+      ],
+      "b": [
+        4.8,
+        8.2,
+        43.3
+      ],
+      "radius": 0,
+      "height": 3.2,
+      "thickness": 0.15,
+      "deck": 2,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "0ccf5d59-df8c-4e78-bc7f-03a98e94644f",
+      "name": "Box 13",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        0,
+        9.7,
+        31
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        6,
+        1.3,
+        10
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "a6a11f70-4f6e-4b3e-8621-8e45b9ca7272",
+      "name": "Box 14",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "box",
+      "center": [
+        0,
+        8.45,
+        46.3
+      ],
+      "radius": 0,
+      "height": 0,
+      "thickness": 0,
+      "deck": 0,
+      "halfExtents": [
+        9.5,
+        0.125,
+        3
+      ],
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false,
+      "properties": {
+        "exterior": true
+      }
+    },
+    {
+      "id": "503ae55f-aded-4c2a-b525-f15a2433ad25",
+      "name": "Dimension 1",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "dimension",
+      "a": [
+        -10,
+        8.2,
+        17
+      ],
+      "b": [
+        10,
+        8.2,
+        17
+      ],
+      "radius": 0,
+      "height": 0.5,
+      "thickness": 0,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "edfe76f3-4455-4ed1-9ebe-3db15b1aef17",
+      "name": "Dimension 2",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "dimension",
+      "a": [
+        -10,
+        8.2,
+        62.492
+      ],
+      "b": [
+        10,
+        8.2,
+        62.492
+      ],
+      "radius": 0,
+      "height": 0.5,
+      "thickness": 0,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "0a003148-b520-4b2b-a328-065c5426980c",
+      "name": "Dimension 3",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "dimension",
+      "a": [
+        -10,
+        8.2,
+        17
+      ],
+      "b": [
+        -10,
+        8.2,
+        62.492
+      ],
+      "radius": 0,
+      "height": 0.5,
+      "thickness": 0,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    },
+    {
+      "id": "cd830b9d-7f67-48fd-a0d0-2f1394b0cdc0",
+      "name": "Dimension 4",
+      "layerId": "a0000000-0000-4000-8000-000000000001",
+      "kind": "dimension",
+      "a": [
+        -7.5,
+        8.2,
+        66.492
+      ],
+      "b": [
+        7.5,
+        8.2,
+        66.492
+      ],
+      "radius": 0,
+      "height": 0.5,
+      "thickness": 0,
+      "deck": 0,
+      "startAngle": 0,
+      "endAngle": 0,
+      "rotationY": 0,
+      "mergeAtPlane": false,
+      "mergeTolerance": 0,
+      "intensity": 0,
+      "visible": true,
+      "closed": false,
+      "degree": 0,
+      "periodic": false
+    }
+  ],
+  "camera": {
+    "yaw": 0.9,
+    "pitch": 0.45,
+    "distance": 24,
+    "target": [
+      0,
+      0.5,
+      0
+    ]
+  }
+}

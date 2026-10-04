@@ -55,15 +55,15 @@ public sealed class NordvikOfficeUxFeatureTests
         await Assert.That(review.Stages.Select(stage => stage.Id))
             .IsEquivalentTo(["employee-submit", "manager-level-1", "manager-level-2", "hr-final"]);
         await Assert.That(disputed.Actions.Any(action => action.Kind == "Dispute")).IsTrue();
-        await Assert.That(studio.CommitLabel).IsEqualTo("Worked as scheduled");
+        await Assert.That(studio.CommitLabel).IsEqualTo("I worked as planned");
         await Assert.That(studio.AllowsPaint).IsTrue();
         await Assert.That(studio.AllowsFlex).IsTrue();
         await Assert.That(studio.WorkplaceName).IsEqualTo("Nordvik");
         await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 10, 1)).Chip)
-            .IsEqualTo("Recorded");
+            .IsEqualTo("As planned");
         await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 10, 3)).Chip)
-            .IsEqualTo("Weekend");
-        await Assert.That(reviewUi.EmployeePrimaryLabel).IsEqualTo("Submit");
+            .IsEqualTo("Closed");
+        await Assert.That(reviewUi.EmployeePrimaryLabel).IsEqualTo("Hand month to HR");
         await Assert.That(reviewUi.AllowsDispute).IsTrue();
         await Assert.That(reviewUi.HasSubmitStage).IsTrue();
         var managerDay = await alice.GetWorkDayAsync("ada", new DateOnly(2026, 10, 1));

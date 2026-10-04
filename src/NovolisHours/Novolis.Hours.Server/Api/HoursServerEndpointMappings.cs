@@ -34,7 +34,15 @@ public static class HoursServerEndpointMappings
         api.MapGet("/auth/me", (HttpContext context) =>
         {
             var actor = HoursServerPrincipalFactory.ToActor(context.User);
-            return Results.Ok(new CurrentUserResponse(actor.Id, actor.DisplayName, HoursContractMapping.ToClient(actor.Role)));
+            var extras = HoursServerPrincipalFactory.AssignedRoles(context.User)
+                .Skip(1)
+                .Select(HoursContractMapping.ToClient)
+                .ToArray();
+            return Results.Ok(new CurrentUserResponse(
+                actor.Id,
+                actor.DisplayName,
+                HoursContractMapping.ToClient(actor.Role),
+                extras));
         });
         api.MapPost("/auth/logout", LogoutAsync);
         api.MapPost("/auth/password", ChangePasswordAsync);
@@ -66,8 +74,11 @@ public static class HoursServerEndpointMappings
         api.MapGet("/admin/users", ListUsers);
         api.MapPost("/admin/users", CreateUserAsync);
         api.MapPut("/admin/users/{employeeId}/worktime-settings", UpdateWorktimeSettingsAsync);
+        api.MapPut("/employees/{employeeId}/usual-hours", UpdateUsualHoursAsync);
         api.MapGet("/admin/customers", ListCustomers);
         api.MapPost("/admin/customers", CreateCustomerAsync);
+        api.MapPut("/admin/customers/{organisationId}", UpdateCustomerRulesAsync);
+        api.MapGet("/admin/setup/locations", ListLocations);
         api.MapGet("/admin/setup/templates", ListWorkplaceTemplates);
         api.MapGet("/admin/review-policies", ListReviewPolicies);
     }
@@ -468,19 +479,32 @@ public static class HoursServerEndpointMappings
 
     private static IResult ListUsers(HttpContext context, HoursUserDirectory users)
     {
-        var forbidden = EnsureAdministrator(context.User);
+        var forbidden = EnsureDirectoryManager(context.User);
         return forbidden ?? Results.Ok(users.List().Select(HoursContractMapping.ToUser).ToArray());
     }
 
     private static IResult ListCustomers(HttpContext context, HoursWorkplaceDirectory workplaces)
     {
-        var forbidden = EnsureAdministrator(context.User);
+        var forbidden = EnsureDirectoryManager(context.User);
         return forbidden ?? Results.Ok(workplaces.List().Select(HoursContractMapping.ToCustomer).ToArray());
+    }
+
+    private static IResult ListLocations(HttpContext context)
+    {
+        var forbidden = EnsureDirectoryManager(context.User);
+        return forbidden ?? Results.Ok(HoursLocationCatalog.All
+            .Select(location => new HoursLocationResponse(
+                location.Id,
+                location.Title,
+                location.CountryCode,
+                location.TimeZoneId,
+                location.CalendarSummary))
+            .ToArray());
     }
 
     private static IResult ListWorkplaceTemplates(HttpContext context)
     {
-        var forbidden = EnsureAdministrator(context.User);
+        var forbidden = EnsureDirectoryManager(context.User);
         return forbidden ?? Results.Ok(HoursWorkplaceTemplates.All
             .Select(template => new HoursWorkplaceTemplateResponse(
                 template.Id,
@@ -510,7 +534,7 @@ public static class HoursServerEndpointMappings
         HttpContext context,
         HoursWorkplaceDirectory workplaces)
     {
-        var forbidden = EnsureAdministrator(context.User);
+        var forbidden = EnsureDirectoryManager(context.User);
         if (forbidden is not null)
         {
             return forbidden;
@@ -518,11 +542,11 @@ public static class HoursServerEndpointMappings
 
         if (string.IsNullOrWhiteSpace(request.OrganisationId) ||
             string.IsNullOrWhiteSpace(request.DisplayName) ||
-            string.IsNullOrWhiteSpace(request.TemplateId))
+            (string.IsNullOrWhiteSpace(request.LocationId) && string.IsNullOrWhiteSpace(request.TemplateId)))
         {
             return Results.ValidationProblem(new Dictionary<string, string[]>
             {
-                ["workplace"] = ["Organisation id, display name, and a setup template are required."],
+                ["workplace"] = ["Customer name, organisation id, and a location are required."],
             });
         }
 
@@ -537,10 +561,15 @@ public static class HoursServerEndpointMappings
         try
         {
             var customer = await workplaces.RegisterAsync(
-                HoursWorkplaceTemplates.Create(
-                    request.TemplateId,
-                    request.OrganisationId.Trim().ToLowerInvariant(),
-                    request.DisplayName),
+                string.IsNullOrWhiteSpace(request.LocationId)
+                    ? HoursWorkplaceTemplates.Create(
+                        request.TemplateId!,
+                        request.OrganisationId.Trim().ToLowerInvariant(),
+                        request.DisplayName)
+                    : HoursLocationCatalog.CreateCustomer(
+                        request.LocationId,
+                        request.OrganisationId.Trim().ToLowerInvariant(),
+                        request.DisplayName),
                 context.RequestAborted);
             return Results.Created($"/api/admin/customers/{customer.Id}", HoursContractMapping.ToCustomer(customer));
         }
@@ -548,7 +577,66 @@ public static class HoursServerEndpointMappings
         {
             return Results.ValidationProblem(new Dictionary<string, string[]>
             {
-                ["templateId"] = ["Choose Nordvik office or Game shop."],
+                ["locationId"] = ["Choose a location."],
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["organisationId"] = [exception.Message],
+            });
+        }
+    }
+
+    private static async Task<IResult> UpdateCustomerRulesAsync(
+        string organisationId,
+        UpdateCustomerRulesRequest request,
+        HttpContext context,
+        HoursWorkplaceDirectory workplaces,
+        HoursUserDirectory users)
+    {
+        var forbidden = EnsureDirectoryManager(context.User);
+        if (forbidden is not null)
+        {
+            return forbidden;
+        }
+
+        var actor = HoursServerPrincipalFactory.ToActor(context.User);
+        if (actor.Role == HoursActorRole.Administrator)
+        {
+            var self = users.FindByEmployeeId(actor.Id);
+            if (self is null ||
+                !string.Equals(self.OrganisationId, organisationId, StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.Forbid();
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ReviewPolicyId))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["reviewPolicyId"] = ["Choose how months are closed."],
+            });
+        }
+
+        try
+        {
+            var updated = await workplaces.UpdateRulesAsync(
+                organisationId,
+                request.SaturdayIsWorkingDay,
+                request.AllowsFlex,
+                request.AllowsDispute,
+                request.ReviewPolicyId.Trim(),
+                context.RequestAborted);
+            return Results.Ok(HoursContractMapping.ToCustomer(updated));
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["reviewPolicyId"] = ["Choose a review policy this host knows."],
             });
         }
         catch (InvalidOperationException exception)
@@ -571,7 +659,7 @@ public static class HoursServerEndpointMappings
         HoursWorkplaceDirectory workplaces,
         HoursUserDirectory users)
     {
-        var forbidden = EnsureAdministrator(context.User);
+        var forbidden = EnsureDirectoryManager(context.User);
         if (forbidden is not null)
         {
             return forbidden;
@@ -615,17 +703,23 @@ public static class HoursServerEndpointMappings
         var legalPresetId = workplaces.TryGet(organisationId, out var workplace)
             ? workplace.LegalPresetId
             : null;
+        var primary = HoursContractMapping.ToActor(request.Role);
+        var extra = (request.ExtraRoles ?? [])
+            .Select(HoursContractMapping.ToActor)
+            .Where(role => role != primary)
+            .ToArray();
         var user = new HoursUserDocument(
             identity.Value,
             request.EmployeeId,
             request.Login,
             request.DisplayName,
-            HoursContractMapping.ToActor(request.Role),
+            primary,
             legalPresetId,
             OrganisationId: organisationId,
             DivisionId: request.DivisionId,
             TeamId: request.TeamId,
-            ApprovalLevel: request.ApprovalLevel);
+            ApprovalLevel: request.ApprovalLevel,
+            ExtraRoles: extra.Length == 0 ? null : extra);
         await users.SaveAsync(user, context.RequestAborted);
         return Results.Created($"/api/admin/users/{user.EmployeeId}", HoursContractMapping.ToUser(user));
     }
@@ -694,22 +788,73 @@ public static class HoursServerEndpointMappings
         return Results.Ok(updated);
     }
 
+    private static async Task<IResult> UpdateUsualHoursAsync(
+        string employeeId,
+        UpdateUsualHoursRequest request,
+        HttpContext context,
+        HoursUserDirectory users)
+    {
+        var actor = HoursServerPrincipalFactory.ToActor(context.User);
+        var isSelf = string.Equals(actor.Id, employeeId, StringComparison.OrdinalIgnoreCase);
+        if (!isSelf && actor.Role != HoursActorRole.Administrator)
+        {
+            return Results.Forbid();
+        }
+
+        if (request.End <= request.Start)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["usualHours"] = ["Usual end must be after usual start."],
+            });
+        }
+
+        var existing = users.FindByEmployeeId(employeeId);
+        if (existing is null)
+        {
+            return Results.NotFound();
+        }
+
+        var updated = existing with
+        {
+            ExpectedIntervalOverrideStart = request.Start,
+            ExpectedIntervalOverrideEnd = request.End,
+        };
+        await users.SaveAsync(updated, context.RequestAborted);
+        return Results.Ok(HoursContractMapping.ToUser(updated));
+    }
+
     private static IResult? EnsureCanView(System.Security.Claims.ClaimsPrincipal principal, string employeeId)
     {
         var actor = HoursServerPrincipalFactory.ToActor(principal);
-        return actor.Role == HoursActorRole.Employee &&
-            !string.Equals(actor.Id, employeeId, StringComparison.Ordinal)
+        var roles = HoursServerPrincipalFactory.AssignedRoles(principal);
+        var privileged = roles.Any(role =>
+            role is HoursActorRole.Administrator or HoursActorRole.HumanResources
+                or HoursActorRole.Higher or HoursActorRole.Auditor
+                or HoursActorRole.System or HoursActorRole.Manager);
+        return !privileged && !string.Equals(actor.Id, employeeId, StringComparison.Ordinal)
             ? Results.Forbid()
             : null;
     }
 
     private static IResult? EnsureAdministrator(System.Security.Claims.ClaimsPrincipal principal) =>
-        HoursServerPrincipalFactory.ToActor(principal).Role == HoursActorRole.Administrator
+        HoursServerPrincipalFactory.HasRole(principal, HoursActorRole.Administrator)
+            ? null
+            : Results.Forbid();
+
+    private static IResult? EnsureDirectoryManager(System.Security.Claims.ClaimsPrincipal principal) =>
+        HoursServerPrincipalFactory.HasRole(principal, HoursActorRole.Administrator) ||
+        HoursServerPrincipalFactory.HasRole(principal, HoursActorRole.System)
             ? null
             : Results.Forbid();
 
     private static LoginResponse ToLoginResponse(HoursUserDocument user, bool isDemoAdministrator = false) =>
-        new(user.EmployeeId, user.DisplayName, HoursContractMapping.ToClient(user.Role), isDemoAdministrator);
+        new(
+            user.EmployeeId,
+            user.DisplayName,
+            HoursContractMapping.ToClient(user.Role),
+            isDemoAdministrator,
+            user.AssignedRoles.Skip(1).Select(HoursContractMapping.ToClient).ToArray());
 
     
 

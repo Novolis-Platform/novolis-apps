@@ -1,19 +1,36 @@
 @page "/settings"
 @inject HoursBrowserSession Session
+@inject NavigationManager Navigation
 
 <PageTitle>Settings</PageTitle>
 
 <section class="card">
-    <p class="eyebrow">Settings</p>
-    <h1>Host</h1>
+    <p class="eyebrow">My hours</p>
+    <h1>Usual hours</h1>
+    <p class="muted">This is how your days usually run. After that, most days are I worked as planned.</p>
+    <div class="form-grid">
+        <label>Usual start
+            <input type="time" @bind="usualStart" />
+        </label>
+        <label>Usual end
+            <input type="time" @bind="usualEnd" />
+        </label>
+    </div>
+    <button class="action" @onclick="SaveUsualHoursAsync" disabled="@busy">
+        @(busy ? "Saving…" : "Save usual hours")
+    </button>
+</section>
+
+<details class="card">
+    <summary class="muted">Host settings</summary>
     <div class="form-grid">
         <label>Hours service URL
             <input @bind="serviceUrl" type="url" autocomplete="url" />
         </label>
     </div>
-    <button class="action" @onclick="SaveAsync">Save</button>
+    <button @onclick="SaveHostAsync">Save host</button>
     <p class="muted">The signed-in person is @person. Employee ID is not a field.</p>
-</section>
+</details>
 
 @if (!string.IsNullOrWhiteSpace(status))
 {
@@ -23,16 +40,84 @@
 @code {
     private string serviceUrl = "https://localhost:5700/";
     private string status = string.Empty;
+    private bool busy;
+    private TimeOnly usualStart = new(9, 0);
+    private TimeOnly usualEnd = new(17, 0);
 
     private string person => Session.CurrentUser?.DisplayName ?? "not signed in";
 
     protected override async Task OnInitializedAsync()
     {
         await Session.RestoreAsync();
+        if (Session.CurrentUser is not null && !HoursRoleSurface.ShowsTimesheet(Session.CurrentUser.AssignedRoles))
+        {
+            Navigation.NavigateTo(HoursRoleSurface.HomePath(Session.CurrentUser.AssignedRoles));
+            return;
+        }
+
         serviceUrl = Session.ServiceUrl;
+        if (Session.ApiClient is null || Session.CurrentUser is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var configuration = await Session.ApiClient.GetEmployeeConfigurationAsync(Session.CurrentUser.EmployeeId);
+            if (configuration.IndividualSettings.ExpectedIntervalOverrideStart is { } start &&
+                configuration.IndividualSettings.ExpectedIntervalOverrideEnd is { } end)
+            {
+                usualStart = start;
+                usualEnd = end;
+                return;
+            }
+
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var day = await Session.ApiClient.GetWorkDayAsync(Session.CurrentUser.EmployeeId, today);
+            if (day.RoutineRanges.Length > 0)
+            {
+                usualStart = day.RoutineRanges[0].Start;
+                usualEnd = day.RoutineRanges[^1].End;
+            }
+        }
+        catch
+        {
+        }
     }
 
-    private async Task SaveAsync()
+    private async Task SaveUsualHoursAsync()
+    {
+        if (Session.ApiClient is null || Session.CurrentUser is null)
+        {
+            return;
+        }
+
+        if (usualEnd <= usualStart)
+        {
+            status = "Usual end must be after usual start.";
+            return;
+        }
+
+        busy = true;
+        status = string.Empty;
+        try
+        {
+            await Session.ApiClient.UpdateUsualHoursAsync(
+                Session.CurrentUser.EmployeeId,
+                new UpdateUsualHoursRequest(usualStart, usualEnd));
+            status = "Usual hours saved. I worked as planned will use this clock.";
+        }
+        catch (Exception exception)
+        {
+            status = exception.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SaveHostAsync()
     {
         Session.ServiceUrl = serviceUrl;
         await Session.PersistServiceUrlAsync();
@@ -41,6 +126,6 @@
             await Session.SignOutAsync();
         }
 
-        status = "Service URL saved. Sign in again from Week.";
+        status = "Service URL saved. Sign in again from This week.";
     }
 }

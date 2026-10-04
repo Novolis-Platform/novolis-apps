@@ -78,6 +78,10 @@ public static class HoursReviewWorkflowCatalog
             HoursCustomerCatalog.WarsawSettlement => EmployerOnlyPolicy,
             HoursCustomerCatalog.HelsinkiFlex => EmployeeHrPolicy,
             HoursCustomerCatalog.GameRetail => AttendanceHrPolicy,
+            HoursCustomerCatalog.PacificYard => AttendanceHrPolicy,
+            HoursCustomerCatalog.TorontoYard => EmployeeHrPolicy,
+            HoursCustomerCatalog.TokyoFlex => EmployeeHrPolicy,
+            HoursCustomerCatalog.BerlinOffice => EmployeeHrPolicy,
             _ => CascadingApprovalPolicy,
         };
 

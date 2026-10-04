@@ -55,6 +55,7 @@ public sealed class HoursUiHost : IAsyncDisposable
         {
             client = StartBlazor(clientUri);
             await client.StartAsync();
+            await WaitForAsync(apiUri);
             await WaitForAsync(clientUri);
             return new HoursUiHost
             {

@@ -25,6 +25,18 @@ public static class HoursCustomerCatalog
     /// <summary>British high-street Game retail: rigid shop hours, attendance only.</summary>
     public const string GameRetail = "game-retail";
 
+    /// <summary>California warehouse on FLSA weekly overtime and daily California overtime.</summary>
+    public const string PacificYard = "pacific-yard";
+
+    /// <summary>Ontario yard on the ESA 44-hour overtime threshold.</summary>
+    public const string TorontoYard = "toronto-yard";
+
+    /// <summary>Tokyo flextime shop that needs an Article 36 overtime agreement.</summary>
+    public const string TokyoFlex = "tokyo-flex";
+
+    /// <summary>Berlin office on the Arbeitszeitgesetz 8-hour day.</summary>
+    public const string BerlinOffice = "berlin-office";
+
     /// <summary>Cross-customer platform identity used by the System actor.</summary>
     public const string Platform = "hours-platform";
 
@@ -41,6 +53,10 @@ public static class HoursCustomerCatalog
         WarsawSettlementCustomer,
         HelsinkiFlexCustomer,
         GameRetailCustomer,
+        PacificYardCustomer,
+        TorontoYardCustomer,
+        TokyoFlexCustomer,
+        BerlinOfficeCustomer,
     ];
 
     /// <summary>Gets the customer system that owns an acceptance identity.</summary>
@@ -55,6 +71,10 @@ public static class HoursCustomerCatalog
             "anna" or "kasia" => WarsawSettlementCustomer,
             "liisa" => HelsinkiFlexCustomer,
             "jamie" or "priya" => GameRetailCustomer,
+            "jordan" or "pat" => PacificYardCustomer,
+            "casey" => TorontoYardCustomer,
+            "yuki" => TokyoFlexCustomer,
+            "lena" => BerlinOfficeCustomer,
             _ => NordvikOfficeCustomer,
         };
     }
@@ -386,7 +406,9 @@ public static class HoursCustomerCatalog
             expectedWork,
             envelope,
             [coreHours],
-            [morning, afternoon]);
+            morning.Start == afternoon.Start && morning.End == afternoon.End
+                ? [morning]
+                : [morning, afternoon]);
 
     private static WorkCalendarLayer CreateAdaTemporaryOverride(string version) =>
         new(
@@ -513,4 +535,74 @@ public static class HoursCustomerCatalog
         AttendanceConfirmationOnly: true,
         DisplayName: "Game",
         ReviewPolicyId: HoursReviewWorkflowCatalog.AttendanceHr);
+
+    private static HoursCustomer PacificYardCustomer { get; } = new(
+        PacificYard,
+        "US",
+        "America/Los_Angeles",
+        "usa.flsa.weekly",
+        TimeSpan.FromHours(8),
+        new LocalTimeRange(new TimeOnly(7, 0), new TimeOnly(17, 0)),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(16, 0)),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(12, 0)),
+        new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
+        ObservesPublicHolidays: true,
+        SevenDayOperation: false,
+        SaturdayIsWorkingDay: false,
+        AllowsFlex: false,
+        AllowsDispute: false,
+        AttendanceConfirmationOnly: true,
+        DisplayName: "Pacific Yard",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.AttendanceHr);
+
+    private static HoursCustomer TorontoYardCustomer { get; } = new(
+        TorontoYard,
+        "CA",
+        "America/Toronto",
+        "canada.ontario.esa",
+        TimeSpan.FromHours(8),
+        new LocalTimeRange(new TimeOnly(7, 0), new TimeOnly(17, 0)),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(16, 0)),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(12, 0)),
+        new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
+        ObservesPublicHolidays: true,
+        SevenDayOperation: false,
+        AllowsFlex: false,
+        AllowsDispute: true,
+        DisplayName: "Toronto Yard",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.EmployeeHr);
+
+    private static HoursCustomer TokyoFlexCustomer { get; } = new(
+        TokyoFlex,
+        "JP",
+        "Asia/Tokyo",
+        "japan.lsa.36",
+        TimeSpan.FromHours(8),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(19, 0)),
+        new LocalTimeRange(new TimeOnly(10, 0), new TimeOnly(15, 0)),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(12, 0)),
+        new LocalTimeRange(new TimeOnly(13, 0), new TimeOnly(18, 0)),
+        ObservesPublicHolidays: true,
+        SevenDayOperation: false,
+        AllowsFlex: true,
+        AllowsDispute: true,
+        DisplayName: "Tokyo Flex",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.EmployeeHr);
+
+    private static HoursCustomer BerlinOfficeCustomer { get; } = new(
+        BerlinOffice,
+        "DE",
+        "Europe/Berlin",
+        "germany.arbzg",
+        TimeSpan.FromHours(8),
+        new LocalTimeRange(new TimeOnly(7, 0), new TimeOnly(18, 0)),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(15, 0)),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(12, 0)),
+        new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
+        ObservesPublicHolidays: true,
+        SevenDayOperation: false,
+        AllowsFlex: false,
+        AllowsDispute: true,
+        DisplayName: "Berlin Office",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.EmployeeHr);
 }

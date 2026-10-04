@@ -1,13 +1,25 @@
+@page "/audit"
 @page "/audit/{EmployeeId}"
 @inject HoursBrowserSession Session
+@inject NavigationManager Navigation
 
 <PageTitle>Ledger and audit</PageTitle>
 
 <header class="hero">
     <p class="eyebrow">Ledger and audit</p>
-    <h1>@EmployeeId</h1>
+    <h1>@(string.IsNullOrWhiteSpace(EmployeeId) ? "Choose an employee" : EmployeeId)</h1>
     <p>Every registration, projection, review action, and configuration fact remains available after refresh.</p>
 </header>
+
+@if (string.IsNullOrWhiteSpace(EmployeeId) && Session.ApiClient is not null)
+{
+    <section class="card">
+        <label>Employee id
+            <input @bind="lookup" autocomplete="off" />
+        </label>
+        <button class="action" @onclick="OpenAudit">Open audit trail</button>
+    </section>
+}
 
 @if (Session.CurrentUser is null || Session.ApiClient is null)
 {
@@ -16,7 +28,7 @@
         <a href="/">Return to sign in</a>
     </section>
 }
-else if (events is null)
+else if (!string.IsNullOrWhiteSpace(EmployeeId) && events is null)
 {
     <section class="card"><p>Loading audit trail…</p></section>
 }
@@ -26,11 +38,11 @@ else
         <div class="toolbar">
             <div>
                 <h2>Append-only facts</h2>
-                <p class="muted">@events.Count event(s) for @EmployeeId.</p>
+                <p class="muted">@(events?.Count ?? 0) event(s) for @EmployeeId.</p>
             </div>
             <a href="@WorkDayUrl">Open WorkDay</a>
         </div>
-        @if (events.Count == 0)
+        @if (events is null || events.Count == 0)
         {
             <p>No facts have been recorded for this employee.</p>
         }
@@ -69,6 +81,7 @@ else
 
     private IReadOnlyList<HoursAuditEventResponse>? events;
     private string error = string.Empty;
+    private string lookup = string.Empty;
 
     private string WorkDayUrl => $"/workdays/{EmployeeId}/{DateOnly.FromDateTime(DateTime.Today):yyyy-MM-dd}";
 
@@ -83,6 +96,11 @@ else
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(EmployeeId))
+        {
+            return;
+        }
+
         try
         {
             events = await Session.ApiClient.GetAuditAsync(EmployeeId);
@@ -90,6 +108,14 @@ else
         catch (Exception exception)
         {
             error = exception.Message;
+        }
+    }
+
+    private void OpenAudit()
+    {
+        if (!string.IsNullOrWhiteSpace(lookup))
+        {
+            Navigation.NavigateTo($"/audit/{Uri.EscapeDataString(lookup.Trim())}");
         }
     }
 }

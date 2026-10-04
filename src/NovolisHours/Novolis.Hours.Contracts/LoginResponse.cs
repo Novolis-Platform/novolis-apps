@@ -5,4 +5,5 @@ public sealed record LoginResponse(
     string EmployeeId,
     string DisplayName,
     HoursClientRole Role,
-    bool IsDemoAdministrator);
+    bool IsDemoAdministrator,
+    IReadOnlyList<HoursClientRole>? ExtraRoles = null);

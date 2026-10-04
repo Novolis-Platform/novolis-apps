@@ -50,7 +50,8 @@ internal static class HoursContractMapping
             user.OrganisationId,
             user.DivisionId,
             user.TeamId,
-            user.ApprovalLevel);
+            user.ApprovalLevel,
+            user.AssignedRoles.Skip(1).Select(ToClient).ToArray());
 
     public static HoursCustomerResponse ToCustomer(HoursCustomer customer) =>
         new(
@@ -67,5 +68,8 @@ internal static class HoursContractMapping
             customer.AllowsFlex,
             customer.AllowsDispute,
             customer.AttendanceConfirmationOnly,
-            HoursCustomerCatalog.TryGet(customer.Id, out _));
+            HoursCustomerCatalog.TryGet(customer.Id, out _),
+            HoursWorkingTimeNorms.ForCountry(customer.CountryCode).OvertimeRule,
+            HoursWorkingTimeNorms.ForCountry(customer.CountryCode).BreakRule,
+            HoursWorkingTimeNorms.ForCountry(customer.CountryCode).RestRule);
 }

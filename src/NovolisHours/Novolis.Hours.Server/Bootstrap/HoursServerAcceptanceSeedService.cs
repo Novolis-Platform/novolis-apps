@@ -77,7 +77,8 @@ public sealed class HoursServerAcceptanceSeedService : IHostedService
                     OrganisationId: definition.OrganisationId,
                     DivisionId: definition.DivisionId,
                     TeamId: definition.TeamId,
-                    ApprovalLevel: definition.ApprovalLevel);
+                    ApprovalLevel: definition.ApprovalLevel,
+                    ExtraRoles: definition.ExtraRoles);
                 await users.SaveAsync(user, cancellationToken);
                 logger.LogInformation(
                     "Provisioned Hours acceptance identity {EmployeeId} with role {Role}.",
@@ -89,7 +90,8 @@ public sealed class HoursServerAcceptanceSeedService : IHostedService
                      !string.Equals(user.OrganisationId, definition.OrganisationId, StringComparison.Ordinal) ||
                      !string.Equals(user.DivisionId, definition.DivisionId, StringComparison.Ordinal) ||
                      !string.Equals(user.TeamId, definition.TeamId, StringComparison.Ordinal) ||
-                     user.ApprovalLevel != definition.ApprovalLevel)
+                     user.ApprovalLevel != definition.ApprovalLevel ||
+                     !SameRoles(user.ExtraRoles, definition.ExtraRoles))
             {
                 user = user with
                 {
@@ -99,6 +101,7 @@ public sealed class HoursServerAcceptanceSeedService : IHostedService
                     DivisionId = definition.DivisionId,
                     TeamId = definition.TeamId,
                     ApprovalLevel = definition.ApprovalLevel,
+                    ExtraRoles = definition.ExtraRoles,
                 };
                 await users.SaveAsync(user, cancellationToken);
                 logger.LogInformation(
@@ -140,20 +143,32 @@ public sealed class HoursServerAcceptanceSeedService : IHostedService
     [
         new("ada", "ada", "Ada Lovelace", HoursActorRole.Employee, "norway.private.flex", HoursCustomerCatalog.NordvikOffice, "division-north", "team-a"),
         new("bob", "bob", "Bob Stone", HoursActorRole.Employee, "norway.state.flex", HoursCustomerCatalog.NordvikStation, "division-north", "team-b"),
-        new("alice", "alice", "Alice Manager", HoursActorRole.Manager, "norway.private.flex", HoursCustomerCatalog.NordvikOffice, "division-north", "team-a", 1),
+        new("alice", "alice", "Alice Manager", HoursActorRole.Manager, "norway.private.flex", HoursCustomerCatalog.NordvikOffice, "division-north", "team-a", 1, [HoursActorRole.Employee, HoursActorRole.Administrator]),
         new("nina", "nina", "Nina Manager", HoursActorRole.Manager, "norway.state.flex", HoursCustomerCatalog.NordvikStation, "division-north", "team-b", 1),
-        new("charlie", "charlie", "Charlie Director", HoursActorRole.Manager, "norway.private.flex", HoursCustomerCatalog.NordvikOffice, "division-north", null, 2),
-        new("helen", "helen", "Helen HR", HoursActorRole.HumanResources, "norway.private.flex", HoursCustomerCatalog.NordvikOffice, "division-north", null),
+        new("charlie", "charlie", "Charlie Director", HoursActorRole.Manager, "norway.private.flex", HoursCustomerCatalog.NordvikOffice, "division-north", null, 2, [HoursActorRole.Employee]),
+        new("helen", "helen", "Helen HR", HoursActorRole.HumanResources, "norway.private.flex", HoursCustomerCatalog.NordvikOffice, "division-north", null, ExtraRoles: [HoursActorRole.Administrator]),
         new("audrey", "audrey", "Audrey Auditor", HoursActorRole.Auditor, "norway.private.flex", HoursCustomerCatalog.NordvikOffice, "division-north", null),
         new("system", "system", "Platform System", HoursActorRole.System, "hours.platform", HoursCustomerCatalog.Platform, null, null),
         new("pierre", "pierre", "Pierre Curie", HoursActorRole.Employee, "france.annualisation", HoursCustomerCatalog.AtelierCurie, "division-france", "team-france"),
-        new("marc", "marc", "Marc Approver", HoursActorRole.Manager, "france.annualisation", HoursCustomerCatalog.AtelierCurie, "division-france", "team-france", 1),
+        new("marc", "marc", "Marc Approver", HoursActorRole.Manager, "france.annualisation", HoursCustomerCatalog.AtelierCurie, "division-france", "team-france", 1, [HoursActorRole.Employee]),
         new("anna", "anna", "Anna Kowalska", HoursActorRole.Employee, "poland.okres-rozliczeniowy", HoursCustomerCatalog.WarsawSettlement, "division-poland", "team-poland"),
-        new("kasia", "kasia", "Kasia Employer", HoursActorRole.Manager, "poland.okres-rozliczeniowy", HoursCustomerCatalog.WarsawSettlement, "division-poland", "team-poland", 1),
+        new("kasia", "kasia", "Kasia Employer", HoursActorRole.Manager, "poland.okres-rozliczeniowy", HoursCustomerCatalog.WarsawSettlement, "division-poland", "team-poland", 1, [HoursActorRole.Administrator]),
         new("liisa", "liisa", "Liisa Virtanen", HoursActorRole.Employee, "finland.liukuva-tyoaika", HoursCustomerCatalog.HelsinkiFlex, "division-finland", "team-finland"),
         new("jamie", "jamie", "Jamie Shaw", HoursActorRole.Employee, "england.retail.rigid", HoursCustomerCatalog.GameRetail, "division-uk", "team-high-street"),
-        new("priya", "priya", "Priya Shah", HoursActorRole.HumanResources, "england.retail.rigid", HoursCustomerCatalog.GameRetail, "division-uk", null),
+        new("priya", "priya", "Priya Shah", HoursActorRole.HumanResources, "england.retail.rigid", HoursCustomerCatalog.GameRetail, "division-uk", null, ExtraRoles: [HoursActorRole.Administrator]),
+        new("jordan", "jordan", "Jordan Hale", HoursActorRole.Employee, "usa.flsa.weekly", HoursCustomerCatalog.PacificYard, "division-west", "team-bay"),
+        new("pat", "pat", "Pat Store Lead", HoursActorRole.Manager, "usa.flsa.weekly", HoursCustomerCatalog.PacificYard, "division-west", "team-bay", 1, [HoursActorRole.Employee, HoursActorRole.Administrator]),
+        new("casey", "casey", "Casey Nguyen", HoursActorRole.Employee, "canada.ontario.esa", HoursCustomerCatalog.TorontoYard, "division-ontario", "team-yard"),
+        new("yuki", "yuki", "Yuki Sato", HoursActorRole.Employee, "japan.lsa.36", HoursCustomerCatalog.TokyoFlex, "division-kanto", "team-tokyo"),
+        new("lena", "lena", "Lena Vogel", HoursActorRole.Employee, "germany.arbzg", HoursCustomerCatalog.BerlinOffice, "division-berlin", "team-mitte"),
     ];
+
+    private static bool SameRoles(IReadOnlyList<HoursActorRole>? left, IReadOnlyList<HoursActorRole>? right)
+    {
+        var first = left ?? [];
+        var second = right ?? [];
+        return first.Count == second.Count && first.All(second.Contains);
+    }
 
     private sealed record AcceptanceIdentity(
         string EmployeeId,
@@ -164,5 +179,6 @@ public sealed class HoursServerAcceptanceSeedService : IHostedService
         string OrganisationId,
         string? DivisionId,
         string? TeamId,
-        int? ApprovalLevel = null);
+        int? ApprovalLevel = null,
+        IReadOnlyList<HoursActorRole>? ExtraRoles = null);
 }

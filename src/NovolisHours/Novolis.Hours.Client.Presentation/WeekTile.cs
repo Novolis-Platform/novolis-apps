@@ -11,4 +11,5 @@ public sealed record WeekTile(
     bool HasRegistration,
     bool IsToday,
     string Chip,
+    string Detail,
     WorkDayResponse Day);

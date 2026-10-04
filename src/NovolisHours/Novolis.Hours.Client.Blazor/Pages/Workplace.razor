@@ -1,0 +1,74 @@
+@page "/workplace"
+@inject HoursBrowserSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>Workplace</PageTitle>
+
+@if (Session.CurrentUser is null)
+{
+    <section class="card"><p role="alert">Sign in before opening the workplace.</p><a href="/">Return to sign in</a></section>
+}
+else if (!HoursRoleSurface.ShowsWorkplace(Session.CurrentUser.AssignedRoles))
+{
+    <section class="card">
+        <p class="eyebrow">Workplace</p>
+        <h1>Customer administrator only</h1>
+        <p class="muted">The workplace administrator sets the rules and hires people.</p>
+    </section>
+}
+else
+{
+    <section class="card">
+        <p class="eyebrow">@workplaceName</p>
+        <h1>Workplace</h1>
+        <p>This is the customer administrator surface. Set the rules, hire people, and close months.</p>
+        <div class="toolbar">
+            <a class="action-link" href="rules">Rules</a>
+            <a href="people">People</a>
+            <a href="reviews">Reviews</a>
+        </div>
+        @if (people.Count > 0)
+        {
+            <ul>
+                @foreach (var person in people)
+                {
+                    <li>@person.DisplayName · @HoursClientRoleSet.Label(person.AssignedRoles) · @person.EmployeeId</li>
+                }
+            </ul>
+        }
+    </section>
+}
+
+@code {
+    private readonly List<HoursUserResponse> people = [];
+    private string workplaceName = "Workplace";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.RestoreAsync();
+        if (Session.CurrentUser is null)
+        {
+            return;
+        }
+
+        if (!HoursRoleSurface.ShowsWorkplace(Session.CurrentUser.AssignedRoles))
+        {
+            return;
+        }
+
+        if (Session.ApiClient is null)
+        {
+            return;
+        }
+
+        var users = await Session.ApiClient.ListUsersAsync();
+        var self = users.FirstOrDefault(user =>
+            string.Equals(user.EmployeeId, Session.CurrentUser.EmployeeId, StringComparison.OrdinalIgnoreCase));
+        var organisationId = self?.OrganisationId ?? string.Empty;
+        people.AddRange(users.Where(user =>
+            string.Equals(user.OrganisationId, organisationId, StringComparison.OrdinalIgnoreCase)));
+        var shop = (await Session.ApiClient.ListCustomersAsync())
+            .FirstOrDefault(customer => string.Equals(customer.Id, organisationId, StringComparison.OrdinalIgnoreCase));
+        workplaceName = shop?.DisplayName ?? organisationId;
+    }
+}

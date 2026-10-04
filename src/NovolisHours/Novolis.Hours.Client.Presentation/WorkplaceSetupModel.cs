@@ -3,10 +3,10 @@ using Novolis.Hours.Contracts;
 
 namespace Novolis.Hours.Client.Presentation;
 
-/// <summary>Four-step administrator walkthrough: pattern, name, people, done.</summary>
+/// <summary>Obsolete walkthrough retained so older tests compile against the commercial open form.</summary>
 public sealed class WorkplaceSetupModel
 {
-    /// <summary>Builds the walkthrough from host templates.</summary>
+    /// <summary>Builds from leftover templates. Prefer <see cref="CustomerOpenModel"/>.</summary>
     public WorkplaceSetupModel(IReadOnlyList<HoursWorkplaceTemplateResponse> templates)
     {
         ArgumentNullException.ThrowIfNull(templates);
@@ -14,25 +14,25 @@ public sealed class WorkplaceSetupModel
         SelectedTemplateId = Templates.Length > 0 ? Templates[0].Id : string.Empty;
     }
 
-    /// <summary>Nordvik office and Game shop cards.</summary>
+    /// <summary>Legacy template cards. Not shown on Setup.</summary>
     public ImmutableArray<HoursWorkplaceTemplateResponse> Templates { get; }
 
-    /// <summary>1 pattern, 2 workplace, 3 people, 4 done.</summary>
+    /// <summary>Unused step counter.</summary>
     public int Step { get; set; } = 1;
 
-    /// <summary>Selected template id.</summary>
+    /// <summary>Legacy template id.</summary>
     public string SelectedTemplateId { get; set; }
 
-    /// <summary>New workplace slug.</summary>
+    /// <summary>Customer slug.</summary>
     public string OrganisationId { get; set; } = string.Empty;
 
-    /// <summary>New workplace display name.</summary>
+    /// <summary>Customer name.</summary>
     public string DisplayName { get; set; } = string.Empty;
 
-    /// <summary>People added during this walkthrough.</summary>
+    /// <summary>People added during a leftover walkthrough.</summary>
     public List<HoursUserResponse> People { get; } = [];
 
-    /// <summary>Created workplace after step 2 succeeds.</summary>
+    /// <summary>Created customer.</summary>
     public HoursCustomerResponse? Created { get; set; }
 
     /// <summary>Selected template, when known.</summary>
@@ -40,22 +40,19 @@ public sealed class WorkplaceSetupModel
         Templates.FirstOrDefault(item =>
             item.Id.Equals(SelectedTemplateId, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Whether the pattern is attendance-only Game shop hours.</summary>
+    /// <summary>Whether the leftover Game template is attendance-only.</summary>
     public bool AttendanceConfirmationOnly =>
         SelectedTemplate?.Prototype.AttendanceConfirmationOnly == true ||
         Created?.AttendanceConfirmationOnly == true;
 
-    /// <summary>Commit verb the new people will see.</summary>
-    public string CommitPreview =>
-        AttendanceConfirmationOnly ? "I was here" : "Worked as scheduled";
+    /// <summary>Commit verb employees see.</summary>
+    public string CommitPreview => "Worked as planned";
 
-    /// <summary>Who to add next.</summary>
+    /// <summary>Who the customer administrator should hire next.</summary>
     public string PeopleHint =>
-        AttendanceConfirmationOnly
-            ? "Add a shop clerk and HR. There is no store-manager approve step."
-            : "Add an employee and a manager. Flex and paint stay on.";
+        "Add employees after the administrator sets the rules. The administrator may also be HR.";
 
-    /// <summary>Whether step 2 can continue.</summary>
+    /// <summary>Whether a leftover name step can continue.</summary>
     public bool CanNameWorkplace =>
         !string.IsNullOrWhiteSpace(OrganisationId) &&
         !string.IsNullOrWhiteSpace(DisplayName) &&

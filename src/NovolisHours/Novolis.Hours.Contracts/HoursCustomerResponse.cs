@@ -15,4 +15,7 @@ public sealed record HoursCustomerResponse(
     bool AllowsFlex,
     bool AllowsDispute,
     bool AttendanceConfirmationOnly,
-    bool BuiltIn);
+    bool BuiltIn,
+    string OvertimeRule = "",
+    string BreakRule = "",
+    string RestRule = "");

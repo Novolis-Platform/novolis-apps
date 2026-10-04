@@ -22,17 +22,16 @@ public sealed class ReviewMonthModel
             string.Equals(stage.RequiredAction, "Acknowledge", StringComparison.Ordinal));
         HasApproveStage = review.Stages.Any(stage =>
             string.Equals(stage.RequiredAction, "Approve", StringComparison.Ordinal));
-        EmployeePrimaryAction = AttendanceConfirmationOnly || !HasSubmitStage
-            ? "Acknowledge"
-            : "Submit";
-        EmployeePrimaryLabel = AttendanceConfirmationOnly
-            ? "Confirm attendance"
-            : HasSubmitStage
-                ? "Submit"
-                : "Acknowledge";
+        EmployeePrimaryAction = HasSubmitStage ? "Submit" : "Acknowledge";
+        EmployeePrimaryLabel = "Hand month to HR";
         WorkplaceName = days.Count > 0 && !string.IsNullOrWhiteSpace(days[0].OrganisationName)
             ? days[0].OrganisationName
             : review.EmployeeId;
+        UnrecordedWorkingDays = days.Count(day => day.IsWorkingDay && day.Registration is null);
+        ChangedDays = days.Count(day =>
+            day.Registration?.Intent == WorkRegistrationIntent.ManualRegistration);
+        GapLabel = WeekStudioModel.GapSentence(UnrecordedWorkingDays);
+        ChangedLabel = WeekStudioModel.ChangedSentence(ChangedDays);
     }
 
     /// <summary>Server review projection.</summary>
@@ -70,4 +69,36 @@ public sealed class ReviewMonthModel
 
     /// <summary>Workplace name shown above the period.</summary>
     public string WorkplaceName { get; }
+
+    /// <summary>Working days with no registration.</summary>
+    public int UnrecordedWorkingDays { get; }
+
+    /// <summary>Days recorded with typed times instead of the usual clock.</summary>
+    public int ChangedDays { get; }
+
+    /// <summary>One sentence HR and the clerk can read about gaps.</summary>
+    public string GapLabel { get; }
+
+    /// <summary>One sentence about days that were not the usual clock.</summary>
+    public string ChangedLabel { get; }
+
+    /// <summary>Who this stage is waiting on, without a policy id.</summary>
+    public static string StageActorLabel(ReviewStageResponse stage)
+    {
+        ArgumentNullException.ThrowIfNull(stage);
+        return stage.RequiredAction switch
+        {
+            "Submit" or "Acknowledge" => "You",
+            "Approve" when stage.Role is "Manager" or "Higher" => "Manager",
+            "Approve" => "HR",
+            _ => string.IsNullOrWhiteSpace(stage.Role) ? "Review" : stage.Role,
+        };
+    }
+
+    /// <summary>Whether the stage is finished.</summary>
+    public static string StageStateLabel(ReviewStageResponse stage)
+    {
+        ArgumentNullException.ThrowIfNull(stage);
+        return stage.IsComplete ? "Done" : "Waiting";
+    }
 }

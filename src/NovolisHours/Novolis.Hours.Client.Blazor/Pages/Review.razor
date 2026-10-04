@@ -14,20 +14,30 @@ else if (month is null && string.IsNullOrWhiteSpace(error))
 else if (month is not null)
 {
     <section class="card">
-        <p class="eyebrow">@month.WorkplaceName · Review</p>
+        <p class="eyebrow">@month.WorkplaceName</p>
         <h1>@HoursClock.FormatDate(month.Review.From) – @HoursClock.FormatDate(month.Review.Through)</h1>
-        <p class="muted">@month.Review.EmployeeId · @month.Review.PolicyId · @month.Review.State</p>
+        <p>@(month.Review.State == "Approved" ? "Approved" : month.Review.State == "Open" ? "Waiting" : month.Review.State)</p>
+        <p>@month.GapLabel</p>
+        @if (!string.IsNullOrWhiteSpace(month.ChangedLabel))
+        {
+            <p class="muted">@month.ChangedLabel</p>
+        }
         <div class="summary-grid">
-            <div><span class="muted">Expected</span><strong>@HoursClock.Format(month.ExpectedWork)</strong></div>
-            <div><span class="muted">Actual</span><strong>@HoursClock.Format(month.ActualWork)</strong></div>
+            <div><span class="muted">Usual</span><strong>@HoursClock.Format(month.ExpectedWork)</strong></div>
+            <div><span class="muted">Recorded</span><strong>@HoursClock.Format(month.ActualWork)</strong></div>
         </div>
         <div class="week-grid">
             @foreach (var day in month.Days)
             {
-                <a class="week-tile" href="/workdays/@day.EmployeeId/@day.NominalDate.ToString("yyyy-MM-dd")">
-                    <span class="muted">@HoursClock.FormatDate(day.NominalDate).Split(' ')[0]</span>
-                    <strong>@HoursClock.Format(day.ExpectedWork)</strong>
-                    <span class="muted">@WeekStudioModel.ChipFor(day)</span>
+                var chip = WeekStudioModel.ChipFor(day);
+                <a class="week-tile @(chip == "Changed" ? "changed" : null) @(chip == "Closed" ? "shut" : null) @(chip == "Not recorded" ? "gap" : null)"
+                   href="/workdays/@day.EmployeeId/@day.NominalDate.ToString("yyyy-MM-dd")">
+                    <span class="week-when">
+                        <strong>@HoursClock.FormatDate(day.NominalDate).Split(' ')[0]</strong>
+                        <span class="muted">@HoursClock.FormatDayMonth(day.NominalDate)</span>
+                    </span>
+                    <span>@chip</span>
+                    <span class="muted week-detail">@WeekStudioModel.DetailFor(day)</span>
                 </a>
             }
         </div>
@@ -35,13 +45,15 @@ else if (month is not null)
         {
             <p class="status">Changed after approval: configured review steps are outstanding again.</p>
         }
-        @if (Session.CurrentUser?.Role != HoursClientRole.Auditor)
+        @if (Session.CurrentUser is not null && !Session.CurrentUser.Has(HoursClientRole.Auditor))
         {
             <label>Comment <input @bind="actionComment" /></label>
         }
         <div class="toolbar">
-            @if (Session.CurrentUser?.Role == HoursClientRole.Employee &&
-                Session.CurrentUser.EmployeeId == month.Review.EmployeeId)
+            @if (Session.CurrentUser is not null &&
+                Session.CurrentUser.Has(HoursClientRole.Employee) &&
+                Session.CurrentUser.EmployeeId == month.Review.EmployeeId &&
+                (month.HasSubmitStage || month.HasAcknowledgeStage))
             {
                 <button class="action" @onclick="() => RecordAsync(month.EmployeePrimaryAction)">@month.EmployeePrimaryLabel</button>
                 @if (month.HasAcknowledgeStage && month.HasSubmitStage)
@@ -54,12 +66,19 @@ else if (month is not null)
                 }
             }
             @if (month.HasApproveStage &&
-                Session.CurrentUser?.Role is HoursClientRole.Manager or HoursClientRole.HumanResources or HoursClientRole.Higher or HoursClientRole.Administrator)
+                Session.CurrentUser is not null &&
+                (Session.CurrentUser.Has(HoursClientRole.Manager) ||
+                 Session.CurrentUser.Has(HoursClientRole.HumanResources) ||
+                 Session.CurrentUser.Has(HoursClientRole.Higher) ||
+                 Session.CurrentUser.Has(HoursClientRole.Administrator)))
             {
                 <button class="action" @onclick='() => RecordAsync("Approve")'>Approve</button>
             }
             @if (month.AllowsDispute &&
-                Session.CurrentUser?.Role is HoursClientRole.HumanResources or HoursClientRole.Higher or HoursClientRole.Administrator)
+                Session.CurrentUser is not null &&
+                (Session.CurrentUser.Has(HoursClientRole.HumanResources) ||
+                 Session.CurrentUser.Has(HoursClientRole.Higher) ||
+                 Session.CurrentUser.Has(HoursClientRole.Administrator)))
             {
                 <button @onclick='() => RecordAsync("Resolve")'>Resolve</button>
             }
@@ -67,13 +86,13 @@ else if (month is not null)
     </section>
 
     <section class="card">
-        <h2>Stages</h2>
+        <h2>Who still needs to act</h2>
         <div class="toolbar">
             @foreach (var stage in month.Review.Stages)
             {
                 <span class="week-tile @(stage.IsComplete ? "open" : null)">
-                    @stage.Id · @stage.Role
-                    @(stage.IsComplete ? "complete" : "outstanding")
+                    @ReviewMonthModel.StageActorLabel(stage)
+                    · @ReviewMonthModel.StageStateLabel(stage)
                 </span>
             }
         </div>

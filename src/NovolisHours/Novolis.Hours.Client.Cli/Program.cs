@@ -51,7 +51,7 @@ day.SetAction(async (parse, cancellation) =>
 });
 
 var recordCommand = new Command("record", "Record worked-as-scheduled after confirmation");
-var scheduled = new Option<bool>("--scheduled") { Description = "Worked as scheduled", DefaultValueFactory = _ => true };
+var scheduled = new Option<bool>("--scheduled") { Description = "Worked as planned", DefaultValueFactory = _ => true };
 recordCommand.Options.Add(scheduled);
 recordCommand.Options.Add(dateOption);
 recordCommand.SetAction(async (parse, cancellation) =>

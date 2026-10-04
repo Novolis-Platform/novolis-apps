@@ -9,4 +9,10 @@ public sealed record HoursUserResponse(
     string OrganisationId,
     string? DivisionId,
     string? TeamId,
-    int? ApprovalLevel);
+    int? ApprovalLevel,
+    IReadOnlyList<HoursClientRole>? ExtraRoles = null)
+{
+    /// <summary>Primary role plus extras.</summary>
+    public IReadOnlyList<HoursClientRole> AssignedRoles =>
+        HoursClientRoleSet.Combine(Role, ExtraRoles);
+}

@@ -10,4 +10,5 @@ public sealed record CreateUserRequest(
     string? OrganisationId = null,
     string? DivisionId = null,
     string? TeamId = null,
-    int? ApprovalLevel = null);
+    int? ApprovalLevel = null,
+    IReadOnlyList<HoursClientRole>? ExtraRoles = null);

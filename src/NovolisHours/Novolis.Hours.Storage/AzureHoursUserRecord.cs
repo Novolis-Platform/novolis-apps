@@ -49,6 +49,9 @@ public sealed class AzureHoursUserRecord : IHasId
     /// <summary>Optional manager approval level.</summary>
     public int? ApprovalLevel { get; set; }
 
+    /// <summary>Comma-separated extra roles. The primary role stays on <see cref="Role"/>.</summary>
+    public string ExtraRoles { get; set; } = string.Empty;
+
     /// <summary>Creates a scalar Azure row from the product document.</summary>
     public static AzureHoursUserRecord FromDocument(HoursUserDocument document) =>
         new()
@@ -66,6 +69,7 @@ public sealed class AzureHoursUserRecord : IHasId
             DivisionId = document.DivisionId,
             TeamId = document.TeamId,
             ApprovalLevel = document.ApprovalLevel,
+            ExtraRoles = string.Join(',', document.ExtraRoles ?? []),
         };
 
     /// <summary>Rehydrates the immutable product document from an Azure row.</summary>
@@ -90,7 +94,27 @@ public sealed class AzureHoursUserRecord : IHasId
             OrganisationId,
             DivisionId,
             TeamId,
-            ApprovalLevel);
+            ApprovalLevel,
+            ParseRoles(ExtraRoles));
+    }
+
+    private static IReadOnlyList<HoursActorRole>? ParseRoles(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var roles = new List<HoursActorRole>();
+        foreach (var part in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (Enum.TryParse<HoursActorRole>(part, ignoreCase: true, out var role) && !roles.Contains(role))
+            {
+                roles.Add(role);
+            }
+        }
+
+        return roles.Count == 0 ? null : roles;
     }
 
     private static string? FormatTime(TimeOnly? value) =>

@@ -95,7 +95,7 @@ public sealed class HoursWorkplaceDirectory
         DateOnly date,
         string? calendarVersionOverride = null) =>
         HoursCustomerCatalog.GetCalendar(
-            ForEmployee(employeeId),
+            WithUsualHours(ForEmployee(employeeId), employeeId),
             employeeId,
             date,
             calendarVersionOverride,
@@ -125,6 +125,59 @@ public sealed class HoursWorkplaceDirectory
         await store.SaveAsync(FromCustomer(customer), cancellationToken);
         extras[customer.Id] = customer;
         return customer;
+    }
+
+    /// <summary>Replaces rules on an administrator-created workplace. Location and calendar stay.</summary>
+    public async Task<HoursCustomer> UpdateRulesAsync(
+        string organisationId,
+        bool saturdayIsWorkingDay,
+        bool allowsFlex,
+        bool allowsDispute,
+        string reviewPolicyId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(organisationId);
+        if (!extras.TryGetValue(organisationId, out var existing))
+        {
+            throw new InvalidOperationException(
+                "Built-in customers keep their catalog rules. Change rules on a customer you created.");
+        }
+
+        if (!HoursReviewWorkflowCatalog.TryGet(reviewPolicyId, out _))
+        {
+            throw new ArgumentOutOfRangeException(nameof(reviewPolicyId), reviewPolicyId, "Unknown review policy.");
+        }
+
+        var updated = existing with
+        {
+            SaturdayIsWorkingDay = saturdayIsWorkingDay,
+            AllowsFlex = allowsFlex,
+            AllowsDispute = allowsDispute,
+            AttendanceConfirmationOnly = false,
+            ReviewPolicyId = reviewPolicyId,
+        };
+        await store.SaveAsync(FromCustomer(updated), cancellationToken);
+        extras[updated.Id] = updated;
+        return updated;
+    }
+
+    private HoursCustomer WithUsualHours(HoursCustomer customer, string employeeId)
+    {
+        var user = users.FindByEmployeeId(employeeId);
+        if (user?.ExpectedIntervalOverrideStart is not { } start ||
+            user.ExpectedIntervalOverrideEnd is not { } end ||
+            end <= start)
+        {
+            return customer;
+        }
+
+        var usual = new LocalTimeRange(start, end);
+        return customer with
+        {
+            ExpectedWork = usual.Duration,
+            RoutineMorning = usual,
+            RoutineAfternoon = usual,
+        };
     }
 
     private static HoursCustomerDocument FromCustomer(HoursCustomer customer) =>

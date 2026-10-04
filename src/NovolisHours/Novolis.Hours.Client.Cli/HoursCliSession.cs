@@ -65,7 +65,7 @@ internal sealed class HoursCliSession : IDisposable
                 WorkRegistrationIntent.WorkedAsScheduled,
                 [],
                 null,
-                "Worked as scheduled."),
+                "Worked as planned."),
             cancellationToken);
     }
 

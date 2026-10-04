@@ -1,0 +1,156 @@
+@page "/people"
+@inject HoursBrowserSession Session
+
+<PageTitle>People</PageTitle>
+
+@if (Session.CurrentUser is null || !Session.CurrentUser.Has(HoursClientRole.Administrator))
+{
+    <section class="card">
+        <p class="eyebrow">People</p>
+        <h1>Customer administrator only</h1>
+        <p class="muted">The workplace administrator adds clerks, HR, and an auditor on this customer.</p>
+    </section>
+}
+else
+{
+    <section class="card">
+        <p class="eyebrow">@workplace</p>
+        <h1>People</h1>
+        <p class="muted">Everyone on this customer. Add the roster after the rules are set, before anyone records a month.</p>
+        <div class="form-grid">
+            <label>Employee id <input @bind="employeeId" autocomplete="off" /></label>
+            <label>Login <input @bind="login" autocomplete="username" /></label>
+            <label>Password <input @bind="password" type="password" autocomplete="new-password" /></label>
+            <label>Display name <input @bind="displayName" autocomplete="name" /></label>
+            <label>Signs the journal as
+                <select @bind="role">
+                    <option value="@HoursClientRole.Employee">Employee</option>
+                    <option value="@HoursClientRole.HumanResources">HR</option>
+                    <option value="@HoursClientRole.Auditor">Auditor</option>
+                    <option value="@HoursClientRole.Manager">Manager</option>
+                    <option value="@HoursClientRole.Administrator">Admin</option>
+                </select>
+            </label>
+        </div>
+        <fieldset class="form-grid">
+            <legend class="muted">This person is also</legend>
+            <label><input type="checkbox" @bind="alsoEmployee" /> Employee (has a week)</label>
+            <label><input type="checkbox" @bind="alsoManager" /> Manager</label>
+            <label><input type="checkbox" @bind="alsoHr" /> HR</label>
+            <label><input type="checkbox" @bind="alsoAdmin" /> Admin</label>
+        </fieldset>
+        <button class="action" @onclick="AddAsync" disabled="@busy">@(busy ? "Adding…" : "Add person")</button>
+        @if (people.Count > 0)
+        {
+            <ul>
+                @foreach (var person in people)
+                {
+                        <li>@person.DisplayName · @HoursClientRoleSet.Label(person.AssignedRoles) · @person.EmployeeId</li>
+                }
+            </ul>
+        }
+    </section>
+}
+
+@if (!string.IsNullOrWhiteSpace(status))
+{
+    <p class="status" role="status">@status</p>
+}
+
+@code {
+    private readonly List<HoursUserResponse> people = [];
+    private string workplace = string.Empty;
+    private string employeeId = string.Empty;
+    private string login = string.Empty;
+    private string password = "Workplace-2026-Strong!";
+    private string displayName = string.Empty;
+    private HoursClientRole role = HoursClientRole.Employee;
+    private bool alsoEmployee;
+    private bool alsoManager;
+    private bool alsoHr;
+    private bool alsoAdmin;
+    private string status = string.Empty;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.RestoreAsync();
+        if (Session.CurrentUser is null ||
+            !Session.CurrentUser.Has(HoursClientRole.Administrator) ||
+            Session.ApiClient is null)
+        {
+            return;
+        }
+
+        var users = await Session.ApiClient.ListUsersAsync();
+        var self = users.FirstOrDefault(user =>
+            string.Equals(user.EmployeeId, Session.CurrentUser.EmployeeId, StringComparison.OrdinalIgnoreCase));
+        workplace = self?.OrganisationId ?? "this workplace";
+        people.AddRange(users.Where(user =>
+            string.Equals(user.OrganisationId, workplace, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async Task AddAsync()
+    {
+        if (Session.ApiClient is null)
+        {
+            return;
+        }
+
+        busy = true;
+        status = string.Empty;
+        try
+        {
+            var extras = new List<HoursClientRole>();
+            if (alsoEmployee && role != HoursClientRole.Employee)
+            {
+                extras.Add(HoursClientRole.Employee);
+            }
+
+            if (alsoManager && role != HoursClientRole.Manager)
+            {
+                extras.Add(HoursClientRole.Manager);
+            }
+
+            if (alsoHr && role != HoursClientRole.HumanResources)
+            {
+                extras.Add(HoursClientRole.HumanResources);
+            }
+
+            if (alsoAdmin && role != HoursClientRole.Administrator)
+            {
+                extras.Add(HoursClientRole.Administrator);
+            }
+
+            var created = await Session.ApiClient.CreateUserAsync(new CreateUserRequest(
+                employeeId.Trim(),
+                string.IsNullOrWhiteSpace(login) ? employeeId.Trim() : login.Trim(),
+                password,
+                displayName.Trim(),
+                role,
+                workplace,
+                "division-uk",
+                "team-high-street",
+                role == HoursClientRole.Manager ? 1 : null,
+                extras));
+            people.Add(created);
+            employeeId = string.Empty;
+            login = string.Empty;
+            displayName = string.Empty;
+            role = HoursClientRole.Employee;
+            alsoEmployee = false;
+            alsoManager = false;
+            alsoHr = false;
+            alsoAdmin = false;
+        }
+        catch (Exception exception)
+        {
+            status = exception.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+}

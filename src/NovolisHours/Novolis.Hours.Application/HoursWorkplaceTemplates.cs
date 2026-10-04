@@ -1,6 +1,6 @@
 namespace Novolis.Hours.Application;
 
-/// <summary>First-class setup patterns: Norwegian flex office and British Game shop.</summary>
+/// <summary>Built-in legal baselines cloned when a location is opened. Not shown as product patterns.</summary>
 public static class HoursWorkplaceTemplates
 {
     /// <summary>Nordvik-style flex office with paint and cascading review.</summary>

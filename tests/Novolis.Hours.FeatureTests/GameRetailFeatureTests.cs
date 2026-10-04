@@ -61,7 +61,7 @@ public sealed class GameRetailFeatureTests
             WorkRegistrationIntent.WorkedAsScheduled,
             [],
             null,
-            "I confirm I attended the contracted shop hours."));
+            "Worked as planned."));
         var day = await jamie.GetWorkDayAsync("jamie", new DateOnly(2026, 3, 9));
         var periodId = await jamie.CreateReviewPeriodAsync(new CreateReviewPeriodRequest(
             "jamie",
@@ -74,7 +74,7 @@ public sealed class GameRetailFeatureTests
             jamie.RecordReviewActionAsync(periodId, new RecordReviewActionRequest("Dispute", null, "I disagree.", null)));
         await jamie.RecordReviewActionAsync(
             periodId,
-            new RecordReviewActionRequest("Acknowledge", null, "I was here.", opened.JournalHead));
+            new RecordReviewActionRequest("Acknowledge", null, "Worked as planned.", opened.JournalHead));
         var afterConfirm = await jamie.GetReviewAsync(periodId);
         await priya.RecordReviewActionAsync(
             periodId,
@@ -104,20 +104,90 @@ public sealed class GameRetailFeatureTests
         await Assert.That(closed.Stages.All(stage => stage.IsComplete)).IsTrue();
         await Assert.That(aliceDay).IsTrue();
         await Assert.That(aliceReview).IsTrue();
-        await Assert.That(studio.CommitLabel).IsEqualTo("I was here");
+        await Assert.That(studio.CommitLabel).IsEqualTo("I worked as planned");
         await Assert.That(studio.AllowsPaint).IsFalse();
         await Assert.That(studio.AllowsFlex).IsFalse();
         await Assert.That(studio.WorkplaceName).IsEqualTo("Game");
         await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 3, 9)).Chip)
-            .IsEqualTo("Here");
+            .IsEqualTo("As planned");
         await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 3, 14)).Chip)
-            .IsEqualTo("Confirm");
+            .IsEqualTo("Not recorded");
         await Assert.That(week.Tiles.Single(tile => tile.Date == new DateOnly(2026, 3, 15)).Chip)
-            .IsEqualTo("Weekend");
-        await Assert.That(reviewUi.EmployeePrimaryLabel).IsEqualTo("Confirm attendance");
+            .IsEqualTo("Closed");
+        await Assert.That(reviewUi.EmployeePrimaryLabel).IsEqualTo("Hand month to HR");
         await Assert.That(reviewUi.AllowsDispute).IsFalse();
         await Assert.That(reviewUi.HasSubmitStage).IsFalse();
         await Assert.That(reviewUi.HasApproveStage).IsTrue();
+    }
+
+    [Test]
+    public async Task Clerk_week_records_late_short_forgotten_and_closed_sunday()
+    {
+        await using var fixture = await HoursAcceptanceFixture.StartAsync();
+        using var jamie = await fixture.ConnectAsync("jamie");
+
+        var monday = new DateOnly(2026, 3, 9);
+        var thursday = new DateOnly(2026, 3, 12);
+        var friday = new DateOnly(2026, 3, 13);
+        var saturday = new DateOnly(2026, 3, 14);
+        var sunday = new DateOnly(2026, 3, 15);
+        await jamie.RecordWorkRegistrationAsync(new RecordWorkRegistrationRequest(
+            "jamie",
+            monday,
+            WorkRegistrationIntent.WorkedAsScheduled,
+            [],
+            null,
+            "Worked as planned."));
+        await jamie.RecordWorkRegistrationAsync(new RecordWorkRegistrationRequest(
+            "jamie",
+            thursday,
+            WorkRegistrationIntent.ManualRegistration,
+            [
+                new WorkIntervalRequest(
+                    HoursClock.ToNominalTimestamp(thursday, new TimeOnly(10, 0), "Europe/London"),
+                    HoursClock.ToNominalTimestamp(thursday, new TimeOnly(18, 0), "Europe/London")),
+            ],
+            null,
+            "Late start."));
+        await jamie.RecordWorkRegistrationAsync(new RecordWorkRegistrationRequest(
+            "jamie",
+            saturday,
+            WorkRegistrationIntent.ManualRegistration,
+            [
+                new WorkIntervalRequest(
+                    HoursClock.ToNominalTimestamp(saturday, new TimeOnly(9, 0), "Europe/London"),
+                    HoursClock.ToNominalTimestamp(saturday, new TimeOnly(16, 0), "Europe/London")),
+            ],
+            null,
+            "Left early."));
+
+        var days = await jamie.GetWorkDaysAsync("jamie", monday, sunday);
+        var week = new WeekStudioModel(days, monday);
+        var periodId = await jamie.CreateReviewPeriodAsync(new CreateReviewPeriodRequest(
+            "jamie",
+            monday,
+            sunday));
+        var review = new ReviewMonthModel(await jamie.GetReviewAsync(periodId), days);
+
+        await Assert.That(week.Tiles.Single(tile => tile.Date == monday).Chip).IsEqualTo("As planned");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == thursday).Chip).IsEqualTo("Changed");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == thursday).Detail)
+            .IsEqualTo("10:00–18:00 · 8:00");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == friday).Chip).IsEqualTo("Not recorded");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == friday).Detail).IsEqualTo("Still to record");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == saturday).Chip).IsEqualTo("Changed");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == saturday).Detail)
+            .IsEqualTo("09:00–16:00 · 7:00");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == sunday).Chip).IsEqualTo("Closed");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == sunday).Detail).IsEqualTo("Shop shut");
+        await Assert.That(week.UnrecordedWorkingDays).IsEqualTo(3);
+        await Assert.That(week.ChangedDays).IsEqualTo(2);
+        await Assert.That(review.GapLabel).IsEqualTo("3 working days are not recorded.");
+        await Assert.That(review.ChangedLabel).IsEqualTo("2 days were changed from the usual hours.");
+        await Assert.That(week.Tiles.Single(tile => tile.Date == thursday).Day.ActualWorked)
+            .IsEqualTo(TimeSpan.FromHours(8));
+        await Assert.That(week.Tiles.Single(tile => tile.Date == saturday).Day.ActualWorked)
+            .IsEqualTo(TimeSpan.FromHours(7));
     }
 
     private static async Task<bool> CaptureForbiddenAsync(Func<Task> operation)

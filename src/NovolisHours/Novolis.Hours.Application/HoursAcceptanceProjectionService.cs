@@ -146,6 +146,52 @@ public sealed class HoursAcceptanceProjectionService
             workplaces.ForEmployee(projection.Period.EmployeeId).AttendanceConfirmationOnly);
     }
 
+    /// <summary>Lists every review period reconstructed from the journal.</summary>
+    public async ValueTask<IReadOnlyList<ReviewInboxItemResponse>> ListReviewsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var events = await journal.ReadAllAsync(cancellationToken);
+        var periods = events
+            .Where(entry => entry.Type == HoursEventType.ReviewPeriodCreated)
+            .Select(entry => entry.ReadPayload<ReviewPeriod>())
+            .OrderBy(period => period.From)
+            .ThenBy(period => period.EmployeeId, StringComparer.Ordinal)
+            .ToArray();
+        var actions = events
+            .Where(entry => entry.Type == HoursEventType.ReviewActionRecorded)
+            .Select(entry => entry.ReadPayload<ReviewAction>())
+            .ToLookup(action => action.PeriodId);
+        var items = new List<ReviewInboxItemResponse>(periods.Length);
+        foreach (var period in periods)
+        {
+            var periodActions = actions[period.Id]
+                .OrderBy(action => action.RecordedAt)
+                .ThenBy(action => action.Id)
+                .ToImmutableArray();
+            var latestFactAt = events
+                .Where(entry =>
+                    entry.EmployeeId == period.EmployeeId &&
+                    entry.Type == HoursEventType.WorkRegistrationRecorded)
+                .Select(entry => (DateTimeOffset?)entry.OccurredAtUtc)
+                .Max();
+            var projection = new ReviewProjector().Project(
+                period,
+                configuration.GetReviewPolicy(period.EmployeeId),
+                periodActions,
+                DateOnly.FromDateTime(DateTime.UtcNow),
+                latestFactAt);
+            items.Add(new ReviewInboxItemResponse(
+                period.Id,
+                period.EmployeeId,
+                period.From,
+                period.Through,
+                projection.Policy.Id,
+                projection.State.ToString()));
+        }
+
+        return items;
+    }
+
     /// <summary>Returns the latest event identity used for optimistic review concurrency.</summary>
     public async ValueTask<Guid?> GetJournalHeadAsync(CancellationToken cancellationToken = default)
     {

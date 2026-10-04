@@ -7,4 +7,13 @@ public sealed record HoursClientUser(
     string EmployeeId,
     string DisplayName,
     HoursClientRole Role,
-    bool IsDemoAdministrator);
+    bool IsDemoAdministrator,
+    IReadOnlyList<HoursClientRole>? ExtraRoles = null)
+{
+    /// <summary>Primary role plus extras.</summary>
+    public IReadOnlyList<HoursClientRole> AssignedRoles =>
+        HoursClientRoleSet.Combine(Role, ExtraRoles);
+
+    /// <summary>Whether this person holds <paramref name="role"/>.</summary>
+    public bool Has(HoursClientRole role) => HoursClientRoleSet.Has(AssignedRoles, role);
+}

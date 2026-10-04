@@ -135,14 +135,38 @@ public sealed class DayStudioModel
     public bool AllowsPaint => Day.AllowsFlex;
 
     /// <summary>Primary commit label for this workplace.</summary>
-    public string CommitLabel =>
-        Day.AttendanceConfirmationOnly ? "I was here" : "Worked as scheduled";
+    public string CommitLabel => "I worked as planned";
 
     /// <summary>Registration note written with the primary commit.</summary>
-    public string CommitNote =>
-        Day.AttendanceConfirmationOnly
-            ? "I confirm I attended the contracted shop hours."
-            : "Worked as scheduled.";
+    public string CommitNote => "Worked as planned.";
+
+    /// <summary>Usual schedule shown on the day.</summary>
+    public string UsualHoursLabel =>
+        Day.RoutineRanges.Length == 0
+            ? "Usual hours are not set."
+            : Day.RoutineRanges.Length == 1
+                ? $"You usually work {HoursClock.Format(Day.RoutineRanges[0].Start, Day.RoutineRanges[0].End)} ({HoursClock.Format(Day.ExpectedWork)})."
+                : $"You usually work {string.Join(" and ", Day.RoutineRanges.Select(range => HoursClock.Format(range.Start, range.End)))} ({HoursClock.Format(Day.ExpectedWork)}).";
+
+    /// <summary>What the clerk has already written for this day.</summary>
+    public string RecordedHoursLabel
+    {
+        get
+        {
+            if (Day.Registration is null && actual.Count == 0)
+            {
+                return "Nothing recorded yet.";
+            }
+
+            var clock = actual.Count == 0
+                ? string.Empty
+                : string.Join(" and ", actual.Select(interval => HoursClock.Format(interval.Start, interval.End)));
+            var hours = HoursClock.Format(ActualWork);
+            return string.IsNullOrEmpty(clock)
+                ? $"You recorded {hours}."
+                : $"You recorded {clock} ({hours}).";
+        }
+    }
 
     /// <summary>Workplace name shown in chrome.</summary>
     public string WorkplaceName =>

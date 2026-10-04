@@ -17,4 +17,13 @@ public sealed record HoursUserDocument(
     string OrganisationId = "norway-org",
     string? DivisionId = null,
     string? TeamId = null,
-    int? ApprovalLevel = null) : IHasId;
+    int? ApprovalLevel = null,
+    IReadOnlyList<HoursActorRole>? ExtraRoles = null) : IHasId
+{
+    /// <summary>Primary role plus extras. The journal still stamps <see cref="Role"/>.</summary>
+    public IReadOnlyList<HoursActorRole> AssignedRoles =>
+        HoursRoleSet.Combine(Role, ExtraRoles);
+
+    /// <summary>Whether this person holds <paramref name="role"/>.</summary>
+    public bool Has(HoursActorRole role) => HoursRoleSet.Has(AssignedRoles, role);
+}

@@ -31,6 +31,7 @@ public sealed class WeekStudioModel
                 day.Registration is not null,
                 day.NominalDate == today,
                 ChipFor(day),
+                DetailFor(day),
                 day));
         }
 
@@ -56,6 +57,37 @@ public sealed class WeekStudioModel
     /// <summary>Sum of recorded actual work.</summary>
     public TimeSpan RecordedWork =>
         Tiles.Aggregate(TimeSpan.Zero, (total, tile) => total + tile.Day.ActualWorked);
+
+    /// <summary>Working days with no registration.</summary>
+    public int UnrecordedWorkingDays =>
+        Tiles.Count(tile => tile.IsWorkingDay && !tile.HasRegistration);
+
+    /// <summary>Days recorded with typed times instead of the usual clock.</summary>
+    public int ChangedDays =>
+        Tiles.Count(tile =>
+            tile.Day.Registration?.Intent == WorkRegistrationIntent.ManualRegistration);
+
+    /// <summary>One sentence a clerk can read about gaps this week.</summary>
+    public string GapLabel => GapSentence(UnrecordedWorkingDays);
+
+    /// <summary>One sentence about days that were not the usual clock.</summary>
+    public string ChangedLabel => ChangedSentence(ChangedDays);
+
+    /// <summary>Gap copy shared with month close.</summary>
+    public static string GapSentence(int unrecorded) =>
+        unrecorded == 0
+            ? "Every working day is recorded."
+            : unrecorded == 1
+                ? "1 working day is not recorded."
+                : $"{unrecorded} working days are not recorded.";
+
+    /// <summary>Changed-day copy shared with month close.</summary>
+    public static string ChangedSentence(int changed) =>
+        changed == 0
+            ? string.Empty
+            : changed == 1
+                ? "1 day was changed from the usual hours."
+                : $"{changed} days were changed from the usual hours.";
 
     /// <summary>Monday on or before <paramref name="date"/>.</summary>
     public static DateOnly MondayOnOrBefore(DateOnly date)
@@ -86,14 +118,66 @@ public sealed class WeekStudioModel
 
         if (!day.IsWorkingDay)
         {
-            return "Weekend";
+            return "Closed";
         }
 
-        if (day.AttendanceConfirmationOnly)
+        if (day.Registration is null)
         {
-            return day.Registration is null ? "Confirm" : "Here";
+            return "Not recorded";
         }
 
-        return day.Registration is null ? "Open" : "Recorded";
+        return day.Registration.Intent == WorkRegistrationIntent.ManualRegistration
+            ? "Changed"
+            : "As planned";
+    }
+
+    /// <summary>Second line on a week row: clock and hours, or why there is nothing to do.</summary>
+    public static string DetailFor(WorkDayResponse day)
+    {
+        ArgumentNullException.ThrowIfNull(day);
+        var chip = ChipFor(day);
+        if (chip == "Holiday")
+        {
+            return "Public holiday";
+        }
+
+        if (chip == "Closed")
+        {
+            return "Shop shut";
+        }
+
+        if (chip == "Paid")
+        {
+            return "Paid day";
+        }
+
+        if (day.Registration is null)
+        {
+            return "Still to record";
+        }
+
+        var clock = RecordedClock(day);
+        var hours = HoursClock.Format(day.ActualWorked > TimeSpan.Zero ? day.ActualWorked : day.ExpectedWork);
+        return string.IsNullOrEmpty(clock) ? hours : $"{clock} · {hours}";
+    }
+
+    private static string RecordedClock(WorkDayResponse day)
+    {
+        if (day.WorkedIntervals.Length > 0)
+        {
+            return string.Join(
+                " and ",
+                day.WorkedIntervals.Select(interval =>
+                    HoursClock.Format(
+                        TimeOnly.FromTimeSpan(interval.Start.TimeOfDay),
+                        TimeOnly.FromTimeSpan(interval.End.TimeOfDay))));
+        }
+
+        if (day.RoutineRanges.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return HoursClock.Format(day.RoutineRanges[0].Start, day.RoutineRanges[^1].End);
     }
 }

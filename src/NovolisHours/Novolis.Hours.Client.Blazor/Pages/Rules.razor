@@ -1,0 +1,139 @@
+@page "/rules"
+@inject HoursBrowserSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>Customer rules</PageTitle>
+
+@if (Session.CurrentUser is null || !Session.CurrentUser.Has(HoursClientRole.Administrator))
+{
+    <section class="card">
+        <p class="eyebrow">Rules</p>
+        <h1>Customer administrator only</h1>
+        <p class="muted">The platform opened the customer. You set how this workplace works before people record time.</p>
+    </section>
+}
+else if (model is null)
+{
+    <p class="muted">Loading rules…</p>
+}
+else
+{
+    <section class="card">
+        <p class="eyebrow">@model.Customer.DisplayName</p>
+        <h1>Rules</h1>
+        <p class="muted">@model.Customer.CountryCode · @model.Customer.TimeZoneId · calendar stays with the location. These flags are yours.</p>
+        <ul class="evidence">
+            <li>@model.Customer.OvertimeRule</li>
+            <li>@model.Customer.BreakRule</li>
+            <li>@model.Customer.RestRule</li>
+        </ul>
+        <div class="form-grid">
+            <label>
+                <input type="checkbox" @bind="model.SaturdayIsWorkingDay" />
+                Saturday is a working day
+            </label>
+            <label>
+                <input type="checkbox" @bind="model.AllowsFlex" />
+                Employees may keep flex
+            </label>
+            <label>
+                <input type="checkbox" @bind="model.AllowsDispute" />
+                Employees may dispute a month
+            </label>
+            <label>How months close
+                <select @bind="model.ReviewPolicyId">
+                    @foreach (var policy in model.Policies)
+                    {
+                        <option value="@policy.Id">@PolicyLabel(policy)</option>
+                    }
+                </select>
+            </label>
+        </div>
+        <button class="action" @onclick="SaveAsync" disabled="@(busy || !model.CanSave)">
+            @(busy ? "Saving…" : "Save rules")
+        </button>
+    </section>
+}
+
+@if (!string.IsNullOrWhiteSpace(status))
+{
+    <p class="status" role="status">@status</p>
+}
+
+@code {
+    private CustomerRulesModel? model;
+    private string status = string.Empty;
+    private bool busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.RestoreAsync();
+        if (Session.CurrentUser is null ||
+            !Session.CurrentUser.Has(HoursClientRole.Administrator) ||
+            Session.ApiClient is null)
+        {
+            return;
+        }
+
+        var users = await Session.ApiClient.ListUsersAsync();
+        var self = users.FirstOrDefault(user =>
+            string.Equals(user.EmployeeId, Session.CurrentUser.EmployeeId, StringComparison.OrdinalIgnoreCase));
+        if (self is null)
+        {
+            status = "This administrator is not attached to a customer.";
+            return;
+        }
+
+        var customer = (await Session.ApiClient.ListCustomersAsync())
+            .FirstOrDefault(item =>
+                string.Equals(item.Id, self.OrganisationId, StringComparison.OrdinalIgnoreCase));
+        if (customer is null)
+        {
+            status = "The customer for this administrator is missing.";
+            return;
+        }
+
+        var policies = await Session.ApiClient.ListReviewPoliciesAsync();
+        model = new CustomerRulesModel(customer, policies);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (model is null || Session.ApiClient is null)
+        {
+            return;
+        }
+
+        busy = true;
+        status = string.Empty;
+        try
+        {
+            var saved = await Session.ApiClient.UpdateCustomerRulesAsync(model.Customer.Id, model.ToRequest());
+            model = new CustomerRulesModel(saved, model.Policies);
+            status = "Rules saved. Hire people next.";
+        }
+        catch (Exception exception)
+        {
+            status = exception.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private static string PolicyLabel(ReviewPolicyCatalogItem policy)
+    {
+        var close = policy.Id switch
+        {
+            "attendance-hr" => "Employee submits the month, HR closes",
+            "cascading-approval" => "Employee submits, managers then HR",
+            "single-approver" => "Employee submits, one manager closes",
+            "employee-hr" => "Employee submits, HR closes",
+            "employer-acknowledged" => "Employer records, employee acknowledges",
+            "employer-only" => "Employer records and closes",
+            _ => policy.Id,
+        };
+        return policy.AllowsDispute ? close : $"{close} · no dispute";
+    }
+}
