@@ -9,7 +9,9 @@ public sealed class WindowsReachAudioPresenter : IReachAudioPresenter
 {
     private readonly object _gate = new();
     private BufferedWaveProvider? _buffer;
+#pragma warning disable CS0618
     private WasapiOut? _output;
+#pragma warning restore CS0618
     private bool _disposed;
 
     /// <inheritdoc />
@@ -34,7 +36,9 @@ public sealed class WindowsReachAudioPresenter : IReachAudioPresenter
                 {
                     DiscardOnBufferOverflow = true,
                 };
+#pragma warning disable CS0618
                 _output = new WasapiOut();
+#pragma warning restore CS0618
                 _output.Init(_buffer);
                 _output.Play();
             }

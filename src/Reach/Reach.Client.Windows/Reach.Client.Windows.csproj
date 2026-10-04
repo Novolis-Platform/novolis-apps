@@ -6,6 +6,7 @@
     <RootNamespace>Novolis.Reach.Client.Windows</RootNamespace>
     <AssemblyName>Novolis.Reach.Client.Windows</AssemblyName>
     <ApplicationTitle>Novolis Reach</ApplicationTitle>
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <LibraryReference Include="Novolis.Reach.Client" />
