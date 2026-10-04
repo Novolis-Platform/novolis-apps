@@ -39,7 +39,7 @@
     <PackageVersion Include="NAudio" Version="3.0.0" />
     <PackageVersion Include="NAudio.Wasapi" Version="3.0.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
-    <PackageVersion Include="MessagePack" Version="3.1.10" />
+    <PackageVersion Include="MessagePack" Version="3.1.11" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0.3" />
     <PackageVersion Include="Xamarin.AndroidX.Browser" Version="1.10.0.1" />
@@ -176,9 +176,9 @@
     <PackageVersion Include="Novolis.Blazor.GraphicalProfile" Version="2026.1.*" />
     <PackageVersion Include="Spectre.Console" Version="0.57.2" />
     <PackageVersion Include="System.CommandLine" Version="2.0.12" />
-    <PackageVersion Include="TUnit" Version="1.72.4" />
-    <PackageVersion Include="TUnit.Aspire" Version="1.21.6" />
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.6" />
+    <PackageVersion Include="TUnit" Version="1.72.16" />
+    <PackageVersion Include="TUnit.Aspire" Version="1.72.16" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.110" />
     <PackageVersion Include="Novolis.Maui.Markdown" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Maui.Activation" Version="2026.1.*" />
