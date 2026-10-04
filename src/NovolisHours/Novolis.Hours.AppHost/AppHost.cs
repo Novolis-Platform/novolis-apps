@@ -1,6 +1,8 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using Azure.Provisioning.Storage;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using System.Reflection;
 
 // Hours deliberately uses Podman for container-backed local development.
@@ -42,9 +44,9 @@ var hoursServer = builder
     .WithEnvironment("Hours__AzureTablesTablePrefix", "novolis-hours")
     .WithEnvironment("Hours__RequireHttps", "true")
     .WithEnvironment("OTEL_SERVICE_NAME", "novolis-hours")
+    .WithRoleAssignments(storage, StorageBuiltInRole.StorageTableDataContributor)
     .WithReference(tables)
     .WaitFor(tables)
-    .WithHttpHealthCheck("/health/ready")
     .PublishAsAzureContainerApp(static (_, app) =>
     {
         // The table journal has one authoritative writer.
@@ -57,13 +59,15 @@ if (publishing)
     hoursServer
         .WithHttpEndpoint(name: "http", targetPort: 8080)
         .WithExternalHttpEndpoints()
-        .WithEnvironment("Hours__TrustedProxyAddresses__0", "*");
+        .WithEnvironment("Hours__TrustedProxyAddresses__0", "*")
+        .WithHttpHealthCheck("/health/ready", endpointName: "http");
 }
 else
 {
     hoursServer
         .WithHttpsEndpoint(name: "https", port: 5700)
-        .WithExternalHttpEndpoints();
+        .WithExternalHttpEndpoints()
+        .WithHttpHealthCheck("/health/ready", endpointName: "https");
 }
 
 if (builder.Environment.IsDevelopment())

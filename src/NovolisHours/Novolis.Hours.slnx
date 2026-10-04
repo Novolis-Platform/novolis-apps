@@ -5,9 +5,6 @@
   <Folder Name="/Novolis.Hours.Application/">
     <Project Path="Novolis.Hours.Application/Novolis.Hours.Application.csproj" />
   </Folder>
-  <Folder Name="/Novolis.Hours.Server.Cli/">
-    <Project Path="Novolis.Hours.Server.Cli/Novolis.Hours.Server.Cli.csproj" />
-  </Folder>
   <Folder Name="/Novolis.Hours.Client.Avalonia/">
     <Project Path="Novolis.Hours.Client.Avalonia/Novolis.Hours.Client.Avalonia.csproj" />
   </Folder>
@@ -20,17 +17,20 @@
   <Folder Name="/Novolis.Hours.Client.Maui/">
     <Project Path="Novolis.Hours.Client.Maui/Novolis.Hours.Client.Maui.csproj" />
   </Folder>
-  <Folder Name="/Novolis.Hours.Client/">
-    <Project Path="Novolis.Hours.Client/Novolis.Hours.Client.csproj" />
-  </Folder>
   <Folder Name="/Novolis.Hours.Client.Presentation/">
     <Project Path="Novolis.Hours.Client.Presentation/Novolis.Hours.Client.Presentation.csproj" />
+  </Folder>
+  <Folder Name="/Novolis.Hours.Client/">
+    <Project Path="Novolis.Hours.Client/Novolis.Hours.Client.csproj" />
   </Folder>
   <Folder Name="/Novolis.Hours.Contracts/">
     <Project Path="Novolis.Hours.Contracts/Novolis.Hours.Contracts.csproj" />
   </Folder>
   <Folder Name="/Novolis.Hours.Domain/">
     <Project Path="Novolis.Hours.Domain/Novolis.Hours.Domain.csproj" />
+  </Folder>
+  <Folder Name="/Novolis.Hours.Server.Cli/">
+    <Project Path="Novolis.Hours.Server.Cli/Novolis.Hours.Server.Cli.csproj" />
   </Folder>
   <Folder Name="/Novolis.Hours.Server/">
     <Project Path="Novolis.Hours.Server/Novolis.Hours.Server.csproj" />

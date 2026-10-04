@@ -194,8 +194,8 @@ public static class HoursServerApplication
         {
             if (string.Equals(addressText, "*", StringComparison.Ordinal))
             {
-                forwardedHeaders.KnownIPNetworks.Add(new IPNetwork(IPAddress.Any, 0));
-                forwardedHeaders.KnownIPNetworks.Add(new IPNetwork(IPAddress.IPv6Any, 0));
+                forwardedHeaders.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Any, 0));
+                forwardedHeaders.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.IPv6Any, 0));
                 continue;
             }
 
