@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Hours.Contracts;
-using Novolis.Http.Client;
 
 namespace Novolis.Hours.Client;
 
@@ -55,7 +54,7 @@ public sealed class HoursApiClient : IDisposable
         var services = new ServiceCollection();
         services.AddHoursApiClient(serviceUri);
         var provider = services.BuildServiceProvider();
-        var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient<HoursHttpClientKey>();
+        var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient(HoursHttpClientKey.HttpClientName);
         return new HoursApiClient(httpClient, provider, configureRequest: null);
     }
 

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Novolis.Http.Client;
 
 namespace Novolis.Hours.Client;
 
@@ -18,10 +17,9 @@ public static class HoursClientServiceCollectionExtensions
             throw new ArgumentException("The Hours service URI must be absolute.", nameof(serviceUri));
         }
 
-        services.AddNovolisHttp();
         services.AddTransient<HoursSessionHandler>();
         return services
-            .AddHttpClientFor<HoursHttpClientKey>(client =>
+            .AddHttpClient(HoursHttpClientKey.HttpClientName, client =>
             {
                 client.BaseAddress = HoursApiClient.EnsureTrailingSlash(serviceUri);
             })

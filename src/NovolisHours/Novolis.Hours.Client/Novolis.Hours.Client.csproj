@@ -9,6 +9,6 @@
     <ProjectReference Include="..\Novolis.Hours.Contracts\Novolis.Hours.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <LibraryReference Include="Novolis.Http.Client" />
+    <PackageReference Include="Microsoft.Extensions.Http" VersionOverride="10.0.12" />
   </ItemGroup>
 </Project>
