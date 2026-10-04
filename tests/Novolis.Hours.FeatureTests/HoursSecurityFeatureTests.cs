@@ -86,6 +86,64 @@ public sealed class HoursSecurityFeatureTests
     }
 
     [Test]
+    public async Task Production_refuses_to_start_while_the_legal_preset_is_unapproved()
+    {
+        Func<Task> build = () =>
+        {
+            using var app = HoursServerApplication.Build(
+                [],
+                builder =>
+                {
+                    builder.WebHost.UseTestServer();
+                    builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Hours:UseInMemoryJournal"] = "true",
+                        ["Hours:EnableDemoAdminCredentials"] = "false",
+                        ["Hours:InitialAdministratorPassword"] = "Cobalt-Raven-45!",
+                    });
+                },
+                environmentName: "Production");
+            return Task.CompletedTask;
+        };
+
+        await Assert.That(build).Throws<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task A_cross_site_browser_origin_receives_secure_none_cookies()
+    {
+        await using var app = HoursServerApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:UseInMemoryJournal"] = "true",
+                    ["Hours:EnableDemoAdminCredentials"] = "false",
+                    ["Hours:InitialAdministratorPassword"] = "Cobalt-Raven-45!",
+                    ["Hours:RequireHttps"] = "true",
+                    ["Hours:PermitDraftLegalPreset"] = "true",
+                    ["Hours:AllowedClientOrigins:0"] = "https://hours.example",
+                });
+                builder.Services.RemoveAll<IPasswordBreachChecker>();
+                builder.Services.AddSingleton<IPasswordBreachChecker>(
+                    AllowingPasswordBreachChecker.Instance);
+            },
+            environmentName: "Production");
+        await app.StartAsync();
+        using var client = app.GetTestClient();
+
+        var httpsResponse = await client.SendAsync(new HttpRequestMessage(
+            HttpMethod.Get,
+            "https://localhost/api/auth/antiforgery"));
+        var antiforgeryCookie = SetCookie(httpsResponse, "__Host-NovolisHours.Antiforgery").ToLowerInvariant();
+        await Assert.That(antiforgeryCookie).Contains("samesite=none");
+        await Assert.That(antiforgeryCookie).Contains("secure");
+        await Assert.That(antiforgeryCookie).DoesNotContain("domain=");
+    }
+
+    [Test]
     public async Task Login_is_rate_limited_without_replacing_security_lockout()
     {
         await using var app = BuildDevelopmentHost(
@@ -270,6 +328,7 @@ public sealed class HoursSecurityFeatureTests
                     ["Hours:EnableDemoAdminCredentials"] = "false",
                     ["Hours:InitialAdministratorPassword"] = "Cobalt-Raven-45!",
                     ["Hours:RequireHttps"] = "true",
+                    ["Hours:PermitDraftLegalPreset"] = "true",
                 });
                 builder.Services.RemoveAll<IPasswordBreachChecker>();
                 builder.Services.AddSingleton<IPasswordBreachChecker>(

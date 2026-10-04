@@ -59,16 +59,41 @@ if (publishing)
     hoursServer
         .WithHttpEndpoint(name: "http", targetPort: 8080)
         .WithExternalHttpEndpoints()
-        .WithEnvironment("Hours__TrustedProxyAddresses__0", "*")
-        .WithHttpHealthCheck("/health/ready", endpointName: "http");
+        .WithEnvironment("Hours__TrustedProxyAddresses__0", "*");
 }
 else
 {
     hoursServer
         .WithHttpsEndpoint(name: "https", port: 5700)
-        .WithExternalHttpEndpoints()
-        .WithHttpHealthCheck("/health/ready", endpointName: "https");
+        .WithExternalHttpEndpoints();
 }
+
+#pragma warning disable ASPIREPROBES001
+var probeEndpoint = publishing ? "http" : "https";
+hoursServer
+    .WithHttpProbe(
+        ProbeType.Startup,
+        "/health/startup",
+        initialDelaySeconds: 5,
+        periodSeconds: 10,
+        timeoutSeconds: 10,
+        failureThreshold: 12,
+        endpointName: probeEndpoint)
+    .WithHttpProbe(
+        ProbeType.Readiness,
+        "/health/ready",
+        periodSeconds: 10,
+        timeoutSeconds: 10,
+        failureThreshold: 3,
+        endpointName: probeEndpoint)
+    .WithHttpProbe(
+        ProbeType.Liveness,
+        "/health/live",
+        periodSeconds: 30,
+        timeoutSeconds: 5,
+        failureThreshold: 3,
+        endpointName: probeEndpoint);
+#pragma warning restore ASPIREPROBES001
 
 if (builder.Environment.IsDevelopment())
 {
@@ -98,7 +123,12 @@ builder.AddProject<Projects.Novolis_Hours_Client_Maui>("hours-client-maui")
 
 var blazor = builder.AddProject<Projects.Novolis_Hours_Client_Blazor>("hours-client-blazor")
     .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", serverEndpoint)
-    .WithExplicitStart();
+    .WithExplicitStart()
+    .PublishAsAzureContainerApp(static (_, app) =>
+    {
+        app.Template.Scale.MinReplicas = 1;
+        app.Template.Scale.MaxReplicas = 1;
+    });
 
 if (publishing)
 {

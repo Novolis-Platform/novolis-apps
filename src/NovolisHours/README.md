@@ -67,7 +67,7 @@ Legal presets provide source citations, explicit review states, and configurable
 - Norway government-handbook starter
 - Belgium, England, France, Poland, and Finland starter presets requiring local review
 
-All included presets start as `Draft`; a tenant must complete country-specific legal and collective-agreement review before production activation. The `Novolis.Time.Worktime.Legal` package is not a substitute for that advice.
+All included presets start as `Draft`. A non-Development host refuses to start until the selected preset's review state is `Approved`. `Hours__PermitDraftLegalPreset` does not approve a preset; it exists so isolated security tests can boot. The `Novolis.Time.Worktime.Legal` package is not a substitute for country and agreement review.
 
 ## Hosts
 
@@ -78,7 +78,7 @@ All included presets start as `Draft`; a tenant must complete country-specific l
 - `Novolis.Hours.Client.Avalonia` — shared-profile native client with real service sign-in, summary loading, and an opt-in UI agent hook.
 - `Novolis.Hours.Client.Maui` — shared-profile mobile and Windows client with real service sign-in, summary loading, and an opt-in UI agent hook.
 - `Novolis.Hours.Client.Blazor` — standalone Blazor WebAssembly client using the same protected API and browser credentials.
-- `Novolis.Hours.AppHost` — Aspire process composition for the server, Azurite Table Storage, and all three clients. The clients are explicit-start resources and receive the server's managed HTTPS endpoint through an endpoint reference.
+- `Novolis.Hours.AppHost` — Aspire composition for local runs and a Container Apps publish. Local runs keep Azurite plus the explicit-start clients. Publish includes the server and the Blazor client only.
 
 The secured v2 HTTP surface exposes `api/v2/work-registrations` and
 `api/v2/employees/{employeeId}/work-registrations`. It uses the same authenticated
@@ -152,18 +152,8 @@ dotnet test tests/Novolis.Hours.AspireTests/Novolis.Hours.AspireTests.csproj -p:
 
 ## Aspire host
 
-The supported local composition is the project-based Aspire AppHost. It starts
-exactly one `hours-server` (`Novolis.Hours.Server`) process and one persistent Azurite Table
-Storage container under Podman. The server connects through the Azurite
-development-storage connection string and exposes `/health/ready` only after
-the Table service is reachable. The standalone Blazor client is available as a
-separate HTTPS resource.
+Local runs use Podman. The AppHost starts one `hours-server` process and a persistent Azurite container for `hours-storage`. The server receives that emulator's table connection string and does not become ready until `/health/ready` can reach storage. Avalonia, MAUI, the CLI, and Blazor are explicit-start local clients. Loopback browser origins keep `SameSite=Strict` cookies.
 
-The AppHost forces `ASPIRE_CONTAINER_RUNTIME=podman`, keeps the bootstrap
-administrator password as a secret parameter, disables demo credentials, and
-wires `/health/ready` into resource readiness. The server exports structured
-logs, traces, and metrics to the Aspire dashboard when
-`OTEL_EXPORTER_OTLP_ENDPOINT` is supplied; direct CLI runs retain local
-structured logging and in-process Activities/Meters without requiring a
-collector. Set `NOVOLIS_AVALONIA_AGENT=1` or `NOVOLIS_MAUI_AGENT=1` to attach
-the native UI agent surfaces; Aspire enables both for its client resources.
+`aspire publish` writes Container Apps templates under the AppHost `aspire-output` directory. That command does not create Azure resources. The published model is the server, the Blazor client, and an Azure Storage account with shared keys disabled. Both container apps stay at one replica. The server identity is limited to Storage Table Data Contributor. A non-loopback Blazor origin receives `SameSite=None` and `Secure` host-only cookies so the browser can send the session on the cross-site API call. Startup probes `/health/startup` and readiness probes `/health/ready` (both include storage). Liveness probes `/health/live` and only checks that the process is up. The host still refuses to run outside Development while the legal preset is unapproved.
+
+Applying those templates with `aspire deploy` creates paid Azure resources. Do that only for a subscription you intend to pay for. Point `OTEL_EXPORTER_OTLP_ENDPOINT` at the environment dashboard's OTLP endpoint when you want traces there. The table account is identity-gated and publicly reachable; geo-redundant storage is a replica, not a backup or an erasure API. Set `NOVOLIS_AVALONIA_AGENT=1` or `NOVOLIS_MAUI_AGENT=1` to attach the native UI agent surfaces; Aspire enables both for its local client resources.

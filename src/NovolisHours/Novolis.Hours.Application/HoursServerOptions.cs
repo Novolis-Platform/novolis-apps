@@ -60,6 +60,12 @@ public sealed class HoursServerOptions
     /// <summary>Stable legal-preset identifier selected for this tenant's starting worktime policy.</summary>
     public string LegalPresetId { get; set; } = "norway.private.flex";
 
+    /// <summary>
+    /// Lets a non-Development host start while the selected legal preset is still unapproved.
+    /// Isolated security tests use this. A tenant host must leave it unset until legal review marks the preset approved.
+    /// </summary>
+    public bool PermitDraftLegalPreset { get; set; }
+
     /// <summary>Optional tenant-specific agreement message shown when financial-compensation hours lack manager agreement.</summary>
     public string? OvertimeAgreementMessage { get; set; }
 }

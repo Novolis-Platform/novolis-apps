@@ -119,7 +119,9 @@ public static class HoursServerApplication
                 () => HealthCheckResult.Healthy("The Hours host has started its storage and security services."));
         builder.Services.AddRateLimiter(HoursServerRateLimitPolicies.AddTo);
         builder.Services.AddSignalR();
-        var secureCookies = !builder.Environment.IsDevelopment();
+        var crossSiteBrowser = HasCrossSiteBrowserOrigin(options.AllowedClientOrigins);
+        var secureCookies = !builder.Environment.IsDevelopment() || crossSiteBrowser;
+        var sameSite = crossSiteBrowser ? SameSiteMode.None : SameSiteMode.Strict;
         var cookiePrefix = secureCookies ? "__Host-NovolisHours" : "NovolisHours";
         builder.Services.AddAntiforgery(antiforgery =>
         {
@@ -130,14 +132,14 @@ public static class HoursServerApplication
                 ? CookieSecurePolicy.Always
                 : CookieSecurePolicy.SameAsRequest;
             antiforgery.Cookie.Path = "/";
-            antiforgery.Cookie.SameSite = SameSiteMode.Strict;
+            antiforgery.Cookie.SameSite = sameSite;
         });
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
                 options.Cookie.Name = $"{cookiePrefix}.Session";
                 options.Cookie.HttpOnly = true;
-                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.SameSite = sameSite;
                 options.Cookie.SecurePolicy = secureCookies
                     ? CookieSecurePolicy.Always
                     : CookieSecurePolicy.SameAsRequest;
@@ -279,6 +281,7 @@ public static class HoursServerApplication
         {
             Predicate = _ => false,
         }).AllowAnonymous();
+        app.MapHealthChecks("/health/startup").AllowAnonymous();
         app.MapHealthChecks("/health/ready").AllowAnonymous();
         app.MapGet("/health", () => Results.NotFound()).AllowAnonymous();
         app.MapHub<HoursServerHub>("/hubs/hours");
@@ -295,6 +298,12 @@ public static class HoursServerApplication
         var legalPreset = app.Services.GetRequiredService<HoursPolicy>().LegalPreset;
         if (legalPreset.ReviewState != LegalReviewState.Approved)
         {
+            if (!app.Environment.IsDevelopment() && !options.PermitDraftLegalPreset)
+            {
+                throw new InvalidOperationException(
+                    $"Hours legal preset '{legalPreset.Id}' is {legalPreset.ReviewState}. Production requires LegalReviewState.Approved. Hours__PermitDraftLegalPreset does not approve the preset.");
+            }
+
             app.Logger.LogWarning(
                 "Hours legal preset {LegalPresetId} is {LegalReviewState}; it remains an informational starter until tenant legal review approves it.",
                 legalPreset.Id,
@@ -366,6 +375,24 @@ public static class HoursServerApplication
             telemetry.UseOtlpExporter();
         }
     }
+
+    private static bool HasCrossSiteBrowserOrigin(IEnumerable<string> origins)
+    {
+        foreach (var origin in origins)
+        {
+            if (Uri.TryCreate(origin, UriKind.Absolute, out var uri) && !IsLoopbackHost(uri.Host))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsLoopbackHost(string host) =>
+        string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(host, "127.0.0.1", StringComparison.Ordinal)
+        || string.Equals(host, "::1", StringComparison.Ordinal);
 
     private static HoursPolicy CreatePolicy(HoursServerOptions options, int year)
     {
