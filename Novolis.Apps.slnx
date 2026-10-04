@@ -15,9 +15,6 @@
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
     <Project Path="src/LiveStudio/studio/LiveStudio.csproj" />
     <Project Path="src/Merglyph/Merglyph.Core/Merglyph.Core.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.Client.Blazor/Novolis.Hours.Client.Blazor.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.Client/Novolis.Hours.Client.csproj" />
-    <Project Path="src/NovolisHours/Novolis.Hours.Server/Novolis.Hours.Server.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.App/PresenceLedger.App.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.Core/PresenceLedger.Core.csproj" />
     <Project Path="src/PresenceLedger/PresenceLedger.Storage/PresenceLedger.Storage.csproj" />
@@ -32,7 +29,6 @@
     <Project Path="tests/CadStudio.Unit/CadStudio.Unit.csproj" />
     <Project Path="tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
     <Project Path="tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />
-    <Project Path="tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj" />
     <Project Path="tests/Novolis.Ndjson.App.Tests/Novolis.Ndjson.App.Tests.csproj" />
     <Project Path="tests/NovolisPdfReader.UiTests/NovolisPdfReader.UiTests.csproj" />
     <Project Path="tests/PresenceLedger.App.Tests/PresenceLedger.App.Tests.csproj" />
