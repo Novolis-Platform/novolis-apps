@@ -1,6 +1,7 @@
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using Microsoft.Maui.Controls.Shapes;
+using Novolis.Maui.Activation;
 using Novolis.Maui.GraphicalProfile;
 using Novolis.Maui.Ndjson;
 using Profile = Novolis.Maui.GraphicalProfile.GraphicalProfile;
@@ -17,7 +18,7 @@ public sealed class MainPage : ContentPage
 {
     private readonly NdjsonDocumentSession _session;
     private readonly NdjsonFilePicker _picker;
-    private readonly DocumentActivationInbox _activationInbox;
+    private readonly MauiActivationInbox<NdjsonOpenRequest> _activationInbox;
     private readonly NdjsonSliceView _sliceView;
     private readonly Label _documentName;
     private readonly Label _documentMeta;
@@ -32,7 +33,7 @@ public sealed class MainPage : ContentPage
     public MainPage(
         NdjsonDocumentSession session,
         NdjsonFilePicker picker,
-        DocumentActivationInbox activationInbox)
+        MauiActivationInbox<NdjsonOpenRequest> activationInbox)
     {
         _session = session;
         _picker = picker;

@@ -34,7 +34,7 @@ public static class HoursServerEndpointMappings
         api.MapGet("/auth/me", (HttpContext context) =>
         {
             var actor = HoursServerPrincipalFactory.ToActor(context.User);
-            return Results.Ok(new CurrentUserResponse(actor.Id, actor.DisplayName, actor.Role));
+            return Results.Ok(new CurrentUserResponse(actor.Id, actor.DisplayName, HoursContractMapping.ToClient(actor.Role)));
         });
         api.MapPost("/auth/logout", LogoutAsync);
         api.MapPost("/auth/password", ChangePasswordAsync);
@@ -246,7 +246,7 @@ public static class HoursServerEndpointMappings
                 policy.LegalPreset.ApprovalSchedule.ManagerReviewBusinessDays,
                 policy.LegalPreset.ApprovalSchedule.HrResolutionBusinessDays),
             policy.SettlementPolicy.Id,
-            policy.SettlementPolicy.Cadence));
+            HoursContractMapping.ToWire(policy.SettlementPolicy.Cadence)));
     }
 
     private static async Task<IResult> ExecuteQueryAsync(
@@ -309,7 +309,7 @@ public static class HoursServerEndpointMappings
                 request.EndedAt,
                 request.BreakStartedAt,
                 request.BreakEndedAt,
-                request.FinancialCompensationSlices ?? [],
+                (request.FinancialCompensationSlices ?? []).Select(HoursContractMapping.ToDomain).ToArray(),
                 request.Comment,
                 request.ManagerAgreementRecorded,
                 actor),
@@ -328,7 +328,7 @@ public static class HoursServerEndpointMappings
                 request.EmployeeId,
                 request.EffectiveDay,
                 request.DurationDelta,
-                request.Reason,
+                HoursContractMapping.ToDomain(request.Reason),
                 request.Comment,
                 HoursServerPrincipalFactory.ToActor(context.User)),
             context.RequestAborted);
@@ -345,7 +345,7 @@ public static class HoursServerEndpointMappings
         var adjustment = await hours.RespondToAdjustmentAsync(
             new RespondToAdjustmentCommand(
                 adjustmentId,
-                request.Response,
+                HoursContractMapping.ToDomain(request.Response),
                 request.Comment,
                 HoursServerPrincipalFactory.ToActor(context.User)),
             context.RequestAborted);
@@ -377,7 +377,7 @@ public static class HoursServerEndpointMappings
         var adjustment = await hours.ResolveAdjustmentAsync(
             new ResolveAdjustmentCommand(
                 adjustmentId,
-                request.Resolution,
+                HoursContractMapping.ToDomain(request.Resolution),
                 request.Comment,
                 HoursServerPrincipalFactory.ToActor(context.User)),
             context.RequestAborted);
@@ -517,7 +517,7 @@ public static class HoursServerEndpointMappings
             request.EmployeeId,
             request.Login,
             request.DisplayName,
-            request.Role);
+            HoursContractMapping.ToActor(request.Role));
         await users.SaveAsync(user, context.RequestAborted);
         return Results.Created($"/api/admin/users/{user.Id}", user);
     }
@@ -601,7 +601,7 @@ public static class HoursServerEndpointMappings
             : Results.Forbid();
 
     private static LoginResponse ToLoginResponse(HoursUserDocument user, bool isDemoAdministrator = false) =>
-        new(user.EmployeeId, user.DisplayName, user.Role, isDemoAdministrator);
+        new(user.EmployeeId, user.DisplayName, HoursContractMapping.ToClient(user.Role), isDemoAdministrator);
 
     
 

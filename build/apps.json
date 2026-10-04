@@ -422,32 +422,24 @@
       "projects": {
         "publishWindows": "src/Reach/Reach.Client.Windows/Reach.Client.Windows.csproj",
         "linuxCi": [
-          "src/Reach/Reach.Protocol/Reach.Protocol.csproj",
-          "src/Reach/Reach.Transport/Reach.Transport.csproj",
-          "src/Reach/Reach.Client/Reach.Client.csproj",
-          "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",
-          "tests/Reach.Unit/Reach.Unit.csproj"
+          "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj"
         ],
         "android": "src/Reach/Reach.Client.Android/Reach.Client.Android.csproj",
         "maui": null,
-        "tests": ["tests/Reach.Unit/Reach.Unit.csproj"],
+        "tests": [],
         "all": [
-          "src/Reach/Reach.Protocol/Reach.Protocol.csproj",
-          "src/Reach/Reach.Transport/Reach.Transport.csproj",
-          "src/Reach/Reach.Client/Reach.Client.csproj",
           "src/Reach/Reach.Client.Windows/Reach.Client.Windows.csproj",
           "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",
           "src/Reach/Reach.Client.Android/Reach.Client.Android.csproj",
           "src/Reach/Reach.Host.Windows.Service/Reach.Host.Windows.Service.csproj",
-          "src/Reach/Reach.Host.Windows/Reach.Host.Windows.csproj",
-          "tests/Reach.Unit/Reach.Unit.csproj"
+          "src/Reach/Reach.Host.Windows/Reach.Host.Windows.csproj"
         ]
       },
       "local": ["windows", "linux", "android"],
       "ship": ["windows-inno", "linux-tar", "android-apk"],
       "validation": {
-        "changedPathGlobs": ["src/Reach/**", "tests/Reach.Unit/**"],
-        "runTests": true,
+        "changedPathGlobs": ["src/Reach/**"],
+        "runTests": false,
         "androidCompile": true,
         "windowsCi": true,
         "windowsWorkload": false,

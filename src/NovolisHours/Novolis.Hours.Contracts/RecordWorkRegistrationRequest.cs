@@ -1,4 +1,3 @@
-using Novolis.Hours.Domain.Work;
 using System.Collections.Immutable;
 
 namespace Novolis.Hours.Contracts;

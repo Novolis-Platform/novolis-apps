@@ -1,4 +1,5 @@
 using Microsoft.Windows.AppLifecycle;
+using Novolis.Maui.Activation;
 using Windows.ApplicationModel.Activation;
 using Windows.Storage;
 
@@ -15,7 +16,7 @@ internal static class WindowsFileActivation
             return;
         }
 
-        ActivationBridge.Publish(NdjsonOpenRequest.FromStream(
+        MauiActivationBridge<NdjsonOpenRequest>.Publish(NdjsonOpenRequest.FromStream(
             file.Name,
             async cancellationToken =>
             {
@@ -35,6 +36,6 @@ internal static class WindowsFileActivation
         if (path is null)
             return;
 
-        ActivationBridge.Publish(NdjsonOpenRequest.FromFile(new FileInfo(Path.GetFullPath(path))));
+        MauiActivationBridge<NdjsonOpenRequest>.Publish(NdjsonOpenRequest.FromFile(new FileInfo(Path.GetFullPath(path))));
     }
 }

@@ -1,4 +1,5 @@
 using LiveStudio.Shared.Launcher;
+using Novolis.Audio.Live.Protocol;
 
 namespace LiveStudio.Shared.Hosting;
 
@@ -32,7 +33,7 @@ public sealed class LiveHostWatchdog : IAsyncDisposable
 
         try
         {
-            await LiveHostEndpoint.WaitUntilListeningAsync(
+            await LiveTransportEndpoints.WaitUntilListeningAsync(
                 LiveLauncherEndpoints.HostReadyTimeout,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -64,7 +65,7 @@ public sealed class LiveHostWatchdog : IAsyncDisposable
                 try
                 {
                     await _host.StartAsync(cancellationToken).ConfigureAwait(false);
-                    await LiveHostEndpoint.WaitUntilListeningAsync(
+                    await LiveTransportEndpoints.WaitUntilListeningAsync(
                         LiveLauncherEndpoints.HostReadyTimeout,
                         cancellationToken).ConfigureAwait(false);
                     _restartCount++;

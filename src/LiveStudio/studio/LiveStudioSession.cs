@@ -203,7 +203,7 @@ internal sealed class LiveStudioSession : IAsyncDisposable
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (await LiveHostEndpoint.IsListeningAsync(cancellationToken).ConfigureAwait(false))
+        if (await LiveTransportEndpoints.IsListeningAsync(cancellationToken).ConfigureAwait(false))
         {
             _launcherStatus = "Using an already-running live host.";
             PublishState();
@@ -216,14 +216,14 @@ internal sealed class LiveStudioSession : IAsyncDisposable
         _connectionStatus = "Waiting for local host IPC...";
         PublishState();
 
-        await LiveHostEndpoint.WaitUntilListeningAsync(
+        await LiveTransportEndpoints.WaitUntilListeningAsync(
             LiveLauncherEndpoints.HostReadyTimeout,
             cancellationToken).ConfigureAwait(false);
     }
 
     private async Task ConnectToHostWithRetryAsync(CancellationToken cancellationToken)
     {
-        await LiveHostEndpoint.WaitUntilListeningAsync(
+        await LiveTransportEndpoints.WaitUntilListeningAsync(
             LiveLauncherEndpoints.HostReadyTimeout,
             cancellationToken).ConfigureAwait(false);
 

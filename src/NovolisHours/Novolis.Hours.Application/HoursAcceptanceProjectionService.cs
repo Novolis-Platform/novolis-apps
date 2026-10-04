@@ -371,7 +371,7 @@ public sealed class HoursAcceptanceProjectionService
         var registration = new WorkRegistration(
             response.Registration.Id,
             new WorkDayKey(response.EmployeeId, response.NominalDate),
-            Enum.Parse<WorkRecordSource>(response.Registration.Source),
+            Enum.Parse<Novolis.Hours.Domain.Work.WorkRecordSource>(response.Registration.Source),
             (WorkRecordIntent)response.Registration.Intent,
             response.Registration.Intervals.Select(interval => new WorkInterval(interval.Start, interval.End)).ToImmutableArray(),
             response.Registration.CorrectsRegistrationId,

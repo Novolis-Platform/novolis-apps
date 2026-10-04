@@ -1,6 +1,7 @@
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Novolis.Avalonia.Reach;
 using Novolis.Reach.Client;
 
 namespace Novolis.Reach.Client.Linux;

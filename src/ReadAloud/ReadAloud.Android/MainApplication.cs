@@ -51,7 +51,8 @@ public class MainApplication : AvaloniaAndroidApplication<App>
                 services.AddSingleton<AndroidMp3Player>();
                 services.AddSingleton<IAudioPlayer>(sp => sp.GetRequiredService<AndroidMp3Player>());
                 services.AddNovolisVoiceAndroid();
-                services.AddSingleton<IScreenWakeLock, AndroidScreenWakeLock>();
+                services.AddSingleton<Novolis.Avalonia.Mobile.IScreenWakeLock>(
+                    _ => new AndroidScreenWakeLock(() => MainActivity.Current));
                 services.AddReadAloudCore();
                 services.AddSingleton(_ => new AndroidEntraAuthentication(
                     SpeechService.DefaultAzureClientId,

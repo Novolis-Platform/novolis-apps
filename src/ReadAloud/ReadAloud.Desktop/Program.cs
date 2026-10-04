@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Novolis.Audio.Voice.Platform;
 using Novolis.Audio.Voice.Platform.Windows;
 using Novolis.Avalonia.Diagnostics;
+using Novolis.Avalonia.Mobile;
 using Novolis.Avalonia.Mobile.Desktop;
 using Novolis.Logging.Diagnostics;
 using Novolis.Manuscript.Export.Audio;

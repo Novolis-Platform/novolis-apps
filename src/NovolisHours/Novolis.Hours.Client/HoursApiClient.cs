@@ -2,7 +2,9 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.DependencyInjection;
 using Novolis.Hours.Contracts;
+using Novolis.Http.Client;
 
 namespace Novolis.Hours.Client;
 
@@ -15,6 +17,7 @@ public sealed class HoursApiClient : IDisposable
     };
 
     private readonly HttpClient httpClient;
+    private readonly IDisposable? lifetime;
     private readonly Action<HttpRequestMessage>? configureRequest;
     private string? antiforgeryToken;
 
@@ -22,8 +25,17 @@ public sealed class HoursApiClient : IDisposable
     public HoursApiClient(
         HttpClient httpClient,
         Action<HttpRequestMessage>? configureRequest = null)
+        : this(httpClient, lifetime: null, configureRequest)
+    {
+    }
+
+    private HoursApiClient(
+        HttpClient httpClient,
+        IDisposable? lifetime,
+        Action<HttpRequestMessage>? configureRequest)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        this.lifetime = lifetime;
         this.configureRequest = configureRequest;
         if (this.httpClient.BaseAddress is null)
         {
@@ -40,16 +52,11 @@ public sealed class HoursApiClient : IDisposable
             throw new ArgumentException("The Hours service URI must be absolute.", nameof(serviceUri));
         }
 
-        var transport = new HoursSessionHandler(new HttpClientHandler
-        {
-            AllowAutoRedirect = false,
-            UseCookies = false,
-        });
-        var httpClient = new HttpClient(transport, disposeHandler: true)
-        {
-            BaseAddress = EnsureTrailingSlash(serviceUri),
-        };
-        return new HoursApiClient(httpClient);
+        var services = new ServiceCollection();
+        services.AddHoursApiClient(serviceUri);
+        var provider = services.BuildServiceProvider();
+        var httpClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient<HoursHttpClientKey>();
+        return new HoursApiClient(httpClient, provider, configureRequest: null);
     }
 
     /// <summary>Signs in and returns the authenticated Hours role profile.</summary>
@@ -381,7 +388,11 @@ public sealed class HoursApiClient : IDisposable
     }
 
     /// <inheritdoc />
-    public void Dispose() => httpClient.Dispose();
+    public void Dispose()
+    {
+        httpClient.Dispose();
+        lifetime?.Dispose();
+    }
 
     private async Task<string> GetAntiforgeryTokenAsync(CancellationToken cancellationToken)
     {
@@ -421,7 +432,8 @@ public sealed class HoursApiClient : IDisposable
             response.StatusCode);
     }
 
-    private static Uri EnsureTrailingSlash(Uri serviceUri) =>
+    /// <summary>Normalizes a Hours service URI so relative API paths resolve correctly.</summary>
+    internal static Uri EnsureTrailingSlash(Uri serviceUri) =>
         serviceUri.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
             ? serviceUri
             : new Uri($"{serviceUri.AbsoluteUri}/", UriKind.Absolute);
@@ -451,18 +463,6 @@ public sealed class HoursApiClient : IDisposable
         configureRequest?.Invoke(request);
         return await httpClient.SendAsync(request, cancellationToken);
     }
-
-    private sealed record AntiforgeryResponse(string Token);
-
-    private sealed record LoginRequest(string Login, string Password);
-
-    private sealed record LoginResponse(
-        string EmployeeId,
-        string DisplayName,
-        HoursClientRole Role,
-        bool IsDemoAdministrator);
-
-    private sealed record CurrentUserResponse(string EmployeeId, string DisplayName, HoursClientRole Role);
 
     private sealed record ReviewPeriodResponse(
         Guid Id,

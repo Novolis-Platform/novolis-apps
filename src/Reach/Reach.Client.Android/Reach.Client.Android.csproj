@@ -12,7 +12,8 @@
     <AndroidPackageFormat>apk</AndroidPackageFormat>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Reach.Client\Reach.Client.csproj" />
+    <LibraryReference Include="Novolis.Reach.Client" />
+    <LibraryReference Include="Novolis.Avalonia.Reach" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia.Android" />

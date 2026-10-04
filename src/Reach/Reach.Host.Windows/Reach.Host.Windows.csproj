@@ -9,7 +9,8 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
+    <LibraryReference Include="Novolis.Reach.Protocol" />
+    <LibraryReference Include="Novolis.Reach.Host.Windows.Session" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />

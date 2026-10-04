@@ -9,8 +9,9 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
-    <ProjectReference Include="..\Reach.Transport\Reach.Transport.csproj" />
+    <LibraryReference Include="Novolis.Reach.Protocol" />
+    <LibraryReference Include="Novolis.Reach.Transport" />
+    <LibraryReference Include="Novolis.Reach.Host.Server" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

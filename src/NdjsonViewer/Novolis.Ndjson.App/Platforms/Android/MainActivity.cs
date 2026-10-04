@@ -5,6 +5,7 @@ using Android.Database;
 using Android.OS;
 using Android.Provider;
 using Android.Runtime;
+using Novolis.Maui.Activation;
 
 namespace Novolis.Ndjson.App;
 
@@ -53,7 +54,7 @@ public sealed class MainActivity : MauiAppCompatActivity
         if (!Path.GetExtension(name).Equals(".ndjson", StringComparison.OrdinalIgnoreCase))
             return;
 
-        ActivationBridge.Publish(NdjsonOpenRequest.FromStream(
+        MauiActivationBridge<NdjsonOpenRequest>.Publish(NdjsonOpenRequest.FromStream(
             name,
             cancellationToken =>
             {

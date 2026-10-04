@@ -6,9 +6,6 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Novolis.Hours.Domain\Novolis.Hours.Domain.csproj" />
-  </ItemGroup>
-  <ItemGroup>
     <LibraryReference Include="Novolis.Time.Worktime" />
     <LibraryReference Include="Novolis.Time.Worktime.Legal" />
   </ItemGroup>

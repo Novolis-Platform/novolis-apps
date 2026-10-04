@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Novolis.Audio.Voice.AzureSpeech;
 using Novolis.Avalonia.Mobile;
 using Novolis.Avalonia.Speech;
@@ -14,7 +12,7 @@ public sealed class ChapterSpeechService : IDisposable
 
     readonly SpeechFront _front;
     readonly IAudioPlayer _player;
-    readonly string _cacheDir;
+    readonly SpeechSegmentPlayback _playback;
     readonly object _gate = new();
     CancellationTokenSource? _cts;
 
@@ -26,8 +24,7 @@ public sealed class ChapterSpeechService : IDisposable
         _front = front ?? throw new ArgumentNullException(nameof(front));
         _player = player ?? throw new ArgumentNullException(nameof(player));
         ArgumentNullException.ThrowIfNull(paths);
-        _cacheDir = Path.Combine(paths.RootDirectory, "tts-cache");
-        Directory.CreateDirectory(_cacheDir);
+        _playback = new SpeechSegmentPlayback(front, Path.Combine(paths.RootDirectory, "tts-cache"));
 
         Voice = new VoiceSettings
         {
@@ -135,37 +132,17 @@ public sealed class ChapterSpeechService : IDisposable
             throw new SpeechCapabilityException(
                 "MP3 export requires Azure Speech setup. Device voice does not create files.");
 
-        var plan = SpeechPlanner.Create(markdown, Voice.ToSpeechOptions(), speakTitle: true);
-        using var output = new MemoryStream();
-        foreach (var segment in plan.Segments)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (segment.Kind != SpeechSegmentKind.Text || string.IsNullOrWhiteSpace(segment.Text))
-                continue;
-            var mp3 = await GetOrSynthesizeAsync(segment.Text, cancellationToken).ConfigureAwait(false);
-            await output.WriteAsync(mp3, cancellationToken).ConfigureAwait(false);
-        }
-
-        return output.ToArray();
+        return await _playback.ConcatenateMp3Async(
+            markdown,
+            Voice,
+            BuildAzureOptions(),
+            speakTitle: true,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public bool HasCachedAudio(string markdown)
     {
-        if (string.IsNullOrWhiteSpace(markdown) || !_front.IsAzureConfigured)
-            return false;
-
-        var plan = SpeechPlanner.Create(markdown, Voice.ToSpeechOptions(), speakTitle: true);
-        var any = false;
-        foreach (var segment in plan.Segments)
-        {
-            if (segment.Kind != SpeechSegmentKind.Text || string.IsNullOrWhiteSpace(segment.Text))
-                continue;
-            any = true;
-            if (!File.Exists(CachePath(segment.Text)))
-                return false;
-        }
-
-        return any;
+        return _playback.HasCachedAudio(markdown, Voice, speakTitle: true);
     }
 
     public void Stop()
@@ -182,32 +159,8 @@ public sealed class ChapterSpeechService : IDisposable
 
     public void Dispose() => Stop();
 
-    async Task<byte[]> GetOrSynthesizeAsync(string text, CancellationToken cancellationToken)
-    {
-        var path = CachePath(text);
-        if (File.Exists(path))
-        {
-            var cached = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-            if (cached.Length > 0)
-                return cached;
-        }
-
-        var mp3 = await _front.CreateMp3Async(
-                text,
-                BuildAzureOptions(),
-                cancellationToken)
-            .ConfigureAwait(false);
-        try
-        {
-            await File.WriteAllBytesAsync(path, mp3, cancellationToken).ConfigureAwait(false);
-        }
-        catch
-        {
-            // Cache write is best-effort.
-        }
-
-        return mp3;
-    }
+    Task<byte[]> GetOrSynthesizeAsync(string text, CancellationToken cancellationToken) =>
+        _playback.GetOrSynthesizeAsync(text, Voice, BuildAzureOptions(), cancellationToken);
 
     AzureSpeechSynthesisOptions BuildAzureOptions() => new()
     {
@@ -217,20 +170,6 @@ public sealed class ChapterSpeechService : IDisposable
         PitchHertz = Voice.PitchHertz,
         VolumePercent = Voice.VolumePercent,
     };
-
-    string CachePath(string text)
-    {
-        var key = string.Join(
-            "\n",
-            Voice.Voice,
-            Voice.RatePercent,
-            Voice.PitchHertz,
-            Voice.VolumePercent,
-            text);
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)))
-            .ToLowerInvariant();
-        return Path.Combine(_cacheDir, hash + ".mp3");
-    }
 
     void Notify() => Changed?.Invoke(this, EventArgs.Empty);
 }

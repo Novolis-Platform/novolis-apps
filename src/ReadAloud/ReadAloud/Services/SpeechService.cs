@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using Novolis.Audio.Voice.AzureSpeech;
 using Novolis.Avalonia.Speech;
@@ -24,6 +22,7 @@ public sealed class SpeechService : IDisposable
     readonly IAudioPlayer _player;
     readonly ILogger<SpeechService>? _logger;
     readonly SpeechUsageLedger _usage;
+    readonly SpeechSegmentPlayback _playback;
     readonly string _cacheDir;
     readonly object _gate = new();
     CancellationTokenSource? _cts;
@@ -41,7 +40,7 @@ public sealed class SpeechService : IDisposable
         _logger = logger;
         _usage = new SpeechUsageLedger(Path.Combine(paths.RootDirectory, "speech-usage.json"));
         _cacheDir = Path.Combine(paths.RootDirectory, "tts-cache");
-        Directory.CreateDirectory(_cacheDir);
+        _playback = new SpeechSegmentPlayback(front, _cacheDir);
 
         _front.Changed += OnFrontChanged;
         Voice = CreateVoice(DefaultVoiceName);
@@ -304,40 +303,19 @@ public sealed class SpeechService : IDisposable
             throw new SpeechCapabilityException(
                 "MP3 export requires Azure Speech setup.");
 
-        var plan = SpeechPlanner.Create(speechText, Voice.ToSpeechOptions(), speakTitle: false);
-        using var output = new MemoryStream();
-        foreach (var segment in plan.Segments)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (segment.Kind != SpeechSegmentKind.Text || string.IsNullOrWhiteSpace(segment.Text))
-                continue;
-
-            var mp3 = await GetOrSynthesizeAsync(segment.Text, cancellationToken).ConfigureAwait(false);
-            await output.WriteAsync(mp3, cancellationToken).ConfigureAwait(false);
-        }
-
-        return output.ToArray();
+        return await _playback.ConcatenateMp3Async(
+            speechText,
+            Voice,
+            BuildAzureOptions(),
+            speakTitle: false,
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Returns whether all Azure segments for this text are cached.</summary>
     public bool HasCachedAudio(string text)
     {
         var speechText = MarkdownSpeechPreParser.Normalize(text);
-        if (string.IsNullOrWhiteSpace(speechText) || !_front.IsAzureConfigured)
-            return false;
-
-        var plan = SpeechPlanner.Create(speechText, Voice.ToSpeechOptions(), speakTitle: false);
-        var any = false;
-        foreach (var segment in plan.Segments)
-        {
-            if (segment.Kind != SpeechSegmentKind.Text || string.IsNullOrWhiteSpace(segment.Text))
-                continue;
-            any = true;
-            if (!File.Exists(CachePath(segment.Text)))
-                return false;
-        }
-
-        return any;
+        return _playback.HasCachedAudio(speechText, Voice, speakTitle: false);
     }
 
     /// <summary>Stops playback, cancels synthesis, and returns the listen to the first chunk.</summary>
@@ -429,7 +407,7 @@ public sealed class SpeechService : IDisposable
             return await SynthesisOverride(text, cancellationToken).ConfigureAwait(false);
         }
 
-        var path = CachePath(text);
+        var path = _playback.CachePath(text, Voice);
         if (File.Exists(path))
         {
             var cached = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
@@ -502,20 +480,6 @@ public sealed class SpeechService : IDisposable
         PitchHertz = Voice.PitchHertz,
         VolumePercent = Voice.VolumePercent,
     };
-
-    string CachePath(string text)
-    {
-        var cacheKey = string.Join(
-            "\n",
-            Voice.Voice,
-            Voice.RatePercent,
-            Voice.PitchHertz,
-            Voice.VolumePercent,
-            text);
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(cacheKey)))
-            .ToLowerInvariant();
-        return Path.Combine(_cacheDir, hash + ".mp3");
-    }
 
     static VoiceSettings CreateVoice(string voiceName, VoiceSettings? current = null) => new()
     {

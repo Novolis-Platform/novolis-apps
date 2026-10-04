@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Hosting;
+using Novolis.Maui.Activation;
 using Novolis.Maui.GraphicalProfile;
 using Novolis.IO.Ndjson;
 
@@ -18,11 +19,12 @@ public static class MauiProgram
             .AddSingleton<NdjsonFileReader>()
             .AddSingleton<NdjsonDocumentSession>()
             .AddSingleton<NdjsonFilePicker>()
-            .AddSingleton<DocumentActivationInbox>()
+            .AddSingleton<MauiActivationInbox<NdjsonOpenRequest>>()
             .AddSingleton<MainPage>();
 
         var app = builder.Build();
-        ActivationBridge.Initialize(app.Services.GetRequiredService<DocumentActivationInbox>());
+        MauiActivationBridge<NdjsonOpenRequest>.Initialize(
+            app.Services.GetRequiredService<MauiActivationInbox<NdjsonOpenRequest>>());
         return app;
     }
 }

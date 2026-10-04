@@ -5,6 +5,7 @@ using Avalonia.Android;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Novolis.Avalonia.Mobile.Android;
+using Novolis.Avalonia.Reach;
 using Novolis.Reach.Client;
 
 namespace Novolis.Reach.Client.Android;

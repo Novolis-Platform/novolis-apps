@@ -28,10 +28,8 @@ public class MainApplication : AvaloniaAndroidApplication<App>
             .ConfigureServices(services =>
             {
                 services.AddNovolisMobileAndroid("BooksMobile");
-                services.AddSingleton<AndroidMp3Player>();
-                services.AddSingleton<IAudioPlayer>(sp => sp.GetRequiredService<AndroidMp3Player>());
+                services.AddNovolisMobileAndroidSpeech(() => MainActivity.Current);
                 services.AddNovolisVoiceAndroid();
-                services.AddSingleton<IScreenWakeLock, AndroidScreenWakeLock>();
                 services.AddBooksMobileCore();
             })
             .Build();

@@ -1,3 +1,5 @@
+using Novolis.Hours.Contracts;
+
 namespace Novolis.Hours.Client;
 
 /// <summary>Authenticated role profile returned by the Hours HTTP API.</summary>

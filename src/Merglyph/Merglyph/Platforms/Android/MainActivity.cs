@@ -6,6 +6,7 @@ using Android.OS;
 using Android.Provider;
 using Android.Runtime;
 using Merglyph.Core;
+using Novolis.Maui.Activation;
 
 namespace Merglyph;
 
@@ -54,7 +55,7 @@ public sealed class MainActivity : MauiAppCompatActivity
         if (!SupportedMarkdownDocuments.IsSupported(name))
             return;
 
-        ActivationBridge.Publish(new DocumentOpenRequest(
+        MauiActivationBridge<DocumentOpenRequest>.Publish(new DocumentOpenRequest(
             new DocumentName(name),
             cancellationToken =>
             {

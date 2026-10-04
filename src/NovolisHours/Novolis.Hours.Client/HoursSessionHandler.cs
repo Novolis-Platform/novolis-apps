@@ -8,6 +8,11 @@ public sealed class HoursSessionHandler : DelegatingHandler
     private readonly object gate = new();
     private ImmutableDictionary<string, string> cookies = ImmutableDictionary<string, string>.Empty;
 
+    /// <summary>Initializes a factory-owned handler. The factory sets <see cref="DelegatingHandler.InnerHandler"/>.</summary>
+    public HoursSessionHandler()
+    {
+    }
+
     /// <summary>Initializes the handler over the supplied HTTP transport.</summary>
     public HoursSessionHandler(HttpMessageHandler innerHandler)
         : base(innerHandler ?? throw new ArgumentNullException(nameof(innerHandler)))

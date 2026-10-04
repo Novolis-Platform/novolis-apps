@@ -10,6 +10,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Novolis.Avalonia.Ndjson;
+using Novolis.Avalonia.Mobile;
 using Novolis.Avalonia.Speech;
 using Novolis.Avalonia.Diagnostics;
 using Novolis.IO.Ndjson;

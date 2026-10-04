@@ -38,6 +38,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
+    <LibraryReference Include="Novolis.Maui.Activation" />
     <LibraryReference Include="Novolis.Maui.Markdown" />
     <LibraryReference Include="Novolis.IO.Platform.Android"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />

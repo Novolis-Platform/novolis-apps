@@ -1,5 +1,6 @@
 using Microsoft.Windows.AppLifecycle;
 using Merglyph.Core;
+using Novolis.Maui.Activation;
 using Windows.ApplicationModel.Activation;
 using Windows.Storage;
 
@@ -14,7 +15,7 @@ internal static class WindowsFileActivation
             || fileArgs.Files.OfType<StorageFile>().FirstOrDefault() is not { } file)
             return;
 
-        ActivationBridge.Publish(new DocumentOpenRequest(
+        MauiActivationBridge<DocumentOpenRequest>.Publish(new DocumentOpenRequest(
             new DocumentName(file.Name),
             async cancellationToken =>
             {
@@ -36,7 +37,7 @@ internal static class WindowsFileActivation
             return;
 
         var fullPath = Path.GetFullPath(path);
-        ActivationBridge.Publish(new DocumentOpenRequest(
+        MauiActivationBridge<DocumentOpenRequest>.Publish(new DocumentOpenRequest(
             new DocumentName(Path.GetFileName(fullPath)),
             cancellationToken =>
             {

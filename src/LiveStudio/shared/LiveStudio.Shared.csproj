@@ -3,4 +3,7 @@
     <RootNamespace>LiveStudio.Shared</RootNamespace>
     <Description>Shared host paths and launcher protocol for Novolis Audio Live Studio.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <LibraryReference Include="Novolis.Audio.Live.Protocol" />
+  </ItemGroup>
 </Project>

@@ -3,6 +3,7 @@ using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Novolis.Avalonia.Mobile.Desktop;
+using Novolis.Reach.Host.Windows.Session;
 using Novolis.Windows.Audio;
 using Novolis.Windows.Clipboard;
 using Novolis.Windows.Display;

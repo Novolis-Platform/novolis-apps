@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using Merglyph.Core;
+using Novolis.Maui.Activation;
 using Novolis.Maui.Markdown;
 using Microsoft.Maui.Controls.Shapes;
 using Novolis.Maui.GraphicalProfile;
@@ -13,7 +14,7 @@ public sealed class MainPage : ContentPage
     private readonly DocumentSession _session;
     private readonly MarkdownDocumentPicker _picker;
     private readonly RecentDocumentStore _recentStore;
-    private readonly DocumentActivationInbox _activationInbox;
+    private readonly MauiActivationInbox<DocumentOpenRequest> _activationInbox;
     private readonly MarkdownView _viewer = new()
     {
         AutomationId = "DocumentViewer",
@@ -112,7 +113,7 @@ public sealed class MainPage : ContentPage
         DocumentSession session,
         MarkdownDocumentPicker picker,
         RecentDocumentStore recentStore,
-        DocumentActivationInbox activationInbox)
+        MauiActivationInbox<DocumentOpenRequest> activationInbox)
     {
         _session = session;
         _picker = picker;

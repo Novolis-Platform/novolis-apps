@@ -180,6 +180,13 @@
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.6" />
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.110" />
     <PackageVersion Include="Novolis.Maui.Markdown" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Maui.Activation" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Reach.Protocol" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Reach.Transport" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Reach.Client" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Reach.Host.Server" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Reach.Host.Windows.Session" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Avalonia.Reach" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Maui.GraphicalProfile" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Maui.Ndjson" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Maui.PdfViewer" Version="2026.1.*" />

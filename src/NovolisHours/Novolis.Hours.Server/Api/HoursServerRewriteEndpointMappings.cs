@@ -9,6 +9,7 @@ using Novolis.Hours.Domain.Dimensions;
 using Novolis.Hours.Domain.Review;
 using Novolis.Hours.Domain.Work;
 using Novolis.Hours.Storage;
+using DomainWorkSource = Novolis.Hours.Domain.Work.WorkRecordSource;
 
 namespace Novolis.Hours.Server;
 
@@ -56,7 +57,7 @@ public static class HoursServerRewriteEndpointMappings
     {
         ArgumentNullException.ThrowIfNull(request);
         var actor = HoursServerPrincipalFactory.ToActor(context.User);
-        if (!CanRecord(actor, request.EmployeeId, users, request.Source))
+        if (!CanRecord(actor, request.EmployeeId, users, HoursContractMapping.ToDomain(request.Source)))
         {
             return Results.Forbid();
         }
@@ -86,12 +87,12 @@ public static class HoursServerRewriteEndpointMappings
             });
         }
 
-        var source = request.Source ?? (actor.Role == HoursActorRole.Employee
-            ? WorkRecordSource.Employee
+        var source = HoursContractMapping.ToDomain(request.Source) ?? (actor.Role == HoursActorRole.Employee
+            ? DomainWorkSource.Employee
             : actor.Role == HoursActorRole.System
-                ? WorkRecordSource.Integration
-                : WorkRecordSource.Employer);
-        if (source == WorkRecordSource.Integration && actor.Role != HoursActorRole.System)
+                ? DomainWorkSource.Integration
+                : DomainWorkSource.Employer);
+        if (source == DomainWorkSource.Integration && actor.Role != HoursActorRole.System)
         {
             return Results.Forbid();
         }
@@ -623,13 +624,13 @@ public static class HoursServerRewriteEndpointMappings
         HoursActor actor,
         string employeeId,
         HoursUserDirectory users,
-        WorkRecordSource? requestedSource = null) =>
+        DomainWorkSource? requestedSource = null) =>
         actor.Role == HoursActorRole.System
-            ? requestedSource is null or WorkRecordSource.Integration
+            ? requestedSource is null or DomainWorkSource.Integration
             : actor.Role == HoursActorRole.Employee
-                ? requestedSource is null or WorkRecordSource.Employee
-                : requestedSource != WorkRecordSource.Integration &&
-                  requestedSource != WorkRecordSource.System &&
+                ? requestedSource is null or DomainWorkSource.Employee
+                : requestedSource != DomainWorkSource.Integration &&
+                  requestedSource != DomainWorkSource.System &&
                   actor.Role is not HoursActorRole.Auditor &&
                   CanView(actor, employeeId, users);
 

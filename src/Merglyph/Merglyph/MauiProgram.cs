@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Hosting;
 using Merglyph.Core;
+using Novolis.Maui.Activation;
 using Novolis.Maui.GraphicalProfile;
 
 namespace Merglyph;
@@ -20,11 +21,12 @@ public static class MauiProgram
             .AddSingleton<DocumentSession>()
             .AddSingleton<MarkdownDocumentPicker>()
             .AddSingleton<RecentDocumentStore>()
-            .AddSingleton<DocumentActivationInbox>()
+            .AddSingleton<MauiActivationInbox<DocumentOpenRequest>>()
             .AddSingleton<MainPage>();
 
         var app = builder.Build();
-        ActivationBridge.Initialize(app.Services.GetRequiredService<DocumentActivationInbox>());
+        MauiActivationBridge<DocumentOpenRequest>.Initialize(
+            app.Services.GetRequiredService<MauiActivationInbox<DocumentOpenRequest>>());
         return app;
     }
 }

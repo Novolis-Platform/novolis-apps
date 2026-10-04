@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using BooksMobile.Services;
+using Novolis.Avalonia.Mobile;
 using BooksMobile.Ui;
 using Novolis.Avalonia.Layout;
 using Novolis.Avalonia.Markdown;

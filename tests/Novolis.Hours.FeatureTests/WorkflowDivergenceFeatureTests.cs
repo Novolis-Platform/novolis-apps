@@ -1,7 +1,6 @@
 using System.Net;
 using Novolis.Hours.Client;
 using Novolis.Hours.Contracts;
-using Novolis.Hours.Domain.Work;
 
 namespace Novolis.Hours.FeatureTests;
 
