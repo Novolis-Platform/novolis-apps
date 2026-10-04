@@ -4,7 +4,7 @@ using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Raylib;
 
-namespace CadStudio3D;
+namespace CadStudio;
 
 /// <summary>Writes inspectable CAD artifacts for agents and tests.</summary>
 internal sealed class CadArtifactDumper

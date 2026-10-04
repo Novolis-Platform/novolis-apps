@@ -41,9 +41,9 @@ Production applications built exclusively from **NuGet packages** (`PackageRefer
 
 ```powershell
 pwsh -File d:\novolis\novolis-governance\scripts\configure-gpr-user-nuget.ps1
-dotnet restore d:\novolis\novolis-apps\src\CadStudio3D\CadStudio3D.slnx
-dotnet build d:\novolis\novolis-apps\src\CadStudio3D\CadStudio3D.slnx --no-restore
-dotnet run --project d:\novolis\novolis-apps\src\CadStudio3D\CadStudio3D.csproj
+dotnet restore d:\novolis\novolis-apps\src\CadStudio\CadStudio.slnx
+dotnet build d:\novolis\novolis-apps\src\CadStudio\CadStudio.slnx --no-restore
+dotnet run --project d:\novolis\novolis-apps\src\CadStudio\CadStudio.csproj
 ```
 
 Regenerate solutions after editing the manifest:
@@ -91,7 +91,7 @@ application. Store-managed builds are excluded. See
 [docs/updates.md](docs/updates.md).
 
 ```powershell
-pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App CadStudio3D
+pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App CadStudio
 ```
 
 ## Apps (from manifest)

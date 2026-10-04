@@ -71,26 +71,26 @@
       "release": { "githubRelease": true, "checksums": true }
     },
     {
-      "key": "cad-studio-3d",
-      "choice": "CadStudio3D",
+      "key": "cad-studio",
+      "choice": "CadStudio",
       "displayName": "Novolis CAD Studio",
-      "sourceRoot": "src/CadStudio3D",
-      "solution": "src/CadStudio3D/CadStudio3D.slnx",
-      "artifactPrefix": "CadStudio3D",
+      "sourceRoot": "src/CadStudio",
+      "solution": "src/CadStudio/CadStudio.slnx",
+      "artifactPrefix": "CadStudio",
       "stack": "avalonia-desktop",
       "status": "public",
       "projects": {
-        "publishWindows": "src/CadStudio3D/CadStudio3D.csproj",
-        "linuxCi": ["src/CadStudio3D/CadStudio3D.csproj", "tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj"],
+        "publishWindows": "src/CadStudio/CadStudio.csproj",
+        "linuxCi": ["src/CadStudio/CadStudio.csproj", "tests/CadStudio.Unit/CadStudio.Unit.csproj"],
         "android": null,
         "maui": null,
-        "tests": ["tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj"],
-        "all": ["src/CadStudio3D/CadStudio3D.csproj", "tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj"]
+        "tests": ["tests/CadStudio.Unit/CadStudio.Unit.csproj"],
+        "all": ["src/CadStudio/CadStudio.csproj", "tests/CadStudio.Unit/CadStudio.Unit.csproj"]
       },
       "local": ["windows", "linux"],
       "ship": ["windows-inno"],
       "validation": {
-        "changedPathGlobs": ["src/CadStudio3D/**", "tests/CadStudio3D.Unit/**"],
+        "changedPathGlobs": ["src/CadStudio/**", "tests/CadStudio.Unit/**"],
         "runTests": true,
         "androidCompile": false,
         "windowsWorkload": false,
@@ -98,24 +98,24 @@
         "fanOutStacks": ["avalonia"]
       },
       "windows": {
-        "exeName": "CadStudio3D.exe",
-        "appId": "Novolis.CadStudio3D",
-        "installDir": "Novolis\\CAD Studio 3D",
+        "exeName": "CadStudio.exe",
+        "appId": "Novolis.CadStudio",
+        "installDir": "Novolis\\CAD Studio",
         "groupName": "Novolis CAD Studio",
-        "setupBase": "CadStudio3DSetup",
-        "scriptFile": "cad-studio-3d.iss",
-        "closeApplicationsFilter": "CadStudio3D.exe",
+        "setupBase": "CadStudioSetup",
+        "scriptFile": "cad-studio.iss",
+        "closeApplicationsFilter": "CadStudio.exe",
         "fileAssociationsAllowed": false
       },
       "android": null,
       "data": {
         "appDataRoot": "%LOCALAPPDATA%\\Novolis\\CAD Studio",
         "cacheRoot": "%LOCALAPPDATA%\\Novolis\\CAD Studio\\cache",
-        "credentialsNamespace": "Novolis.CadStudio3D",
+        "credentialsNamespace": "Novolis.CadStudio",
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
       },
-      "update": { "enabled": true, "appId": "Novolis.CadStudio3D", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
+      "update": { "enabled": true, "appId": "Novolis.CadStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {

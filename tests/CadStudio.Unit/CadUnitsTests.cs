@@ -1,6 +1,6 @@
 using Novolis.Avalonia.Cad.Core;
 
-namespace CadStudio3D.Unit;
+namespace CadStudio.Unit;
 
 public sealed class CadUnitsTests
 {

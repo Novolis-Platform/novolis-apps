@@ -9,9 +9,8 @@ using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
-using Novolis.Avalonia.Ship.Design.Session;
 
-namespace CadStudio3D;
+namespace CadStudio;
 
 internal static class Program
 {
@@ -24,7 +23,7 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        CrashGuard.Install("CadStudio3D");
+        CrashGuard.Install("CadStudio");
 
         if (args.Any(a => string.Equals(a, "--smoke", StringComparison.OrdinalIgnoreCase)))
         {
@@ -41,17 +40,15 @@ internal static class Program
                     var migration = CadStudioDataMigration.Run(dataRoot);
                     services.AddSingleton(_ => new CadEditorSettings(dataRoot));
                     services.AddSingleton(migration);
-                    services.AddSingleton<CadDocumentSession>();
-                    services.AddSingleton<CadCommandBus>();
                     services.AddSingleton(sp =>
                     {
-                        var session = sp.GetRequiredService<CadDocumentSession>();
                         var settings = sp.GetRequiredService<CadEditorSettings>();
-                        var bus = sp.GetRequiredService<CadCommandBus>();
+                        var session = new CadDocumentSession(settings);
+                        var bus = new CadCommandBus(session);
                         var dispatcher = new CadCommandDispatcher(session, bus, settings);
                         return new CadSessionService(session, settings, bus, dispatcher)
                         {
-                            AppId = "cad-studio-3d",
+                            AppId = "cad-studio",
                             AppTitle = "Novolis CAD Studio",
                         };
                     });
@@ -59,14 +56,15 @@ internal static class Program
                     {
                         var scene = new SceneSessionService
                         {
-                            AppId = "cad-studio-3d-scene",
+                            AppId = "cad-studio-scene",
                         };
                         return scene;
                     });
+                    services.AddSingleton(_ => new ShipCadSession(dataRoot));
                     services.AddSingleton(sp =>
                     {
-                        var settings = sp.GetRequiredService<CadEditorSettings>();
-                        return new ShipDesignSession(Path.Combine(settings.DataRoot, "ships"));
+                        var shipCad = sp.GetRequiredService<ShipCadSession>();
+                        return new Novolis.Avalonia.Ship.Design.Session.ShipDesignSession(shipCad.Settings.DataRoot);
                     });
                     services.AddTransient<MainWindow>();
                 })
@@ -77,9 +75,8 @@ internal static class Program
             var cad = ApplicationHost.Services.GetRequiredService<CadSessionService>();
             var scene = ApplicationHost.Services.GetRequiredService<SceneSessionService>();
 
-            CadSurface = CadSessionSurface.AttachAll(cad);
-            SceneSurface = AgentSurface.AttachAll(scene, scene.Definition)
-                            ?? AgentSurface.TryAttachFromEnvironment(scene, scene.Definition);
+            CadSurface = CadSessionSurface.TryAttachFromEnvironment(cad);
+            SceneSurface = AgentSurface.TryAttachFromEnvironment(scene, scene.Definition);
 
             try
             {

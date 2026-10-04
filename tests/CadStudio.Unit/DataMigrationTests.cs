@@ -1,4 +1,4 @@
-namespace CadStudio3D.Unit;
+namespace CadStudio.Unit;
 
 public sealed class DataMigrationTests
 {
@@ -26,7 +26,7 @@ public sealed class DataMigrationTests
             Directory.CreateDirectory(Path.GetDirectoryName(existingTarget)!);
             await File.WriteAllTextAsync(existingTarget, "newer-copy");
 
-            var report = CadStudio3D.CadStudioDataMigration.Run(
+            var report = CadStudio.CadStudioDataMigration.Run(
                 consolidated,
                 [legacy]);
 

@@ -3,7 +3,7 @@ using Novolis.Cad.Evaluation;
 using Novolis.Cad.Primitives;
 using System.Text.Json;
 
-namespace CadStudio3D.Unit;
+namespace CadStudio.Unit;
 
 public sealed class SessionAndPhysTests
 {

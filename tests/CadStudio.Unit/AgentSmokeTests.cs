@@ -5,14 +5,14 @@ using Novolis.Avalonia.Cad.Session;
 using Novolis.Avalonia.ThreeD.Session;
 using Novolis.ThreeD;
 
-namespace CadStudio3D.Unit;
+namespace CadStudio.Unit;
 
 public sealed class AgentSmokeTests
 {
     [Test]
     public async Task SmokeRunner_ExitsZero()
     {
-        var code = CadStudio3D.SmokeRunner.Run();
+        var code = CadStudio.SmokeRunner.Run();
         await Assert.That(code).IsEqualTo(0);
     }
 

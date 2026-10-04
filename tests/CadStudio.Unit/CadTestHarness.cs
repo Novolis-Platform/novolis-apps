@@ -2,7 +2,7 @@ using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 
-namespace CadStudio3D.Unit;
+namespace CadStudio.Unit;
 
 internal static class DraftTestHarness
 {

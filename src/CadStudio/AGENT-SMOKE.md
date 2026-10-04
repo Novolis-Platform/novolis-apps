@@ -16,6 +16,8 @@ Line(Point(0.0,1.0), Point(1.0,1.0)); Circle(Point(2.0,2.0), 0.5); Rect(Point(0,
 
 ## Ports
 
+Cad and Scene transports attach only when the environment variables below are set.
+
 | Surface | HTTP | TCP | Purpose |
 |---------|------|-----|---------|
 | Cad | `:18775` | `:18776` | Draft 2D/3D, appearance, `exportscene` / `bridgescene`, Cad dumps |
@@ -32,9 +34,9 @@ Scene: ensurestudiolights → setactivecamera → matchviewport → saverenderpn
 ## Build / smoke
 
 ```powershell
-dotnet build d:\novolis\novolis-apps\src\CadStudio3D -p:NovolisUseProjectReferences=true
-dotnet run --project d:\novolis\novolis-apps\src\CadStudio3D -p:NovolisUseProjectReferences=true -- --smoke
-dotnet test d:\novolis\novolis-apps\tests\CadStudio3D.Unit -p:NovolisUseProjectReferences=true
+dotnet build d:\novolis\novolis-apps\src\CadStudio\CadStudio.csproj -p:NovolisUseProjectReferences=true
+dotnet run --project d:\novolis\novolis-apps\src\CadStudio\CadStudio.csproj -p:NovolisUseProjectReferences=true -- --smoke
+dotnet test d:\novolis\novolis-apps\tests\CadStudio.Unit\CadStudio.Unit.csproj -p:NovolisUseProjectReferences=true
 ```
 
 ## Run with agent attach
@@ -42,12 +44,12 @@ dotnet test d:\novolis\novolis-apps\tests\CadStudio3D.Unit -p:NovolisUseProjectR
 ```powershell
 $env:NOVOLIS_CAD_SESSION = "1"
 $env:NOVOLIS_SCENE_SESSION = "1"
-dotnet run --project d:\novolis\novolis-apps\src\CadStudio3D -p:NovolisUseProjectReferences=true
+dotnet run --project d:\novolis\novolis-apps\src\CadStudio\CadStudio.csproj -p:NovolisUseProjectReferences=true
 ```
 
 Cad is source of truth (`.cadjson`). Model/Stage workspaces bridge in-memory to `.nov3djson` via `Novolis.Cad.SceneBridge`. Scene→Cad round-trip is out of scope for v1.
 
 Ship mode is source of truth for `.shipjson`; its MODEL workspace projects the
-selected ship object into the CAD surface, and its scene export is an explicit
-evaluation bridge. Generic CAD modes do not attach ship chrome or freighter
-exterior hooks.
+selected ship object into a dedicated ship CAD session, and its scene export is
+an explicit evaluation bridge. Generic CAD modes do not attach ship chrome or
+freighter exterior hooks.

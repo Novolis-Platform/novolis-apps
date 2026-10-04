@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>CadStudio3D.Unit</RootNamespace>
+    <RootNamespace>CadStudio.Unit</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <IsTestingPlatformApplication>true</IsTestingPlatformApplication>
@@ -19,6 +19,6 @@
     <LibraryReference Include="Novolis.Agent.Surface" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CadStudio3D\CadStudio3D.csproj" />
+    <ProjectReference Include="..\..\src\CadStudio\CadStudio.csproj" />
   </ItemGroup>
 </Project>

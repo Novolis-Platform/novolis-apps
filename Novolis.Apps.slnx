@@ -9,7 +9,7 @@
     <Project Path="src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj" />
     <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
     <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
-    <Project Path="src/CadStudio3D/CadStudio3D.csproj" />
+    <Project Path="src/CadStudio/CadStudio.csproj" />
     <Project Path="src/LiveStudio/host/LiveStudio.Host.csproj" />
     <Project Path="src/LiveStudio/launcher/LiveStudio.Launcher.csproj" />
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
@@ -31,7 +31,7 @@
     <Project Path="src/SketchStudio/SketchStudio.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/CadStudio3D.Unit/CadStudio3D.Unit.csproj" />
+    <Project Path="tests/CadStudio.Unit/CadStudio.Unit.csproj" />
     <Project Path="tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
     <Project Path="tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />
     <Project Path="tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj" />

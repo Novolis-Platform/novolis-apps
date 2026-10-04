@@ -2,27 +2,26 @@
 
 Windows desktop app for beginner/intermediate **2D + 3D CAD drafting** and explicit **Ship** authoring: appearance (materials / wall sides), limited mesh modelling, staging, and lit PNG render. Dual **Cad** and **Scene** agent surfaces share the same session `Execute` catalog the UI and LLM use — no parallel write paths.
 
-**Platform:** Windows x64 (Avalonia + WGL + Raylib/Vulkan backends).
+**Platform:** Windows x64 (Avalonia + WGL + Raylib).
 
 ## Run
 
-From `novolis-apps`:
-
 ```powershell
-dotnet run --project src/CadStudio3D
+dotnet run --project d:\novolis\novolis-apps\src\CadStudio\CadStudio.csproj
 ```
 
 Headless smoke (no UI):
 
 ```powershell
-dotnet run --project src/CadStudio3D -- --smoke
+dotnet run --project d:\novolis\novolis-apps\src\CadStudio\CadStudio.csproj -- --smoke
 ```
 
-With agent attach (Cursor MCP / `Novolis.Avalonia.Agent`):
+With agent attach (ports bind only when these are set):
 
 ```powershell
-$env:NOVOLIS_AVALONIA_AGENT = "1"
-dotnet run --project src/CadStudio3D
+$env:NOVOLIS_CAD_SESSION = "1"
+$env:NOVOLIS_SCENE_SESSION = "1"
+dotnet run --project d:\novolis\novolis-apps\src\CadStudio\CadStudio.csproj
 ```
 
 ## Local development (ProjectReference mode)
@@ -30,8 +29,8 @@ dotnet run --project src/CadStudio3D
 Cross-repo iteration on Cad/3D packages: open **`Novolis.Platform.slnx`** or build with ProjectReference mode:
 
 ```powershell
-dotnet build src/CadStudio3D -p:NovolisUseProjectReferences=true
-dotnet test tests/CadStudio3D.Unit -p:NovolisUseProjectReferences=true
+dotnet build d:\novolis\novolis-apps\src\CadStudio\CadStudio.csproj -p:NovolisUseProjectReferences=true
+dotnet test d:\novolis\novolis-apps\tests\CadStudio.Unit\CadStudio.Unit.csproj -p:NovolisUseProjectReferences=true
 ```
 
 Committed builds use **NuGet-only** (`Novolis.*` `2026.1.*` from GitHub Packages + nuget.org). No local folder feeds.
@@ -47,9 +46,10 @@ Committed builds use **NuGet-only** (`Novolis.*` `2026.1.*` from GitHub Packages
 | `Novolis.Avalonia.Studio` | Command bar, workspace chrome, feedback |
 | `Novolis.Avalonia.Agent` | LLM/MCP agent host |
 | `Novolis.Avalonia.Raylib` | 3D model viewport |
-| `Novolis.Rendering.Backends.Vulkan` | Lit render pipeline |
 
 ## Agent surfaces
+
+Cad and Scene transports attach only when `NOVOLIS_CAD_SESSION` / `NOVOLIS_SCENE_SESSION` are set.
 
 | Surface | HTTP | TCP | Purpose |
 |---------|------|-----|---------|
@@ -70,4 +70,4 @@ available for explicit opening.
 
 ## Releases
 
-Published on merge to `main` as `CadStudio3DSetup-{version}-win-x64.exe` and portable zip. See [novolis-apps release catalog](../../README.md#releases).
+Published on merge to `main` as `CadStudioSetup-{version}-win-x64.exe` and portable zip. See [novolis-apps release catalog](../../README.md#releases).

@@ -1,4 +1,4 @@
-namespace CadStudio3D;
+namespace CadStudio;
 
 internal enum StudioWorkspace
 {

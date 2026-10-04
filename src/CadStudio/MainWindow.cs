@@ -19,22 +19,25 @@ using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Avalonia.Ship.Design;
 using Novolis.Avalonia.Ship.Design.Services;
 using Novolis.Avalonia.Ship.Design.Session;
+using Novolis.Ship.Design;
 using Novolis.Avalonia.Studio;
 using Novolis.Cad.Primitives;
 using Novolis.Cad.SceneBridge;
 using Novolis.ThreeD;
 
-namespace CadStudio3D;
+namespace CadStudio;
 
 internal sealed class MainWindow : Window
 {
     private readonly CadSessionService _cad;
+    private readonly CadSessionService _shipCad;
     private readonly SceneSessionService _scene;
     private readonly CadDocumentSession _doc;
     private readonly CadEditorSettings _settings;
     private readonly CadCommandBus _bus;
     private readonly CadCommandDispatcher _dispatcher;
     private readonly CadToolController _tools;
+    private readonly CadToolController _shipTools;
     private readonly CadModelRenderer _modelRenderer;
     private readonly CadArtifactDumper _artifacts;
     private readonly ShipDesignSession _shipDesign;
@@ -47,6 +50,7 @@ internal sealed class MainWindow : Window
     private Control _cadHost = null!;
     private Control _sceneHost = null!;
     private Control _shipHost = null!;
+    private Control _draftBarHost = null!;
     private StudioFeedback _feedback = null!;
     private StudioCommandBar _commandBar = null!;
     private CheckBox _snapCheck = null!;
@@ -60,6 +64,13 @@ internal sealed class MainWindow : Window
     private CheckBox _isolateCheck = null!;
     private NumericUpDown _elevationBox = null!;
     private TextBlock _modeBanner = null!;
+    private TextBlock _portsLine = null!;
+    private Control _exportPhysBtn = null!;
+    private Control _dumpBtn = null!;
+    private Control _undoBtn = null!;
+    private Control _redoBtn = null!;
+    private Control _deleteBtn = null!;
+    private Control _bridgeBtn = null!;
     private StudioWorkspace _workspace = StudioWorkspace.Draft2D;
     private bool _scenePresenting;
     private IDisposable? _shipAttachment;
@@ -69,11 +80,13 @@ internal sealed class MainWindow : Window
 
     public MainWindow(
         CadSessionService cad,
+        ShipCadSession shipCad,
         SceneSessionService scene,
         ShipDesignSession shipDesign,
         CadStudioDataMigration.Report migration)
     {
         _cad = cad;
+        _shipCad = shipCad.Service;
         _scene = scene;
         _shipDesign = shipDesign;
         _migration = migration;
@@ -82,10 +95,12 @@ internal sealed class MainWindow : Window
         _bus = cad.Bus;
         _dispatcher = cad.Dispatcher;
         _tools = new CadToolController(_dispatcher, _settings);
+        _shipTools = new CadToolController(shipCad.Dispatcher, shipCad.Settings);
         _modelRenderer = new CadModelRenderer(_doc, _settings);
         _artifacts = new CadArtifactDumper(_doc, _settings);
         _cad.ExportRoot = Path.Combine(_settings.DataRoot, "exports");
         _cad.FitHandler = () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Fit });
+        _shipCad.FitHandler = () => _shipEditor?.Fit();
 
         Title = "Novolis CAD Studio";
         Width = 1480;
@@ -123,47 +138,47 @@ internal sealed class MainWindow : Window
     {
         var chrome = StudioChrome.Create();
         _feedback = chrome.CreateFeedback();
-        AgentProperties.SetId(chrome.StatusLine, "cad3d.status");
-        AgentProperties.SetId(chrome.FlashLine, "cad3d.flash");
+        AgentProperties.SetId(chrome.StatusLine, "cad.studio.status");
+        AgentProperties.SetId(chrome.FlashLine, "cad.studio.flash");
 
         var toolbar = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(10, 8, 10, 4),
         };
-        AgentProperties.SetId(toolbar, "cad3d.toolbar");
+        AgentProperties.SetId(toolbar, "cad.studio.toolbar");
 
         toolbar.Children.Add(SectionLabel("File"));
-        toolbar.Children.Add(Btn("New", () => _ = OnNewAsync(), "cad3d.tool.new"));
-        toolbar.Children.Add(Btn("Open…", () => _ = OnOpenAsync(), "cad3d.tool.open"));
-        toolbar.Children.Add(Btn("Save", OnSave, "cad3d.tool.save"));
-        toolbar.Children.Add(Btn("Save As…", () => _ = OnSaveAsAsync(), "cad3d.tool.saveAs"));
-        toolbar.Children.Add(Btn("Export Phys…", () => _ = OnExportPhysAsync(), "cad3d.tool.exportPhys"));
-        toolbar.Children.Add(Btn("Dump…", () => _ = OnDumpArtifactsAsync(), "cad3d.tool.dump"));
+        toolbar.Children.Add(Btn("New", () => _ = OnNewAsync(), "cad.studio.tool.new"));
+        toolbar.Children.Add(Btn("Open…", () => _ = OnOpenAsync(), "cad.studio.tool.open"));
+        toolbar.Children.Add(Btn("Save", OnSave, "cad.studio.tool.save"));
+        toolbar.Children.Add(Btn("Save As…", () => _ = OnSaveAsAsync(), "cad.studio.tool.saveAs"));
+        _exportPhysBtn = Btn("Export Phys…", () => _ = OnExportPhysAsync(), "cad.studio.tool.exportPhys");
+        _dumpBtn = Btn("Dump…", () => _ = OnDumpArtifactsAsync(), "cad.studio.tool.dump");
+        toolbar.Children.Add(_exportPhysBtn);
+        toolbar.Children.Add(_dumpBtn);
         toolbar.Children.Add(Sep());
         toolbar.Children.Add(SectionLabel("Edit"));
-        toolbar.Children.Add(Btn("Undo", () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Undo }), "cad3d.undo"));
-        toolbar.Children.Add(Btn("Redo", () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Redo }), "cad3d.redo"));
-        toolbar.Children.Add(Btn("Delete", () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.DeleteSelection }), "cad3d.delete"));
+        _undoBtn = Btn("Undo", OnUndo, "cad.studio.undo");
+        _redoBtn = Btn("Redo", OnRedo, "cad.studio.redo");
+        _deleteBtn = Btn("Delete", OnDelete, "cad.studio.delete");
+        toolbar.Children.Add(_undoBtn);
+        toolbar.Children.Add(_redoBtn);
+        toolbar.Children.Add(_deleteBtn);
         toolbar.Children.Add(Sep());
         toolbar.Children.Add(SectionLabel("Workspace"));
-        toolbar.Children.Add(Btn("Draft 2D", () => SetStudioWorkspace(StudioWorkspace.Draft2D), "cad3d.ws.draft2d", "Plan drafting (XZ)"));
-        toolbar.Children.Add(Btn("Draft 3D", () => SetStudioWorkspace(StudioWorkspace.Draft3D), "cad3d.ws.draft3d", "Orbit wireframe drafting — Avalonia, not Raylib"));
-        toolbar.Children.Add(Btn("Model", () => SetStudioWorkspace(StudioWorkspace.Model), "cad3d.ws.model", "Bridged mesh scene"));
-        toolbar.Children.Add(Btn("Stage", () => SetStudioWorkspace(StudioWorkspace.Stage), "cad3d.ws.stage", "Lights / render"));
-        toolbar.Children.Add(Btn("Ship", () => SetStudioWorkspace(StudioWorkspace.Ship), "cad3d.ws.ship", "Ship authoring mode"));
+        toolbar.Children.Add(Btn("Draft 2D", () => SetStudioWorkspace(StudioWorkspace.Draft2D), "cad.studio.ws.draft2d", "Plan drafting (XZ)"));
+        toolbar.Children.Add(Btn("Draft 3D", () => SetStudioWorkspace(StudioWorkspace.Draft3D), "cad.studio.ws.draft3d", "Orbit wireframe drafting — Avalonia, not Raylib"));
+        toolbar.Children.Add(Btn("Model", () => SetStudioWorkspace(StudioWorkspace.Model), "cad.studio.ws.model", "Bridged mesh scene"));
+        toolbar.Children.Add(Btn("Stage", () => SetStudioWorkspace(StudioWorkspace.Stage), "cad.studio.ws.stage", "Lights / render"));
+        toolbar.Children.Add(Btn("Ship", () => SetStudioWorkspace(StudioWorkspace.Ship), "cad.studio.ws.ship", "Ship authoring mode"));
         toolbar.Children.Add(Sep());
-        toolbar.Children.Add(Btn("Bridge", OnBridge, "cad3d.bridge", "Cad → Scene meshes"));
-        toolbar.Children.Add(Btn("Export Scene…", () => _ = OnExportSceneAsync(), "cad3d.exportScene"));
-        toolbar.Children.Add(Btn("Fit", () =>
-        {
-            if (IsSceneWorkspace(_workspace))
-                _scene.Execute(new AgentCommand { ActionId = SceneSessionActionIds.Fit });
-            else
-                _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Fit });
-        }, "cad3d.fit"));
+        _bridgeBtn = Btn("Bridge", OnBridge, "cad.studio.bridge", "Cad → Scene meshes");
+        toolbar.Children.Add(_bridgeBtn);
+        toolbar.Children.Add(Btn("Export Scene…", () => _ = OnExportSceneAsync(), "cad.studio.exportScene"));
+        toolbar.Children.Add(Btn("Fit", FitActiveView, "cad.studio.fit"));
 
-        var draftBar = BuildDraftOptionsBar();
+        _draftBarHost = BuildDraftOptionsBar();
 
         _modeBanner = new TextBlock
         {
@@ -173,33 +188,34 @@ internal sealed class MainWindow : Window
             Foreground = GraphicalProfile.TextBrush,
             Text = "Draft 2D — plan (XZ)",
         };
-        AgentProperties.SetId(_modeBanner, "cad3d.modeBanner");
+        AgentProperties.SetId(_modeBanner, "cad.studio.modeBanner");
 
         _cadEditor = new CadEditorSurface(_doc, _settings, _bus, _dispatcher, _tools, _modelRenderer);
-        AgentProperties.SetId(_cadEditor.DraftViewport, "cad3d.viewport.plan");
-        AgentProperties.SetId(_cadEditor.Draft3DViewport, "cad3d.viewport.draft3d");
-        AgentProperties.SetId(_cadEditor.ModelHost, "cad3d.viewport.preview");
-        AgentProperties.SetId(_cadEditor.SceneTree, "cad3d.sceneTree");
-        AgentProperties.SetId(_cadEditor.PropertyPanel, "cad3d.properties");
+        AgentProperties.SetId(_cadEditor.DraftViewport, "cad.studio.viewport.plan");
+        AgentProperties.SetId(_cadEditor.Draft3DViewport, "cad.studio.viewport.draft3d");
+        AgentProperties.SetId(_cadEditor.ModelHost, "cad.studio.viewport.preview");
+        AgentProperties.SetId(_cadEditor.SceneTree, "cad.studio.sceneTree");
+        AgentProperties.SetId(_cadEditor.PropertyPanel, "cad.studio.properties");
 
-        _cadHost = BuildCadHost(_cadEditor, draftBar);
+        _cadHost = BuildCadHost(_cadEditor, _draftBarHost);
 
         _shipEditor = new CadEditorSurface(
-            _doc,
-            _settings,
-            _bus,
-            _dispatcher,
-            _tools,
-            new CadModelRenderer(_doc, _settings));
-        AgentProperties.SetId(_shipEditor.ModelHost, "cad3d.ship.viewport.model");
+            _shipCad.Document,
+            _shipCad.Settings,
+            _shipCad.Bus,
+            _shipCad.Dispatcher,
+            _shipTools,
+            new CadModelRenderer(_shipCad.Document, _shipCad.Settings));
+        AgentProperties.SetId(_shipEditor.ModelHost, "cad.studio.ship.viewport.model");
+        _shipCad.Editor = _shipEditor;
         var shipStatus = new TextBlock
         {
             Text = "PLAN",
             Margin = new Thickness(8, 4),
             Foreground = GraphicalProfile.TextBrush,
         };
-        AgentProperties.SetId(shipStatus, "cad3d.ship.status");
-        _shipHost = ShipDesignChrome.CreateShell(_cad, _shipDesign, _shipEditor, shipStatus);
+        AgentProperties.SetId(shipStatus, "cad.studio.ship.status");
+        _shipHost = ShipDesignChrome.CreateShell(_shipCad, _shipDesign, _shipEditor, shipStatus);
         _shipHost.IsVisible = false;
 
         _sceneEditor = new SceneEditorSurface(_scene, composeDefaultLayout: false);
@@ -211,13 +227,13 @@ internal sealed class MainWindow : Window
         _host.Children.Add(_shipHost);
 
         _commandBar = new StudioCommandBar();
-        AgentProperties.SetId(_commandBar, "cad3d.commandBar.host");
+        AgentProperties.SetId(_commandBar, "cad.studio.commandBar.host");
         if (_commandBar.Content is Border { Child: Panel commandRow })
         {
             foreach (var child in commandRow.Children)
             {
                 if (child is TextBox input)
-                    AgentProperties.SetId(input, "cad3d.commandBar", AgentRoleNames.TextBox);
+                    AgentProperties.SetId(input, "cad.studio.commandBar", AgentRoleNames.TextBox);
             }
         }
 
@@ -258,20 +274,21 @@ internal sealed class MainWindow : Window
         Grid.SetRow(_commandBar, 2);
         root.Children.Add(_commandBar);
 
-        var ports = new TextBlock
+        _portsLine = new TextBlock
         {
             Margin = new Thickness(10, 2),
             FontSize = 11,
             Opacity = 0.75,
             Foreground = GraphicalProfile.TextBrush,
             Text = PortStatusLine(),
+            IsVisible = Program.CadSurface is not null || Program.SceneSurface is not null,
         };
-        AgentProperties.SetId(ports, "cad3d.ports");
+        AgentProperties.SetId(_portsLine, "cad.studio.ports");
 
         var bottom = new StackPanel
         {
             Spacing = 0,
-            Children = { chrome.FlashLine, chrome.StatusLine, ports },
+            Children = { chrome.FlashLine, chrome.StatusLine, _portsLine },
         };
 
         return new DockPanel
@@ -342,7 +359,7 @@ internal sealed class MainWindow : Window
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(8, 4, 8, 6),
         };
-        AgentProperties.SetId(row, "cad3d.draftBar");
+        AgentProperties.SetId(row, "cad.studio.draftBar");
 
         row.Children.Add(SectionLabel("Units"));
         _unitCombo = new ComboBox
@@ -357,7 +374,7 @@ internal sealed class MainWindow : Window
                 new UnitChoice(CadUnits.Inch, "Inches (in)"),
             },
         };
-        AgentProperties.SetId(_unitCombo, "cad3d.units", AgentRoleNames.ComboBox);
+        AgentProperties.SetId(_unitCombo, "cad.studio.units", AgentRoleNames.ComboBox);
         _unitCombo.SelectionChanged += (_, _) =>
         {
             if (_syncingDraftUi || _unitCombo.SelectedItem is not UnitChoice choice)
@@ -370,14 +387,14 @@ internal sealed class MainWindow : Window
         row.Children.Add(Sep());
 
         row.Children.Add(SectionLabel("Tools"));
-        row.Children.Add(Btn("Select", () => ExecTool("select"), "cad3d.tool.select"));
-        row.Children.Add(Btn("Line", () => ExecTool("line"), "cad3d.tool.line", "L"));
-        row.Children.Add(Btn("Circle", () => ExecTool("circle"), "cad3d.tool.circle", "C"));
-        row.Children.Add(Btn("Rect", () => ExecTool("rect"), "cad3d.tool.rect", "R"));
-        row.Children.Add(Btn("Wall", () => ExecTool("wall"), "cad3d.tool.wall", "W"));
-        row.Children.Add(Btn("Dim", () => ExecTool("dimension"), "cad3d.tool.dimension"));
-        row.Children.Add(Btn("Box", () => ExecPrompt("Box(1,1,1)"), "cad3d.tool.box"));
-        row.Children.Add(Btn("Extrude", () => ExecPrompt("Extrude(2.4)"), "cad3d.tool.extrude"));
+        row.Children.Add(Btn("Select", () => ExecTool("select"), "cad.studio.tool.select"));
+        row.Children.Add(Btn("Line", () => ExecTool("line"), "cad.studio.tool.line", "L"));
+        row.Children.Add(Btn("Circle", () => ExecTool("circle"), "cad.studio.tool.circle", "C"));
+        row.Children.Add(Btn("Rect", () => ExecTool("rect"), "cad.studio.tool.rect", "R"));
+        row.Children.Add(Btn("Wall", () => ExecTool("wall"), "cad.studio.tool.wall", "W"));
+        row.Children.Add(Btn("Dim", () => ExecTool("dimension"), "cad.studio.tool.dimension"));
+        row.Children.Add(Btn("Box", () => ExecPrompt("Box(1,1,1)"), "cad.studio.tool.box"));
+        row.Children.Add(Btn("Extrude", () => ExecPrompt("Extrude(2.4)"), "cad.studio.tool.extrude"));
         row.Children.Add(Sep());
 
         row.Children.Add(SectionLabel("Snap"));
@@ -388,7 +405,7 @@ internal sealed class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(4, 0, 8, 0),
         };
-        AgentProperties.SetId(_snapCheck, "cad3d.snap", AgentRoleNames.CheckBox);
+        AgentProperties.SetId(_snapCheck, "cad.studio.snap", AgentRoleNames.CheckBox);
         _snapCheck.IsCheckedChanged += (_, _) =>
         {
             if (_syncingDraftUi)
@@ -416,7 +433,7 @@ internal sealed class MainWindow : Window
                 new GridChoice(2f, "2 m"),
             },
         };
-        AgentProperties.SetId(_gridCombo, "cad3d.grid", AgentRoleNames.ComboBox);
+        AgentProperties.SetId(_gridCombo, "cad.studio.grid", AgentRoleNames.ComboBox);
         _gridCombo.SelectionChanged += (_, _) =>
         {
             if (_syncingDraftUi)
@@ -440,7 +457,7 @@ internal sealed class MainWindow : Window
             Margin = new Thickness(4, 0, 8, 0),
         };
         ToolTip.SetTip(_continuousCheck, "Line: chain from the last endpoint (Esc ends)");
-        AgentProperties.SetId(_continuousCheck, "cad3d.continuous", AgentRoleNames.CheckBox);
+        AgentProperties.SetId(_continuousCheck, "cad.studio.continuous", AgentRoleNames.CheckBox);
         _continuousCheck.IsCheckedChanged += (_, _) =>
         {
             if (_syncingDraftUi)
@@ -462,7 +479,7 @@ internal sealed class MainWindow : Window
             FormatString = "0.##",
             VerticalAlignment = VerticalAlignment.Center,
         };
-        AgentProperties.SetId(_elevationBox, "cad3d.elevation", AgentRoleNames.TextBox);
+        AgentProperties.SetId(_elevationBox, "cad.studio.elevation", AgentRoleNames.TextBox);
         ToolTip.SetTip(_elevationBox, "Drawing plane elevation (world Y)");
         _elevationBox.ValueChanged += (_, e) =>
         {
@@ -473,9 +490,9 @@ internal sealed class MainWindow : Window
             RefreshTitle();
         };
         row.Children.Add(_elevationBox);
-        row.Children.Add(Btn("+1", () => NudgeElevation(1f), "cad3d.elevation.up", "Next level / +1 m"));
-        row.Children.Add(Btn("−1", () => NudgeElevation(-1f), "cad3d.elevation.down", "Previous level / −1 m"));
-        row.Children.Add(Btn("0", () => SetElevation(0f), "cad3d.elevation.zero"));
+        row.Children.Add(Btn("+1", () => NudgeElevation(1f), "cad.studio.elevation.up", "Next level / +1 m"));
+        row.Children.Add(Btn("−1", () => NudgeElevation(-1f), "cad.studio.elevation.down", "Previous level / −1 m"));
+        row.Children.Add(Btn("0", () => SetElevation(0f), "cad.studio.elevation.zero"));
 
         _isolateCheck = new CheckBox
         {
@@ -484,7 +501,7 @@ internal sealed class MainWindow : Window
             Margin = new Thickness(4, 0, 8, 0),
         };
         ToolTip.SetTip(_isolateCheck, "Dim and skip hit testing for entities away from the current level");
-        AgentProperties.SetId(_isolateCheck, "cad3d.isolate", AgentRoleNames.CheckBox);
+        AgentProperties.SetId(_isolateCheck, "cad.studio.isolate", AgentRoleNames.CheckBox);
         _isolateCheck.IsCheckedChanged += (_, _) =>
         {
             if (_syncingDraftUi)
@@ -497,10 +514,10 @@ internal sealed class MainWindow : Window
         row.Children.Add(Sep());
 
         row.Children.Add(SectionLabel("Axis lock"));
-        _lockNone = AxisLockBtn("Free", "none", "cad3d.axis.none");
-        _lockX = AxisLockBtn("X", "x", "cad3d.axis.x");
-        _lockY = AxisLockBtn("Y", "y", "cad3d.axis.y");
-        _lockZ = AxisLockBtn("Z", "z", "cad3d.axis.z");
+        _lockNone = AxisLockBtn("Free", "none", "cad.studio.axis.none");
+        _lockX = AxisLockBtn("X", "x", "cad.studio.axis.x");
+        _lockY = AxisLockBtn("Y", "y", "cad.studio.axis.y");
+        _lockZ = AxisLockBtn("Z", "z", "cad.studio.axis.z");
         row.Children.Add(_lockNone);
         row.Children.Add(_lockX);
         row.Children.Add(_lockY);
@@ -785,9 +802,9 @@ internal sealed class MainWindow : Window
             _sceneHost.IsVisible = false;
             _shipHost.IsVisible = true;
             _commandBar.IsVisible = false;
-            _shipAttachment ??= ShipDesignChrome.Attach(_cad, _shipDesign);
-            _cad.Editor = _shipEditor;
+            _shipAttachment ??= ShipDesignChrome.Attach(_shipCad, _shipDesign);
             _modeBanner.Text = "Ship — PLAN / MODEL / ANALYZE · .shipjson is authoritative";
+            RefreshModeChrome();
             RefreshTitle();
             _feedback.SetStatus(
                 $"Ship · active={(_shipDesign.Path is null ? "new .shipjson" : Path.GetFileName(_shipDesign.Path))}");
@@ -801,7 +818,7 @@ internal sealed class MainWindow : Window
         }
 
         _cad.Editor = _cadEditor;
-        _commandBar.IsVisible = true;
+        _commandBar.IsVisible = !sceneMode;
         _cadHost.IsVisible = !sceneMode;
         _sceneHost.IsVisible = sceneMode;
         _shipHost.IsVisible = false;
@@ -850,8 +867,61 @@ internal sealed class MainWindow : Window
             }
         }
 
+        RefreshModeChrome();
         RefreshTitle();
         _feedback.SetStatus($"{StudioWorkspaceIds.ToDisplay(workspace)}  ·  active={(sceneMode ? "Scene (.nov3djson)" : "Cad (.cadjson)")}");
+    }
+
+    private void RefreshModeChrome()
+    {
+        var ship = _workspace == StudioWorkspace.Ship;
+        var scene = IsSceneWorkspace(_workspace);
+        var draft = !ship && !scene;
+        _exportPhysBtn.IsVisible = draft;
+        _dumpBtn.IsVisible = draft;
+        _undoBtn.IsVisible = draft;
+        _redoBtn.IsVisible = draft;
+        _deleteBtn.IsVisible = draft;
+        _bridgeBtn.IsVisible = !ship;
+        _draftBarHost.IsVisible = draft;
+        _commandBar.IsVisible = draft;
+        _portsLine.IsVisible = Program.CadSurface is not null || Program.SceneSurface is not null;
+    }
+
+    private void OnUndo()
+    {
+        if (_workspace != StudioWorkspace.Draft2D && _workspace != StudioWorkspace.Draft3D)
+            return;
+        _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Undo });
+    }
+
+    private void OnRedo()
+    {
+        if (_workspace != StudioWorkspace.Draft2D && _workspace != StudioWorkspace.Draft3D)
+            return;
+        _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Redo });
+    }
+
+    private void OnDelete()
+    {
+        if (_workspace != StudioWorkspace.Draft2D && _workspace != StudioWorkspace.Draft3D)
+            return;
+        _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.DeleteSelection });
+    }
+
+    private void FitActiveView()
+    {
+        if (_workspace == StudioWorkspace.Ship)
+        {
+            if (_shipDesign.Workspace == ShipWorkspaceKind.Model)
+                _shipEditor.Fit();
+            return;
+        }
+
+        if (IsSceneWorkspace(_workspace))
+            _scene.Execute(new AgentCommand { ActionId = SceneSessionActionIds.Fit });
+        else
+            _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Fit });
     }
 
     private static TextBlock SectionLabel(string text) => new()
@@ -1077,11 +1147,13 @@ internal sealed class MainWindow : Window
 
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open CadJSON",
+            Title = "Open CAD or Ship",
             AllowMultiple = false,
             FileTypeFilter =
             [
+                new FilePickerFileType("CAD or Ship") { Patterns = ["*.cadjson", "*.shipjson", "*.json"] },
                 new FilePickerFileType("CadJSON") { Patterns = ["*.cadjson", "*.json"] },
+                new FilePickerFileType("Ship JSON") { Patterns = ["*.shipjson"] },
                 FilePickerFileTypes.All,
             ],
         });
@@ -1091,6 +1163,12 @@ internal sealed class MainWindow : Window
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
             _feedback.FlashError("Could not open file");
+            return;
+        }
+
+        if (path.EndsWith(".shipjson", StringComparison.OrdinalIgnoreCase))
+        {
+            OpenShipPath(path);
             return;
         }
 
@@ -1126,9 +1204,15 @@ internal sealed class MainWindow : Window
             return;
         }
 
+        OpenShipPath(path);
+    }
+
+    private void OpenShipPath(string path)
+    {
         try
         {
             _shipDesign.OpenFromPath(path);
+            SetStudioWorkspace(StudioWorkspace.Ship);
             _feedback.Flash($"Opened {Path.GetFileName(path)}");
             RefreshTitle();
         }
@@ -1222,27 +1306,30 @@ internal sealed class MainWindow : Window
         }
         else if (e.Key == Key.F && !e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
-            if (IsSceneWorkspace(_workspace))
-                _scene.Execute(new AgentCommand { ActionId = SceneSessionActionIds.Fit });
-            else
-                _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Fit });
+            FitActiveView();
             e.Handled = true;
         }
-        else if (e.Key == Key.X && !e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        else if (IsDraftWorkspace(_workspace)
+                 && e.Key == Key.X
+                 && !e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.SetAxisLock, Kind = "x" });
             SyncDraftOptionsUi();
             InvalidateDraftViews();
             e.Handled = true;
         }
-        else if (e.Key == Key.Y && !e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        else if (IsDraftWorkspace(_workspace)
+                 && e.Key == Key.Y
+                 && !e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.SetAxisLock, Kind = "y" });
             SyncDraftOptionsUi();
             InvalidateDraftViews();
             e.Handled = true;
         }
-        else if (e.Key == Key.Z && !e.KeyModifiers.HasFlag(KeyModifiers.Control)
+        else if (IsDraftWorkspace(_workspace)
+                 && e.Key == Key.Z
+                 && !e.KeyModifiers.HasFlag(KeyModifiers.Control)
                  && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
             _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.SetAxisLock, Kind = "z" });
@@ -1254,6 +1341,9 @@ internal sealed class MainWindow : Window
 
     private static bool IsSceneWorkspace(StudioWorkspace w) =>
         w is StudioWorkspace.Model or StudioWorkspace.Stage;
+
+    private static bool IsDraftWorkspace(StudioWorkspace w) =>
+        w is StudioWorkspace.Draft2D or StudioWorkspace.Draft3D;
 
     private static Button Btn(string text, Action action, string agentId, string? tip = null)
     {

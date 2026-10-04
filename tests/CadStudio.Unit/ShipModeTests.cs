@@ -7,12 +7,12 @@ using Novolis.Avalonia.Ship.Design;
 using Novolis.Avalonia.Ship.Design.Session;
 using Novolis.Ship.Design;
 
-namespace CadStudio3D.Unit;
+namespace CadStudio.Unit;
 
 public sealed class ShipModeTests
 {
     [Test]
-    public async Task ShipChrome_IsAttachedOnlyForShipMode()
+    public async Task ShipChrome_AttachesOnlyToShipCadSession()
     {
         var root = Path.Combine(
             Path.GetTempPath(),
@@ -25,13 +25,25 @@ public sealed class ShipModeTests
             var bus = new CadCommandBus(document);
             var dispatcher = new CadCommandDispatcher(document, bus, settings);
             var cad = new CadSessionService(document, settings, bus, dispatcher);
-            var ship = new ShipDesignSession(Path.Combine(root, "ships"));
+            cad.Execute(new CadCommandDto
+            {
+                ActionId = CadSessionActionIds.AddRect,
+                Properties = new Dictionary<string, string>
+                {
+                    ["a"] = "0,0,0",
+                    ["b"] = "2,0,2",
+                },
+            });
+            var productCount = document.Document.Entities.Count;
+            var shipCadHost = new CadStudio.ShipCadSession(root);
+            var shipCad = shipCadHost.Service;
+            var ship = new ShipDesignSession(shipCadHost.Settings.DataRoot);
 
             await Assert.That(cad.ExteriorHooks).IsNull();
             await Assert.That(cad.Actions().Actions.Any(
                 action => action.Id == CadShipChrome.ImportShipActionId)).IsFalse();
 
-            using (ShipDesignChrome.Attach(cad, ship))
+            using (ShipDesignChrome.Attach(shipCad, ship))
             {
                 ship.NewShip(ShipDesignSession.DefaultDefinition("Unit Ship"));
                 ship.SetWorkspace(ShipWorkspaceKind.Model);
@@ -41,9 +53,13 @@ public sealed class ShipModeTests
                 await Assert.That(ship.HasShip).IsTrue();
                 await Assert.That(ship.Validation).IsNotNull();
                 await Assert.That(ship.Analysis.TotalMassKg).IsGreaterThan(0);
-                await Assert.That(document.Document.Entities.Count).IsGreaterThan(0);
-                await Assert.That(cad.ExteriorHooks).IsNotNull();
+                await Assert.That(shipCad.Document.Document.Entities.Count).IsGreaterThan(0);
+                await Assert.That(document.Document.Entities.Count).IsEqualTo(productCount);
+                await Assert.That(cad.ExteriorHooks).IsNull();
+                await Assert.That(shipCad.ExteriorHooks).IsNotNull();
                 await Assert.That(cad.Actions().Actions.Any(
+                    action => action.Id == CadShipChrome.ImportShipActionId)).IsFalse();
+                await Assert.That(shipCad.Actions().Actions.Any(
                     action => action.Id == CadShipChrome.ImportShipActionId)).IsTrue();
 
                 var path = Path.Combine(root, "unit.shipjson");
@@ -52,9 +68,10 @@ public sealed class ShipModeTests
                 await Assert.That(ship.IsDirty).IsFalse();
             }
 
-            await Assert.That(cad.ExteriorHooks).IsNull();
-            await Assert.That(cad.Actions().Actions.Any(
+            await Assert.That(shipCad.ExteriorHooks).IsNull();
+            await Assert.That(shipCad.Actions().Actions.Any(
                 action => action.Id == CadShipChrome.ImportShipActionId)).IsFalse();
+            await Assert.That(document.Document.Entities.Count).IsEqualTo(productCount);
         }
         finally
         {

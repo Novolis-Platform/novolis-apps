@@ -1,7 +1,7 @@
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Cad.Primitives;
 
-namespace CadStudio3D.Unit;
+namespace CadStudio.Unit;
 
 public sealed class DispatcherCommandTests
 {

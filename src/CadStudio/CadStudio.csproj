@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>CadStudio3D</RootNamespace>
-    <AssemblyName>CadStudio3D</AssemblyName>
+    <RootNamespace>CadStudio</RootNamespace>
+    <AssemblyName>CadStudio</AssemblyName>
     <ApplicationTitle>Novolis CAD Studio</ApplicationTitle>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <Description>Novolis CAD Studio — 2D/3D CAD drafting, ship authoring, appearance, limited mesh modelling, staging, and lit PNG render. Dual Cad+Scene Agent Surfaces.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="CadStudio3D.Unit" />
+    <InternalsVisibleTo Include="CadStudio.Unit" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" />
@@ -42,11 +42,5 @@
     <LibraryReference Include="Novolis.Raylib.Abstractions" />
     <LibraryReference Include="Novolis.Raylib.Bindings" />
     <LibraryReference Include="Novolis.Raylib.Runtime" />
-    <LibraryReference Include="Novolis.Rendering.Presentation.Silk" />
-    <LibraryReference Include="Novolis.Rendering.Backends.Vulkan" />
-    <PackageReference Include="Silk.NET.OpenGL" />
-    <PackageReference Include="Silk.NET.Vulkan" />
-    <PackageReference Include="Silk.NET.Shaderc" />
-    <PackageReference Include="Silk.NET.Shaderc.Native" />
   </ItemGroup>
 </Project>

@@ -41,7 +41,7 @@ public sealed class App : Application
                 : new CoreReportWindow(CoreReportText ?? "");
             desktop.MainWindow = window;
             Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(window);
-            // Dedicated pipe so Draft Studio (default novolis-avalonia-agent) cannot steal the session.
+            // Dedicated pipe so the default novolis-avalonia-agent endpoint cannot steal the session.
             if (AgentHost.IsEnabledByEnvironment())
             {
                 var endpoint = Environment.GetEnvironmentVariable(UiTransportEndpoints.EndpointEnvVar);

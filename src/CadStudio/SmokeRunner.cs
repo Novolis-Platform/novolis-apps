@@ -10,7 +10,7 @@ using Novolis.Cad.SceneBridge;
 using Novolis.Ship.Design;
 using Novolis.ThreeD;
 
-namespace CadStudio3D;
+namespace CadStudio;
 
 /// <summary>Agent-first smoke: Cad Execute → bridge → Scene Execute (no UI).</summary>
 public static class SmokeRunner
@@ -33,7 +33,7 @@ public static class SmokeRunner
 
         Console.WriteLine("Novolis CAD Studio smoke (agent-first)");
 
-        var root = Path.Combine(Path.GetTempPath(), "novolis-cadstudio3d-smoke-" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "novolis-cadstudio-smoke-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {
@@ -43,10 +43,12 @@ public static class SmokeRunner
             var dispatcher = new CadCommandDispatcher(document, bus, settings);
             var cad = new CadSessionService(document, settings, bus, dispatcher)
             {
-                AppId = "cad-studio-3d-smoke",
+                AppId = "cad-studio-smoke",
                 AppTitle = "Novolis CAD Studio",
             };
-            var scene = new SceneSessionService { AppId = "cad-studio-3d-scene-smoke" };
+            var scene = new SceneSessionService { AppId = "cad-studio-scene-smoke" };
+            var shipCadHost = new ShipCadSession(root);
+            var shipCad = shipCadHost.Service;
 
             cad.SceneBridged += doc => scene.ReplaceDocument(doc);
 
@@ -96,6 +98,8 @@ public static class SmokeRunner
             });
             Check("cad setmaterial", mat.Ok, mat.Message);
 
+            var productEntityCount = document.Document.Entities.Count;
+
             var scenePath = Path.Combine(root, "smoke.nov3djson");
             var export = cad.Execute(new CadCommandDto
             {
@@ -116,41 +120,49 @@ public static class SmokeRunner
             var describe = scene.Execute(new AgentCommand { ActionId = SceneSessionActionIds.DescribeScene });
             Check("scene describescene", describe.Ok, describe.Message);
 
-            // Round-trip load exported file
             var reloaded = SceneSerializer.Load(scenePath);
             Check("reload scene nodes", reloaded.Nodes.Count >= 1);
 
-            // Library bridge direct path
             var direct = CadSceneBridge.ToSceneDocument(document.Document);
             Check("bridge library meshes", direct.Nodes.OfType<MeshNode>().Any());
 
             Check("generic ship hooks absent", cad.ExteriorHooks is null);
-            var shipRoot = Path.Combine(root, "ships");
-            var ship = new ShipDesignSession(shipRoot);
-            using var shipAttachment = ShipDesignChrome.Attach(cad, ship);
-            Check("ship import action scoped", cad.Actions().Actions.Any(
+            Check("generic ship import absent", !cad.Actions().Actions.Any(a => a.Id == "importship"));
+
+            var ship = new ShipDesignSession(shipCadHost.Settings.DataRoot);
+            using var shipAttachment = ShipDesignChrome.Attach(shipCad, ship);
+            Check("ship import action scoped", shipCad.Actions().Actions.Any(
                 a => a.Id == "importship"));
-            Check("ship validation action scoped", cad.Actions().Actions.Any(
+            Check("ship validation action scoped", shipCad.Actions().Actions.Any(
                 a => a.Id == "validateship"));
+            Check("product cad has no ship import", !cad.Actions().Actions.Any(
+                a => a.Id == "importship"));
+            Check("product cad has no exterior hooks", cad.ExteriorHooks is null);
 
             ship.NewShip(ShipDesignSession.DefaultDefinition("Smoke CAD Ship"));
             Check("ship mode creates design", ship.HasShip);
             Check("ship mode seeds hull", ship.Design.Hull.Geometry.Entities.Count > 0);
-            ship.SetWorkspace(Novolis.Ship.Design.ShipWorkspaceKind.Model);
+            ship.SetWorkspace(ShipWorkspaceKind.Model);
             ship.Select(ship.Design.Hull.Id.AsObject());
             ship.Notify();
-            Check("ship mode projects model", document.Document.Entities.Count > 0);
+            Check("ship mode projects model", shipCad.Document.Document.Entities.Count > 0);
+            Check(
+                "product cad entities unchanged",
+                document.Document.Entities.Count == productEntityCount);
 
-            var shipPath = Path.Combine(shipRoot, "smoke.shipjson");
+            var shipPath = Path.Combine(shipCadHost.Settings.DataRoot, "smoke.shipjson");
             ship.SaveTo(shipPath);
             Check("ship mode saves shipjson", File.Exists(shipPath));
             ship.OpenFromPath(shipPath);
             Check("ship mode reloads shipjson", !ship.IsDirty && ship.HasShip);
 
             shipAttachment.Dispose();
-            Check("ship hooks detach", cad.ExteriorHooks is null);
-            Check("ship actions detach", !cad.Actions().Actions.Any(
+            Check("ship hooks detach", shipCad.ExteriorHooks is null);
+            Check("ship actions detach", !shipCad.Actions().Actions.Any(
                 a => a.Id == "importship"));
+            Check(
+                "product cad still unchanged after detach",
+                document.Document.Entities.Count == productEntityCount);
         }
         finally
         {

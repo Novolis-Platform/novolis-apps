@@ -1,4 +1,4 @@
-﻿namespace CadStudio3D;
+namespace CadStudio;
 
 internal static class StudioWorkspaceIds
 {

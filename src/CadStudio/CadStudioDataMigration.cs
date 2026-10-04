@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace CadStudio3D;
+namespace CadStudio;
 
 /// <summary>
 /// Preserves data from the retired CAD hosts without converting or deleting user

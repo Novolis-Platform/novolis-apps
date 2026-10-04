@@ -5,7 +5,7 @@ using Novolis.Avalonia.GraphicalProfile;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Agent;
 
-namespace CadStudio3D;
+namespace CadStudio;
 
 public sealed class App : Application
 {
