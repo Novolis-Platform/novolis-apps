@@ -1439,3 +1439,21 @@ Jamie’s week tiles say Confirm / Here, not Open / Recorded. The day commit is 
 Ada at Nordvik remains the Norwegian flex default: *Worked as scheduled*, Flex saldo, paint, Saturday Weekend, Submit + Dispute, manager ladder then Helen.
 
 Alice (Nordvik manager) cannot open Jamie’s WorkDay or review. Priya cannot be replaced by a store manager Approve.
+
+# 34. Administrator workplace setup
+
+An administrator signs in and opens Setup.
+
+1. Choose a pattern: **Nordvik office** (flex, paint, cascading review) or **Game shop** (attendance, HR only, no dispute).
+2. Name the workplace (slug + display name). The host clones the pattern; built-in seed identities stay as they are.
+3. Add people on that workplace. Game needs a clerk and HR. Nordvik needs an employee and a manager.
+4. The new clerk’s week uses Confirm / Here and *I was here*. The new office employee keeps *Worked as scheduled* and Flex.
+
+A non-administrator cannot POST `/api/admin/customers`.
+
+Full UI flows live in `Novolis.Hours.UiTests` (`TUnit.Playwright` `PageTest` plus `Novolis.Testing.Playwright` walkthrough storage). The suite walks Game shop (attendance, HR-only, no flex/dispute) and Nordvik office (flex, paint, submit, dispute) as the browser sees them. Each test writes `{TestName}.webm`, `frames/`, `walkthrough.html`, and `trace.zip` under `artifacts/playwright`.
+
+```powershell
+dotnet build d:\novolis\novolis-apps\tests\Novolis.Hours.UiTests\Novolis.Hours.UiTests.csproj -p:NovolisUseProjectReferences=true
+dotnet exec d:\novolis\novolis-apps\artifacts\bin\Novolis.Hours.UiTests\debug\Novolis.Hours.UiTests.dll
+```

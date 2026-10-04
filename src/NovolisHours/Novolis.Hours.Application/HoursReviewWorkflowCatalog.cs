@@ -23,11 +23,55 @@ public static class HoursReviewWorkflowCatalog
     /// <summary>Game retail: employee confirms attendance, HR closes. No dispute.</summary>
     public const string AttendanceHr = "attendance-hr";
 
+    /// <summary>Every review policy an administrator can assign to a workplace.</summary>
+    public static IReadOnlyList<ReviewPolicy> All =>
+    [
+        CascadingApprovalPolicy,
+        EmployerAcknowledgedPolicy,
+        SingleApproverPolicy,
+        EmployerOnlyPolicy,
+        EmployeeHrPolicy,
+        AttendanceHrPolicy,
+    ];
+
     /// <summary>Resolves the review policy that applies to an acceptance identity.</summary>
     public static ReviewPolicy ForEmployee(string employeeId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
-        return HoursCustomerCatalog.OrganisationId(employeeId) switch
+        return ForOrganisation(HoursCustomerCatalog.OrganisationId(employeeId));
+    }
+
+    /// <summary>Resolves the review policy stored on a workplace, or the built-in organisation default.</summary>
+    public static ReviewPolicy ForCustomer(HoursCustomer customer)
+    {
+        ArgumentNullException.ThrowIfNull(customer);
+        return TryGet(customer.ReviewPolicyId, out var policy)
+            ? policy
+            : ForOrganisation(customer.Id);
+    }
+
+    /// <summary>Looks up a review policy by id.</summary>
+    public static bool TryGet(string? policyId, out ReviewPolicy policy)
+    {
+        policy = All.FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(policyId) &&
+            item.Id.Equals(policyId, StringComparison.OrdinalIgnoreCase))!;
+        return policy is not null;
+    }
+
+    /// <summary>Snapshot workflow version captured with a WorkDay.</summary>
+    public static string WorkflowVersion(string employeeId) =>
+        WorkflowVersion(ForEmployee(employeeId));
+
+    /// <summary>Snapshot workflow version for an already resolved policy.</summary>
+    public static string WorkflowVersion(ReviewPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        return $"{policy.Id}.{policy.Version}";
+    }
+
+    private static ReviewPolicy ForOrganisation(string organisationId) =>
+        organisationId switch
         {
             HoursCustomerCatalog.NordvikStation => EmployerAcknowledgedPolicy,
             HoursCustomerCatalog.AtelierCurie => SingleApproverPolicy,
@@ -36,11 +80,6 @@ public static class HoursReviewWorkflowCatalog
             HoursCustomerCatalog.GameRetail => AttendanceHrPolicy,
             _ => CascadingApprovalPolicy,
         };
-    }
-
-    /// <summary>Snapshot workflow version captured with a WorkDay.</summary>
-    public static string WorkflowVersion(string employeeId) =>
-        $"{ForEmployee(employeeId).Id}.{ForEmployee(employeeId).Version}";
 
     private static ReviewPolicy CascadingApprovalPolicy { get; } = new(
         CascadingApproval,

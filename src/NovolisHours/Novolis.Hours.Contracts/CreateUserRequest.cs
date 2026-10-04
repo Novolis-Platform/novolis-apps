@@ -6,4 +6,8 @@ public sealed record CreateUserRequest(
     string Login,
     string Password,
     string DisplayName,
-    HoursClientRole Role);
+    HoursClientRole Role,
+    string? OrganisationId = null,
+    string? DivisionId = null,
+    string? TeamId = null,
+    int? ApprovalLevel = null);

@@ -1,0 +1,217 @@
+@page "/setup"
+@inject HoursBrowserSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>Workplace setup</PageTitle>
+
+@if (Session.CurrentUser?.Role != HoursClientRole.Administrator)
+{
+    <section class="card">
+        <p class="eyebrow">Setup</p>
+        <h1>Administrator only</h1>
+        <p class="muted">Sign in as an administrator to name a workplace and add people.</p>
+    </section>
+}
+else if (model is null)
+{
+    <p class="muted">Loading workplace patterns…</p>
+}
+else
+{
+    <section class="card">
+        <p class="eyebrow">Workplace setup</p>
+        <h1>@(model.Step switch { 1 => "Choose a pattern", 2 => "Name the workplace", 3 => "Add people", _ => "Workplace is live" })</h1>
+        <p class="muted">@model.PeopleHint The day commit will say @model.CommitPreview.</p>
+        <ol class="steps" aria-label="Setup steps">
+            <li class="@(model.Step == 1 ? "open" : null)">Pattern</li>
+            <li class="@(model.Step == 2 ? "open" : null)">Workplace</li>
+            <li class="@(model.Step == 3 ? "open" : null)">People</li>
+            <li class="@(model.Step == 4 ? "open" : null)">Done</li>
+        </ol>
+    </section>
+
+    @if (model.Step == 1)
+    {
+        <section class="card">
+            <div class="form-grid">
+                @foreach (var template in model.Templates)
+                {
+                    <button type="button"
+                            class="template-card @(template.Id == model.SelectedTemplateId ? "open" : null)"
+                            @onclick="() => SelectTemplate(template.Id)">
+                        <strong>@template.Title</strong>
+                        <span class="muted">@template.Summary</span>
+                    </button>
+                }
+            </div>
+            <button class="action" @onclick="() => model.Step = 2" disabled="@string.IsNullOrWhiteSpace(model.SelectedTemplateId)">Continue</button>
+        </section>
+    }
+    else if (model.Step == 2)
+    {
+        <section class="card">
+            <div class="form-grid">
+                <label>Workplace id
+                    <input @bind="model.OrganisationId" autocomplete="off" />
+                </label>
+                <label>Display name
+                    <input @bind="model.DisplayName" autocomplete="organization" />
+                </label>
+            </div>
+            <button class="action" @onclick="CreateWorkplaceAsync" disabled="@(busy || !model.CanNameWorkplace)">@(busy ? "Creating…" : "Create workplace")</button>
+        </section>
+    }
+    else if (model.Step == 3)
+    {
+        <section class="card">
+            <p class="eyebrow">@model.Created?.DisplayName</p>
+            <div class="form-grid">
+                <label>Employee id <input @bind="personEmployeeId" autocomplete="off" /></label>
+                <label>Login <input @bind="personLogin" autocomplete="username" /></label>
+                <label>Password <input @bind="personPassword" type="password" autocomplete="new-password" /></label>
+                <label>Display name <input @bind="personDisplayName" autocomplete="name" /></label>
+                <label>Role
+                    <select @bind="personRole">
+                        <option value="@HoursClientRole.Employee">Employee</option>
+                        <option value="@HoursClientRole.Manager">Manager</option>
+                        <option value="@HoursClientRole.HumanResources">HR</option>
+                    </select>
+                </label>
+            </div>
+            <div class="toolbar">
+                <button class="action" @onclick="AddPersonAsync" disabled="@busy">@(busy ? "Adding…" : "Add person")</button>
+                <button type="button" @onclick="() => model.Step = 4" disabled="@busy">Finish</button>
+            </div>
+            @if (model.People.Count > 0)
+            {
+                <ul>
+                    @foreach (var person in model.People)
+                    {
+                        <li>@person.DisplayName · @person.Role · @person.EmployeeId</li>
+                    }
+                </ul>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="card">
+            <p class="eyebrow">@model.Created?.DisplayName</p>
+            <h2>@model.Created?.Id</h2>
+            <p>People confirm time with <strong>@model.CommitPreview</strong>.</p>
+            <ul>
+                @foreach (var person in model.People)
+                {
+                    <li>@person.DisplayName · @person.Role</li>
+                }
+            </ul>
+            <a class="action-link" href="/">Back to week</a>
+        </section>
+    }
+}
+
+@if (!string.IsNullOrWhiteSpace(status))
+{
+    <p class="status" role="status">@status</p>
+}
+
+@code {
+    private WorkplaceSetupModel? model;
+    private string status = string.Empty;
+    private bool busy;
+    private string personEmployeeId = string.Empty;
+    private string personLogin = string.Empty;
+    private string personPassword = "Workplace-2026-Strong!";
+    private string personDisplayName = string.Empty;
+    private HoursClientRole personRole = HoursClientRole.Employee;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.RestoreAsync();
+        if (Session.CurrentUser?.Role != HoursClientRole.Administrator || Session.ApiClient is null)
+        {
+            return;
+        }
+
+        var templates = await Session.ApiClient.ListWorkplaceTemplatesAsync();
+        model = new WorkplaceSetupModel(templates);
+    }
+
+    private void SelectTemplate(string templateId)
+    {
+        if (model is null)
+        {
+            return;
+        }
+
+        model.SelectedTemplateId = templateId;
+        if (string.IsNullOrWhiteSpace(model.DisplayName))
+        {
+            model.DisplayName = model.SelectedTemplate?.Title ?? string.Empty;
+        }
+    }
+
+    private async Task CreateWorkplaceAsync()
+    {
+        if (model is null || Session.ApiClient is null)
+        {
+            return;
+        }
+
+        busy = true;
+        status = string.Empty;
+        try
+        {
+            model.Created = await Session.ApiClient.CreateCustomerAsync(new CreateCustomerRequest(
+                model.OrganisationId.Trim().ToLowerInvariant(),
+                model.DisplayName.Trim(),
+                model.SelectedTemplateId));
+            model.Step = 3;
+        }
+        catch (Exception exception)
+        {
+            status = exception.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task AddPersonAsync()
+    {
+        if (model?.Created is null || Session.ApiClient is null)
+        {
+            return;
+        }
+
+        busy = true;
+        status = string.Empty;
+        try
+        {
+            var created = await Session.ApiClient.CreateUserAsync(new CreateUserRequest(
+                personEmployeeId.Trim(),
+                string.IsNullOrWhiteSpace(personLogin) ? personEmployeeId.Trim() : personLogin.Trim(),
+                personPassword,
+                personDisplayName.Trim(),
+                personRole,
+                model.Created.Id,
+                model.AttendanceConfirmationOnly ? "division-uk" : "division-north",
+                model.AttendanceConfirmationOnly ? "team-high-street" : "team-a",
+                personRole == HoursClientRole.Manager ? 1 : null));
+            model.People.Add(created);
+            personEmployeeId = string.Empty;
+            personLogin = string.Empty;
+            personDisplayName = string.Empty;
+            personRole = HoursClientRole.Employee;
+        }
+        catch (Exception exception)
+        {
+            status = exception.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

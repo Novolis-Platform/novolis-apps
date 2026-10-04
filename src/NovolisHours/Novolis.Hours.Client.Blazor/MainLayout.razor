@@ -22,6 +22,10 @@
                 <a href="/">Week</a>
                 <a href="@TodayUrl">Today</a>
                 <a href="settings">Settings</a>
+                @if (Session.CurrentUser.Role == HoursClientRole.Administrator)
+                {
+                    <a href="setup">Setup</a>
+                }
                 @if (Session.CurrentUser.Role is HoursClientRole.Manager or HoursClientRole.HumanResources or HoursClientRole.Higher or HoursClientRole.Auditor or HoursClientRole.Administrator or HoursClientRole.System)
                 {
                     <a href="reports/health">Health</a>

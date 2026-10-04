@@ -19,4 +19,5 @@ public sealed record HoursCustomer(
     bool AllowsFlex = true,
     bool AllowsDispute = true,
     bool AttendanceConfirmationOnly = false,
-    string DisplayName = "");
+    string DisplayName = "",
+    string ReviewPolicyId = "");

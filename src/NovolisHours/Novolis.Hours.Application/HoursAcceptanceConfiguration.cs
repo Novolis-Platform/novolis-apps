@@ -16,6 +16,14 @@ namespace Novolis.Hours.Application;
 /// </summary>
 public sealed class HoursAcceptanceConfiguration
 {
+    private readonly HoursWorkplaceDirectory workplaces;
+
+    /// <summary>Initializes configuration over the live workplace directory.</summary>
+    public HoursAcceptanceConfiguration(HoursWorkplaceDirectory workplaces)
+    {
+        this.workplaces = workplaces ?? throw new ArgumentNullException(nameof(workplaces));
+    }
+
     /// <summary>Gets the effective snapshot for one employee and nominal date.</summary>
     public ConfigurationSnapshot GetSnapshot(string employeeId, DateOnly date)
     {
@@ -31,9 +39,9 @@ public sealed class HoursAcceptanceConfiguration
             calendarVersion,
             "acceptance.dimensions.v1",
             "acceptance.compliance.v1",
-            HoursReviewWorkflowCatalog.WorkflowVersion(employeeId),
+            HoursReviewWorkflowCatalog.WorkflowVersion(workplaces.GetReviewPolicy(employeeId)),
             "acceptance.ledger.v1",
-            HoursCustomerCatalog.TimeZoneId(employeeId));
+            workplaces.TimeZoneId(employeeId));
     }
 
     /// <summary>Gets the snapshot selected by the effective publication history.</summary>
@@ -79,14 +87,14 @@ public sealed class HoursAcceptanceConfiguration
         string? calendarVersionOverride)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
-        return HoursCustomerCatalog.GetCalendar(employeeId, date, calendarVersionOverride);
+        return workplaces.GetCalendar(employeeId, date, calendarVersionOverride);
     }
 
     /// <summary>Gets the sparse Dimensions used by the acceptance projection.</summary>
     public DimensionConfiguration GetDimensions(string employeeId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
-        var customer = HoursCustomerCatalog.ForEmployee(employeeId);
+        var customer = workplaces.ForEmployee(employeeId);
         var flexRule = new DimensionRuleRegistration(
             "routine-difference-to-flex",
             100,
@@ -155,7 +163,7 @@ public sealed class HoursAcceptanceConfiguration
     public IReadOnlyList<ComplianceRuleRegistration> GetComplianceRules(string employeeId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
-        var customer = HoursCustomerCatalog.ForEmployee(employeeId);
+        var customer = workplaces.ForEmployee(employeeId);
         var rules = new List<ComplianceRuleRegistration>
         {
             new(
@@ -190,7 +198,7 @@ public sealed class HoursAcceptanceConfiguration
 
     /// <summary>Gets the review policy that applies to one employee's customer.</summary>
     public ReviewPolicy GetReviewPolicy(string employeeId) =>
-        HoursReviewWorkflowCatalog.ForEmployee(employeeId);
+        workplaces.GetReviewPolicy(employeeId);
 
     /// <summary>Gets the explicit mapping from derived flex meaning to duration accounts.</summary>
     public LedgerProjector GetLedgerProjector() =>

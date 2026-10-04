@@ -1,4 +1,6 @@
+using Novolis.Hours.Application;
 using Novolis.Hours.Contracts;
+using Novolis.Hours.Storage;
 using DomainAdjustmentReason = Novolis.Hours.Domain.HoursAdjustmentReason;
 using DomainAdjustmentResolution = Novolis.Hours.Domain.HoursAdjustmentResolution;
 using DomainAdjustmentResponse = Novolis.Hours.Domain.HoursAdjustmentResponse;
@@ -38,4 +40,32 @@ internal static class HoursContractMapping
 
     public static DomainCompensation ToDomain(FinancialCompensationSlice slice) =>
         new(slice.Start, slice.End, slice.Reason);
+
+    public static HoursUserResponse ToUser(HoursUserDocument user) =>
+        new(
+            user.EmployeeId,
+            user.Login,
+            user.DisplayName,
+            ToClient(user.Role),
+            user.OrganisationId,
+            user.DivisionId,
+            user.TeamId,
+            user.ApprovalLevel);
+
+    public static HoursCustomerResponse ToCustomer(HoursCustomer customer) =>
+        new(
+            customer.Id,
+            string.IsNullOrWhiteSpace(customer.DisplayName) ? customer.Id : customer.DisplayName,
+            customer.CountryCode,
+            customer.TimeZoneId,
+            customer.LegalPresetId,
+            customer.ReviewPolicyId,
+            customer.ExpectedWork,
+            new LocalTimeRangeDto(customer.Envelope.Start, customer.Envelope.End),
+            new LocalTimeRangeDto(customer.CoreHours.Start, customer.CoreHours.End),
+            customer.SaturdayIsWorkingDay,
+            customer.AllowsFlex,
+            customer.AllowsDispute,
+            customer.AttendanceConfirmationOnly,
+            HoursCustomerCatalog.TryGet(customer.Id, out _));
 }

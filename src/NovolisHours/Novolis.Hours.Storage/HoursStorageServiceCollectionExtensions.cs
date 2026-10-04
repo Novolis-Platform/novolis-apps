@@ -25,6 +25,7 @@ public static class HoursStorageServiceCollectionExtensions
         services.AddSingleton<IHoursJournalBatch>(provider =>
             (IHoursJournalBatch)provider.GetRequiredService<IHoursJournal>());
         services.AddSingleton<IHoursUserStore, RepositoryHoursUserStore>();
+        services.AddSingleton<IHoursCustomerStore, RepositoryHoursCustomerStore>();
         services.AddSingleton<IHoursStorageReadiness, LocalHoursStorageReadiness>();
         return services;
     }
@@ -49,6 +50,7 @@ public static class HoursStorageServiceCollectionExtensions
         services.AddSingleton<IHoursJournalBatch>(provider =>
             (IHoursJournalBatch)provider.GetRequiredService<IHoursJournal>());
         services.AddSingleton<IHoursUserStore, AzureHoursUserStore>();
+        services.AddSingleton<IHoursCustomerStore, AzureHoursCustomerStore>();
         services.AddSingleton<IHoursStorageReadiness, AzureHoursStorageReadiness>();
         return services;
     }
@@ -62,6 +64,7 @@ public static class HoursStorageServiceCollectionExtensions
         services.AddSingleton<IHoursJournalBatch>(provider =>
             (IHoursJournalBatch)provider.GetRequiredService<IHoursJournal>());
         services.AddSingleton<IHoursUserStore, RepositoryHoursUserStore>();
+        services.AddSingleton<IHoursCustomerStore, RepositoryHoursCustomerStore>();
         services.AddSingleton<IHoursStorageReadiness, LocalHoursStorageReadiness>();
         return services;
     }

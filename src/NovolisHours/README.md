@@ -119,6 +119,8 @@ do not expose storage implementation details.
 
 The feature test project uses a real `WebApplication` and `TestServer`, real in-memory journal/storage providers, cookies, antiforgery, SignalR channel projections, and the actual endpoint mappings. It also exercises the reusable native HTTP client against that same host. It has no mocks. The domain suite additionally covers calendars and DST, holiday-generation provenance, sparse Dimensions, append-only allocation corrections, balanced ledger replay, review deadlines/disputes, non-blocking compliance, health concerns, and temporal business-pressure attribution.
 
+Administrators set up a workplace from Setup (Nordvik office or Game shop), then add people. `Novolis.Hours.UiTests` walks those flows and the seeded Game/Nordvik employee weeks with `TUnit.Playwright` plus `Novolis.Testing.Playwright` (`walkthrough.html` under `artifacts/playwright`).
+
 Run the product locally:
 
 ```powershell

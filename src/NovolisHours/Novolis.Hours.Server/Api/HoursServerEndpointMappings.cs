@@ -66,6 +66,10 @@ public static class HoursServerEndpointMappings
         api.MapGet("/admin/users", ListUsers);
         api.MapPost("/admin/users", CreateUserAsync);
         api.MapPut("/admin/users/{employeeId}/worktime-settings", UpdateWorktimeSettingsAsync);
+        api.MapGet("/admin/customers", ListCustomers);
+        api.MapPost("/admin/customers", CreateCustomerAsync);
+        api.MapGet("/admin/setup/templates", ListWorkplaceTemplates);
+        api.MapGet("/admin/review-policies", ListReviewPolicies);
     }
 
     private static async Task<IResult> LoginAsync(
@@ -465,13 +469,106 @@ public static class HoursServerEndpointMappings
     private static IResult ListUsers(HttpContext context, HoursUserDirectory users)
     {
         var forbidden = EnsureAdministrator(context.User);
-        return forbidden ?? Results.Ok(users.List());
+        return forbidden ?? Results.Ok(users.List().Select(HoursContractMapping.ToUser).ToArray());
     }
+
+    private static IResult ListCustomers(HttpContext context, HoursWorkplaceDirectory workplaces)
+    {
+        var forbidden = EnsureAdministrator(context.User);
+        return forbidden ?? Results.Ok(workplaces.List().Select(HoursContractMapping.ToCustomer).ToArray());
+    }
+
+    private static IResult ListWorkplaceTemplates(HttpContext context)
+    {
+        var forbidden = EnsureAdministrator(context.User);
+        return forbidden ?? Results.Ok(HoursWorkplaceTemplates.All
+            .Select(template => new HoursWorkplaceTemplateResponse(
+                template.Id,
+                template.Title,
+                template.Summary,
+                HoursContractMapping.ToCustomer(template.Prototype)))
+            .ToArray());
+    }
+
+    private static IResult ListReviewPolicies(HttpContext context)
+    {
+        var forbidden = EnsureAdministrator(context.User);
+        return forbidden ?? Results.Ok(HoursReviewWorkflowCatalog.All
+            .Select(policy => new ReviewPolicyCatalogItem(
+                policy.Id,
+                policy.AllowsDispute,
+                [.. policy.Stages.Select(stage => new ReviewStageCatalogItem(
+                    stage.Id,
+                    stage.RequiredAction.ToString(),
+                    stage.Role.ToString(),
+                    stage.ApprovalLevel))]))
+            .ToArray());
+    }
+
+    private static async Task<IResult> CreateCustomerAsync(
+        CreateCustomerRequest request,
+        HttpContext context,
+        HoursWorkplaceDirectory workplaces)
+    {
+        var forbidden = EnsureAdministrator(context.User);
+        if (forbidden is not null)
+        {
+            return forbidden;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.OrganisationId) ||
+            string.IsNullOrWhiteSpace(request.DisplayName) ||
+            string.IsNullOrWhiteSpace(request.TemplateId))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["workplace"] = ["Organisation id, display name, and a setup template are required."],
+            });
+        }
+
+        if (!IsWorkplaceSlug(request.OrganisationId))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["organisationId"] = ["Use lowercase letters, digits, and hyphens."],
+            });
+        }
+
+        try
+        {
+            var customer = await workplaces.RegisterAsync(
+                HoursWorkplaceTemplates.Create(
+                    request.TemplateId,
+                    request.OrganisationId.Trim().ToLowerInvariant(),
+                    request.DisplayName),
+                context.RequestAborted);
+            return Results.Created($"/api/admin/customers/{customer.Id}", HoursContractMapping.ToCustomer(customer));
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["templateId"] = ["Choose Nordvik office or Game shop."],
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["organisationId"] = [exception.Message],
+            });
+        }
+    }
+
+    private static bool IsWorkplaceSlug(string value) =>
+        value.All(ch => char.IsAsciiLetterLower(ch) || char.IsAsciiDigit(ch) || ch == '-') &&
+        value.Any(char.IsAsciiLetterOrDigit);
 
     private static async Task<IResult> CreateUserAsync(
         CreateUserRequest request,
         HttpContext context,
         AuthenticationFacade authentication,
+        HoursWorkplaceDirectory workplaces,
         HoursUserDirectory users)
     {
         var forbidden = EnsureAdministrator(context.User);
@@ -512,14 +609,25 @@ public static class HoursServerEndpointMappings
             });
         }
 
+        var organisationId = string.IsNullOrWhiteSpace(request.OrganisationId)
+            ? "norway-org"
+            : request.OrganisationId.Trim();
+        var legalPresetId = workplaces.TryGet(organisationId, out var workplace)
+            ? workplace.LegalPresetId
+            : null;
         var user = new HoursUserDocument(
             identity.Value,
             request.EmployeeId,
             request.Login,
             request.DisplayName,
-            HoursContractMapping.ToActor(request.Role));
+            HoursContractMapping.ToActor(request.Role),
+            legalPresetId,
+            OrganisationId: organisationId,
+            DivisionId: request.DivisionId,
+            TeamId: request.TeamId,
+            ApprovalLevel: request.ApprovalLevel);
         await users.SaveAsync(user, context.RequestAborted);
-        return Results.Created($"/api/admin/users/{user.Id}", user);
+        return Results.Created($"/api/admin/users/{user.EmployeeId}", HoursContractMapping.ToUser(user));
     }
 
     private static async Task<IResult> UpdateWorktimeSettingsAsync(

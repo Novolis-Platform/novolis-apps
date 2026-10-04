@@ -41,5 +41,6 @@
   <Folder Name="/tests/">
     <Project Path="../../tests/Novolis.Hours.AspireTests/Novolis.Hours.AspireTests.csproj" />
     <Project Path="../../tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj" />
+    <Project Path="../../tests/Novolis.Hours.UiTests/Novolis.Hours.UiTests.csproj" />
   </Folder>
 </Solution>

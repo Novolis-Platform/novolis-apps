@@ -11,6 +11,7 @@ public sealed class HoursServerFlexSettlementScheduler : BackgroundService
     private readonly IHoursJournal journal;
     private readonly IHoursPolicyProvider policies;
     private readonly HoursService hours;
+    private readonly HoursWorkplaceDirectory? workplaces;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<HoursServerFlexSettlementScheduler> logger;
 
@@ -20,13 +21,15 @@ public sealed class HoursServerFlexSettlementScheduler : BackgroundService
         IHoursPolicyProvider policies,
         HoursService hours,
         TimeProvider timeProvider,
-        ILogger<HoursServerFlexSettlementScheduler> logger)
+        ILogger<HoursServerFlexSettlementScheduler> logger,
+        HoursWorkplaceDirectory? workplaces = null)
     {
         this.journal = journal ?? throw new ArgumentNullException(nameof(journal));
         this.policies = policies ?? throw new ArgumentNullException(nameof(policies));
         this.hours = hours ?? throw new ArgumentNullException(nameof(hours));
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        this.workplaces = workplaces;
     }
 
     /// <summary>Assesses all known employments once; exposed for deterministic full-product feature tests.</summary>
@@ -39,7 +42,7 @@ public sealed class HoursServerFlexSettlementScheduler : BackgroundService
                      .Distinct(StringComparer.Ordinal))
         {
             if (string.Equals(employeeId, "system", StringComparison.OrdinalIgnoreCase) ||
-                !HoursCustomerCatalog.ForEmployee(employeeId).AllowsFlex)
+                !(workplaces?.ForEmployee(employeeId) ?? HoursCustomerCatalog.ForEmployee(employeeId)).AllowsFlex)
             {
                 continue;
             }

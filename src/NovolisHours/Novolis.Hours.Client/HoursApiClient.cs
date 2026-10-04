@@ -386,6 +386,80 @@ public sealed class HoursApiClient : IDisposable
             ?? throw new InvalidOperationException("The Hours host returned an empty business-pressure report.");
     }
 
+    /// <summary>Lists workplaces the administrator can assign people to.</summary>
+    public async Task<IReadOnlyList<HoursCustomerResponse>> ListCustomersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "api/admin/customers"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<HoursCustomerResponse[]>(JsonOptions, cancellationToken)
+            ?? [];
+    }
+
+    /// <summary>Lists Nordvik and Game setup templates.</summary>
+    public async Task<IReadOnlyList<HoursWorkplaceTemplateResponse>> ListWorkplaceTemplatesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "api/admin/setup/templates"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<HoursWorkplaceTemplateResponse[]>(
+                JsonOptions,
+                cancellationToken)
+            ?? [];
+    }
+
+    /// <summary>Creates a workplace from a setup template.</summary>
+    public async Task<HoursCustomerResponse> CreateCustomerAsync(
+        CreateCustomerRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var token = await GetAntiforgeryTokenAsync(cancellationToken);
+        using var message = new HttpRequestMessage(HttpMethod.Post, "api/admin/customers")
+        {
+            Content = JsonContent.Create(request, options: JsonOptions),
+        };
+        message.Headers.Add("X-Novolis-Hours-CSRF", token);
+        using var response = await SendAsync(message, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<HoursCustomerResponse>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("The Hours host returned an empty workplace.");
+    }
+
+    /// <summary>Lists product profiles.</summary>
+    public async Task<IReadOnlyList<HoursUserResponse>> ListUsersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, "api/admin/users"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<HoursUserResponse[]>(JsonOptions, cancellationToken)
+            ?? [];
+    }
+
+    /// <summary>Creates a person on a workplace.</summary>
+    public async Task<HoursUserResponse> CreateUserAsync(
+        CreateUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var token = await GetAntiforgeryTokenAsync(cancellationToken);
+        using var message = new HttpRequestMessage(HttpMethod.Post, "api/admin/users")
+        {
+            Content = JsonContent.Create(request, options: JsonOptions),
+        };
+        message.Headers.Add("X-Novolis-Hours-CSRF", token);
+        using var response = await SendAsync(message, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<HoursUserResponse>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("The Hours host returned an empty user.");
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {

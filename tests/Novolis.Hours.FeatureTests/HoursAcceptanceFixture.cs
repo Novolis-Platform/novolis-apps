@@ -61,7 +61,15 @@ public sealed class HoursAcceptanceFixture : IAsyncDisposable
     public string? DataPath { get; private set; }
 
     /// <summary>Creates and authenticates an isolated real HTTP client for one identity.</summary>
-    public async Task<HoursApiClient> ConnectAsync(string login)
+    public Task<HoursApiClient> ConnectAsync(string login) =>
+        ConnectAsync(login, AcceptancePassword);
+
+    /// <summary>Signs in the host's provisioned administrator.</summary>
+    public Task<HoursApiClient> ConnectAdministratorAsync() =>
+        ConnectAsync("acceptance-admin", "Bootstrap-2026-Strong!");
+
+    /// <summary>Creates and authenticates an isolated real HTTP client with an explicit password.</summary>
+    public async Task<HoursApiClient> ConnectAsync(string login, string password)
     {
         if (application is null)
         {
@@ -76,7 +84,7 @@ public sealed class HoursAcceptanceFixture : IAsyncDisposable
         });
         try
         {
-            await client.SignInAsync(login, AcceptancePassword);
+            await client.SignInAsync(login, password);
             return client;
         }
         catch

@@ -2,4 +2,7 @@
   <Folder Name="/Reach.Client.Linux/">
     <Project Path="Reach.Client.Linux/Reach.Client.Linux.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/Reach.Unit/Reach.Unit.csproj" />
+  </Folder>
 </Solution>

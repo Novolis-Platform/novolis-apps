@@ -807,6 +807,7 @@
           "src/NovolisHours/Novolis.Hours.Client.Presentation/Novolis.Hours.Client.Presentation.csproj",
           "src/NovolisHours/Novolis.Hours.Client.Cli/Novolis.Hours.Client.Cli.csproj",
           "tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj",
+          "tests/Novolis.Hours.UiTests/Novolis.Hours.UiTests.csproj",
           "tests/Novolis.Hours.AspireTests/Novolis.Hours.AspireTests.csproj"
         ]
       },

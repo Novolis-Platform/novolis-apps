@@ -101,9 +101,41 @@ h2 {
   gap: 4px;
 }
 
-.week-tile.open {
+.week-tile.open,
+.template-card.open,
+.steps .open {
   border-color: var(--ngp-accent-fill);
   background: var(--ngp-raised);
+}
+
+.steps {
+  display: flex;
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  min-height: var(--ngp-touch-target);
+  padding: 10px 12px;
+  border: var(--ngp-stroke) solid var(--ngp-border);
+}
+
+.template-card {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+
+.action-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ngp-touch-target);
+  padding: .45rem .7rem;
+  background: var(--ngp-action);
+  color: var(--ngp-on-action);
+  text-decoration: none;
+  border-radius: var(--ngp-primary-radius);
 }
 
 .week-tile strong {

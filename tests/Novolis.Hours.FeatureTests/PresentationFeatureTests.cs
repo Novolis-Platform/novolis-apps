@@ -139,6 +139,50 @@ public sealed class PresentationFeatureTests
     }
 
     [Test]
+    public async Task Workplace_setup_preview_matches_Game_and_Nordvik_commit_words()
+    {
+        var game = new HoursWorkplaceTemplateResponse(
+            "game-retail",
+            "Game shop",
+            "Attendance",
+            new HoursCustomerResponse(
+                "game-retail",
+                "Game",
+                "GB",
+                "Europe/London",
+                "england.retail.rigid",
+                "attendance-hr",
+                TimeSpan.FromHours(8),
+                new LocalTimeRangeDto(new TimeOnly(9, 0), new TimeOnly(18, 0)),
+                new LocalTimeRangeDto(new TimeOnly(9, 0), new TimeOnly(18, 0)),
+                true,
+                false,
+                false,
+                true,
+                true));
+        var nordvik = game with
+        {
+            Id = "nordvik-office",
+            Title = "Nordvik office",
+            Prototype = game.Prototype with
+            {
+                Id = "nordvik-office",
+                DisplayName = "Nordvik",
+                AttendanceConfirmationOnly = false,
+                AllowsFlex = true,
+                AllowsDispute = true,
+            },
+        };
+        var setup = new WorkplaceSetupModel([game, nordvik]);
+        setup.SelectedTemplateId = "game-retail";
+        await Assert.That(setup.CommitPreview).IsEqualTo("I was here");
+        await Assert.That(setup.PeopleHint).Contains("HR");
+        setup.SelectedTemplateId = "nordvik-office";
+        await Assert.That(setup.CommitPreview).IsEqualTo("Worked as scheduled");
+        await Assert.That(setup.PeopleHint).Contains("manager");
+    }
+
+    [Test]
     public async Task Human_clocks_drop_seconds()
     {
         await Assert.That(HoursClock.Format(TimeSpan.FromHours(7.5))).IsEqualTo("7:30");

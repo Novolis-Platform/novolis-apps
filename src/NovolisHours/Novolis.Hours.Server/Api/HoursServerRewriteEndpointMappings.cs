@@ -52,6 +52,7 @@ public static class HoursServerRewriteEndpointMappings
         WorkRegistrationService registrations,
         WorkLedgerService ledger,
         HoursAcceptanceConfiguration configuration,
+        HoursWorkplaceDirectory workplaces,
         HoursUserDirectory users,
         IHoursJournal journal)
     {
@@ -152,7 +153,7 @@ public static class HoursServerRewriteEndpointMappings
                 .Select(entry => entry.ReadPayload<Novolis.Hours.Domain.Ledger.LedgerTransaction>())
                 .SingleOrDefault(transaction => transaction.SourceRegistrationId == correctedId)
             : null;
-        if (HoursCustomerCatalog.ForEmployee(request.EmployeeId).AllowsFlex)
+        if (workplaces.ForEmployee(request.EmployeeId).AllowsFlex)
         {
             if (originalTransaction is null)
             {
@@ -458,6 +459,7 @@ public static class HoursServerRewriteEndpointMappings
         HttpContext context,
         HoursAcceptanceProjectionService projections,
         IHoursJournal journal,
+        HoursWorkplaceDirectory workplaces,
         HoursUserDirectory users)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -471,7 +473,7 @@ public static class HoursServerRewriteEndpointMappings
             });
         }
 
-        if (!CanRecordReview(actor, projection.EmployeeId, kind, users))
+        if (!CanRecordReview(actor, projection.EmployeeId, kind, users, workplaces))
         {
             return Results.Forbid();
         }
@@ -648,7 +650,8 @@ public static class HoursServerRewriteEndpointMappings
         HoursActor actor,
         string employeeId,
         ReviewActionKind kind,
-        HoursUserDirectory users)
+        HoursUserDirectory users,
+        HoursWorkplaceDirectory workplaces)
     {
         if (!CanView(actor, employeeId, users) ||
             actor.Role == HoursActorRole.Auditor)
@@ -656,7 +659,7 @@ public static class HoursServerRewriteEndpointMappings
             return false;
         }
 
-        var policy = HoursReviewWorkflowCatalog.ForEmployee(employeeId);
+        var policy = workplaces.GetReviewPolicy(employeeId);
         return kind switch
         {
             ReviewActionKind.Submit =>

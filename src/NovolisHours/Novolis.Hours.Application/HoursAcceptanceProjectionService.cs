@@ -17,14 +17,17 @@ public sealed class HoursAcceptanceProjectionService
 {
     private readonly IHoursJournal journal;
     private readonly HoursAcceptanceConfiguration configuration;
+    private readonly HoursWorkplaceDirectory workplaces;
 
     /// <summary>Initializes the replay service.</summary>
     public HoursAcceptanceProjectionService(
         IHoursJournal journal,
-        HoursAcceptanceConfiguration configuration)
+        HoursAcceptanceConfiguration configuration,
+        HoursWorkplaceDirectory workplaces)
     {
         this.journal = journal ?? throw new ArgumentNullException(nameof(journal));
         this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        this.workplaces = workplaces ?? throw new ArgumentNullException(nameof(workplaces));
     }
 
     /// <summary>Rebuilds one WorkDay explanation from journal facts and effective configuration.</summary>
@@ -140,7 +143,7 @@ public sealed class HoursAcceptanceProjectionService
                 .ToImmutableArray(),
             GetJournalHead(events),
             projection.Policy.AllowsDispute,
-            HoursCustomerCatalog.ForEmployee(projection.Period.EmployeeId).AttendanceConfirmationOnly);
+            workplaces.ForEmployee(projection.Period.EmployeeId).AttendanceConfirmationOnly);
     }
 
     /// <summary>Returns the latest event identity used for optimistic review concurrency.</summary>
@@ -246,7 +249,7 @@ public sealed class HoursAcceptanceProjectionService
     {
         var retainedEvents = employeeEvents.ToImmutableArray();
         var publications = ReadPublications(retainedEvents);
-        var customer = HoursCustomerCatalog.ForEmployee(employeeId);
+        var customer = workplaces.ForEmployee(employeeId);
         var snapshot = configuration.GetSnapshot(employeeId, date, publications);
         var retainedSnapshot = retainedEvents
             .Where(entry => entry.Type == HoursEventType.ConfigurationSnapshotRecorded)
@@ -268,7 +271,7 @@ public sealed class HoursAcceptanceProjectionService
         {
             return new WorkDayResponse(
                 employeeId,
-                HoursCustomerCatalog.OrganisationId(employeeId),
+                workplaces.ForEmployee(employeeId).Id,
                 date,
                 shape.IsWorkingDay,
                 shape.ExpectedWork,
@@ -336,7 +339,7 @@ public sealed class HoursAcceptanceProjectionService
             .ToImmutableArray();
         return new WorkDayResponse(
             employeeId,
-            HoursCustomerCatalog.OrganisationId(employeeId),
+            customer.Id,
             date,
             shape.IsWorkingDay,
             shape.ExpectedWork,

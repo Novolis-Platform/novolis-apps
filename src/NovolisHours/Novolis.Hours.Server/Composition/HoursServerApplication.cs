@@ -98,6 +98,7 @@ public static class HoursServerApplication
         });
         builder.Services.AddNovolisAuthenticationStorage();
         builder.Services.AddSingleton<HoursUserDirectory>();
+        builder.Services.AddSingleton<HoursWorkplaceDirectory>();
         builder.Services.AddSingleton<HoursHtmlReportExporter>();
         builder.Services.AddSingleton<WorkRegistrationService>();
         builder.Services.AddSingleton<WorkLedgerService>();

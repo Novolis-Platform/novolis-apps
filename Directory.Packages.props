@@ -176,7 +176,9 @@
     <PackageVersion Include="Novolis.Blazor.GraphicalProfile" Version="2026.1.*" />
     <PackageVersion Include="Spectre.Console" Version="0.57.2" />
     <PackageVersion Include="System.CommandLine" Version="2.0.12" />
+    <PackageVersion Include="Microsoft.Playwright" Version="1.63.0" />
     <PackageVersion Include="TUnit" Version="1.72.16" />
+    <PackageVersion Include="TUnit.Playwright" Version="1.72.16" />
     <PackageVersion Include="TUnit.Aspire" Version="1.72.16" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.110" />

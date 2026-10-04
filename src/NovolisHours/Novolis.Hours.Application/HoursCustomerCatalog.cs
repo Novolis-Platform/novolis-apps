@@ -31,6 +31,18 @@ public static class HoursCustomerCatalog
     /// <summary>Ada's one-day envelope override used by stacking tests.</summary>
     public static DateOnly AdaTemporaryOverrideDate { get; } = new(2026, 11, 18);
 
+    /// <summary>Built-in workplaces used by the acceptance seed and as setup templates.</summary>
+    public static IReadOnlyList<HoursCustomer> All =>
+    [
+        PlatformCustomer,
+        NordvikOfficeCustomer,
+        NordvikStationCustomer,
+        AtelierCurieCustomer,
+        WarsawSettlementCustomer,
+        HelsinkiFlexCustomer,
+        GameRetailCustomer,
+    ];
+
     /// <summary>Gets the customer system that owns an acceptance identity.</summary>
     public static HoursCustomer ForEmployee(string employeeId)
     {
@@ -45,6 +57,18 @@ public static class HoursCustomerCatalog
             "jamie" or "priya" => GameRetailCustomer,
             _ => NordvikOfficeCustomer,
         };
+    }
+
+    /// <summary>Looks up a built-in workplace by organisation id.</summary>
+    /// <param name="organisationId">Stable workplace id.</param>
+    /// <param name="customer">The matching workplace when found.</param>
+    /// <returns><see langword="true"/> when the id is a built-in workplace.</returns>
+    public static bool TryGet(string organisationId, out HoursCustomer customer)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(organisationId);
+        customer = All.FirstOrDefault(item =>
+            item.Id.Equals(organisationId, StringComparison.OrdinalIgnoreCase))!;
+        return customer is not null;
     }
 
     /// <summary>Gets the organisation identifier used by an acceptance identity.</summary>
@@ -64,8 +88,26 @@ public static class HoursCustomerCatalog
         string? calendarVersionOverride = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
-        var customer = ForEmployee(employeeId);
+        return GetCalendar(
+            ForEmployee(employeeId),
+            employeeId,
+            date,
+            calendarVersionOverride,
+            TimeZoneId(employeeId));
+    }
+
+    /// <summary>Builds the calendar stack for an already resolved workplace.</summary>
+    public static WorkCalendarStack GetCalendar(
+        HoursCustomer customer,
+        string employeeId,
+        DateOnly date,
+        string? calendarVersionOverride = null,
+        string? timeZoneId = null)
+    {
+        ArgumentNullException.ThrowIfNull(customer);
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
         var version = calendarVersionOverride ?? GetCalendarVersion(employeeId, date);
+        var zone = timeZoneId ?? customer.TimeZoneId;
         if (customer.Id == Platform)
         {
             return new WorkCalendarStack(
@@ -85,11 +127,11 @@ public static class HoursCustomerCatalog
                         RuleSource.Manual,
                         kind: CalendarLayerKind.Organisation),
                 ],
-                TimeZoneId(employeeId));
+                zone);
         }
 
         var layers = CreateLayers(customer, employeeId, version);
-        return new WorkCalendarStack(layers, TimeZoneId(employeeId));
+        return new WorkCalendarStack(layers, zone);
     }
 
     /// <summary>Gets the effective calendar version label for one employee and date.</summary>
@@ -375,7 +417,8 @@ public static class HoursCustomerCatalog
         SevenDayOperation: false,
         AllowsFlex: false,
         AllowsDispute: false,
-        DisplayName: "Hours");
+        DisplayName: "Hours",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.CascadingApproval);
 
     private static HoursCustomer NordvikOfficeCustomer { get; } = new(
         NordvikOffice,
@@ -389,7 +432,8 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
         ObservesPublicHolidays: true,
         SevenDayOperation: false,
-        DisplayName: "Nordvik");
+        DisplayName: "Nordvik",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.CascadingApproval);
 
     private static HoursCustomer NordvikStationCustomer { get; } = new(
         NordvikStation,
@@ -403,7 +447,8 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
         ObservesPublicHolidays: false,
         SevenDayOperation: true,
-        DisplayName: "Nordvik Station");
+        DisplayName: "Nordvik Station",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.EmployerAcknowledged);
 
     private static HoursCustomer AtelierCurieCustomer { get; } = new(
         AtelierCurie,
@@ -417,7 +462,8 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(13, 0), new TimeOnly(17, 0)),
         ObservesPublicHolidays: true,
         SevenDayOperation: false,
-        DisplayName: "Atelier Curie");
+        DisplayName: "Atelier Curie",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.SingleApprover);
 
     private static HoursCustomer WarsawSettlementCustomer { get; } = new(
         WarsawSettlement,
@@ -431,7 +477,8 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
         ObservesPublicHolidays: true,
         SevenDayOperation: false,
-        DisplayName: "Warsaw Settlement");
+        DisplayName: "Warsaw Settlement",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.EmployerOnly);
 
     private static HoursCustomer HelsinkiFlexCustomer { get; } = new(
         HelsinkiFlex,
@@ -445,7 +492,8 @@ public static class HoursCustomerCatalog
         new LocalTimeRange(new TimeOnly(12, 0), new TimeOnly(16, 0)),
         ObservesPublicHolidays: true,
         SevenDayOperation: false,
-        DisplayName: "Helsinki Flex");
+        DisplayName: "Helsinki Flex",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.EmployeeHr);
 
     private static HoursCustomer GameRetailCustomer { get; } = new(
         GameRetail,
@@ -463,5 +511,6 @@ public static class HoursCustomerCatalog
         AllowsFlex: false,
         AllowsDispute: false,
         AttendanceConfirmationOnly: true,
-        DisplayName: "Game");
+        DisplayName: "Game",
+        ReviewPolicyId: HoursReviewWorkflowCatalog.AttendanceHr);
 }
