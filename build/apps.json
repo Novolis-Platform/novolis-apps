@@ -71,57 +71,9 @@
       "release": { "githubRelease": true, "checksums": true }
     },
     {
-      "key": "draft-studio",
-      "choice": "DraftStudio",
-      "displayName": "Draft Studio",
-      "sourceRoot": "src/DraftStudio",
-      "solution": "src/DraftStudio/DraftStudio.slnx",
-      "artifactPrefix": "DraftStudio",
-      "stack": "avalonia-desktop",
-      "status": "public",
-      "projects": {
-        "publishWindows": "src/DraftStudio/DraftStudio.csproj",
-        "linuxCi": ["src/DraftStudio/DraftStudio.csproj", "tests/DraftStudio.Unit/DraftStudio.Unit.csproj"],
-        "android": null,
-        "maui": null,
-        "tests": ["tests/DraftStudio.Unit/DraftStudio.Unit.csproj"],
-        "all": ["src/DraftStudio/DraftStudio.csproj", "tests/DraftStudio.Unit/DraftStudio.Unit.csproj"]
-      },
-      "local": ["windows", "linux"],
-      "ship": ["windows-inno"],
-      "validation": {
-        "changedPathGlobs": ["src/DraftStudio/**", "tests/DraftStudio.Unit/**"],
-        "runTests": true,
-        "androidCompile": false,
-        "windowsWorkload": false,
-        "linuxCi": true,
-        "fanOutStacks": ["avalonia"]
-      },
-      "windows": {
-        "exeName": "DraftStudio.exe",
-        "appId": "Novolis.DraftStudio",
-        "installDir": "Novolis\\Draft Studio",
-        "groupName": "Draft Studio",
-        "setupBase": "DraftStudioSetup",
-        "scriptFile": "draft-studio.iss",
-        "closeApplicationsFilter": "DraftStudio.exe",
-        "fileAssociationsAllowed": false
-      },
-      "android": null,
-      "data": {
-        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\draft-studio",
-        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\draft-studio\\cache",
-        "credentialsNamespace": "Novolis.DraftStudio",
-        "networkDestinations": [],
-        "retention": "uninstall-preserves-user-data"
-      },
-      "update": { "enabled": true, "appId": "Novolis.DraftStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
-      "release": { "githubRelease": true, "checksums": true }
-    },
-    {
       "key": "cad-studio-3d",
       "choice": "CadStudio3D",
-      "displayName": "Novolis CAD Studio 3D",
+      "displayName": "Novolis CAD Studio",
       "sourceRoot": "src/CadStudio3D",
       "solution": "src/CadStudio3D/CadStudio3D.slnx",
       "artifactPrefix": "CadStudio3D",
@@ -149,7 +101,7 @@
         "exeName": "CadStudio3D.exe",
         "appId": "Novolis.CadStudio3D",
         "installDir": "Novolis\\CAD Studio 3D",
-        "groupName": "Novolis CAD Studio 3D",
+        "groupName": "Novolis CAD Studio",
         "setupBase": "CadStudio3DSetup",
         "scriptFile": "cad-studio-3d.iss",
         "closeApplicationsFilter": "CadStudio3D.exe",
@@ -157,8 +109,8 @@
       },
       "android": null,
       "data": {
-        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\cad-studio-3d",
-        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\cad-studio-3d\\cache",
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\CAD Studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\CAD Studio\\cache",
         "credentialsNamespace": "Novolis.CadStudio3D",
         "networkDestinations": [],
         "retention": "uninstall-preserves-user-data"
@@ -457,54 +409,6 @@
         "checksums": true,
         "googlePlay": { "enabled": true }
       }
-    },
-    {
-      "key": "ship-designer",
-      "choice": "ShipDesigner",
-      "displayName": "Ship Designer",
-      "sourceRoot": "src/ShipDesigner",
-      "solution": "src/ShipDesigner/ShipDesigner.slnx",
-      "artifactPrefix": "ShipDesigner",
-      "stack": "avalonia-desktop",
-      "status": "public",
-      "projects": {
-        "publishWindows": "src/ShipDesigner/ShipDesigner.csproj",
-        "linuxCi": ["src/ShipDesigner/ShipDesigner.csproj"],
-        "android": null,
-        "maui": null,
-        "tests": [],
-        "all": ["src/ShipDesigner/ShipDesigner.csproj"]
-      },
-      "local": ["windows", "linux"],
-      "ship": ["windows-inno"],
-      "validation": {
-        "changedPathGlobs": ["src/ShipDesigner/**"],
-        "runTests": false,
-        "androidCompile": false,
-        "windowsWorkload": false,
-        "linuxCi": true,
-        "fanOutStacks": ["avalonia"]
-      },
-      "windows": {
-        "exeName": "ShipDesigner.exe",
-        "appId": "Novolis.ShipDesigner",
-        "installDir": "Novolis\\Ship Designer",
-        "groupName": "Ship Designer",
-        "setupBase": "ShipDesignerSetup",
-        "scriptFile": "ship-designer.iss",
-        "closeApplicationsFilter": "ShipDesigner.exe",
-        "fileAssociationsAllowed": false
-      },
-      "android": null,
-      "data": {
-        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\ship-designer",
-        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\ship-designer\\cache",
-        "credentialsNamespace": "Novolis.ShipDesigner",
-        "networkDestinations": [],
-        "retention": "uninstall-preserves-user-data"
-      },
-      "update": { "enabled": true, "appId": "Novolis.ShipDesigner", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
-      "release": { "githubRelease": true, "checksums": true }
     },
     {
       "key": "reach",

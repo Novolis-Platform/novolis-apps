@@ -3,7 +3,7 @@ using Novolis.Avalonia.Cad.Ui;
 using Novolis.Cad.Primitives;
 using System.Numerics;
 
-namespace DraftStudio.Unit;
+namespace CadStudio3D.Unit;
 
 public sealed class ToolControllerTests
 {

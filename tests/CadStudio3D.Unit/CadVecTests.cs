@@ -1,6 +1,6 @@
 using Novolis.Cad.Primitives;
 
-namespace DraftStudio.Unit;
+namespace CadStudio3D.Unit;
 
 public sealed class CadVecTests
 {

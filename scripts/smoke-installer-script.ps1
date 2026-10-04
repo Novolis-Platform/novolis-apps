@@ -2,7 +2,7 @@
 # Smoke: generate an Inno script for one app (MSBuild target or sibling generator fallback).
 param(
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
-    [string]$AppKey = 'draft-studio'
+    [string]$AppKey = 'cad-studio-3d'
 )
 
 $ErrorActionPreference = 'Stop'

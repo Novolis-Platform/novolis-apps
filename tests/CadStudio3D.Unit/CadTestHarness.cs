@@ -2,14 +2,14 @@ using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 
-namespace DraftStudio.Unit;
+namespace CadStudio3D.Unit;
 
 internal static class DraftTestHarness
 {
     public static (CadEditorSettings Settings, CadDocumentSession Session, CadCommandBus Bus, CadCommandDispatcher Dispatcher) Create(
         string? root = null)
     {
-        root ??= Path.Combine(Path.GetTempPath(), "draft-unit-" + Guid.NewGuid().ToString("N"));
+        root ??= Path.Combine(Path.GetTempPath(), "cadstudio-unit-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var settings = new CadEditorSettings(root);
         var session = new CadDocumentSession(settings);

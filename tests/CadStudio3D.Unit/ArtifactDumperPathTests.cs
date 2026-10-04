@@ -1,6 +1,6 @@
 using Novolis.Avalonia.Cad.Core;
 
-namespace DraftStudio.Unit;
+namespace CadStudio3D.Unit;
 
 public sealed class ArtifactDumperPathTests
 {
@@ -10,7 +10,7 @@ public sealed class ArtifactDumperPathTests
         var root = Path.Combine(Path.GetTempPath(), "draft-art-" + Guid.NewGuid().ToString("N"));
         var settings = new CadEditorSettings(root);
         var session = new CadDocumentSession(settings);
-        var dumper = new DraftStudio.Services.DraftArtifactDumper(session, settings);
+        var dumper = new CadStudio3D.CadArtifactDumper(session, settings);
         var path = dumper.AllocatePngPath("model");
         await Assert.That(path).Contains("dumps");
         await Assert.That(path).Contains("model-");

@@ -37,11 +37,10 @@ internal static class Program
             ApplicationHost = Host.CreateDefaultBuilder(args)
                 .ConfigureServices(services =>
                 {
-                    services.AddSingleton(_ => new CadEditorSettings(
-                        Path.Combine(
-                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                            "Novolis",
-                            "CAD Studio 3D")));
+                    var dataRoot = CadStudioDataMigration.DefaultRoot;
+                    var migration = CadStudioDataMigration.Run(dataRoot);
+                    services.AddSingleton(_ => new CadEditorSettings(dataRoot));
+                    services.AddSingleton(migration);
                     services.AddSingleton<CadDocumentSession>();
                     services.AddSingleton<CadCommandBus>();
                     services.AddSingleton(sp =>
@@ -53,7 +52,7 @@ internal static class Program
                         return new CadSessionService(session, settings, bus, dispatcher)
                         {
                             AppId = "cad-studio-3d",
-                            AppTitle = "Novolis CAD Studio 3D",
+                            AppTitle = "Novolis CAD Studio",
                         };
                     });
                     services.AddSingleton(_ =>

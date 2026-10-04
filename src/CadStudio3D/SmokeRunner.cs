@@ -31,7 +31,7 @@ public static class SmokeRunner
             Console.WriteLine($"  FAIL {name}{(string.IsNullOrEmpty(detail) ? "" : ": " + detail)}");
         }
 
-        Console.WriteLine("Novolis CAD Studio 3D smoke (agent-first)");
+        Console.WriteLine("Novolis CAD Studio smoke (agent-first)");
 
         var root = Path.Combine(Path.GetTempPath(), "novolis-cadstudio3d-smoke-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -44,7 +44,7 @@ public static class SmokeRunner
             var cad = new CadSessionService(document, settings, bus, dispatcher)
             {
                 AppId = "cad-studio-3d-smoke",
-                AppTitle = "Novolis CAD Studio 3D",
+                AppTitle = "Novolis CAD Studio",
             };
             var scene = new SceneSessionService { AppId = "cad-studio-3d-scene-smoke" };
 

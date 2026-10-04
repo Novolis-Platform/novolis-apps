@@ -1,6 +1,6 @@
-# Novolis CAD Studio 3D
+# Novolis CAD Studio
 
-Windows desktop app for beginner/intermediate **2D + 3D CAD drafting**: appearance (materials / wall sides), limited mesh modelling, staging, and lit PNG render. Dual **Cad** and **Scene** agent surfaces share the same session `Execute` catalog the UI and LLM use — no parallel write paths.
+Windows desktop app for beginner/intermediate **2D + 3D CAD drafting** and explicit **Ship** authoring: appearance (materials / wall sides), limited mesh modelling, staging, and lit PNG render. Dual **Cad** and **Scene** agent surfaces share the same session `Execute` catalog the UI and LLM use — no parallel write paths.
 
 **Platform:** Windows x64 (Avalonia + WGL + Raylib/Vulkan backends).
 
@@ -41,6 +41,7 @@ Committed builds use **NuGet-only** (`Novolis.*` `2026.1.*` from GitHub Packages
 | Package | Role |
 |---------|------|
 | `Novolis.Avalonia.Cad` | Plan viewport, command DSL, `.cadjson` session |
+| `Novolis.Avalonia.Ship.Design` | Ship PLAN / MODEL / ANALYZE mode and `.shipjson` session |
 | `Novolis.Avalonia.ThreeD` | Scene editor, mesh/lights/cameras |
 | `Novolis.Cad.SceneBridge` | `exportscene` / `bridgescene` → `.nov3djson` |
 | `Novolis.Avalonia.Studio` | Command bar, workspace chrome, feedback |
@@ -55,9 +56,17 @@ Committed builds use **NuGet-only** (`Novolis.*` `2026.1.*` from GitHub Packages
 | Cad | `:18775` | `:18776` | Draft 2D/3D, appearance, export/bridge |
 | Scene | `:18785` | `:18786` | Mesh, lights, cameras, render/save |
 
-Command bar accepts AutoCAD-ish scripts (`;`-separated), e.g. `Line(Point(0,1), Point(1,1)); Extrude(2.4); Material("Concrete");`.
+Command bar accepts AutoCAD-ish scripts (`;`-separated), e.g. `Line(Point(0,1), Point(1,1)); Extrude(2.4); Material("Concrete");`. Ship mode keeps `.shipjson` authoritative and uses `.cadjson` only as an explicit projection/import/export bridge.
 
 Agent smoke details: [AGENT-SMOKE.md](AGENT-SMOKE.md).
+
+## Data migration
+
+On first launch, the product consolidates the former `Draft Studio`, `CAD
+Studio 3D`, and `Ship Designer` data roots into `migrations`. Copies never
+overwrite existing files, delete source data, or convert `.shipjson` to
+`.cadjson`; the original directory structure and document formats remain
+available for explicit opening.
 
 ## Releases
 

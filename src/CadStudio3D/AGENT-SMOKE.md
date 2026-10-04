@@ -1,6 +1,6 @@
-# Novolis CAD Studio 3D
+# Novolis CAD Studio
 
-One app for beginner/intermediate **2D + 3D CAD drafting**, appearance (materials / wall sides), limited mesh modelling, staging, and lit PNG render.
+One app for beginner/intermediate **2D + 3D CAD drafting**, explicit **Ship** authoring, appearance (materials / wall sides), limited mesh modelling, staging, and lit PNG render.
 
 **Agent Surface rule:** every UI mutation goes through the same Cad / Scene session `Execute` catalog the LLM uses. No parallel write paths.
 
@@ -47,4 +47,7 @@ dotnet run --project d:\novolis\novolis-apps\src\CadStudio3D -p:NovolisUseProjec
 
 Cad is source of truth (`.cadjson`). Model/Stage workspaces bridge in-memory to `.nov3djson` via `Novolis.Cad.SceneBridge`. Scene→Cad round-trip is out of scope for v1.
 
-Draft Studio remains a Cad-only dogfood host; this app is the product shell.
+Ship mode is source of truth for `.shipjson`; its MODEL workspace projects the
+selected ship object into the CAD surface, and its scene export is an explicit
+evaluation bridge. Generic CAD modes do not attach ship chrome or freighter
+exterior hooks.

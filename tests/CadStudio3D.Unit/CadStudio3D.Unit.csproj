@@ -3,6 +3,8 @@
     <RootNamespace>CadStudio3D.Unit</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <IsTestingPlatformApplication>true</IsTestingPlatformApplication>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
@@ -10,6 +12,7 @@
     <LibraryReference Include="Novolis.Avalonia.Cad" />
     <LibraryReference Include="Novolis.Avalonia.ThreeD" />
     <LibraryReference Include="Novolis.Cad.Primitives" />
+    <LibraryReference Include="Novolis.Cad.Evaluation" />
     <LibraryReference Include="Novolis.Cad.SceneBridge" />
     <LibraryReference Include="Novolis.ThreeD.Scene" />
     <LibraryReference Include="Novolis.Agent.Core" />

@@ -66,7 +66,7 @@ dotnet run --project d:\novolis\novolis-apps\tools\BrandAssets\BrandAssets.cspro
 ## Local publish
 
 ```powershell
-pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio -BuildNumber 1
+pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App CadStudio3D -BuildNumber 1
 ```
 
 ## Signing notes

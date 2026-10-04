@@ -47,4 +47,4 @@ Hidden layers are skipped in the canvas and in PNG/SVG export. Locked layers rej
 
 ## Not CAD
 
-Do not confuse with [`.cadjson`](../../../novolis-governance/docs/cadjson.md) (Draft Studio). Sketch is freehand / whiteboard; Draft is analytic CAD-light.
+Do not confuse with [`.cadjson`](../../../novolis-governance/docs/cadjson.md) (Novolis CAD Studio). Sketch is freehand / whiteboard; CAD is analytic geometry.

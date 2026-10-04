@@ -13,7 +13,7 @@ Each declared direct-release app has an `update` entry in
 ```json
 "update": {
   "enabled": true,
-  "appId": "Novolis.DraftStudio",
+  "appId": "Novolis.CadStudio3D",
   "repository": "https://github.com/Novolis-Platform/novolis-apps",
   "channel": "stable",
   "distribution": "direct-github"

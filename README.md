@@ -41,9 +41,9 @@ Production applications built exclusively from **NuGet packages** (`PackageRefer
 
 ```powershell
 pwsh -File d:\novolis\novolis-governance\scripts\configure-gpr-user-nuget.ps1
-dotnet restore d:\novolis\novolis-apps\src\DraftStudio\DraftStudio.slnx
-dotnet build d:\novolis\novolis-apps\src\DraftStudio\DraftStudio.slnx --no-restore
-dotnet run --project d:\novolis\novolis-apps\src\DraftStudio\DraftStudio.csproj
+dotnet restore d:\novolis\novolis-apps\src\CadStudio3D\CadStudio3D.slnx
+dotnet build d:\novolis\novolis-apps\src\CadStudio3D\CadStudio3D.slnx --no-restore
+dotnet run --project d:\novolis\novolis-apps\src\CadStudio3D\CadStudio3D.csproj
 ```
 
 Regenerate solutions after editing the manifest:
@@ -91,7 +91,7 @@ application. Store-managed builds are excluded. See
 [docs/updates.md](docs/updates.md).
 
 ```powershell
-pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio
+pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App CadStudio3D
 ```
 
 ## Apps (from manifest)
@@ -99,15 +99,13 @@ pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App DraftStudio
 | App | Stack | Ship | Local |
 |-----|-------|------|-------|
 | Books Writer Studio | avalonia-desktop | windows-inno | windows, linux |
-| Draft Studio | avalonia-desktop | windows-inno | windows, linux |
-| Novolis CAD Studio 3D | avalonia-desktop | windows-inno | windows, linux |
+| Novolis CAD Studio | avalonia-desktop | windows-inno | windows, linux |
 | Sketch Studio | avalonia-desktop | windows-inno | windows, linux |
 | Sins of a Capitalism Tycoon | avalonia-desktop | windows-inno | windows, linux |
 | Live Studio | avalonia-desktop | windows-inno | windows, linux |
 | Books Mobile | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Read Aloud | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Presence Ledger | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
-| Ship Designer | avalonia-desktop | windows-inno | windows, linux |
 | Merglyph | maui | windows-inno, android-apk | windows, android |
 | Novolis PDF Reader | maui | windows-inno, android-apk | windows, android |
 

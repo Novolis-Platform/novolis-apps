@@ -1,8 +1,8 @@
 using Novolis.Avalonia.Cad.Core;
 
-namespace DraftStudio.Unit;
+namespace CadStudio3D.Unit;
 
-public sealed class DraftUnitsTests
+public sealed class CadUnitsTests
 {
     [Test]
     [Arguments(CadUnits.Meter, 1.0, 1.0)]

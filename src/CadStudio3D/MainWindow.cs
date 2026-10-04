@@ -38,6 +38,7 @@ internal sealed class MainWindow : Window
     private readonly CadModelRenderer _modelRenderer;
     private readonly CadArtifactDumper _artifacts;
     private readonly ShipDesignSession _shipDesign;
+    private readonly CadStudioDataMigration.Report _migration;
 
     private CadEditorSurface _cadEditor = null!;
     private CadEditorSurface _shipEditor = null!;
@@ -69,11 +70,13 @@ internal sealed class MainWindow : Window
     public MainWindow(
         CadSessionService cad,
         SceneSessionService scene,
-        ShipDesignSession shipDesign)
+        ShipDesignSession shipDesign,
+        CadStudioDataMigration.Report migration)
     {
         _cad = cad;
         _scene = scene;
         _shipDesign = shipDesign;
+        _migration = migration;
         _doc = cad.Document;
         _settings = cad.Settings;
         _bus = cad.Bus;
@@ -84,7 +87,7 @@ internal sealed class MainWindow : Window
         _cad.ExportRoot = Path.Combine(_settings.DataRoot, "exports");
         _cad.FitHandler = () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Fit });
 
-        Title = "Novolis CAD Studio 3D";
+        Title = "Novolis CAD Studio";
         Width = 1480;
         Height = 920;
         MinWidth = 1100;
@@ -663,6 +666,12 @@ internal sealed class MainWindow : Window
 
     private async Task OnExportPhysAsync()
     {
+        if (_workspace == StudioWorkspace.Ship)
+        {
+            _feedback.FlashError("CAD Phys export is available in generic CAD modes.");
+            return;
+        }
+
         var suggested = Path.ChangeExtension(
                             Path.GetFileName(_doc.DocumentPath),
                             ".cadphys.json")
@@ -694,6 +703,12 @@ internal sealed class MainWindow : Window
 
     private async Task OnDumpArtifactsAsync()
     {
+        if (_workspace == StudioWorkspace.Ship)
+        {
+            _feedback.FlashError("Artifact dumps are available in generic CAD modes.");
+            return;
+        }
+
         if (_dumpBusy)
             return;
 
@@ -908,11 +923,22 @@ internal sealed class MainWindow : Window
         SetStudioWorkspace(StudioWorkspace.Draft2D);
         RefreshTitle();
         _feedback.SetStatus("Command: Line(Point(0,1), Point(1,1)); Circle(Point(2,2), 0.5); Extrude(2.4); Snap(on); AxisLock(x);");
+        if (_migration.Failures.Count > 0)
+            _feedback.FlashError($"Legacy data migration incomplete; originals were not changed. See {_migration.ManifestPath}");
+        else if (_migration.FilesCopied > 0)
+            _feedback.Flash(
+                $"Imported {_migration.FilesCopied} legacy file(s) without conversion. Original formats remain under {_migration.ManifestPath}");
         _commandBar.FocusInput();
     }
 
     private void OnBridge()
     {
+        if (_workspace == StudioWorkspace.Ship)
+        {
+            _feedback.FlashError("Use Ship mode's Export scene action for ship evaluation.");
+            return;
+        }
+
         var result = _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.BridgeScene });
         if (!result.Ok)
             _feedback.FlashError(result.Message);

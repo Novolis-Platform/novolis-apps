@@ -1,7 +1,7 @@
 using System.Globalization;
 using Novolis.Cad.Primitives;
 
-namespace DraftStudio.Unit;
+namespace CadStudio3D.Unit;
 
 /// <summary>Large corpus of DSL prompts — parse + dispatch smoke for regressions.</summary>
 public sealed class CommandCorpusTests

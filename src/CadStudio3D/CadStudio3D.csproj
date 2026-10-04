@@ -3,9 +3,9 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>CadStudio3D</RootNamespace>
     <AssemblyName>CadStudio3D</AssemblyName>
-    <ApplicationTitle>Novolis CAD Studio 3D</ApplicationTitle>
+    <ApplicationTitle>Novolis CAD Studio</ApplicationTitle>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <Description>Novolis CAD Studio 3D — 2D/3D CAD drafting, appearance, limited mesh modelling, staging, and lit PNG render. Dual Cad+Scene Agent Surfaces.</Description>
+    <Description>Novolis CAD Studio — 2D/3D CAD drafting, ship authoring, appearance, limited mesh modelling, staging, and lit PNG render. Dual Cad+Scene Agent Surfaces.</Description>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="CadStudio3D.Unit" />
