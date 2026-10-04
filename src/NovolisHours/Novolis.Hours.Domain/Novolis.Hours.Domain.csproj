@@ -6,8 +6,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <LibraryReference Include="Novolis.Time.Calendar" />
-    <LibraryReference Include="Novolis.Time.Calendar.PublicHoliday" />
+    <LibraryReference Include="Novolis.Time.Workday" />
     <LibraryReference Include="Novolis.Time.Week" />
     <LibraryReference Include="Novolis.Time.Worktime" />
     <LibraryReference Include="Novolis.Time.Worktime.Legal" />

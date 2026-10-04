@@ -3,13 +3,13 @@ using Novolis.Hours.Domain.Configuration;
 
 namespace Novolis.Hours.Domain.Calendars;
 
-/// <summary>Ordered sparse composition of effective calendar layers.</summary>
-public sealed class CalendarRuleSet : ICalendarRuleSet
+/// <summary>Ordered sparse composition of effective work-calendar layers.</summary>
+public sealed class WorkCalendarStack : IWorkCalendarStack
 {
-    private readonly ImmutableArray<Calendar> calendars;
+    private readonly ImmutableArray<WorkCalendarLayer> calendars;
 
-    /// <summary>Initializes a calendar stack.</summary>
-    public CalendarRuleSet(IEnumerable<Calendar> calendars, string timeZoneId)
+    /// <summary>Initializes a work-calendar stack.</summary>
+    public WorkCalendarStack(IEnumerable<WorkCalendarLayer> calendars, string timeZoneId)
     {
         ArgumentNullException.ThrowIfNull(calendars);
         ArgumentException.ThrowIfNullOrWhiteSpace(timeZoneId);
@@ -22,7 +22,7 @@ public sealed class CalendarRuleSet : ICalendarRuleSet
     }
 
     /// <summary>Ordered layers retained for configuration inspection.</summary>
-    public ImmutableArray<Calendar> Calendars => calendars;
+    public ImmutableArray<WorkCalendarLayer> Calendars => calendars;
 
     /// <summary>Time-zone identifier for local calendar times.</summary>
     public string TimeZoneId { get; }
@@ -51,12 +51,15 @@ public sealed class CalendarRuleSet : ICalendarRuleSet
                 foreach (var rule in selector.GetRules(date))
                 {
                     var appliedRule = new AppliedDayRule(
-                        GetRuleId(selector, rule),
+                        GetRuleId(selector, rule, date),
                         calendar.Id,
                         calendar.Version,
                         calendar.Order,
                         rule,
-                        calendar.Source);
+                        calendar.Source)
+                    {
+                        LayerKind = calendar.Kind,
+                    };
                     if (selector is PublicHolidayCalendarRule holidayRule)
                     {
                         appliedRule = appliedRule with
@@ -108,14 +111,17 @@ public sealed class CalendarRuleSet : ICalendarRuleSet
             TimeZoneId);
     }
 
-    private static string GetRuleId(ICalendarRule selector, DayRule rule) =>
+    private static string GetRuleId(IWorkCalendarRule selector, DayRule rule, DateOnly date) =>
         selector switch
         {
             EveryDateCalendarRule every => every.Id,
             WeekdayCalendarRule weekday => weekday.Id,
             FixedDateCalendarRule fixedDate => fixedDate.Id,
             DateRangeCalendarRule range => range.Id,
-            PublicHolidayCalendarRule holiday => holiday.Id,
+            PublicHolidayCalendarRule holiday => holiday.GetProvenance(date)?.HolidayId ?? holiday.Id,
+            PublicHolidayObservanceCalendarRule observance => observance.Id,
+            ExcludingDatesCalendarRule excluding => excluding.Id,
+            WeekBasedScheduleRule week => week.Id,
             _ => $"{selector.GetType().Name}:{rule.GetType().Name}",
         };
 }

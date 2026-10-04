@@ -1,5 +1,5 @@
+using Novolis.Hours.Domain.Calendars;
 using Novolis.Time;
-using Novolis.Time.Calendar.PublicHoliday;
 using Novolis.Time.Worktime;
 using Novolis.Time.Worktime.Legal;
 
@@ -21,7 +21,11 @@ public static class NorwegianHoursPolicy
 
     private static HoursPolicy Create(int year, string id, WorktimeLegalPreset legalPreset)
     {
-        var calendar = new PublicHolidayWorkdayCalendar($"{id}.calendar", "NO");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(year);
+        var calendar = PolicyCalendarFactory.CreateOfficeCalendar(
+            $"{id}.calendar",
+            "NO",
+            TimeSpan.FromHours(7.5));
         var profile = new WorktimeProfile(
             $"{id}.profile",
             "Norway standard 37.5-hour week",

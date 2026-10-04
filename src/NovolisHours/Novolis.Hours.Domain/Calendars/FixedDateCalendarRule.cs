@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Novolis.Hours.Domain.Calendars;
 
 /// <summary>Calendar rule that contributes on a fixed month/day each year.</summary>
-public sealed class FixedDateCalendarRule : ICalendarRule
+public sealed class FixedDateCalendarRule : IWorkCalendarRule
 {
     private readonly ImmutableArray<DayRule> rules;
 

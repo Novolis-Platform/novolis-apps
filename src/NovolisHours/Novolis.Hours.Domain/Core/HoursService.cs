@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 using Novolis.Time;
-using Novolis.Time.Calendar;
+using Novolis.Time.Workday;
 using Novolis.Time.Worktime;
 using Novolis.Time.Worktime.Legal;
 

@@ -1,5 +1,5 @@
+using Novolis.Hours.Domain.Calendars;
 using Novolis.Time;
-using Novolis.Time.Calendar.PublicHoliday;
 using Novolis.Time.Worktime;
 using Novolis.Time.Worktime.Legal;
 
@@ -116,7 +116,10 @@ public static class HoursPolicyCatalog
         TimeSpan dayHours,
         FlexSettlementCadence cadence)
     {
-        var calendar = new PublicHolidayWorkdayCalendar($"{id}.calendar", legalPreset.CountryCode);
+        var calendar = PolicyCalendarFactory.CreateOfficeCalendar(
+            $"{id}.calendar",
+            legalPreset.CountryCode,
+            dayHours);
         var expected = new ClockInterval(expectedStart, expectedEnd);
         var profile = new WorktimeProfile(
             $"{id}.profile",

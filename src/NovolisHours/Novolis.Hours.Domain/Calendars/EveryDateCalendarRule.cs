@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Novolis.Hours.Domain.Calendars;
 
 /// <summary>Calendar rule that contributes on every selected date.</summary>
-public sealed class EveryDateCalendarRule : ICalendarRule
+public sealed class EveryDateCalendarRule : IWorkCalendarRule
 {
     private readonly ImmutableArray<DayRule> rules;
 

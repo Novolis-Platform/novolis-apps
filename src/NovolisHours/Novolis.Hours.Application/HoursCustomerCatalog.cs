@@ -1,0 +1,393 @@
+using Novolis.Hours.Domain.Calendars;
+using Novolis.Hours.Domain.Configuration;
+using Novolis.Time.Week;
+
+namespace Novolis.Hours.Application;
+
+/// <summary>Named five-customer calendar stacks used by the Hours acceptance regime.</summary>
+public static class HoursCustomerCatalog
+{
+    /// <summary>Norwegian private 37.5-hour office flex customer.</summary>
+    public const string NordvikOffice = "nordvik-office";
+
+    /// <summary>Norwegian 24/7 service customer using the state-handbook preset.</summary>
+    public const string NordvikStation = "nordvik-station";
+
+    /// <summary>French annualisation customer.</summary>
+    public const string AtelierCurie = "atelier-curie";
+
+    /// <summary>Polish monthly settlement customer.</summary>
+    public const string WarsawSettlement = "warsaw-settlement";
+
+    /// <summary>Finnish flexible-work customer.</summary>
+    public const string HelsinkiFlex = "helsinki-flex";
+
+    /// <summary>Ada's one-day envelope override used by stacking tests.</summary>
+    public static DateOnly AdaTemporaryOverrideDate { get; } = new(2026, 11, 18);
+
+    /// <summary>Gets the customer system that owns an acceptance identity.</summary>
+    public static HoursCustomer ForEmployee(string employeeId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        return employeeId.ToLowerInvariant() switch
+        {
+            "bob" or "nina" => NordvikStationCustomer,
+            "pierre" => AtelierCurieCustomer,
+            "anna" => WarsawSettlementCustomer,
+            "liisa" => HelsinkiFlexCustomer,
+            _ => NordvikOfficeCustomer,
+        };
+    }
+
+    /// <summary>Gets the organisation identifier used by an acceptance identity.</summary>
+    public static string OrganisationId(string employeeId) => ForEmployee(employeeId).Id;
+
+    /// <summary>Gets the local time-zone identifier used by an acceptance identity.</summary>
+    public static string TimeZoneId(string employeeId) =>
+        employeeId.Equals("admin", StringComparison.OrdinalIgnoreCase)
+            ? "UTC"
+            : ForEmployee(employeeId).TimeZoneId;
+
+    /// <summary>Gets the ordered calendar stack for one employee and local date.</summary>
+    public static WorkCalendarStack GetCalendar(
+        string employeeId,
+        DateOnly date,
+        string? calendarVersionOverride = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        var customer = ForEmployee(employeeId);
+        var version = calendarVersionOverride ?? GetCalendarVersion(employeeId, date);
+        var layers = CreateLayers(customer, employeeId, version);
+        return new WorkCalendarStack(layers, TimeZoneId(employeeId));
+    }
+
+    /// <summary>Gets the effective calendar version label for one employee and date.</summary>
+    public static string GetCalendarVersion(string employeeId, DateOnly date) =>
+        employeeId.Equals("pierre", StringComparison.OrdinalIgnoreCase) &&
+        date >= new DateOnly(2026, 5, 15)
+            ? "agreement-v2"
+            : employeeId.Equals("pierre", StringComparison.OrdinalIgnoreCase)
+                ? "agreement-v1"
+                : "acceptance-calendar-v1";
+
+    private static IReadOnlyList<WorkCalendarLayer> CreateLayers(
+        HoursCustomer customer,
+        string employeeId,
+        string version)
+    {
+        var layers = new List<WorkCalendarLayer>
+        {
+            NationalCalendarFactory.CreateNationalLayer(customer.CountryCode, version),
+        };
+
+        if (customer.ObservesPublicHolidays)
+        {
+            layers.Add(CreateOfficeOrganisation(customer, version));
+        }
+        else
+        {
+            layers.Add(CreateStationOrganisation(customer, version));
+        }
+
+        layers.AddRange(CreateAgreementLayers(customer, version));
+        layers.AddRange(CreateEmployeeScheduleLayers(customer, employeeId, version));
+
+        if (employeeId.Equals("ada", StringComparison.OrdinalIgnoreCase))
+        {
+            layers.Add(CreateAdaTemporaryOverride(version));
+        }
+
+        return layers;
+    }
+
+    private static WorkCalendarLayer CreateOfficeOrganisation(HoursCustomer customer, string version) =>
+        new(
+            $"{customer.Id}.organisation",
+            version,
+            CalendarLayerOrders.Organisation,
+            [
+                new PublicHolidayObservanceCalendarRule(
+                    $"{customer.Id}.observe-public-holidays",
+                    NationalHolidayCatalog.For(customer.CountryCode),
+                    customer.ExpectedWork),
+                new EveryDateCalendarRule(
+                    $"{customer.Id}.organisation.shape",
+                    [
+                        new WorkEnvelopeRule(customer.Envelope),
+                        new CoreHoursRule([customer.CoreHours]),
+                    ]),
+                .. CreateCorporatePaidDays(customer),
+            ],
+            RuleSource.Manual,
+            kind: CalendarLayerKind.Organisation);
+
+    private static WorkCalendarLayer CreateStationOrganisation(HoursCustomer customer, string version) =>
+        new(
+            $"{customer.Id}.organisation",
+            version,
+            CalendarLayerOrders.Organisation,
+            [
+                new EveryDateCalendarRule(
+                    $"{customer.Id}.always-open",
+                    [
+                        new WorkingDayRule(true),
+                        new WorkEnvelopeRule(customer.Envelope),
+                        new CoreHoursRule([customer.CoreHours]),
+                    ]),
+            ],
+            RuleSource.Manual,
+            kind: CalendarLayerKind.Organisation);
+
+    private static IEnumerable<IWorkCalendarRule> CreateCorporatePaidDays(HoursCustomer customer)
+    {
+        if (customer.Id != NordvikOffice)
+        {
+            return [];
+        }
+
+        return
+        [
+            new FixedDateCalendarRule(
+                "corporate-christmas-eve",
+                12,
+                24,
+                [
+                    new WorkingDayRule(false),
+                    new ExpectedWorkRule(TimeSpan.Zero),
+                    new PaidEntitlementRule(TimeSpan.FromHours(7.5)),
+                    new DayTagRule("PaidEntitlement", "Corporate Christmas Eve"),
+                ]),
+        ];
+    }
+
+    private static IEnumerable<WorkCalendarLayer> CreateAgreementLayers(HoursCustomer customer, string version)
+    {
+        if (customer.Id == NordvikStation)
+        {
+            yield return new WorkCalendarLayer(
+                $"{customer.Id}.agreement",
+                version,
+                CalendarLayerOrders.Agreement,
+                [
+                    new FixedDateCalendarRule(
+                        "christmas-entitlement",
+                        12,
+                        25,
+                        [new PaidEntitlementRule(TimeSpan.FromHours(7.5))]),
+                ],
+                RuleSource.Manual,
+                kind: CalendarLayerKind.Agreement);
+            yield break;
+        }
+
+        yield return new WorkCalendarLayer(
+            $"{customer.Id}.agreement",
+            version,
+            CalendarLayerOrders.Agreement,
+            [
+                new EveryDateCalendarRule(
+                    $"{customer.Id}.agreement.presence",
+                    [new DayTagRule("Agreement", customer.LegalPresetId)]),
+            ],
+            RuleSource.Manual,
+            kind: CalendarLayerKind.Agreement);
+    }
+
+    private static IEnumerable<WorkCalendarLayer> CreateEmployeeScheduleLayers(
+        HoursCustomer customer,
+        string employeeId,
+        string version)
+    {
+        if (customer.Id == AtelierCurie)
+        {
+            yield return CreateEmployeeScheduleLayer(
+                customer,
+                employeeId,
+                version,
+                CreateWeekday(
+                    TimeSpan.FromHours(7),
+                    new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(17, 0)),
+                    new LocalTimeRange(new TimeOnly(10, 0), new TimeOnly(16, 0)),
+                    new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(12, 0)),
+                    new LocalTimeRange(new TimeOnly(13, 0), new TimeOnly(17, 0))),
+                effectiveTo: new DateOnly(2026, 5, 14));
+            yield return CreateEmployeeScheduleLayer(
+                customer,
+                employeeId,
+                version,
+                CreateWeekday(
+                    TimeSpan.FromHours(7),
+                    new LocalTimeRange(new TimeOnly(8, 30), new TimeOnly(16, 30)),
+                    new LocalTimeRange(new TimeOnly(9, 30), new TimeOnly(15, 30)),
+                    new LocalTimeRange(new TimeOnly(8, 30), new TimeOnly(12, 0)),
+                    new LocalTimeRange(new TimeOnly(13, 0), new TimeOnly(16, 30))),
+                effectiveFrom: new DateOnly(2026, 5, 15));
+            yield break;
+        }
+
+        yield return CreateEmployeeScheduleLayer(
+            customer,
+            employeeId,
+            version,
+            CreateWeekday(
+                customer.ExpectedWork,
+                customer.Envelope,
+                customer.CoreHours,
+                customer.RoutineMorning,
+                customer.RoutineAfternoon));
+    }
+
+    private static WorkCalendarLayer CreateEmployeeScheduleLayer(
+        HoursCustomer customer,
+        string employeeId,
+        string version,
+        HoursWeekday weekday,
+        DateOnly? effectiveFrom = null,
+        DateOnly? effectiveTo = null)
+    {
+        var schedule = new EmployeeSchedule(
+            employeeId,
+            customer.TimeZoneId,
+            new WeekBasedCalendar<HoursWeekday>(
+                WeekModel.Iso,
+                CreateWeekPattern(customer, weekday),
+                effectiveFrom: effectiveFrom,
+                effectiveTo: effectiveTo));
+        IWorkCalendarRule rule = new WeekBasedScheduleRule($"{employeeId}.week", schedule.Calendar);
+        if (customer.ObservesPublicHolidays)
+        {
+            var excluded = NationalHolidayCatalog.Dates(customer.CountryCode).ToList();
+            if (customer.Id == NordvikOffice)
+            {
+                excluded.Add(new DateOnly(2025, 12, 24));
+                excluded.Add(new DateOnly(2026, 12, 24));
+                excluded.Add(new DateOnly(2027, 12, 24));
+            }
+
+            rule = new ExcludingDatesCalendarRule(
+                $"{employeeId}.week",
+                rule,
+                excluded);
+        }
+
+        return new WorkCalendarLayer(
+            $"{employeeId}.employee",
+            version,
+            CalendarLayerOrders.Employee,
+            [rule],
+            RuleSource.Manual,
+            effectiveFrom,
+            effectiveTo,
+            CalendarLayerKind.Employee);
+    }
+
+    private static WeeklyPattern<HoursWeekday> CreateWeekPattern(HoursCustomer customer, HoursWeekday weekday)
+    {
+        var weekend = new HoursWeekday(
+            false,
+            TimeSpan.Zero,
+            weekday.WorkEnvelope,
+            weekday.CoreHours,
+            weekday.RoutineWork);
+        return new WeeklyPattern<HoursWeekday>(
+            Enum.GetValues<DayOfWeek>().Select(day =>
+            {
+                var working = customer.SevenDayOperation ||
+                    day is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+                return new KeyValuePair<DayOfWeek, HoursWeekday>(day, working ? weekday : weekend);
+            }));
+    }
+
+    private static HoursWeekday CreateWeekday(
+        TimeSpan expectedWork,
+        LocalTimeRange envelope,
+        LocalTimeRange coreHours,
+        LocalTimeRange morning,
+        LocalTimeRange afternoon) =>
+        new(
+            true,
+            expectedWork,
+            envelope,
+            [coreHours],
+            [morning, afternoon]);
+
+    private static WorkCalendarLayer CreateAdaTemporaryOverride(string version) =>
+        new(
+            "ada.temporary-override",
+            version,
+            CalendarLayerOrders.TemporaryOverride,
+            [
+                new DateRangeCalendarRule(
+                    "ada-temporary-envelope",
+                    AdaTemporaryOverrideDate,
+                    AdaTemporaryOverrideDate,
+                    [new WorkEnvelopeRule(new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(18, 0)))]),
+            ],
+            RuleSource.Manual,
+            kind: CalendarLayerKind.TemporaryOverride);
+
+    private static HoursCustomer NordvikOfficeCustomer { get; } = new(
+        NordvikOffice,
+        "NO",
+        "Europe/Oslo",
+        "norway.private.flex",
+        TimeSpan.FromHours(7.5),
+        new LocalTimeRange(new TimeOnly(7, 0), new TimeOnly(17, 0)),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(15, 0)),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(11, 30)),
+        new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
+        ObservesPublicHolidays: true,
+        SevenDayOperation: false);
+
+    private static HoursCustomer NordvikStationCustomer { get; } = new(
+        NordvikStation,
+        "NO",
+        "Europe/Oslo",
+        "norway.state.flex",
+        TimeSpan.FromHours(7.5),
+        new LocalTimeRange(new TimeOnly(7, 0), new TimeOnly(17, 0)),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(15, 0)),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(11, 30)),
+        new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
+        ObservesPublicHolidays: false,
+        SevenDayOperation: true);
+
+    private static HoursCustomer AtelierCurieCustomer { get; } = new(
+        AtelierCurie,
+        "FR",
+        "Europe/Paris",
+        "france.annualisation",
+        TimeSpan.FromHours(7),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(17, 0)),
+        new LocalTimeRange(new TimeOnly(10, 0), new TimeOnly(16, 0)),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(12, 0)),
+        new LocalTimeRange(new TimeOnly(13, 0), new TimeOnly(17, 0)),
+        ObservesPublicHolidays: true,
+        SevenDayOperation: false);
+
+    private static HoursCustomer WarsawSettlementCustomer { get; } = new(
+        WarsawSettlement,
+        "PL",
+        "Europe/Warsaw",
+        "poland.okres-rozliczeniowy",
+        TimeSpan.FromHours(8),
+        new LocalTimeRange(new TimeOnly(7, 0), new TimeOnly(17, 0)),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(15, 0)),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(12, 0)),
+        new LocalTimeRange(new TimeOnly(12, 30), new TimeOnly(16, 30)),
+        ObservesPublicHolidays: true,
+        SevenDayOperation: false);
+
+    private static HoursCustomer HelsinkiFlexCustomer { get; } = new(
+        HelsinkiFlex,
+        "FI",
+        "Europe/Helsinki",
+        "finland.liukuva-tyoaika",
+        TimeSpan.FromHours(7.5),
+        new LocalTimeRange(new TimeOnly(7, 0), new TimeOnly(17, 0)),
+        new LocalTimeRange(new TimeOnly(9, 0), new TimeOnly(15, 0)),
+        new LocalTimeRange(new TimeOnly(8, 0), new TimeOnly(11, 30)),
+        new LocalTimeRange(new TimeOnly(12, 0), new TimeOnly(16, 0)),
+        ObservesPublicHolidays: true,
+        SevenDayOperation: false);
+}

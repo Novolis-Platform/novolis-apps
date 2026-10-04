@@ -1,13 +1,12 @@
 using System.Collections.Immutable;
-using Novolis.Time.Calendar.PublicHoliday;
 
 namespace Novolis.Hours.Domain.Calendars;
 
 /// <summary>
-/// Explicit holiday rule generated from the offline holiday package.
-/// Runtime lookup uses the frozen generated input and never calls the package.
+/// Explicit holiday rule over frozen generated facts.
+/// Runtime lookup never calls a third-party holiday package.
 /// </summary>
-public sealed class PublicHolidayCalendarRule : ICalendarRule
+public sealed class PublicHolidayCalendarRule : IWorkCalendarRule
 {
     private readonly ImmutableDictionary<DateOnly, GeneratedPublicHoliday> holidays;
 
@@ -33,77 +32,6 @@ public sealed class PublicHolidayCalendarRule : ICalendarRule
         SourcePackageVersion = sourcePackageVersion;
         GeneratorVersion = generatorVersion;
         this.holidays = holidays.ToImmutableDictionary(holiday => holiday.Date);
-    }
-
-    /// <summary>
-    /// Generates explicit rules for one year. This method is the generation boundary;
-    /// the returned rule is self-contained.
-    /// </summary>
-    public static PublicHolidayCalendarRule Generate(
-        string id,
-        int year,
-        string countryCode,
-        IEnumerable<DayOfWeek>? workdays = null,
-        string generatorVersion = "novolis-hours-calendar-generator-1")
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(countryCode);
-        var selectedWorkdays = (workdays ??
-            [
-                DayOfWeek.Monday,
-                DayOfWeek.Tuesday,
-                DayOfWeek.Wednesday,
-                DayOfWeek.Thursday,
-                DayOfWeek.Friday,
-            ]).ToImmutableHashSet();
-        var sourceCalendar = PublicHolidayWorkdayCalendarFactory.Create(
-            $"{id}.{year}",
-            year,
-            countryCode,
-            selectedWorkdays);
-        var packageVersion = typeof(PublicHolidayWorkdayCalendarFactory).Assembly
-            .GetName()
-            .Version?
-            .ToString() ?? "unknown";
-        var jurisdiction = countryCode.ToUpperInvariant();
-        var generated = ImmutableArray.CreateBuilder<GeneratedPublicHoliday>();
-
-        for (var day = new DateOnly(year, 1, 1);
-             day.Year == year;
-             day = day.AddDays(1))
-        {
-            if (!selectedWorkdays.Contains(day.DayOfWeek) ||
-                sourceCalendar.IsWorkday(day))
-            {
-                continue;
-            }
-
-            var name = sourceCalendar.GetNonWorkdayReason(day);
-            if (string.IsNullOrWhiteSpace(name) ||
-                name.Equals("Weekend", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var holidayId = CreateHolidayId(name);
-            generated.Add(new GeneratedPublicHoliday(
-                day,
-                holidayId,
-                name,
-                new CalendarRuleProvenance(
-                    jurisdiction,
-                    holidayId,
-                    "PublicHoliday",
-                    packageVersion,
-                    generatorVersion)));
-        }
-
-        return new PublicHolidayCalendarRule(
-            id,
-            jurisdiction,
-            "PublicHoliday",
-            packageVersion,
-            generatorVersion,
-            generated);
     }
 
     /// <summary>Stable selector identifier.</summary>
@@ -133,23 +61,10 @@ public sealed class PublicHolidayCalendarRule : ICalendarRule
             return [];
         }
 
-        return
-        [
-            new WorkingDayRule(false),
-            new DayTagRule("holiday", holiday.Name),
-        ];
+        return [new DayTagRule("PublicHoliday", holiday.Name)];
     }
 
     /// <summary>Gets generated provenance for a date, if it is a holiday.</summary>
     public CalendarRuleProvenance? GetProvenance(DateOnly date) =>
         holidays.TryGetValue(date, out var holiday) ? holiday.Provenance : null;
-
-    private static string CreateHolidayId(string name)
-    {
-        var characters = name
-            .Where(char.IsLetterOrDigit)
-            .Select(char.ToLowerInvariant)
-            .ToArray();
-        return characters.Length == 0 ? "holiday" : new string(characters);
-    }
 }

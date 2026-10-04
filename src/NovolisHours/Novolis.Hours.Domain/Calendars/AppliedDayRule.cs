@@ -11,6 +11,9 @@ public sealed record AppliedDayRule(
     DayRule Rule,
     RuleSource Source)
 {
+    /// <summary>Standard stack position of the contributing calendar.</summary>
+    public CalendarLayerKind LayerKind { get; init; }
+
     /// <summary>Optional source-package metadata for generated rules.</summary>
     public CalendarRuleProvenance? Provenance { get; init; }
 }

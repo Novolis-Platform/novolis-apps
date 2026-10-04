@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Novolis.Hours.Domain.Calendars;
 
 /// <summary>Calendar rule that contributes over an inclusive local-date range.</summary>
-public sealed class DateRangeCalendarRule : ICalendarRule
+public sealed class DateRangeCalendarRule : IWorkCalendarRule
 {
     private readonly ImmutableArray<DayRule> rules;
 

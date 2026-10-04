@@ -1,10 +1,17 @@
 using System.Collections.Immutable;
+using Novolis.Time.Workday;
 
 namespace Novolis.Hours.Domain.Review;
 
 /// <summary>Projects review actions, deadlines, disputes, and post-approval changes.</summary>
 public sealed class ReviewProjector
 {
+    private static readonly IWorkdayCalendar WeekdayCalendar = new WorkdayCalendar(
+        "review-weekdays",
+        new WorkdaySourceMetadata("weekday-only", "1", "XX", null),
+        WorkdayCalendar.DefaultWorkdays,
+        []);
+
     /// <summary>Builds a transparent projection as of a local date.</summary>
     public ReviewProjection Project(
         ReviewPeriod period,
@@ -39,7 +46,8 @@ public sealed class ReviewProjector
         {
             var dueDate = BusinessDayCalculator.AddBusinessDays(
                 cursor,
-                stage.BusinessDays);
+                stage.BusinessDays,
+                WeekdayCalendar);
             cursor = dueDate;
             var satisfied = relevantActions
                 .Where(action => action.Kind == stage.RequiredAction)

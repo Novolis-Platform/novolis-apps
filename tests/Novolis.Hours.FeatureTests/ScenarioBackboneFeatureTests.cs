@@ -146,9 +146,9 @@ public sealed class ScenarioBackboneFeatureTests
     public async Task Scenario_04_calendar_stack_keeps_holiday_provenance_when_a_24_7_calendar_reopens_the_day()
     {
         var holiday = new DateOnly(2021, 12, 26);
-        var calendars = new CalendarRuleSet(
+        var calendars = new WorkCalendarStack(
             [
-                new Calendar(
+                new WorkCalendarLayer(
                     "national",
                     "2026.1",
                     10,
@@ -166,7 +166,7 @@ public sealed class ScenarioBackboneFeatureTests
                             [new DayTagRule("holiday", "Christmas Day")]),
                     ],
                     RuleSource.SourcePackage),
-                new Calendar(
+                new WorkCalendarLayer(
                     "gas-station",
                     "2026.1",
                     20,
@@ -177,7 +177,7 @@ public sealed class ScenarioBackboneFeatureTests
                             [new WorkingDayRule(true)]),
                     ],
                     RuleSource.Manual),
-                new Calendar(
+                new WorkCalendarLayer(
                     "employment",
                     "2026.1",
                     30,
@@ -193,7 +193,7 @@ public sealed class ScenarioBackboneFeatureTests
                             ]),
                     ],
                     RuleSource.Manual),
-                new Calendar(
+                new WorkCalendarLayer(
                     "agreement",
                     "2026.1",
                     40,
@@ -225,9 +225,9 @@ public sealed class ScenarioBackboneFeatureTests
     public async Task Scenario_05_paid_corporate_day_has_zero_expected_work_without_fabricating_a_registration()
     {
         var date = new DateOnly(2026, 12, 24);
-        var calendars = new CalendarRuleSet(
+        var calendars = new WorkCalendarStack(
             [
-                new Calendar(
+                new WorkCalendarLayer(
                     "employment",
                     "2026.1",
                     10,
@@ -245,7 +245,7 @@ public sealed class ScenarioBackboneFeatureTests
                             ]),
                     ],
                     RuleSource.Manual),
-                new Calendar(
+                new WorkCalendarLayer(
                     "corporate",
                     "2026.2",
                     20,
@@ -288,9 +288,9 @@ public sealed class ScenarioBackboneFeatureTests
     {
         var beforeChange = new DateOnly(2026, 6, 30);
         var afterChange = new DateOnly(2026, 7, 1);
-        var calendars = new CalendarRuleSet(
+        var calendars = new WorkCalendarStack(
             [
-                new Calendar(
+                new WorkCalendarLayer(
                     "flex-policy",
                     "v1",
                     10,
@@ -307,7 +307,7 @@ public sealed class ScenarioBackboneFeatureTests
                     ],
                     RuleSource.Manual,
                     effectiveTo: beforeChange),
-                new Calendar(
+                new WorkCalendarLayer(
                     "flex-policy",
                     "v2",
                     10,

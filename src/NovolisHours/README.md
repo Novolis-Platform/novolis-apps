@@ -96,11 +96,11 @@ External:
 - ASP.NET Core and SignalR
 - Avalonia
 - .NET MAUI
-- PublicHoliday through `Novolis.Time.Calendar.PublicHoliday`
+- Frozen public holidays through `Novolis.Time.Workday`
 
 Internal:
 
-- `Novolis.Time`, `Calendar`, `Calendar.PublicHoliday`, `Week`, `Worktime`, and `Worktime.Legal`
+- `Novolis.Time`, `Week`, `Workday`, `Worktime`, and `Worktime.Legal`
 - `Novolis.Storage.Json` and `Novolis.Storage.InMemory`
 - `Novolis.Storage.AzureTables` and `Azure.Data.Tables` for Azure Table Storage/Azurite persistence
 - `Novolis.Security.Authentication`, storage adapters, and `Novolis.Security.HaveIBeenPwned` for non-demo bootstrap checks
@@ -128,6 +128,18 @@ Run the feature suite:
 
 ```powershell
 dotnet test tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj -p:NovolisUseProjectReferences=true
+```
+
+The acceptance regime uses real development identities (`ada`, `bob`, `alice`,
+`charlie`, `helen`, and `audrey`) when the AppHost is running. Supply both
+secret parameters in Aspire, then open the Blazor resource. The identities use
+the acceptance seed password entered for that run; they are real
+Novolis Security accounts and are never enabled outside Development.
+
+The HTTP acceptance slice can be run directly:
+
+```powershell
+dotnet test tests/Novolis.Hours.FeatureTests/Novolis.Hours.FeatureTests.csproj -p:NovolisUseProjectReferences=true --filter "FullyQualifiedName~AcceptanceRegimeFeatureTests"
 ```
 
 Run the Podman-backed Aspire smoke test explicitly:

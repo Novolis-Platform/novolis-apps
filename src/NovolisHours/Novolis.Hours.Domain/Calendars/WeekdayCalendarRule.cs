@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 namespace Novolis.Hours.Domain.Calendars;
 
 /// <summary>Calendar rule that contributes on selected ISO weekdays.</summary>
-public sealed class WeekdayCalendarRule : ICalendarRule
+public sealed class WeekdayCalendarRule : IWorkCalendarRule
 {
     private readonly ImmutableHashSet<DayOfWeek> weekdays;
     private readonly ImmutableArray<DayRule> rules;

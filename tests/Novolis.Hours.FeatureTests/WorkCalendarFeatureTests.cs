@@ -9,9 +9,9 @@ public sealed class WorkCalendarFeatureTests
     [Test]
     public async Task Ordered_calendar_layers_preserve_rule_provenance_and_sparse_overrides()
     {
-        var calendars = new CalendarRuleSet(
+        var calendars = new WorkCalendarStack(
         [
-            new Calendar(
+            new WorkCalendarLayer(
                 "national",
                 "2026.1",
                 10,
@@ -22,7 +22,7 @@ public sealed class WorkCalendarFeatureTests
                         [new WorkingDayRule(false), new DayTagRule("calendar", "weekday")]),
                 ],
                 RuleSource.BuiltIn),
-            new Calendar(
+            new WorkCalendarLayer(
                 "agreement",
                 "2026.2",
                 20,
@@ -55,9 +55,9 @@ public sealed class WorkCalendarFeatureTests
     [Test]
     public async Task Worked_as_scheduled_resolves_routine_without_claiming_a_clock_observation()
     {
-        var calendars = new CalendarRuleSet(
+        var calendars = new WorkCalendarStack(
             [
-                new Calendar(
+                new WorkCalendarLayer(
                     "employment",
                     "2026.1",
                     10,
