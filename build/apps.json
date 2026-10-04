@@ -426,7 +426,7 @@
         ],
         "android": "src/Reach/Reach.Client.Android/Reach.Client.Android.csproj",
         "maui": null,
-        "tests": [],
+        "tests": ["tests/Reach.Unit/Reach.Unit.csproj"],
         "all": [
           "src/Reach/Reach.Client.Windows/Reach.Client.Windows.csproj",
           "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",
@@ -438,7 +438,7 @@
       "local": ["windows", "linux", "android"],
       "ship": ["windows-inno", "linux-tar", "android-apk"],
       "validation": {
-        "changedPathGlobs": ["src/Reach/**"],
+        "changedPathGlobs": ["src/Reach/**", "tests/Reach.Unit/**"],
         "runTests": false,
         "androidCompile": true,
         "windowsCi": true,

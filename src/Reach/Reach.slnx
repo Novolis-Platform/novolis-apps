@@ -33,6 +33,6 @@
     <Project Path="Reach.Transport/Reach.Transport.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Reach.Unit/Reach.Unit.csproj" />
+    <Project Path="../../tests/Reach.Unit/Reach.Unit.csproj" />
   </Folder>
 </Solution>

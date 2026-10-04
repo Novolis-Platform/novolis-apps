@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Reach.Unit</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <ProjectReference Include="..\..\src\Reach\Reach.Protocol\Reach.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\Reach\Reach.Transport\Reach.Transport.csproj" />
+    <ProjectReference Include="..\..\src\Reach\Reach.Client\Reach.Client.csproj" />
+    <LibraryReference Include="Novolis.Transports.Framing" />
+  </ItemGroup>
+</Project>
