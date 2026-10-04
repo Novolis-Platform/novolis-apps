@@ -397,10 +397,12 @@ public sealed class HoursService
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        var policy = policyProvider.GetPolicy(employeeId);
         var view = HoursProjector.Replay(
             employeeId,
-            await journal.ReadEmployeeAsync(employeeId, cancellationToken));
-        return AddCarryBoundaryAnomalies(view, policyProvider.GetPolicy(employeeId));
+            await journal.ReadEmployeeAsync(employeeId, cancellationToken),
+            policy);
+        return AddCarryBoundaryAnomalies(view, policy);
     }
 
     private async ValueTask<HoursApprovalPeriod> UpdateApprovalPeriodAsync(

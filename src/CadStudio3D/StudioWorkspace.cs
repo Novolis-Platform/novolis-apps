@@ -6,4 +6,5 @@ internal enum StudioWorkspace
     Draft3D,
     Model,
     Stage,
+    Ship,
 }

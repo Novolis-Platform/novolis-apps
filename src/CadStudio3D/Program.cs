@@ -9,6 +9,7 @@ using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
+using Novolis.Avalonia.Ship.Design.Session;
 
 namespace CadStudio3D;
 
@@ -63,6 +64,11 @@ internal static class Program
                         };
                         return scene;
                     });
+                    services.AddSingleton(sp =>
+                    {
+                        var settings = sp.GetRequiredService<CadEditorSettings>();
+                        return new ShipDesignSession(Path.Combine(settings.DataRoot, "ships"));
+                    });
                     services.AddTransient<MainWindow>();
                 })
                 .Build();
@@ -71,7 +77,6 @@ internal static class Program
 
             var cad = ApplicationHost.Services.GetRequiredService<CadSessionService>();
             var scene = ApplicationHost.Services.GetRequiredService<SceneSessionService>();
-            Novolis.Avalonia.Cad.Ship.CadShipChrome.Attach(cad);
 
             CadSurface = CadSessionSurface.AttachAll(cad);
             SceneSurface = AgentSurface.AttachAll(scene, scene.Definition)

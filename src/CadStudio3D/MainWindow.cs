@@ -16,6 +16,9 @@ using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
 using Novolis.Avalonia.Cad.Ui;
 using Novolis.Avalonia.GraphicalProfile;
+using Novolis.Avalonia.Ship.Design;
+using Novolis.Avalonia.Ship.Design.Services;
+using Novolis.Avalonia.Ship.Design.Session;
 using Novolis.Avalonia.Studio;
 using Novolis.Cad.Primitives;
 using Novolis.Cad.SceneBridge;
@@ -33,12 +36,16 @@ internal sealed class MainWindow : Window
     private readonly CadCommandDispatcher _dispatcher;
     private readonly CadToolController _tools;
     private readonly CadModelRenderer _modelRenderer;
+    private readonly CadArtifactDumper _artifacts;
+    private readonly ShipDesignSession _shipDesign;
 
     private CadEditorSurface _cadEditor = null!;
+    private CadEditorSurface _shipEditor = null!;
     private SceneEditorSurface _sceneEditor = null!;
     private Panel _host = null!;
     private Control _cadHost = null!;
     private Control _sceneHost = null!;
+    private Control _shipHost = null!;
     private StudioFeedback _feedback = null!;
     private StudioCommandBar _commandBar = null!;
     private CheckBox _snapCheck = null!;
@@ -47,22 +54,33 @@ internal sealed class MainWindow : Window
     private Button _lockX = null!;
     private Button _lockY = null!;
     private Button _lockZ = null!;
+    private ComboBox _unitCombo = null!;
+    private CheckBox _continuousCheck = null!;
+    private CheckBox _isolateCheck = null!;
+    private NumericUpDown _elevationBox = null!;
     private TextBlock _modeBanner = null!;
     private StudioWorkspace _workspace = StudioWorkspace.Draft2D;
     private bool _scenePresenting;
+    private IDisposable? _shipAttachment;
     private bool _bridgeDirty = true;
     private bool _syncingDraftUi;
+    private bool _dumpBusy;
 
-    public MainWindow(CadSessionService cad, SceneSessionService scene)
+    public MainWindow(
+        CadSessionService cad,
+        SceneSessionService scene,
+        ShipDesignSession shipDesign)
     {
         _cad = cad;
         _scene = scene;
+        _shipDesign = shipDesign;
         _doc = cad.Document;
         _settings = cad.Settings;
         _bus = cad.Bus;
         _dispatcher = cad.Dispatcher;
         _tools = new CadToolController(_dispatcher, _settings);
         _modelRenderer = new CadModelRenderer(_doc, _settings);
+        _artifacts = new CadArtifactDumper(_doc, _settings);
         _cad.ExportRoot = Path.Combine(_settings.DataRoot, "exports");
         _cad.FitHandler = () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Fit });
 
@@ -92,6 +110,7 @@ internal sealed class MainWindow : Window
         {
             if (_scenePresenting)
                 _sceneEditor.StopPresenting();
+            _shipAttachment?.Dispose();
             _settings.Save();
         };
         KeyDown += OnKeyDown;
@@ -115,6 +134,9 @@ internal sealed class MainWindow : Window
         toolbar.Children.Add(Btn("New", () => _ = OnNewAsync(), "cad3d.tool.new"));
         toolbar.Children.Add(Btn("Open…", () => _ = OnOpenAsync(), "cad3d.tool.open"));
         toolbar.Children.Add(Btn("Save", OnSave, "cad3d.tool.save"));
+        toolbar.Children.Add(Btn("Save As…", () => _ = OnSaveAsAsync(), "cad3d.tool.saveAs"));
+        toolbar.Children.Add(Btn("Export Phys…", () => _ = OnExportPhysAsync(), "cad3d.tool.exportPhys"));
+        toolbar.Children.Add(Btn("Dump…", () => _ = OnDumpArtifactsAsync(), "cad3d.tool.dump"));
         toolbar.Children.Add(Sep());
         toolbar.Children.Add(SectionLabel("Edit"));
         toolbar.Children.Add(Btn("Undo", () => _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.Undo }), "cad3d.undo"));
@@ -126,6 +148,7 @@ internal sealed class MainWindow : Window
         toolbar.Children.Add(Btn("Draft 3D", () => SetStudioWorkspace(StudioWorkspace.Draft3D), "cad3d.ws.draft3d", "Orbit wireframe drafting — Avalonia, not Raylib"));
         toolbar.Children.Add(Btn("Model", () => SetStudioWorkspace(StudioWorkspace.Model), "cad3d.ws.model", "Bridged mesh scene"));
         toolbar.Children.Add(Btn("Stage", () => SetStudioWorkspace(StudioWorkspace.Stage), "cad3d.ws.stage", "Lights / render"));
+        toolbar.Children.Add(Btn("Ship", () => SetStudioWorkspace(StudioWorkspace.Ship), "cad3d.ws.ship", "Ship authoring mode"));
         toolbar.Children.Add(Sep());
         toolbar.Children.Add(Btn("Bridge", OnBridge, "cad3d.bridge", "Cad → Scene meshes"));
         toolbar.Children.Add(Btn("Export Scene…", () => _ = OnExportSceneAsync(), "cad3d.exportScene"));
@@ -158,12 +181,31 @@ internal sealed class MainWindow : Window
 
         _cadHost = BuildCadHost(_cadEditor, draftBar);
 
+        _shipEditor = new CadEditorSurface(
+            _doc,
+            _settings,
+            _bus,
+            _dispatcher,
+            _tools,
+            new CadModelRenderer(_doc, _settings));
+        AgentProperties.SetId(_shipEditor.ModelHost, "cad3d.ship.viewport.model");
+        var shipStatus = new TextBlock
+        {
+            Text = "PLAN",
+            Margin = new Thickness(8, 4),
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        AgentProperties.SetId(shipStatus, "cad3d.ship.status");
+        _shipHost = ShipDesignChrome.CreateShell(_cad, _shipDesign, _shipEditor, shipStatus);
+        _shipHost.IsVisible = false;
+
         _sceneEditor = new SceneEditorSurface(_scene, composeDefaultLayout: false);
         _sceneHost = BuildSceneHost(_sceneEditor);
 
         _host = new Panel();
         _host.Children.Add(_cadHost);
         _host.Children.Add(_sceneHost);
+        _host.Children.Add(_shipHost);
 
         _commandBar = new StudioCommandBar();
         AgentProperties.SetId(_commandBar, "cad3d.commandBar.host");
@@ -299,6 +341,31 @@ internal sealed class MainWindow : Window
         };
         AgentProperties.SetId(row, "cad3d.draftBar");
 
+        row.Children.Add(SectionLabel("Units"));
+        _unitCombo = new ComboBox
+        {
+            Width = 112,
+            VerticalAlignment = VerticalAlignment.Center,
+            ItemsSource = new[]
+            {
+                new UnitChoice(CadUnits.Meter, "Meters (m)"),
+                new UnitChoice(CadUnits.Centimeter, "Centimeters (cm)"),
+                new UnitChoice(CadUnits.Millimeter, "Millimeters (mm)"),
+                new UnitChoice(CadUnits.Inch, "Inches (in)"),
+            },
+        };
+        AgentProperties.SetId(_unitCombo, "cad3d.units", AgentRoleNames.ComboBox);
+        _unitCombo.SelectionChanged += (_, _) =>
+        {
+            if (_syncingDraftUi || _unitCombo.SelectedItem is not UnitChoice choice)
+                return;
+            _settings.Settings.DisplayUnit = choice.Id;
+            InvalidateDraftViews();
+            RefreshTitle();
+        };
+        row.Children.Add(_unitCombo);
+        row.Children.Add(Sep());
+
         row.Children.Add(SectionLabel("Tools"));
         row.Children.Add(Btn("Select", () => ExecTool("select"), "cad3d.tool.select"));
         row.Children.Add(Btn("Line", () => ExecTool("line"), "cad3d.tool.line", "L"));
@@ -363,6 +430,69 @@ internal sealed class MainWindow : Window
         row.Children.Add(_gridCombo);
         row.Children.Add(Sep());
 
+        _continuousCheck = new CheckBox
+        {
+            Content = "Continuous",
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 8, 0),
+        };
+        ToolTip.SetTip(_continuousCheck, "Line: chain from the last endpoint (Esc ends)");
+        AgentProperties.SetId(_continuousCheck, "cad3d.continuous", AgentRoleNames.CheckBox);
+        _continuousCheck.IsCheckedChanged += (_, _) =>
+        {
+            if (_syncingDraftUi)
+                return;
+            _tools.ContinuousLine = _continuousCheck.IsChecked == true;
+            _settings.Settings.ContinuousLine = _tools.ContinuousLine;
+            _settings.Save();
+            _commandBar.PromptLabel = _tools.PromptHint;
+        };
+        row.Children.Add(_continuousCheck);
+
+        row.Children.Add(SectionLabel("Level"));
+        _elevationBox = new NumericUpDown
+        {
+            Width = 88,
+            Minimum = -1000,
+            Maximum = 1000,
+            Increment = 0.5m,
+            FormatString = "0.##",
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AgentProperties.SetId(_elevationBox, "cad3d.elevation", AgentRoleNames.TextBox);
+        ToolTip.SetTip(_elevationBox, "Drawing plane elevation (world Y)");
+        _elevationBox.ValueChanged += (_, e) =>
+        {
+            if (_syncingDraftUi || e.NewValue is null)
+                return;
+            _settings.Settings.DrawElevation = (float)e.NewValue.Value;
+            InvalidateDraftViews();
+            RefreshTitle();
+        };
+        row.Children.Add(_elevationBox);
+        row.Children.Add(Btn("+1", () => NudgeElevation(1f), "cad3d.elevation.up", "Next level / +1 m"));
+        row.Children.Add(Btn("−1", () => NudgeElevation(-1f), "cad3d.elevation.down", "Previous level / −1 m"));
+        row.Children.Add(Btn("0", () => SetElevation(0f), "cad3d.elevation.zero"));
+
+        _isolateCheck = new CheckBox
+        {
+            Content = "Isolate level",
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 8, 0),
+        };
+        ToolTip.SetTip(_isolateCheck, "Dim and skip hit testing for entities away from the current level");
+        AgentProperties.SetId(_isolateCheck, "cad3d.isolate", AgentRoleNames.CheckBox);
+        _isolateCheck.IsCheckedChanged += (_, _) =>
+        {
+            if (_syncingDraftUi)
+                return;
+            _settings.Settings.IsolateLevel = _isolateCheck.IsChecked == true;
+            InvalidateDraftViews();
+            RefreshTitle();
+        };
+        row.Children.Add(_isolateCheck);
+        row.Children.Add(Sep());
+
         row.Children.Add(SectionLabel("Axis lock"));
         _lockNone = AxisLockBtn("Free", "none", "cad3d.axis.none");
         _lockX = AxisLockBtn("X", "x", "cad3d.axis.x");
@@ -400,13 +530,32 @@ internal sealed class MainWindow : Window
 
     private void SyncDraftOptionsUi()
     {
-        if (_snapCheck is null || _gridCombo is null)
+        if (_snapCheck is null
+            || _gridCombo is null
+            || _unitCombo is null
+            || _continuousCheck is null
+            || _elevationBox is null
+            || _isolateCheck is null)
             return;
 
         _syncingDraftUi = true;
         try
         {
+            if (_unitCombo.ItemsSource is IEnumerable<UnitChoice> units)
+            {
+                _unitCombo.SelectedItem = units.FirstOrDefault(
+                    unit => string.Equals(
+                        unit.Id,
+                        _settings.Settings.DisplayUnit,
+                        StringComparison.OrdinalIgnoreCase))
+                    ?? units.FirstOrDefault();
+            }
+
             _snapCheck.IsChecked = _settings.Settings.SnapToGrid;
+            _continuousCheck.IsChecked = _settings.Settings.ContinuousLine;
+            _tools.ContinuousLine = _settings.Settings.ContinuousLine;
+            _elevationBox.Value = (decimal)_settings.Settings.DrawElevation;
+            _isolateCheck.IsChecked = _settings.Settings.IsolateLevel;
             var step = _settings.Settings.GridStep;
             if (_gridCombo.ItemsSource is IEnumerable<GridChoice> choices)
             {
@@ -472,12 +621,175 @@ internal sealed class MainWindow : Window
         }
     }
 
+    private async Task OnSaveAsAsync()
+    {
+        if (_workspace == StudioWorkspace.Ship)
+        {
+            await OnSaveShipAsAsync();
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save CADJSON As",
+            SuggestedFileName = Path.GetFileName(_doc.DocumentPath),
+            DefaultExtension = "cadjson",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("CADJSON") { Patterns = ["*.cadjson"] },
+            ],
+        });
+        var path = file?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        if (!path.EndsWith(".cadjson", StringComparison.OrdinalIgnoreCase)
+            && !path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            path += ".cadjson";
+        }
+
+        try
+        {
+            _doc.SaveTo(path);
+            _settings.Save();
+            _feedback.Flash($"Saved {Path.GetFileName(path)}");
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError($"Save As failed: {ex.Message}");
+        }
+    }
+
+    private async Task OnExportPhysAsync()
+    {
+        var suggested = Path.ChangeExtension(
+                            Path.GetFileName(_doc.DocumentPath),
+                            ".cadphys.json")
+                        ?? "cad-document.cadphys.json";
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export CAD Phys JSON",
+            SuggestedFileName = suggested,
+            DefaultExtension = "cadphys.json",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("CAD Phys JSON") { Patterns = ["*.cadphys.json", "*.json"] },
+            ],
+        });
+        var path = file?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var result = _cad.Execute(new CadCommandDto
+        {
+            ActionId = CadSessionActionIds.ExportPhys,
+            Path = path,
+        });
+        if (result.Ok)
+            _feedback.Flash(result.Message);
+        else
+            _feedback.FlashError(result.Message);
+    }
+
+    private async Task OnDumpArtifactsAsync()
+    {
+        if (_dumpBusy)
+            return;
+
+        _dumpBusy = true;
+        try
+        {
+            var previous = _workspace;
+            var result = await _artifacts.DumpAllAsync(
+                this,
+                _cadEditor.DraftViewport,
+                _cadEditor.ModelHost,
+                ensureModelViewAsync: async () =>
+                {
+                    _cadHost.IsVisible = true;
+                    _sceneHost.IsVisible = false;
+                    _cad.Execute(new CadCommandDto
+                    {
+                        ActionId = CadSessionActionIds.SetWorkspace,
+                        Workspace = CadWorkspaceMapping.ToStorage(CadWorkspace.Preview),
+                    });
+                    await Task.Delay(80);
+                },
+                ensureDraftViewAsync: async () =>
+                {
+                    SetStudioWorkspace(StudioWorkspace.Draft2D);
+                    await Task.Delay(40);
+                });
+
+            SetStudioWorkspace(previous);
+            var outputs = new List<string> { $"doc={Path.GetFileName(result.DocumentPath)}" };
+            if (result.DraftPngPath is not null)
+                outputs.Add("draft.png");
+            if (result.ModelPngPath is not null)
+                outputs.Add("model.png");
+            if (result.WindowPngPath is not null)
+                outputs.Add("window.png");
+            _feedback.Flash($"Dump → {_artifacts.DumpsDirectory} ({string.Join(", ", outputs)})");
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError($"Dump failed: {ex.Message}");
+        }
+        finally
+        {
+            _dumpBusy = false;
+        }
+    }
+
+    private void SetElevation(float elevation)
+    {
+        _settings.Settings.DrawElevation = elevation;
+        SyncDraftOptionsUi();
+        InvalidateDraftViews();
+        RefreshTitle();
+    }
+
+    private void NudgeElevation(float delta) =>
+        SetElevation(_settings.Settings.DrawElevation + delta);
+
     private void SetStudioWorkspace(StudioWorkspace workspace)
     {
+        var shipMode = workspace == StudioWorkspace.Ship;
         _workspace = workspace;
         var sceneMode = IsSceneWorkspace(workspace);
+        if (shipMode)
+        {
+            if (_scenePresenting)
+            {
+                _sceneEditor.StopPresenting();
+                _scenePresenting = false;
+            }
+
+            _cadHost.IsVisible = false;
+            _sceneHost.IsVisible = false;
+            _shipHost.IsVisible = true;
+            _commandBar.IsVisible = false;
+            _shipAttachment ??= ShipDesignChrome.Attach(_cad, _shipDesign);
+            _cad.Editor = _shipEditor;
+            _modeBanner.Text = "Ship — PLAN / MODEL / ANALYZE · .shipjson is authoritative";
+            RefreshTitle();
+            _feedback.SetStatus(
+                $"Ship · active={(_shipDesign.Path is null ? "new .shipjson" : Path.GetFileName(_shipDesign.Path))}");
+            return;
+        }
+
+        if (_shipAttachment is not null)
+        {
+            _shipAttachment.Dispose();
+            _shipAttachment = null;
+        }
+
+        _cad.Editor = _cadEditor;
+        _commandBar.IsVisible = true;
         _cadHost.IsVisible = !sceneMode;
         _sceneHost.IsVisible = sceneMode;
+        _shipHost.IsVisible = false;
 
         _modeBanner.Text = workspace switch
         {
@@ -537,6 +849,11 @@ internal sealed class MainWindow : Window
         Margin = new Thickness(4, 0, 6, 0),
         Foreground = GraphicalProfile.MutedBrush,
     };
+
+    private sealed record UnitChoice(string Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
 
     private sealed record GridChoice(float Step, string Label)
     {
@@ -628,6 +945,25 @@ internal sealed class MainWindow : Window
 
     private async Task OnExportSceneAsync()
     {
+        if (_workspace == StudioWorkspace.Ship)
+        {
+            if (!_shipDesign.HasShip)
+            {
+                _feedback.FlashError("Create a ship before exporting a scene.");
+                return;
+            }
+
+            var shipScenePath = Path.Combine(
+                _shipDesign.DataRoot,
+                "exports",
+                "ship-analyze.nov3djson");
+            Directory.CreateDirectory(Path.GetDirectoryName(shipScenePath)!);
+            var evaluation = ShipDesignEvaluator.Evaluate(_shipDesign.Design, shipScenePath);
+            _feedback.Flash(
+                $"Scene export · {evaluation.MeshNodeCount} meshes · {evaluation.CutoutCount} cutouts → {shipScenePath}");
+            return;
+        }
+
         var suggested = Path.ChangeExtension(Path.GetFileName(_doc.DocumentPath), ".nov3djson") ?? "studio.nov3djson";
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
@@ -656,6 +992,17 @@ internal sealed class MainWindow : Window
 
     private void OnSave()
     {
+        if (_workspace == StudioWorkspace.Ship)
+        {
+            _shipDesign.Save();
+            _feedback.Flash(
+                _shipDesign.Path is { } shipPath
+                    ? $"Saved {Path.GetFileName(shipPath)}"
+                    : "Create a ship before saving.");
+            RefreshTitle();
+            return;
+        }
+
         if (IsSceneWorkspace(_workspace))
         {
             var path = _scene.DocumentPath
@@ -678,6 +1025,15 @@ internal sealed class MainWindow : Window
 
     private async Task OnNewAsync()
     {
+        if (_workspace == StudioWorkspace.Ship)
+        {
+            _shipDesign.ClearToBlank();
+            _feedback.Flash("New ship design");
+            RefreshTitle();
+            await Task.CompletedTask;
+            return;
+        }
+
         _cad.Execute(new CadCommandDto { ActionId = CadSessionActionIds.New });
         _bridgeDirty = true;
         SetStudioWorkspace(StudioWorkspace.Draft2D);
@@ -687,6 +1043,12 @@ internal sealed class MainWindow : Window
 
     private async Task OnOpenAsync()
     {
+        if (_workspace == StudioWorkspace.Ship)
+        {
+            await OnOpenShipAsync();
+            return;
+        }
+
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Open CadJSON",
@@ -717,13 +1079,81 @@ internal sealed class MainWindow : Window
         }
     }
 
+    private async Task OnOpenShipAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open Ship JSON",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Ship JSON") { Patterns = ["*.shipjson"] },
+            ],
+        });
+        if (files.Count == 0)
+            return;
+
+        var path = files[0].TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            _feedback.FlashError("Could not open ship file");
+            return;
+        }
+
+        try
+        {
+            _shipDesign.OpenFromPath(path);
+            _feedback.Flash($"Opened {Path.GetFileName(path)}");
+            RefreshTitle();
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError($"Open ship failed: {ex.Message}");
+        }
+    }
+
+    private async Task OnSaveShipAsAsync()
+    {
+        var suggested = _shipDesign.HasShip
+            ? $"{_shipDesign.Design.Ship.Name}.shipjson"
+            : "ship.shipjson";
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Ship JSON As",
+            SuggestedFileName = suggested,
+            DefaultExtension = "shipjson",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("Ship JSON") { Patterns = ["*.shipjson"] },
+            ],
+        });
+        var path = file?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        if (!path.EndsWith(".shipjson", StringComparison.OrdinalIgnoreCase))
+            path += ".shipjson";
+
+        _shipDesign.SaveTo(path);
+        _feedback.Flash($"Saved {Path.GetFileName(path)}");
+        RefreshTitle();
+    }
+
     private void RefreshTitle()
     {
-        var dirty = _doc.IsDirty ? " *" : "";
-        var active = IsSceneWorkspace(_workspace)
-            ? (_scene.DocumentPath is { } p ? Path.GetFileName(p) : _scene.Document.Name + " (bridged)")
-            : Path.GetFileName(_doc.DocumentPath);
-        Title = $"Novolis CAD Studio 3D — {StudioWorkspaceIds.ToDisplay(_workspace)} — {active}{dirty}";
+        var dirty = _workspace == StudioWorkspace.Ship
+            ? _shipDesign.IsDirty
+            : _doc.IsDirty;
+        var active = _workspace == StudioWorkspace.Ship
+            ? (_shipDesign.Path is { } shipPath
+                ? Path.GetFileName(shipPath)
+                : _shipDesign.HasShip ? _shipDesign.Design.Ship.Name : "(untitled)")
+            : IsSceneWorkspace(_workspace)
+                ? (_scene.DocumentPath is { } scenePath
+                    ? Path.GetFileName(scenePath)
+                    : _scene.Document.Name + " (bridged)")
+                : Path.GetFileName(_doc.DocumentPath);
+        Title = $"Novolis CAD Studio — {StudioWorkspaceIds.ToDisplay(_workspace)} — {active}{(dirty ? " *" : "")}";
     }
 
     private static string PortStatusLine()
@@ -742,7 +1172,14 @@ internal sealed class MainWindow : Window
         if (e.Source is TextBox or NumericUpDown)
             return;
 
-        if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        if (e.Key == Key.S
+            && e.KeyModifiers.HasFlag(KeyModifiers.Control)
+            && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            _ = OnSaveAsAsync();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             OnSave();
             e.Handled = true;

@@ -4,7 +4,10 @@ using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
+using Novolis.Avalonia.Ship.Design;
+using Novolis.Avalonia.Ship.Design.Session;
 using Novolis.Cad.SceneBridge;
+using Novolis.Ship.Design;
 using Novolis.ThreeD;
 
 namespace CadStudio3D;
@@ -120,6 +123,34 @@ public static class SmokeRunner
             // Library bridge direct path
             var direct = CadSceneBridge.ToSceneDocument(document.Document);
             Check("bridge library meshes", direct.Nodes.OfType<MeshNode>().Any());
+
+            Check("generic ship hooks absent", cad.ExteriorHooks is null);
+            var shipRoot = Path.Combine(root, "ships");
+            var ship = new ShipDesignSession(shipRoot);
+            using var shipAttachment = ShipDesignChrome.Attach(cad, ship);
+            Check("ship import action scoped", cad.Actions().Actions.Any(
+                a => a.Id == "importship"));
+            Check("ship validation action scoped", cad.Actions().Actions.Any(
+                a => a.Id == "validateship"));
+
+            ship.NewShip(ShipDesignSession.DefaultDefinition("Smoke CAD Ship"));
+            Check("ship mode creates design", ship.HasShip);
+            Check("ship mode seeds hull", ship.Design.Hull.Geometry.Entities.Count > 0);
+            ship.SetWorkspace(Novolis.Ship.Design.ShipWorkspaceKind.Model);
+            ship.Select(ship.Design.Hull.Id.AsObject());
+            ship.Notify();
+            Check("ship mode projects model", document.Document.Entities.Count > 0);
+
+            var shipPath = Path.Combine(shipRoot, "smoke.shipjson");
+            ship.SaveTo(shipPath);
+            Check("ship mode saves shipjson", File.Exists(shipPath));
+            ship.OpenFromPath(shipPath);
+            Check("ship mode reloads shipjson", !ship.IsDirty && ship.HasShip);
+
+            shipAttachment.Dispose();
+            Check("ship hooks detach", cad.ExteriorHooks is null);
+            Check("ship actions detach", !cad.Actions().Actions.Any(
+                a => a.Id == "importship"));
         }
         finally
         {

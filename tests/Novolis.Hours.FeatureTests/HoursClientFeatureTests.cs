@@ -96,4 +96,51 @@ public sealed class HoursClientFeatureTests
         await Assert.That(created.Intervals).IsEmpty();
         await Assert.That(registrations).Contains(registration => registration.Id == created.Id);
     }
+
+    [Test]
+    public async Task A_v2_manual_registration_is_visible_in_the_summary_and_projects_flex()
+    {
+        await using var app = HoursApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:UseInMemoryJournal"] = "true",
+                    ["Hours:EnableDemoAdminCredentials"] = "true",
+                });
+            },
+            environmentName: "Development");
+        await app.StartAsync();
+
+        using var client = new HoursApiClient(new HttpClient(
+            new HoursSessionHandler(app.GetTestServer().CreateHandler()),
+            disposeHandler: true)
+        {
+            BaseAddress = new Uri("http://localhost/"),
+        });
+
+        await client.SignInAsync("admin", "admin");
+        await client.RecordWorkRegistrationAsync(
+            new RecordWorkRegistrationRequest(
+                "admin",
+                new DateOnly(2026, 10, 1),
+                WorkRegistrationIntent.ManualRegistration,
+                [
+                    new WorkIntervalRequest(
+                        new DateTimeOffset(2026, 10, 1, 9, 30, 0, TimeSpan.Zero),
+                        new DateTimeOffset(2026, 10, 1, 11, 30, 0, TimeSpan.Zero)),
+                    new WorkIntervalRequest(
+                        new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero),
+                        new DateTimeOffset(2026, 10, 1, 21, 45, 0, TimeSpan.Zero)),
+                ],
+                null,
+                "Late show and emergency; recorded as non-overtime."));
+
+        var summary = await client.GetEmployeeSummaryAsync("admin");
+
+        await Assert.That(summary.PresenceRecordCount).IsEqualTo(1);
+        await Assert.That(summary.FlexSaldo).IsEqualTo(TimeSpan.FromHours(4.25));
+    }
 }

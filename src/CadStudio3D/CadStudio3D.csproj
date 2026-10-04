@@ -23,10 +23,12 @@
     </PackageReference>
     <LibraryReference Include="Novolis.Avalonia.Cad" />
     <LibraryReference Include="Novolis.Avalonia.Cad.Ship" />
+    <LibraryReference Include="Novolis.Avalonia.Ship.Design" />
     <LibraryReference Include="Novolis.Avalonia.ThreeD" />
     <LibraryReference Include="Novolis.Cad.Primitives" />
     <LibraryReference Include="Novolis.Cad.SceneBridge" />
     <LibraryReference Include="Novolis.ThreeD.Scene" />
+    <LibraryReference Include="Novolis.Ship.Design" />
     <LibraryReference Include="Novolis.Agent.Core" />
     <LibraryReference Include="Novolis.Agent.Surface" />
     <LibraryReference Include="Novolis.Avalonia.Agent" />
