@@ -15,6 +15,12 @@ Workspace roots are detected via `manuscript.yaml` (NMP/1) or legacy `content/se
 
 Local multi-repo iteration: open `d:\novolis\Novolis.Platform.slnx` (ProjectReference mode). Released builds restore **nuget.org + GitHub Packages** only.
 
+Speech uses the same `Novolis.Avalonia.Speech` front as Read Aloud (`SpeechFront` + Windows secure store + optional Azure MP3). The studio launches without Azure. Speak / audiobook generation needs a saved Speech connection — the same store Read Aloud uses, or a one-time import from `NOVOLIS_AZURE_SPEECH_ENDPOINT` and `NOVOLIS_AZURE_SPEECH_KEY`.
+
+```powershell
+dotnet test d:\novolis\novolis-apps\tests\BooksWriterStudio.Unit\BooksWriterStudio.Unit.csproj -p:NovolisUseProjectReferences=true
+```
+
 ## Composition
 
 | Layer | Role in Studio |

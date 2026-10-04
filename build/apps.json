@@ -33,17 +33,17 @@
       "status": "public",
       "projects": {
         "publishWindows": "src/BooksWriterStudio/BooksWriterStudio.csproj",
-        "linuxCi": ["src/BooksWriterStudio/BooksWriterStudio.csproj"],
+        "linuxCi": ["src/BooksWriterStudio/BooksWriterStudio.csproj", "tests/BooksWriterStudio.Unit/BooksWriterStudio.Unit.csproj"],
         "android": null,
         "maui": null,
-        "tests": [],
-        "all": ["src/BooksWriterStudio/BooksWriterStudio.csproj"]
+        "tests": ["tests/BooksWriterStudio.Unit/BooksWriterStudio.Unit.csproj"],
+        "all": ["src/BooksWriterStudio/BooksWriterStudio.csproj", "tests/BooksWriterStudio.Unit/BooksWriterStudio.Unit.csproj"]
       },
       "local": ["windows", "linux"],
       "ship": ["windows-inno"],
       "validation": {
-        "changedPathGlobs": ["src/BooksWriterStudio/**"],
-        "runTests": false,
+        "changedPathGlobs": ["src/BooksWriterStudio/**", "tests/BooksWriterStudio.Unit/**"],
+        "runTests": true,
         "androidCompile": false,
         "windowsWorkload": false,
         "linuxCi": true,

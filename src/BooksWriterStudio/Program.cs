@@ -1,7 +1,12 @@
+using System.Runtime.Versioning;
 using Avalonia;
 using BooksWriterStudio.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Novolis.Audio.Voice;
+using Novolis.Avalonia.Mobile.Desktop;
+using Novolis.Avalonia.Speech;
 using Novolis.Manuscript.Export.Audio;
 
 namespace BooksWriterStudio;
@@ -25,15 +30,9 @@ internal static class Program
             ApplicationHost = Host.CreateDefaultBuilder(args)
                 .ConfigureServices(services =>
                 {
-                    services.AddSingleton<WriterSettingsStore>();
-                    services.AddSingleton<WriterSession>();
-                    services.AddSingleton<SpellService>();
-                    services.AddSingleton<AzureSpeechSynthesizer>();
-                    services.AddSingleton<ISynthesizer>(sp => sp.GetRequiredService<AzureSpeechSynthesizer>());
-                    services.AddSingleton<NaudioMp3Player>();
-                    services.AddSingleton<IAudioPlayer>(sp => sp.GetRequiredService<NaudioMp3Player>());
-                    services.AddSingleton<SpeechPreview>();
-                    services.AddTransient<MainWindow>();
+                    AddWriterStudioServices(services);
+                    if (OperatingSystem.IsWindows())
+                        AddWriterStudioPlatformServices(services);
                 })
                 .Build();
 
@@ -54,6 +53,26 @@ internal static class Program
             CrashLog.WriteAndOpen(ex, "Program.Main");
             Environment.ExitCode = 1;
         }
+    }
+
+    internal static void AddWriterStudioServices(IServiceCollection services)
+    {
+        services.AddSingleton<WriterSettingsStore>();
+        services.AddSingleton<WriterSession>();
+        services.AddSingleton<SpellService>();
+        services.TryAddSingleton<IVoiceService, StudioDeviceVoice>();
+        services.AddNovolisSpeech();
+        services.AddSingleton<ISynthesizer, SpeechFrontSynthesizer>();
+        services.AddSingleton<NaudioMp3Player>();
+        services.AddSingleton<IAudioPlayer>(sp => sp.GetRequiredService<NaudioMp3Player>());
+        services.AddSingleton<SpeechPreview>();
+        services.AddTransient<MainWindow>();
+    }
+
+    [SupportedOSPlatform("windows")]
+    internal static void AddWriterStudioPlatformServices(IServiceCollection services)
+    {
+        services.AddNovolisMobileDesktop("BooksWriterStudio");
     }
 
     public static AppBuilder BuildAvaloniaApp()

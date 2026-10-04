@@ -28,6 +28,7 @@
     <Project Path="src/SketchStudio/SketchStudio.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/BooksWriterStudio.Unit/BooksWriterStudio.Unit.csproj" />
     <Project Path="tests/CadStudio.Unit/CadStudio.Unit.csproj" />
     <Project Path="tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
     <Project Path="tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />

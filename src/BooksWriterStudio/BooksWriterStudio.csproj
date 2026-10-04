@@ -5,6 +5,9 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="BooksWriterStudio.Unit" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.AvaloniaEdit" />
     <PackageReference Include="Avalonia.Desktop" />
@@ -20,7 +23,11 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <LibraryReference Include="Novolis.Avalonia.Studio" />
+    <LibraryReference Include="Novolis.Audio.Voice.Abstractions" />
     <LibraryReference Include="Novolis.Audio.Voice.AzureSpeech" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile.Desktop" />
+    <LibraryReference Include="Novolis.Avalonia.Speech" />
     <LibraryReference Include="Novolis.IO.Git" />
     <LibraryReference Include="Novolis.IO.Paths" />
     <LibraryReference Include="Novolis.IO.Recovery" />

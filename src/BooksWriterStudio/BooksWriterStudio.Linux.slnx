@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="BooksWriterStudio.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/BooksWriterStudio.Unit/BooksWriterStudio.Unit.csproj" />
+  </Folder>
 </Solution>

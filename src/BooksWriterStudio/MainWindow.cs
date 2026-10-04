@@ -13,6 +13,7 @@ using BooksWriterStudio.Services;
 using BooksWriterStudio.Ui;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Manuscript.Export.Audio;
+using Novolis.Avalonia.Speech;
 using Novolis.Avalonia.Controls;
 using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Avalonia.Layout;
@@ -390,6 +391,16 @@ internal sealed class MainWindow : Window
         _autosaveTimer.Start();
 
         _spell.TryLoad(_settings.Settings.CustomDictionaryPath);
+
+        try
+        {
+            await WriterSpeechStartup.InitializeAsync(
+                Program.ApplicationHost.Services.GetRequiredService<SpeechFront>());
+        }
+        catch (Exception ex)
+        {
+            _feedback.FlashError(ex.Message);
+        }
 
         var startup = Program.StartupFolder ?? _settings.Settings.ContentRoot ?? Environment.CurrentDirectory;
         if (ManuscriptWorkspace.TryOpen(startup, out var workspace) && workspace is not null)
@@ -1194,7 +1205,7 @@ internal sealed class MainWindow : Window
         _feedback.Flash("Reference PDF export queued.");
     }
 
-    void OnGenerateAudiobook(object? sender, RoutedEventArgs e)
+    async void OnGenerateAudiobook(object? sender, RoutedEventArgs e)
     {
         if (_session.SelectedBook is null)
         {
@@ -1208,16 +1219,25 @@ internal sealed class MainWindow : Window
             .Select(c => new AudiobookChapterInput(c.Id, c.Title, c.FilePath))
             .ToList();
 
-        AzureSpeechSynthesizer synthesizer;
+        var front = Program.ApplicationHost.Services.GetRequiredService<SpeechFront>();
         try
         {
-            synthesizer = Program.ApplicationHost.Services.GetRequiredService<AzureSpeechSynthesizer>();
+            await WriterSpeechStartup.InitializeAsync(front);
         }
         catch (Exception ex)
         {
             _feedback.FlashError(ex.Message);
             return;
         }
+
+        if (!front.Capabilities.CanCreateMp3)
+        {
+            _feedback.FlashError(
+                "Azure Speech is not configured. Add your own Speech endpoint and credentials first.");
+            return;
+        }
+
+        var synthesizer = Program.ApplicationHost.Services.GetRequiredService<ISynthesizer>();
         var pipeline = new AudiobookPipeline(synthesizer);
         var options = new AudiobookOptions
         {
