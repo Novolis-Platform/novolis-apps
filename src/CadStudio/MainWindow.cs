@@ -808,6 +808,7 @@ internal sealed class MainWindow : Window
             RefreshTitle();
             _feedback.SetStatus(
                 $"Ship · active={(_shipDesign.Path is null ? "new .shipjson" : Path.GetFileName(_shipDesign.Path))}");
+            CadStudioRaylibHosts.ReleaseHidden(_cadEditor, _shipEditor, cadVisible: false, shipVisible: true);
             return;
         }
 
@@ -870,6 +871,7 @@ internal sealed class MainWindow : Window
         RefreshModeChrome();
         RefreshTitle();
         _feedback.SetStatus($"{StudioWorkspaceIds.ToDisplay(workspace)}  ·  active={(sceneMode ? "Scene (.nov3djson)" : "Cad (.cadjson)")}");
+        CadStudioRaylibHosts.ReleaseHidden(_cadEditor, _shipEditor, cadVisible: !sceneMode, shipVisible: false);
     }
 
     private void RefreshModeChrome()
