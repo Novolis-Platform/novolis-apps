@@ -13,6 +13,27 @@ Each employment combines four independently versioned concepts:
 3. **Settings** — individual employment fraction and optional expected-interval override.
 4. **Records** — immutable actual presence, actual breaks, financial-compensation marks, comments, policy snapshot, and legal notices.
 
+The core rewrite keeps the same user-facing simplicity while separating fact
+from meaning:
+
+- `WorkRegistration` is an immutable assertion. `WorkedAsScheduled` has no
+  invented clock observation; manual registrations and corrections carry
+  absolute `DateTimeOffset` intervals.
+- `WorkDay` is keyed by employee and nominal local date, so a split record may
+  cross midnight without being silently split into unrelated facts.
+- `DayShape` is the resolved expected date: working-day status, expected work,
+  core hours, routine intervals, tags, timezone, and ordered applied-rule
+  provenance.
+- Dimensions such as `Project`, `Customer`, `TimeType`, and `Billability`
+  describe resolved work after registration. Missing project allocation never
+  invalidates actual work.
+- The duration ledger has only `EmployeeFlex` and `OrganisationControl`.
+  Explicitly mapped derived Dimension values create balanced postings; positive
+  saldo normalization never means payment.
+- Review actions, corrections, disputes, compliance indicators, and reports are
+  projections over append-only facts. An overdue stage is an anomaly, not a
+  lockout.
+
 The standard Norwegian profile is explicit:
 
 - working-day envelope: 07:00–17:00
@@ -58,6 +79,14 @@ All included presets start as `Draft`; a tenant must complete country-specific l
 - `Novolis.Hours.Client.Blazor` — standalone Blazor WebAssembly client using the same protected API and browser credentials.
 - `Novolis.Hours.AppHost` — Aspire process composition for the server, Azurite Table Storage, and all three clients. The clients are explicit-start resources and receive the server's managed HTTPS endpoint through an endpoint reference.
 
+The secured v2 HTTP surface exposes `api/v2/work-registrations` and
+`api/v2/employees/{employeeId}/work-registrations`. It uses the same authenticated
+cookie, antiforgery, authorization, and rate-limited login boundaries as the
+legacy compatibility surface. `api/v2/employees/{employeeId}/audit` exposes
+event references for drill-down without placing domain entities on the wire.
+SignalR invalidations retain the event identity and projection family so clients
+can refresh a traceable view.
+
 The local demonstration host supports `admin/admin` only when explicitly started with `serve --demo`, so a fresh JSON-backed run can be tried in one command. The default is secure: a non-demo host starts only when an administrator already exists or `Hours__InitialAdministratorPassword` is supplied through secure configuration. Production bootstrap checks passwords through the Novolis Security breach-checking adapter.
 
 ## Dependencies
@@ -80,9 +109,14 @@ Internal:
 - `Novolis.Avalonia.GraphicalProfile` and `Novolis.Maui.GraphicalProfile`
 - `Novolis.Avalonia.Agent` and `Novolis.Maui.Agent` for controllable native UI surfaces
 
+Related registration and ledger facts are committed through an atomic journal
+batch envelope. JSON, in-memory, Azure Tables, and Azurite readers expand that
+envelope back into the original append-only event stream, so replay and audit
+do not expose storage implementation details.
+
 ## Verification
 
-The feature test project uses a real `WebApplication` and `TestServer`, real in-memory journal/storage providers, cookies, antiforgery, SignalR channel projections, and the actual endpoint mappings. It also exercises the reusable native HTTP client against that same host. It has no mocks.
+The feature test project uses a real `WebApplication` and `TestServer`, real in-memory journal/storage providers, cookies, antiforgery, SignalR channel projections, and the actual endpoint mappings. It also exercises the reusable native HTTP client against that same host. It has no mocks. The domain suite additionally covers calendars and DST, holiday-generation provenance, sparse Dimensions, append-only allocation corrections, balanced ledger replay, review deadlines/disputes, non-blocking compliance, health concerns, and temporal business-pressure attribution.
 
 Run the product locally:
 

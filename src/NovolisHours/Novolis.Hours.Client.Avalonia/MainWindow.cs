@@ -5,6 +5,7 @@ using Avalonia.Media;
 using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Avalonia.Agent;
 using Novolis.Hours.Client;
+using Novolis.Hours.Contracts;
 
 namespace Novolis.Hours.Client.Avalonia;
 
@@ -12,6 +13,7 @@ namespace Novolis.Hours.Client.Avalonia;
 public sealed class MainWindow : Window
 {
     private HoursApiClient? apiClient;
+    private HoursClientUser? currentUser;
     private AgentHost? agentHost;
 
     /// <summary>Initializes the native client shell.</summary>
@@ -66,10 +68,12 @@ public sealed class MainWindow : Window
                 var serviceUri = new Uri(endpoint.Text ?? string.Empty, UriKind.Absolute);
                 apiClient?.Dispose();
                 apiClient = HoursApiClient.Connect(serviceUri);
-                var user = await apiClient.SignInAsync(login.Text ?? string.Empty, password.Text ?? string.Empty);
-                var summary = await apiClient.GetEmployeeSummaryAsync(user.EmployeeId);
+                currentUser = await apiClient.SignInAsync(
+                    login.Text ?? string.Empty,
+                    password.Text ?? string.Empty);
+                var summary = await apiClient.GetEmployeeSummaryAsync(currentUser.EmployeeId);
                 status.Text =
-                    $"{user.DisplayName} ({user.Role}) · flex {summary.FlexSaldo:c} · " +
+                    $"{currentUser.DisplayName} ({currentUser.Role}) · flex {summary.FlexSaldo:c} · " +
                     $"{summary.PresenceRecordCount} presence record(s) · {summary.AnomalyCount} anomaly/anomalies.";
             }
             catch (Exception exception)
@@ -79,6 +83,37 @@ public sealed class MainWindow : Window
             finally
             {
                 connect.IsEnabled = true;
+            }
+        };
+        var scheduled = new Button
+        {
+            Content = "Worked as scheduled today",
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        AgentProperties.SetId(scheduled, "hours.worked-as-scheduled");
+        scheduled.Click += async (_, _) =>
+        {
+            if (apiClient is null || currentUser is null)
+            {
+                status.Text = "Sign in before recording a work assertion.";
+                return;
+            }
+
+            try
+            {
+                await apiClient.RecordWorkRegistrationAsync(
+                    new RecordWorkRegistrationRequest(
+                        currentUser.EmployeeId,
+                        DateOnly.FromDateTime(DateTime.Today),
+                        WorkRegistrationIntent.WorkedAsScheduled,
+                        [],
+                        null,
+                        "Worked as scheduled."));
+                status.Text = "Scheduled work assertion created.";
+            }
+            catch (Exception exception)
+            {
+                status.Text = $"Could not record work: {exception.Message}";
             }
         };
         var content = new StackPanel
@@ -105,6 +140,7 @@ public sealed class MainWindow : Window
                 new TextBlock { Text = "Password" },
                 password,
                 connect,
+                scheduled,
                 status,
             },
         };

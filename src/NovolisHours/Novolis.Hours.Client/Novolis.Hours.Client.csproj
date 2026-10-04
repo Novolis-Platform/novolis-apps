@@ -5,4 +5,7 @@
     <Description>Authenticated HTTP client contracts for Novolis Hours native applications.</Description>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Novolis.Hours.Contracts\Novolis.Hours.Contracts.csproj" />
+  </ItemGroup>
 </Project>

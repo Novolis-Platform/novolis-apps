@@ -2,6 +2,7 @@ using Microsoft.Maui.Controls.Shapes;
 using Novolis.Maui.Agent;
 using Novolis.Maui.GraphicalProfile;
 using Novolis.Hours.Client;
+using Novolis.Hours.Contracts;
 
 namespace Novolis.Hours.Client.Maui;
 
@@ -9,6 +10,7 @@ namespace Novolis.Hours.Client.Maui;
 public sealed class MainPage : ContentPage
 {
     private HoursApiClient? apiClient;
+    private HoursClientUser? currentUser;
     private AgentHost? agentHost;
 
     /// <summary>Initializes the native Hours client page.</summary>
@@ -55,10 +57,12 @@ public sealed class MainPage : ContentPage
                 var serviceUri = new Uri(serviceUrl.Text ?? string.Empty, UriKind.Absolute);
                 apiClient?.Dispose();
                 apiClient = HoursApiClient.Connect(serviceUri);
-                var user = await apiClient.SignInAsync(login.Text ?? string.Empty, password.Text ?? string.Empty);
-                var summary = await apiClient.GetEmployeeSummaryAsync(user.EmployeeId);
+                currentUser = await apiClient.SignInAsync(
+                    login.Text ?? string.Empty,
+                    password.Text ?? string.Empty);
+                var summary = await apiClient.GetEmployeeSummaryAsync(currentUser.EmployeeId);
                 status.Text =
-                    $"{user.DisplayName} ({user.Role}) · flex {summary.FlexSaldo:c} · " +
+                    $"{currentUser.DisplayName} ({currentUser.Role}) · flex {summary.FlexSaldo:c} · " +
                     $"{summary.PresenceRecordCount} presence record(s) · {summary.AnomalyCount} anomaly/anomalies.";
             }
             catch (Exception exception)
@@ -68,6 +72,36 @@ public sealed class MainPage : ContentPage
             finally
             {
                 signIn.IsEnabled = true;
+            }
+        };
+        var scheduled = new Button
+        {
+            Text = "Worked as scheduled today",
+            AutomationId = "hours.worked-as-scheduled",
+        };
+        scheduled.Clicked += async (_, _) =>
+        {
+            if (apiClient is null || currentUser is null)
+            {
+                status.Text = "Sign in before recording a work assertion.";
+                return;
+            }
+
+            try
+            {
+                await apiClient.RecordWorkRegistrationAsync(
+                    new RecordWorkRegistrationRequest(
+                        currentUser.EmployeeId,
+                        DateOnly.FromDateTime(DateTime.Today),
+                        WorkRegistrationIntent.WorkedAsScheduled,
+                        [],
+                        null,
+                        "Worked as scheduled."));
+                status.Text = "Scheduled work assertion created.";
+            }
+            catch (Exception exception)
+            {
+                status.Text = $"Could not record work: {exception.Message}";
             }
         };
         Content = new ScrollView
@@ -110,6 +144,7 @@ public sealed class MainPage : ContentPage
                     new Label { Text = "Password", TextColor = GraphicalProfile.Text },
                     password,
                     signIn,
+                    scheduled,
                     status,
                 },
             },

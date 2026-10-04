@@ -93,6 +93,8 @@ public static class HoursApplication
         builder.Services.AddNovolisAuthenticationStorage();
         builder.Services.AddSingleton<HoursUserDirectory>();
         builder.Services.AddSingleton<HoursHtmlReportExporter>();
+        builder.Services.AddSingleton<WorkRegistrationService>();
+        builder.Services.AddSingleton<WorkLedgerService>();
         builder.Services.ConfigureHttpJsonOptions(json =>
             json.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
         builder.Services.AddSingleton(_ => CreatePolicy(options, DateTime.UtcNow.Year));
@@ -265,6 +267,7 @@ public static class HoursApplication
         app.MapGet("/health", () => Results.NotFound()).AllowAnonymous();
         app.MapHub<HoursHub>("/hubs/hours");
         HoursEndpointMappings.Map(app);
+        HoursRewriteEndpointMappings.Map(app);
         app.MapFallbackToFile("index.html");
 
         if (options.EnableDemoAdminCredentials)

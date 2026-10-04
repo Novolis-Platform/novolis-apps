@@ -7,27 +7,27 @@ namespace Novolis.Hours.FeatureTests;
 public sealed class CoreRewriteFoundationTests
 {
     [Test]
-    public void Work_interval_requires_a_positive_elapsed_duration()
+    public async Task Work_interval_requires_a_positive_elapsed_duration()
     {
         var start = new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
 
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new WorkInterval(start, start));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new WorkInterval(start, start.AddMinutes(-1)));
+        await Assert.That(() => new WorkInterval(start, start))
+            .Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => new WorkInterval(start, start.AddMinutes(-1)))
+            .Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
-    public void Work_day_key_is_the_employee_and_nominal_date_not_a_midnight_boundary()
+    public async Task Work_day_key_is_the_employee_and_nominal_date_not_a_midnight_boundary()
     {
         var key = new WorkDayKey("ada", new DateOnly(2026, 10, 1));
 
-        Assert.That(key.EmployeeId).IsEqualTo("ada");
-        Assert.That(key.NominalDate).IsEqualTo(new DateOnly(2026, 10, 1));
+        await Assert.That(key.EmployeeId).IsEqualTo("ada");
+        await Assert.That(key.NominalDate).IsEqualTo(new DateOnly(2026, 10, 1));
     }
 
     [Test]
-    public void Scheduled_registration_has_no_fake_clock_observations()
+    public async Task Scheduled_registration_has_no_fake_clock_observations()
     {
         var registration = WorkRegistration.WorkedAsScheduled(
             new WorkDayKey("ada", new DateOnly(2026, 10, 1)),
@@ -36,13 +36,13 @@ public sealed class CoreRewriteFoundationTests
             new DateTimeOffset(2026, 10, 1, 8, 0, 0, TimeSpan.Zero),
             "Routine followed.");
 
-        Assert.That(registration.Intent).IsEqualTo(WorkRecordIntent.WorkedAsScheduled);
-        Assert.That(registration.Intervals).IsEmpty();
-        Assert.That(registration.Source).IsEqualTo(WorkRecordSource.Employee);
+        await Assert.That(registration.Intent).IsEqualTo(WorkRecordIntent.WorkedAsScheduled);
+        await Assert.That(registration.Intervals).IsEmpty();
+        await Assert.That(registration.Source).IsEqualTo(WorkRecordSource.Employee);
     }
 
     [Test]
-    public void Correction_is_an_additional_assertion_with_a_source_reference()
+    public async Task Correction_is_an_additional_assertion_with_a_source_reference()
     {
         var key = new WorkDayKey("ada", new DateOnly(2026, 10, 1));
         var original = WorkRegistration.Manual(
@@ -66,27 +66,27 @@ public sealed class CoreRewriteFoundationTests
             original.RecordedAt.AddMinutes(5),
             "Corrected note.");
 
-        Assert.That(correction.Id).IsNotEqualTo(original.Id);
-        Assert.That(correction.CorrectsRegistrationId).IsEqualTo(original.Id);
-        Assert.That(correction.Intent).IsEqualTo(WorkRecordIntent.Correction);
-        Assert.That(correction.Intervals).IsEqualTo(original.Intervals);
+        await Assert.That(correction.Id).IsNotEqualTo(original.Id);
+        await Assert.That(correction.CorrectsRegistrationId).IsEqualTo(original.Id);
+        await Assert.That(correction.Intent).IsEqualTo(WorkRecordIntent.Correction);
+        await Assert.That(correction.Intervals).IsEqualTo(original.Intervals);
     }
 
     [Test]
-    public void Work_registration_rejects_empty_employee_and_invalid_correction_references()
+    public async Task Work_registration_rejects_empty_employee_and_invalid_correction_references()
     {
-        Assert.Throws<ArgumentException>(
-            () => new WorkDayKey(string.Empty, new DateOnly(2026, 10, 1)));
+        await Assert.That(() => new WorkDayKey(string.Empty, new DateOnly(2026, 10, 1)))
+            .Throws<ArgumentException>();
 
         var key = new WorkDayKey("ada", new DateOnly(2026, 10, 1));
-        Assert.Throws<ArgumentException>(
-            () => WorkRegistration.Correction(
+        await Assert.That(() => WorkRegistration.Correction(
                 key,
                 Guid.Empty,
                 ImmutableArray<WorkInterval>.Empty,
                 ActorRef.Employee("ada"),
                 new ConfigurationSnapshotId(Guid.NewGuid()),
                 DateTimeOffset.UtcNow,
-                "Invalid correction."));
+                "Invalid correction."))
+            .Throws<ArgumentException>();
     }
 }

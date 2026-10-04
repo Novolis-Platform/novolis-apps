@@ -573,6 +573,9 @@ internal static class Program
         if (selectedApps.Count == 0)
             throw new InvalidOperationException($"Unknown app selection: {appChoice}");
 
+        if (allAppsSelected)
+            selectedApps = selectedApps.Where(app => app.Release?.GithubRelease != false).ToList();
+
         var include = new List<object>();
         foreach (var app in selectedApps)
         {

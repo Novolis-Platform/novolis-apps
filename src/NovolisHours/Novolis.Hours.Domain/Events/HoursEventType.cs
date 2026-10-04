@@ -6,6 +6,15 @@ public static class HoursEventType
     /// <summary>A presence fact was registered.</summary>
     public const string WorkRegistered = "work.registered.v1";
 
+    /// <summary>A version-two immutable WorkRegistration fact was recorded.</summary>
+    public const string WorkRegistrationRecorded = "work.registered.v2";
+
+    /// <summary>A balanced Dimension-derived ledger transaction was recorded.</summary>
+    public const string LedgerTransactionRecorded = "ledger.transaction-recorded.v1";
+
+    /// <summary>A storage-level atomic batch contains related authoritative events.</summary>
+    public const string JournalBatchCommitted = "journal.batch-committed.v1";
+
     /// <summary>An adjustment awaiting employee response was proposed.</summary>
     public const string AdjustmentProposed = "adjustment.proposed.v1";
 

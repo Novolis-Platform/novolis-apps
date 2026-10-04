@@ -1,9 +1,12 @@
+using System.Text.Json.Serialization;
+
 namespace Novolis.Hours.Domain.Work;
 
 /// <summary>Identifies one logical employee workday without imposing a midnight boundary.</summary>
 public readonly record struct WorkDayKey
 {
     /// <summary>Initializes a logical workday key.</summary>
+    [JsonConstructor]
     public WorkDayKey(string employeeId, DateOnly nominalDate)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);

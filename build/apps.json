@@ -994,7 +994,7 @@
         "retention": "uninstall-preserves-user-data"
       },
       "update": { "enabled": false, "appId": "Novolis.HttpStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
-      "release": { "githubRelease": true, "checksums": true }
+      "release": { "githubRelease": false, "checksums": true }
     },
     {
       "key": "query-studio",
@@ -1043,7 +1043,7 @@
         "retention": "uninstall-preserves-user-data"
       },
       "update": { "enabled": false, "appId": "Novolis.QueryStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
-      "release": { "githubRelease": true, "checksums": true }
+      "release": { "githubRelease": false, "checksums": true }
     },
     {
       "key": "robosharp-studio",
@@ -1092,7 +1092,7 @@
         "retention": "uninstall-preserves-user-data"
       },
       "update": { "enabled": false, "appId": "Novolis.RoboSharpStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
-      "release": { "githubRelease": true, "checksums": true }
+      "release": { "githubRelease": false, "checksums": true }
     }
   ]
 }

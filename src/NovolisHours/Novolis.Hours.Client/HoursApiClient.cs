@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Novolis.Hours.Contracts;
 
 namespace Novolis.Hours.Client;
 
@@ -130,6 +131,65 @@ public sealed class HoursApiClient : IDisposable
         request.Headers.Add("X-Novolis-Hours-CSRF", token);
         using var response = await SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
+    }
+
+    /// <summary>Records a v2 immutable work assertion through the protected API.</summary>
+    public async Task<WorkRegistrationResponse> RecordWorkRegistrationAsync(
+        RecordWorkRegistrationRequest registration,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        var token = await GetAntiforgeryTokenAsync(cancellationToken);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "api/v2/work-registrations")
+        {
+            Content = JsonContent.Create(registration, options: JsonOptions),
+        };
+        request.Headers.Add("X-Novolis-Hours-CSRF", token);
+        using var response = await SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<WorkRegistrationResponse>(
+                JsonOptions,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                "The Hours host returned an empty work-registration response.");
+    }
+
+    /// <summary>Reads immutable v2 work assertions for a permitted employee.</summary>
+    public async Task<IReadOnlyList<WorkRegistrationResponse>> GetWorkRegistrationsAsync(
+        string employeeId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        using var response = await SendAsync(
+            new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/v2/employees/{Uri.EscapeDataString(employeeId)}/work-registrations"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<WorkRegistrationResponse[]>(
+                JsonOptions,
+                cancellationToken)
+            ?? [];
+    }
+
+    /// <summary>Reads the append-only audit references for a permitted employee.</summary>
+    public async Task<IReadOnlyList<HoursAuditEventResponse>> GetAuditAsync(
+        string employeeId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        using var response = await SendAsync(
+            new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/v2/employees/{Uri.EscapeDataString(employeeId)}/audit"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<HoursAuditEventResponse[]>(
+                JsonOptions,
+                cancellationToken)
+            ?? [];
     }
 
     /// <inheritdoc />

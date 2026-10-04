@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Novolis.Hours.Domain;
 using Novolis.Hours.Storage;
 
 namespace Novolis.Hours.Server;
@@ -34,16 +35,24 @@ public sealed class HoursRealtimeProjectionService : BackgroundService
                 await hub.Clients.Group(HoursHub.EmployeeGroup(entry.EmployeeId))
                     .SendAsync("hoursChanged", new
                     {
+                        entry.Id,
                         entry.EmployeeId,
                         entry.Type,
                         entry.OccurredAtUtc,
+                        Projection = entry.Type == HoursEventType.WorkRegistrationRecorded
+                            ? "work-registration"
+                            : "legacy-or-other",
                     }, stoppingToken);
                 await hub.Clients.Group(HoursHub.AdministratorsGroup)
                     .SendAsync("hoursChanged", new
                     {
+                        entry.Id,
                         entry.EmployeeId,
                         entry.Type,
                         entry.OccurredAtUtc,
+                        Projection = entry.Type == HoursEventType.WorkRegistrationRecorded
+                            ? "work-registration"
+                            : "legacy-or-other",
                     }, stoppingToken);
                 HoursTelemetry.RealtimeMessages.Add(2);
                 logger.LogInformation(

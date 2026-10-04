@@ -17,5 +17,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Novolis.Hours.Client\Novolis.Hours.Client.csproj" />
+    <ProjectReference Include="..\Novolis.Hours.Contracts\Novolis.Hours.Contracts.csproj" />
   </ItemGroup>
 </Project>

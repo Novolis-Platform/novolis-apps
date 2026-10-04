@@ -22,6 +22,8 @@ public static class HoursStorageServiceCollectionExtensions
             options.UseProcessLock = true;
         }));
         services.AddSingleton<IHoursJournal, JsonHoursJournal>();
+        services.AddSingleton<IHoursJournalBatch>(provider =>
+            (IHoursJournalBatch)provider.GetRequiredService<IHoursJournal>());
         services.AddSingleton<IHoursUserStore, RepositoryHoursUserStore>();
         services.AddSingleton<IHoursStorageReadiness, LocalHoursStorageReadiness>();
         return services;
@@ -44,6 +46,8 @@ public static class HoursStorageServiceCollectionExtensions
             options.TablePrefix = tablePrefix;
         }));
         services.AddSingleton<IHoursJournal, AzureHoursJournal>();
+        services.AddSingleton<IHoursJournalBatch>(provider =>
+            (IHoursJournalBatch)provider.GetRequiredService<IHoursJournal>());
         services.AddSingleton<IHoursUserStore, AzureHoursUserStore>();
         services.AddSingleton<IHoursStorageReadiness, AzureHoursStorageReadiness>();
         return services;
@@ -55,6 +59,8 @@ public static class HoursStorageServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         services.AddSingleton<HoursChangeFeed>();
         services.AddSingleton<IHoursJournal, InMemoryHoursJournal>();
+        services.AddSingleton<IHoursJournalBatch>(provider =>
+            (IHoursJournalBatch)provider.GetRequiredService<IHoursJournal>());
         services.AddSingleton<IHoursUserStore, RepositoryHoursUserStore>();
         services.AddSingleton<IHoursStorageReadiness, LocalHoursStorageReadiness>();
         return services;

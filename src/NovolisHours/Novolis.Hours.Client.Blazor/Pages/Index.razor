@@ -49,6 +49,9 @@
             Presence is the fact being recorded. Financial-compensation classification and approvals remain explicit
             server-side records.
         </p>
+        <button @onclick="RegisterScheduledAsync" disabled="@busy">
+            @(busy ? "Recording…" : "Worked as scheduled")
+        </button>
         <div class="form-grid">
             <label>Employee ID <input @bind="employeeId" /></label>
             <label>Day <input @bind="day" type="date" /></label>
@@ -131,20 +134,60 @@
                 throw new InvalidOperationException("Sign in before registering worktime.");
             }
 
-            await apiClient.RegisterWorkAsync(new HoursWorkRegistration(
+            await apiClient.RecordWorkRegistrationAsync(new RecordWorkRegistrationRequest(
                 employeeId,
                 DateOnly.FromDateTime(day),
-                startedAt,
-                endedAt,
-                breakStartedAt,
-                breakEndedAt,
-                [],
-                comment,
-                ManagerAgreementRecorded: false));
+                WorkRegistrationIntent.ManualRegistration,
+                CreateIntervals(),
+                null,
+                comment
+            ));
             await RefreshSummaryAsync();
-            status = "Presence record created.";
+            status = "Work assertion created.";
         });
     }
+
+    private async Task RegisterScheduledAsync()
+    {
+        await RunAsync(async () =>
+        {
+            if (apiClient is null)
+            {
+                throw new InvalidOperationException("Sign in before recording a work assertion.");
+            }
+
+            await apiClient.RecordWorkRegistrationAsync(new RecordWorkRegistrationRequest(
+                employeeId,
+                DateOnly.FromDateTime(day),
+                WorkRegistrationIntent.WorkedAsScheduled,
+                [],
+                null,
+                "Worked as scheduled."));
+            await RefreshSummaryAsync();
+            status = "Scheduled work assertion created.";
+        });
+    }
+
+    private ImmutableArray<WorkIntervalRequest> CreateIntervals()
+    {
+        var date = DateOnly.FromDateTime(day);
+        var start = ToOffset(date, startedAt);
+        var end = ToOffset(date, endedAt);
+        if (breakStartedAt is not { } breakStart ||
+            breakEndedAt is not { } breakEnd)
+        {
+            return [new WorkIntervalRequest(start, end)];
+        }
+
+        return
+        [
+            new WorkIntervalRequest(start, ToOffset(date, breakStart)),
+            new WorkIntervalRequest(ToOffset(date, breakEnd), end),
+        ];
+    }
+
+    private static DateTimeOffset ToOffset(DateOnly date, TimeOnly time) =>
+        new(date.ToDateTime(time), TimeSpan.Zero);
 
     private async Task RefreshSummaryAsync()
     {

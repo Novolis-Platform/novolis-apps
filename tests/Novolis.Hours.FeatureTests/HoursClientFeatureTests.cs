@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Novolis.Hours.Client;
+using Novolis.Hours.Contracts;
 using Novolis.Hours.Server;
 
 namespace Novolis.Hours.FeatureTests;
@@ -53,5 +54,46 @@ public sealed class HoursClientFeatureTests
         var summary = await client.GetEmployeeSummaryAsync("admin");
         await Assert.That(summary.PresenceRecordCount).IsEqualTo(1);
         await Assert.That(summary.FlexSaldo).IsEqualTo(TimeSpan.Zero);
+    }
+
+    [Test]
+    public async Task The_client_can_record_and_read_an_immutable_v2_scheduled_assertion()
+    {
+        await using var app = HoursApplication.Build(
+            [],
+            builder =>
+            {
+                builder.WebHost.UseTestServer();
+                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Hours:UseInMemoryJournal"] = "true",
+                    ["Hours:EnableDemoAdminCredentials"] = "true",
+                });
+            },
+            environmentName: "Development");
+        await app.StartAsync();
+
+        using var client = new HoursApiClient(new HttpClient(
+            new HoursSessionHandler(app.GetTestServer().CreateHandler()),
+            disposeHandler: true)
+        {
+            BaseAddress = new Uri("http://localhost/"),
+        });
+
+        await client.SignInAsync("admin", "admin");
+        var created = await client.RecordWorkRegistrationAsync(
+            new RecordWorkRegistrationRequest(
+                "admin",
+                new DateOnly(2026, 10, 2),
+                WorkRegistrationIntent.WorkedAsScheduled,
+                [],
+                null,
+                "The normal scheduled day."));
+        var registrations = await client.GetWorkRegistrationsAsync("admin");
+
+        await Assert.That(created.Intent)
+            .IsEqualTo(WorkRegistrationIntent.WorkedAsScheduled);
+        await Assert.That(created.Intervals).IsEmpty();
+        await Assert.That(registrations).Contains(registration => registration.Id == created.Id);
     }
 }
