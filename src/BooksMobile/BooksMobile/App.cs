@@ -1,8 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using BooksMobile.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,14 +36,11 @@ public sealed class App : Application
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
         {
-            single.MainView = new ScrollViewer
-            {
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                VerticalContentAlignment = VerticalAlignment.Top,
-                Content = mainView,
-            };
+            // MainView and its individual screens own their scrolling. Wrapping the
+            // entire authoring shell in a second ScrollViewer measures the star row
+            // with an infinite height on Android, which breaks the narrow layout and
+            // can leave only the status row visible after an async error.
+            single.MainView = mainView;
         }
 
         base.OnFrameworkInitializationCompleted();

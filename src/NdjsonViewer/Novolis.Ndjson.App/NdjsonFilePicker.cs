@@ -7,7 +7,15 @@ public sealed class NdjsonFilePicker
     private static readonly FilePickerFileType NdjsonTypes = new(
         new Dictionary<DevicePlatform, IEnumerable<string>>
         {
-            [DevicePlatform.Android] = ["application/x-ndjson", "application/json", "text/plain"],
+            [DevicePlatform.Android] =
+            [
+                "application/x-ndjson",
+                "application/ndjson",
+                "text/x-ndjson",
+                "application/json",
+                "text/plain",
+                "application/octet-stream",
+            ],
             [DevicePlatform.WinUI] = [".ndjson"],
         });
 

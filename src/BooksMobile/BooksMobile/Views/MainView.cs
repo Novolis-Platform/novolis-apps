@@ -240,7 +240,12 @@ public sealed class MainView : UserControl
         return new Border
         {
             Background = GraphicalProfile.BackgroundBrush,
-            Child = stack,
+            Child = new ScrollViewer
+            {
+                Content = stack,
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            },
         };
     }
 

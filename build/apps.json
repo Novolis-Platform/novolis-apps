@@ -297,7 +297,7 @@
         ]
       },
       "local": ["windows", "linux", "android"],
-      "ship": ["windows-inno", "android-apk"],
+      "ship": ["android-apk"],
       "validation": {
         "changedPathGlobs": ["src/BooksMobile/**"],
         "runTests": false,
@@ -306,16 +306,7 @@
         "linuxCi": true,
         "fanOutStacks": ["avalonia", "android"]
       },
-      "windows": {
-        "exeName": "BooksMobile.exe",
-        "appId": "Novolis.BooksMobile",
-        "installDir": "Novolis\\Books Mobile",
-        "groupName": "Books Mobile",
-        "setupBase": "BooksMobileSetup",
-        "scriptFile": "books-mobile.iss",
-        "closeApplicationsFilter": "BooksMobile.exe",
-        "fileAssociationsAllowed": false
-      },
+      "windows": null,
       "android": {
         "project": "src/BooksMobile/BooksMobile.Android/BooksMobile.Android.csproj",
         "applicationId": "com.novolis.booksmobile",
@@ -671,7 +662,7 @@
         ]
       },
       "local": ["windows", "android"],
-      "ship": ["windows-inno", "android-apk"],
+      "ship": ["android-apk"],
       "validation": {
         "changedPathGlobs": [
           "src/NdjsonViewer/**",
@@ -683,16 +674,7 @@
         "linuxCi": true,
         "fanOutStacks": ["maui", "android"]
       },
-      "windows": {
-        "exeName": "Novolis.Ndjson.App.exe",
-        "appId": "Novolis.NdjsonViewer",
-        "installDir": "Novolis\\NDJSON Viewer",
-        "groupName": "Novolis NDJSON Viewer",
-        "setupBase": "NovolisNdjsonViewerSetup",
-        "scriptFile": "novolis-ndjson-viewer.iss",
-        "closeApplicationsFilter": "Novolis.Ndjson.App.exe",
-        "fileAssociationsAllowed": true
-      },
+      "windows": null,
       "android": {
         "project": "src/NdjsonViewer/Novolis.Ndjson.App/Novolis.Ndjson.App.csproj",
         "applicationId": "dev.novolis.ndjsonviewer",

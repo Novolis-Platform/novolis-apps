@@ -27,7 +27,21 @@ namespace NovolisPdfReader;
 [IntentFilter(
     new[] { Intent.ActionView },
     Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
+    DataSchemes = new[] { "content", "file" },
     DataMimeType = "application/pdf")]
+// Some download providers expose a PDF as a generic or legacy application MIME type.
+// Keep those providers in the Android resolver without advertising the reader for every
+// arbitrary URI.
+[IntentFilter(
+    new[] { Intent.ActionView },
+    Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
+    DataSchemes = new[] { "content", "file" },
+    DataMimeType = "application/x-pdf")]
+[IntentFilter(
+    new[] { Intent.ActionView },
+    Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
+    DataSchemes = new[] { "content", "file" },
+    DataMimeType = "application/octet-stream")]
 public sealed class MainActivity : MauiAppCompatActivity
 {
     private ScaleGestureDetector? _scale;
@@ -177,13 +191,15 @@ public sealed class MainActivity : MauiAppCompatActivity
 
     private void TryPersistReadPermission(Intent intent, Android.Net.Uri uri)
     {
-        if ((intent.Flags & ActivityFlags.GrantReadUriPermission) == 0)
+        var persistableFlags = intent.Flags
+            & (ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission);
+        if ((intent.Flags & ActivityFlags.GrantPersistableUriPermission) == 0
+            || persistableFlags == 0
+            || ContentResolver is null)
             return;
         try
         {
-            ContentResolver?.TakePersistableUriPermission(
-                uri,
-                ActivityFlags.GrantReadUriPermission);
+            ContentResolver.TakePersistableUriPermission(uri, persistableFlags);
         }
         catch (Java.Lang.SecurityException)
         {
