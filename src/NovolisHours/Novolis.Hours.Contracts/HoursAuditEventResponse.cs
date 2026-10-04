@@ -7,4 +7,5 @@ public sealed record HoursAuditEventResponse(
     string EventType,
     string ActorId,
     string ActorRole,
-    DateTimeOffset OccurredAtUtc);
+    DateTimeOffset OccurredAtUtc,
+    string? PayloadReference = null);

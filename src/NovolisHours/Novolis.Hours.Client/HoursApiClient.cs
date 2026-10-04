@@ -92,6 +92,17 @@ public sealed class HoursApiClient : IDisposable
         return new HoursClientUser(payload.EmployeeId, payload.DisplayName, payload.Role, false);
     }
 
+    /// <summary>Ends the current authenticated session.</summary>
+    public async Task SignOutAsync(CancellationToken cancellationToken = default)
+    {
+        var token = await GetAntiforgeryTokenAsync(cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/logout");
+        request.Headers.Add("X-Novolis-Hours-CSRF", token);
+        using var response = await SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        antiforgeryToken = null;
+    }
+
     /// <summary>Gets a lightweight live summary for an employee who the active user may view.</summary>
     public async Task<HoursEmployeeSummary> GetEmployeeSummaryAsync(
         string employeeId,
@@ -156,6 +167,51 @@ public sealed class HoursApiClient : IDisposable
                 "The Hours host returned an empty work-registration response.");
     }
 
+    /// <summary>Appends a manual Dimension assignment to resolved work.</summary>
+    public async Task RecordDimensionAssignmentAsync(
+        string employeeId,
+        RecordDimensionAssignmentRequest assignment,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        ArgumentNullException.ThrowIfNull(assignment);
+        var token = await GetAntiforgeryTokenAsync(cancellationToken);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"api/v2/employees/{Uri.EscapeDataString(employeeId)}/dimension-assignments")
+        {
+            Content = JsonContent.Create(assignment, options: JsonOptions),
+        };
+        request.Headers.Add("X-Novolis-Hours-CSRF", token);
+        using var response = await SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
+    /// <summary>Publishes and retains the effective configuration snapshot for an employee.</summary>
+    public async Task<ConfigurationSnapshotResponse> PublishConfigurationAsync(
+        string employeeId,
+        PublishConfigurationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        ArgumentNullException.ThrowIfNull(request);
+        var token = await GetAntiforgeryTokenAsync(cancellationToken);
+        using var message = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"api/v2/employees/{Uri.EscapeDataString(employeeId)}/configuration/publications")
+        {
+            Content = JsonContent.Create(request, options: JsonOptions),
+        };
+        message.Headers.Add("X-Novolis-Hours-CSRF", token);
+        using var response = await SendAsync(message, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<ConfigurationSnapshotResponse>(
+                JsonOptions,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                "The Hours host returned an empty configuration snapshot response.");
+    }
+
     /// <summary>Reads immutable v2 work assertions for a permitted employee.</summary>
     public async Task<IReadOnlyList<WorkRegistrationResponse>> GetWorkRegistrationsAsync(
         string employeeId,
@@ -190,6 +246,138 @@ public sealed class HoursApiClient : IDisposable
                 JsonOptions,
                 cancellationToken)
             ?? [];
+    }
+
+    /// <summary>Reads the explainable WorkDay projection for a permitted employee.</summary>
+    public async Task<WorkDayResponse> GetWorkDayAsync(
+        string employeeId,
+        DateOnly date,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        using var response = await SendAsync(
+            new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/v2/employees/{Uri.EscapeDataString(employeeId)}/workdays/{date:yyyy-MM-dd}"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<WorkDayResponse>(
+                JsonOptions,
+                cancellationToken)
+            ?? throw new InvalidOperationException("The Hours host returned an empty WorkDay response.");
+    }
+
+    /// <summary>Reads a contiguous range of WorkDay projections for a permitted employee.</summary>
+    public async Task<IReadOnlyList<WorkDayResponse>> GetWorkDaysAsync(
+        string employeeId,
+        DateOnly from,
+        DateOnly through,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
+        using var response = await SendAsync(
+            new HttpRequestMessage(
+                HttpMethod.Get,
+                $"api/v2/employees/{Uri.EscapeDataString(employeeId)}/workdays?from={from:yyyy-MM-dd}&through={through:yyyy-MM-dd}"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<WorkDayResponse[]>(
+                JsonOptions,
+                cancellationToken)
+            ?? [];
+    }
+
+    /// <summary>Reads a rebuildable review projection.</summary>
+    public async Task<ReviewProjectionResponse> GetReviewAsync(
+        Guid periodId,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, $"api/v2/reviews/{periodId:D}"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<ReviewProjectionResponse>(
+                JsonOptions,
+                cancellationToken)
+            ?? throw new InvalidOperationException("The Hours host returned an empty review response.");
+    }
+
+    /// <summary>Creates a review period.</summary>
+    public async Task<Guid> CreateReviewPeriodAsync(
+        CreateReviewPeriodRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var token = await GetAntiforgeryTokenAsync(cancellationToken);
+        using var message = new HttpRequestMessage(HttpMethod.Post, "api/v2/reviews")
+        {
+            Content = JsonContent.Create(request, options: JsonOptions),
+        };
+        message.Headers.Add("X-Novolis-Hours-CSRF", token);
+        using var response = await SendAsync(message, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        var period = await response.Content.ReadFromJsonAsync<ReviewPeriodResponse>(
+            JsonOptions,
+            cancellationToken)
+            ?? throw new InvalidOperationException("The Hours host returned an empty review-period response.");
+        return period.Id;
+    }
+
+    /// <summary>Appends a review action.</summary>
+    public async Task<ReviewActionResponse> RecordReviewActionAsync(
+        Guid periodId,
+        RecordReviewActionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var token = await GetAntiforgeryTokenAsync(cancellationToken);
+        using var message = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"api/v2/reviews/{periodId:D}/actions")
+        {
+            Content = JsonContent.Create(request, options: JsonOptions),
+        };
+        message.Headers.Add("X-Novolis-Hours-CSRF", token);
+        using var response = await SendAsync(message, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<ReviewActionResponse>(
+                JsonOptions,
+                cancellationToken)
+            ?? throw new InvalidOperationException("The Hours host returned an empty review-action response.");
+    }
+
+    /// <summary>Reads the organisation Health Concerns projection.</summary>
+    public async Task<HealthConcernsReportResponse> GetHealthReportAsync(
+        string? teamId = null,
+        string? employeeId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = BuildReportQuery(teamId, employeeId);
+        using var response = await SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, $"api/v2/reports/health{query}"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<HealthConcernsReportResponse>(
+                JsonOptions,
+                cancellationToken)
+            ?? throw new InvalidOperationException("The Hours host returned an empty health report.");
+    }
+
+    /// <summary>Reads the temporal-overlap business-pressure projection.</summary>
+    public async Task<BusinessPressureReportResponse> GetBusinessPressureReportAsync(
+        string? teamId = null,
+        string? employeeId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = BuildReportQuery(teamId, employeeId);
+        using var response = await SendAsync(
+            new HttpRequestMessage(HttpMethod.Get, $"api/v2/reports/business-pressure{query}"),
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return await response.Content.ReadFromJsonAsync<BusinessPressureReportResponse>(
+                JsonOptions,
+                cancellationToken)
+            ?? throw new InvalidOperationException("The Hours host returned an empty business-pressure report.");
     }
 
     /// <inheritdoc />
@@ -238,6 +426,24 @@ public sealed class HoursApiClient : IDisposable
             ? serviceUri
             : new Uri($"{serviceUri.AbsoluteUri}/", UriKind.Absolute);
 
+    private static string BuildReportQuery(string? teamId, string? employeeId)
+    {
+        var values = new List<string>(2);
+        if (!string.IsNullOrWhiteSpace(teamId))
+        {
+            values.Add($"teamId={Uri.EscapeDataString(teamId)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(employeeId))
+        {
+            values.Add($"employeeId={Uri.EscapeDataString(employeeId)}");
+        }
+
+        return values.Count == 0
+            ? string.Empty
+            : $"?{string.Join("&", values)}";
+    }
+
     private async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
@@ -257,4 +463,10 @@ public sealed class HoursApiClient : IDisposable
         bool IsDemoAdministrator);
 
     private sealed record CurrentUserResponse(string EmployeeId, string DisplayName, HoursClientRole Role);
+
+    private sealed record ReviewPeriodResponse(
+        Guid Id,
+        string EmployeeId,
+        DateOnly From,
+        DateOnly Through);
 }

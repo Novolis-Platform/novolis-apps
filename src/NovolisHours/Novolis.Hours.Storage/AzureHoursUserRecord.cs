@@ -37,6 +37,18 @@ public sealed class AzureHoursUserRecord : IHasId
     /// <summary>Optional expected-interval end in invariant <c>HH:mm:ss</c> form.</summary>
     public string? ExpectedIntervalOverrideEnd { get; set; }
 
+    /// <summary>Organisation scope used by acceptance authorization.</summary>
+    public string OrganisationId { get; set; } = "norway-org";
+
+    /// <summary>Optional division scope.</summary>
+    public string? DivisionId { get; set; }
+
+    /// <summary>Optional team scope.</summary>
+    public string? TeamId { get; set; }
+
+    /// <summary>Optional manager approval level.</summary>
+    public int? ApprovalLevel { get; set; }
+
     /// <summary>Creates a scalar Azure row from the product document.</summary>
     public static AzureHoursUserRecord FromDocument(HoursUserDocument document) =>
         new()
@@ -50,6 +62,10 @@ public sealed class AzureHoursUserRecord : IHasId
             WorkFraction = (double)document.WorkFraction,
             ExpectedIntervalOverrideStart = FormatTime(document.ExpectedIntervalOverrideStart),
             ExpectedIntervalOverrideEnd = FormatTime(document.ExpectedIntervalOverrideEnd),
+            OrganisationId = document.OrganisationId,
+            DivisionId = document.DivisionId,
+            TeamId = document.TeamId,
+            ApprovalLevel = document.ApprovalLevel,
         };
 
     /// <summary>Rehydrates the immutable product document from an Azure row.</summary>
@@ -70,7 +86,11 @@ public sealed class AzureHoursUserRecord : IHasId
             LegalPresetId,
             Convert.ToDecimal(WorkFraction, CultureInfo.InvariantCulture),
             ParseTime(ExpectedIntervalOverrideStart),
-            ParseTime(ExpectedIntervalOverrideEnd));
+            ParseTime(ExpectedIntervalOverrideEnd),
+            OrganisationId,
+            DivisionId,
+            TeamId,
+            ApprovalLevel);
     }
 
     private static string? FormatTime(TimeOnly? value) =>

@@ -244,12 +244,12 @@ public sealed class NorwegianWorktimeFeatureTests
             await service.RegisterWorkAsync(LongDay(day));
         }
 
-        var scheduler = new HoursFlexSettlementScheduler(
+        var scheduler = new HoursServerFlexSettlementScheduler(
             journal,
             new FixedHoursPolicyProvider(policy),
             service,
             time,
-            NullLogger<HoursFlexSettlementScheduler>.Instance);
+            NullLogger<HoursServerFlexSettlementScheduler>.Instance);
         await scheduler.AssessOnceAsync();
 
         var view = await service.GetEmployeeViewAsync("ada");

@@ -1,0 +1,46 @@
+@page "/settings"
+@inject HoursBrowserSession Session
+
+<PageTitle>Settings</PageTitle>
+
+<section class="card">
+    <p class="eyebrow">Settings</p>
+    <h1>Host</h1>
+    <div class="form-grid">
+        <label>Hours service URL
+            <input @bind="serviceUrl" type="url" autocomplete="url" />
+        </label>
+    </div>
+    <button class="action" @onclick="SaveAsync">Save</button>
+    <p class="muted">The signed-in person is @person. Employee ID is not a field.</p>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(status))
+{
+    <p class="status" role="status">@status</p>
+}
+
+@code {
+    private string serviceUrl = "https://localhost:5700/";
+    private string status = string.Empty;
+
+    private string person => Session.CurrentUser?.DisplayName ?? "not signed in";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.RestoreAsync();
+        serviceUrl = Session.ServiceUrl;
+    }
+
+    private async Task SaveAsync()
+    {
+        Session.ServiceUrl = serviceUrl;
+        await Session.PersistServiceUrlAsync();
+        if (Session.CurrentUser is not null)
+        {
+            await Session.SignOutAsync();
+        }
+
+        status = "Service URL saved. Sign in again from Week.";
+    }
+}

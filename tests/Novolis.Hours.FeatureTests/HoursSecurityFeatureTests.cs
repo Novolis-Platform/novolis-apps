@@ -21,7 +21,7 @@ public sealed class HoursSecurityFeatureTests
     {
         Func<Task> build = () =>
         {
-            using var app = HoursApplication.Build(
+            using var app = HoursServerApplication.Build(
                 [],
                 builder =>
                 {
@@ -259,7 +259,7 @@ public sealed class HoursSecurityFeatureTests
     }
 
     private static WebApplication BuildProductionHost() =>
-        HoursApplication.Build(
+        HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -279,7 +279,7 @@ public sealed class HoursSecurityFeatureTests
 
     private static WebApplication BuildDevelopmentHost(
         params (string Key, string Value)[] settings) =>
-        HoursApplication.Build(
+        HoursServerApplication.Build(
             [],
             builder =>
             {

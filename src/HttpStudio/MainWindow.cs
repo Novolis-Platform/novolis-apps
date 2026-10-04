@@ -9,13 +9,15 @@ namespace HttpStudio;
 
 internal sealed class MainWindow : Window
 {
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ComboBox _method = new() { ItemsSource = new[] { "GET", "POST", "PUT", "PATCH", "DELETE" }, SelectedIndex = 0 };
     private readonly TextBox _uri = new() { Text = "https://example.test/" };
     private readonly TextBox _body = new() { AcceptsReturn = true, Height = 140, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly TextBlock _result = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
 
-    public MainWindow()
+    public MainWindow(IHttpClientFactory httpClientFactory)
     {
+        _httpClientFactory = httpClientFactory;
         GraphicalProfileBinding.Bind(this, BackgroundProperty, GraphicalProfile.BackgroundResourceKey);
         Title = "HTTP Studio";
         Width = 960;
@@ -57,12 +59,10 @@ internal sealed class MainWindow : Window
                 Body = string.IsNullOrWhiteSpace(_body.Text) ? null : _body.Text,
                 ContentType = "application/json",
             };
-            var resolved = await new TemplateHttpVariableResolver().ResolveAsync(
+            using var response = await _httpClientFactory.SendAsync<StudioApi>(
                 document,
-                new HttpEnvironment());
-            using var request = resolved.CreateRequest();
-            using var client = new HttpClient();
-            var response = await new RestClient(client, [], []).SendAsync(request, CancellationToken.None);
+                new HttpEnvironment(),
+                new TemplateHttpVariableResolver());
             _result.Text = $"{(int)response.StatusCode} {response.ReasonPhrase}\n{await response.Content.ReadAsStringAsync()}";
         }
         catch (Exception exception)

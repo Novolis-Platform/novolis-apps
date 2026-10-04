@@ -26,4 +26,19 @@ public static class HoursEventType
 
     /// <summary>A monthly approval period was updated or assessed for overdue deadlines.</summary>
     public const string ApprovalPeriodUpdated = "approval-period.updated.v1";
+
+    /// <summary>A v2 review period was created for append-only review actions.</summary>
+    public const string ReviewPeriodCreated = "review.period-created.v1";
+
+    /// <summary>A v2 review action was appended to a period history.</summary>
+    public const string ReviewActionRecorded = "review.action-recorded.v1";
+
+    /// <summary>A manual Dimension assignment was appended to resolved work.</summary>
+    public const string DimensionAssignmentRecorded = "dimension.assignment-recorded.v1";
+
+    /// <summary>The immutable configuration body used by a WorkDay was retained for replay.</summary>
+    public const string ConfigurationSnapshotRecorded = "configuration.snapshot-recorded.v1";
+
+    /// <summary>A configuration snapshot was published for a future effective date.</summary>
+    public const string ConfigurationPublished = "configuration.published.v1";
 }

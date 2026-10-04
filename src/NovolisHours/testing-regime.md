@@ -22,7 +22,7 @@ At minimum:
 
 ```text
 Aspire AppHost
-├── Novolis.Hours.Server
+├── hours-server (`Novolis.Hours.Server`)
 ├── Blazor website
 ├── configured persistence
 └── supporting infrastructure required by Hours
@@ -61,7 +61,7 @@ charlie      Manager, Division North, approval level 2
 helen        HR
 audrey       Auditor
 
-system       System actor
+system       System actor, organisation `hours-platform`, reads and stamps every customer
 ```
 
 Where relevant, different employees should also have different:
@@ -1343,3 +1343,73 @@ Customer/Project reports reveal where extra work accumulates
 And throughout that demonstration:
 
 > **No rule needs reality to lie in order for the system to make sense.**
+
+---
+
+# 31. Five-customer calendar stacking walkthrough
+
+Use the Aspire AppHost (or the development server with `Hours__EnableAcceptanceSeed=true`) and the Blazor client. Sign in with the acceptance seed password for that run.
+
+For each customer, open WorkDay and confirm the explanation list shows layer kind, rule id, and generated holiday provenance where a national holiday applies.
+
+## nordvik-office (`ada`, `Europe/Oslo`)
+
+| Date | Expected |
+| --- | --- |
+| 2026-10-01 | Working day, expected 7:30, envelope 07:00–17:00, routine 08:00–11:30 / 12:30–16:30 |
+| 2026-10-04 | Weekend non-working, expected 0 |
+| 2026-05-01 | PublicHoliday `Første mai`, not working, not French Labour Day |
+| 2026-12-24 | Corporate paid day, expected 0, paid 7:30, Organisation `corporate-christmas-eve` |
+| 2026-11-18 | Temporary override envelope 08:00–18:00, still expected 7:30 |
+
+## nordvik-station (`bob`, `Europe/Oslo`)
+
+| Date | Expected |
+| --- | --- |
+| 2026-10-04 | Sunday working, Organisation `always-open`, National weekend rule still listed |
+| 2026-12-25 | Working + PublicHoliday `Første juledag` + paid 7:30 + expected 7:30. National provenance remains. |
+
+## atelier-curie (`pierre`, `Europe/Paris`)
+
+| Date | Expected |
+| --- | --- |
+| 2026-05-01 | PublicHoliday `Fête du Travail`, calendar version `agreement-v1` |
+| 2026-05-14 | calendar version `agreement-v1` |
+| 2026-05-15 | calendar version `agreement-v2`, envelope 08:30–16:30 |
+
+## warsaw-settlement (`anna`, `Europe/Warsaw`)
+
+| Date | Expected |
+| --- | --- |
+| 2026-05-03 | PublicHoliday Constitution Day, not working |
+
+## helsinki-flex (`liisa`, `Europe/Helsinki`)
+
+| Date | Expected |
+| --- | --- |
+| 2026-12-06 | PublicHoliday Itsenäisyyspäivä, not working |
+
+Publishing a French configuration must not change ada's 2026-05-01 applied-rule sequence.
+
+## Product chrome (week → day strip → layer chip → paint)
+
+Use the Blazor client, not the retired server landing page.
+
+1. Sign in with login and password only (service URL stays in Settings). Home is this week, defaulting to today.
+2. Open a DayShape tile. The 06:00–20:00 strip shows envelope, core, routine, actual, and paint. Drag actual blocks to move or resize; paint mode writes only on actual work.
+3. While the pointer is down, the layer rail stays live. Silent layers stay empty. Overflow past the envelope lights Organisation.
+4. One commit action: *Worked as scheduled*. Evidence (snapshot ids, AppliedRules) stays folded.
+
+# 32. Diverging review workflows
+
+Each customer carries its own review policy. Opening a review shows that policy id and only those stages.
+
+| Customer | People | Policy | Required stages |
+| --- | --- | --- | --- |
+| nordvik-office | ada, alice, charlie, helen | `cascading-approval` | Submit → Manager 1 → Manager 2 → HR |
+| nordvik-station | bob, nina | `employer-acknowledged` | Employee Acknowledge |
+| atelier-curie | pierre, marc | `single-approver` | Submit → one Manager |
+| warsaw-settlement | anna, kasia | `employer-only` | Manager Approve (no employee submit) |
+| helsinki-flex | liisa, helen | `employee-hr` | Submit → HR |
+
+`system` is not a customer employee. It belongs to `hours-platform`, may read every WorkDay and report, and may stamp Integration assertions onto any customer. It does not approve human review stages.

@@ -12,7 +12,7 @@ public sealed record DimensionAssignment
         WorkDayKey workDay,
         string dimensionId,
         string valueId,
-        IEnumerable<WorkInterval> intervals,
+        ImmutableArray<WorkInterval> intervals,
         Guid? correctsAssignmentId,
         ActorRef recordedBy,
         DateTimeOffset recordedAt)
@@ -24,7 +24,6 @@ public sealed record DimensionAssignment
 
         ArgumentException.ThrowIfNullOrWhiteSpace(dimensionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(valueId);
-        ArgumentNullException.ThrowIfNull(intervals);
         ArgumentNullException.ThrowIfNull(recordedBy);
         if (correctsAssignmentId == id)
         {
@@ -33,8 +32,7 @@ public sealed record DimensionAssignment
                 nameof(correctsAssignmentId));
         }
 
-        Intervals = intervals.ToImmutableArray();
-        if (Intervals.IsEmpty)
+        if (intervals.IsDefaultOrEmpty)
         {
             throw new ArgumentException(
                 "A Dimension assignment requires at least one interval.",
@@ -45,6 +43,7 @@ public sealed record DimensionAssignment
         WorkDay = workDay;
         DimensionId = dimensionId;
         ValueId = valueId;
+        Intervals = intervals;
         CorrectsAssignmentId = correctsAssignmentId;
         RecordedBy = recordedBy;
         RecordedAt = recordedAt;
@@ -88,7 +87,7 @@ public sealed record DimensionAssignment
             workDay,
             dimensionId,
             valueId,
-            intervals,
+            intervals.ToImmutableArray(),
             null,
             recordedBy,
             recordedAt);
@@ -108,7 +107,7 @@ public sealed record DimensionAssignment
             workDay,
             dimensionId,
             valueId,
-            intervals,
+            intervals.ToImmutableArray(),
             correctsAssignmentId,
             recordedBy,
             recordedAt);

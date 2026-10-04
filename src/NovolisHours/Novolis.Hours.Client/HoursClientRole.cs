@@ -7,5 +7,7 @@ public enum HoursClientRole
     Manager,
     HumanResources,
     Higher,
+    Auditor,
+    System,
     Administrator,
 }

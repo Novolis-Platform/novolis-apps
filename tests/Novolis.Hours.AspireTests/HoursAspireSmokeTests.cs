@@ -17,11 +17,13 @@ public sealed class HoursAspireSmokeTests
             .CreateAsync<Projects.Novolis_Hours_AppHost>(timeout.Token)
             .WaitAsync(TimeSpan.FromSeconds(30), timeout.Token);
 
-        await Assert.That(appHost.Resources.TryGetByName("hours", out _)).IsTrue();
-        await Assert.That(appHost.Resources.TryGetByName("hours-azurite", out _)).IsTrue();
+        await Assert.That(appHost.Resources.TryGetByName("hours-server", out _)).IsTrue();
+        await Assert.That(appHost.Resources.TryGetByName("hours-storage", out _)).IsTrue();
+        await Assert.That(appHost.Resources.TryGetByName("hours-tables", out _)).IsTrue();
         await Assert.That(appHost.Resources.TryGetByName("hours-client-avalonia", out _)).IsTrue();
         await Assert.That(appHost.Resources.TryGetByName("hours-client-maui", out _)).IsTrue();
         await Assert.That(appHost.Resources.TryGetByName("hours-client-blazor", out _)).IsTrue();
+        await Assert.That(appHost.Resources.TryGetByName("hours-client-cli", out _)).IsTrue();
     }
 
     [Test]
@@ -43,10 +45,12 @@ public sealed class HoursAspireSmokeTests
         await Assert.That(appHost.Resources.TryGetByName("hours-client-avalonia", out _)).IsTrue();
         await Assert.That(appHost.Resources.TryGetByName("hours-client-maui", out _)).IsTrue();
         await Assert.That(appHost.Resources.TryGetByName("hours-client-blazor", out _)).IsTrue();
-        await Assert.That(appHost.Resources.TryGetByName("hours-azurite", out _)).IsTrue();
+        await Assert.That(appHost.Resources.TryGetByName("hours-storage", out _)).IsTrue();
 
         appHost.Configuration["Parameters:hours-initial-administrator-password"] =
             "AspireFeatureTest-StrongPassword-2026!";
+        appHost.Configuration["Parameters:hours-acceptance-seed-password"] =
+            "AspireAcceptance-StrongPassword-2026!";
         appHost.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Warning));
 
         await using var app = await appHost.BuildAsync(cancellationToken)
@@ -55,10 +59,10 @@ public sealed class HoursAspireSmokeTests
             .WaitAsync(StartupTimeout, cancellationToken);
 
         await app.ResourceNotifications
-            .WaitForResourceHealthyAsync("hours", cancellationToken)
+            .WaitForResourceHealthyAsync("hours-server", cancellationToken)
             .WaitAsync(StartupTimeout, cancellationToken);
 
-        using var client = app.CreateHttpClient("hours");
+        using var client = app.CreateHttpClient("hours-server");
         using var response = await client.GetAsync("/health/ready", cancellationToken);
 
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);

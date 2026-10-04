@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Application\Novolis.Hours.Application.csproj" />
     <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Client\Novolis.Hours.Client.csproj" />
+    <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Client.Presentation\Novolis.Hours.Client.Presentation.csproj" />
     <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Domain\Novolis.Hours.Domain.csproj" />
     <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Storage\Novolis.Hours.Storage.csproj" />
     <ProjectReference Include="..\..\src\NovolisHours\Novolis.Hours.Server\Novolis.Hours.Server.csproj" />

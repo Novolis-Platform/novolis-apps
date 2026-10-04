@@ -22,6 +22,9 @@ public static class HoursCustomerCatalog
     /// <summary>Finnish flexible-work customer.</summary>
     public const string HelsinkiFlex = "helsinki-flex";
 
+    /// <summary>Cross-customer platform identity used by the System actor.</summary>
+    public const string Platform = "hours-platform";
+
     /// <summary>Ada's one-day envelope override used by stacking tests.</summary>
     public static DateOnly AdaTemporaryOverrideDate { get; } = new(2026, 11, 18);
 
@@ -31,9 +34,10 @@ public static class HoursCustomerCatalog
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
         return employeeId.ToLowerInvariant() switch
         {
+            "system" => PlatformCustomer,
             "bob" or "nina" => NordvikStationCustomer,
-            "pierre" => AtelierCurieCustomer,
-            "anna" => WarsawSettlementCustomer,
+            "pierre" or "marc" => AtelierCurieCustomer,
+            "anna" or "kasia" => WarsawSettlementCustomer,
             "liisa" => HelsinkiFlexCustomer,
             _ => NordvikOfficeCustomer,
         };
@@ -44,7 +48,8 @@ public static class HoursCustomerCatalog
 
     /// <summary>Gets the local time-zone identifier used by an acceptance identity.</summary>
     public static string TimeZoneId(string employeeId) =>
-        employeeId.Equals("admin", StringComparison.OrdinalIgnoreCase)
+        employeeId.Equals("admin", StringComparison.OrdinalIgnoreCase) ||
+        employeeId.Equals("system", StringComparison.OrdinalIgnoreCase)
             ? "UTC"
             : ForEmployee(employeeId).TimeZoneId;
 
@@ -57,6 +62,28 @@ public static class HoursCustomerCatalog
         ArgumentException.ThrowIfNullOrWhiteSpace(employeeId);
         var customer = ForEmployee(employeeId);
         var version = calendarVersionOverride ?? GetCalendarVersion(employeeId, date);
+        if (customer.Id == Platform)
+        {
+            return new WorkCalendarStack(
+                [
+                    new WorkCalendarLayer(
+                        "hours-platform.system",
+                        version,
+                        CalendarLayerOrders.Organisation,
+                        [
+                            new EveryDateCalendarRule(
+                                "hours-platform.no-expected-work",
+                                [
+                                    new WorkingDayRule(false),
+                                    new ExpectedWorkRule(TimeSpan.Zero),
+                                ]),
+                        ],
+                        RuleSource.Manual,
+                        kind: CalendarLayerKind.Organisation),
+                ],
+                TimeZoneId(employeeId));
+        }
+
         var layers = CreateLayers(customer, employeeId, version);
         return new WorkCalendarStack(layers, TimeZoneId(employeeId));
     }
@@ -325,6 +352,19 @@ public static class HoursCustomerCatalog
             ],
             RuleSource.Manual,
             kind: CalendarLayerKind.TemporaryOverride);
+
+    private static HoursCustomer PlatformCustomer { get; } = new(
+        Platform,
+        "XX",
+        "UTC",
+        "hours.platform",
+        TimeSpan.Zero,
+        new LocalTimeRange(new TimeOnly(0, 0), new TimeOnly(23, 59)),
+        new LocalTimeRange(new TimeOnly(0, 0), new TimeOnly(23, 59)),
+        new LocalTimeRange(new TimeOnly(0, 0), new TimeOnly(0, 1)),
+        new LocalTimeRange(new TimeOnly(0, 0), new TimeOnly(0, 1)),
+        ObservesPublicHolidays: false,
+        SevenDayOperation: false);
 
     private static HoursCustomer NordvikOfficeCustomer { get; } = new(
         NordvikOffice,

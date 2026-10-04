@@ -13,4 +13,8 @@ public sealed record HoursUserDocument(
     string? LegalPresetId = null,
     decimal WorkFraction = 1m,
     TimeOnly? ExpectedIntervalOverrideStart = null,
-    TimeOnly? ExpectedIntervalOverrideEnd = null) : IHasId;
+    TimeOnly? ExpectedIntervalOverrideEnd = null,
+    string OrganisationId = "norway-org",
+    string? DivisionId = null,
+    string? TeamId = null,
+    int? ApprovalLevel = null) : IHasId;

@@ -1,0 +1,23 @@
+using Novolis.Hours.Domain;
+using Novolis.WorkflowEngine;
+
+namespace Novolis.Hours.Server;
+
+/// <summary>Workflow step that writes deadline anomalies through the same append-only application service.</summary>
+public sealed class HoursServerApprovalDeadlineWorkflowStep : IWorkflowStep<HoursServerApprovalDeadlineCheck, HoursApprovalPeriod>
+{
+    private readonly HoursService hours;
+
+    /// <summary>Initializes the deadline workflow step.</summary>
+    public HoursServerApprovalDeadlineWorkflowStep(HoursService hours)
+    {
+        this.hours = hours ?? throw new ArgumentNullException(nameof(hours));
+    }
+
+    /// <inheritdoc />
+    public ValueTask<HoursApprovalPeriod> ExecuteAsync(
+        HoursServerApprovalDeadlineCheck input,
+        WorkflowContext context,
+        CancellationToken cancellationToken = default) =>
+        hours.CheckApprovalDeadlinesAsync(input.PeriodId, input.AsOf, input.Actor, cancellationToken);
+}

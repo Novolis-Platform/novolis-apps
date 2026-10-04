@@ -18,6 +18,9 @@ public enum HoursActorRole
     /// <summary>A designated higher-level reviewer.</summary>
     Higher,
 
+    /// <summary>A read-only investigator for an organisation or configured scope.</summary>
+    Auditor,
+
     /// <summary>A tenant administrator.</summary>
     Administrator,
 }

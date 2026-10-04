@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Novolis.Hours.Server.Cli</RootNamespace>
+    <AssemblyName>Novolis.Hours.Server.Cli</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <Description>One-command self-contained Novolis Hours server launcher.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Novolis.Hours.Server\Novolis.Hours.Server.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

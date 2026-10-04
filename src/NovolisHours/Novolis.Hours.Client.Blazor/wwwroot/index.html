@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Novolis Hours</title>
   <base href="/">
+  <link href="_content/Novolis.Blazor.GraphicalProfile/css/graphical-profile.css" rel="stylesheet">
   <link href="css/app.css" rel="stylesheet">
 </head>
 <body>
@@ -14,6 +15,13 @@
     <a href="" class="reload">Reload</a>
     <a class="dismiss">×</a>
   </div>
+  <script>
+    window.hoursStripRatio = (element, clientX) => {
+      if (!element) return 0;
+      const box = element.getBoundingClientRect();
+      return box.width <= 0 ? 0 : (clientX - box.left) / box.width;
+    };
+  </script>
   <script src="_framework/blazor.webassembly.js"></script>
 </body>
 </html>

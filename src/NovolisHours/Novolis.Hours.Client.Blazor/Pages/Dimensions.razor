@@ -1,0 +1,13 @@
+@page "/workdays/{EmployeeId}/{DateText}/dimensions"
+@inject NavigationManager Navigation
+
+@code {
+    [Parameter]
+    public string EmployeeId { get; set; } = string.Empty;
+
+    [Parameter]
+    public string DateText { get; set; } = string.Empty;
+
+    protected override void OnInitialized() =>
+        Navigation.NavigateTo($"/workdays/{Uri.EscapeDataString(EmployeeId)}/{DateText}");
+}

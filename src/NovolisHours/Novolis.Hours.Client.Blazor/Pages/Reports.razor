@@ -1,0 +1,196 @@
+@page "/reports/health"
+@page "/reports/business-pressure"
+@inject HoursBrowserSession Session
+@inject NavigationManager Navigation
+
+<PageTitle>@Title</PageTitle>
+
+<section class="card">
+    <p class="eyebrow">Organisation</p>
+    <h1>@Title</h1>
+    <p class="muted">@Description</p>
+</section>
+
+@if (Session.ApiClient is null)
+{
+    <section class="card"><p role="alert">Sign in with an authorised reviewer identity to read this report.</p><a href="/">Return to sign in</a></section>
+}
+else if (!string.IsNullOrWhiteSpace(error))
+{
+    <p class="status" role="alert">@error</p>
+}
+else if (health is null && pressure is null)
+{
+    <section class="card"><p>Loading report…</p></section>
+}
+else if (health is not null)
+{
+    <section class="card">
+        <div class="summary-grid">
+            <div><span class="muted">Concern types</span><strong>@health.Rows.Length</strong></div>
+            <div><span class="muted">Indicators</span><strong>@health.Rows.Sum(row => row.IndicatorCount)</strong></div>
+            <div><span class="muted">Affected employees</span><strong>@DistinctEmployeeCount(health.Rows.SelectMany(row => row.WorkDays))</strong></div>
+            <div><span class="muted">Affected workdays</span><strong>@DistinctWorkDayCount(health.Rows.SelectMany(row => row.WorkDays))</strong></div>
+        </div>
+        <button type="button" @onclick="ToggleDetails">
+            @(showDetails ? "Hide source detail" : "Show source detail")
+        </button>
+        @if (health.Rows.Length == 0)
+        {
+            <p>No indicators were recorded for the selected facts.</p>
+        }
+        else
+        {
+            @foreach (var row in health.Rows)
+            {
+                <article class="card">
+                    <h2>@row.Category · @row.Code</h2>
+                    <p>
+                        @row.IndicatorCount indicator(s) across
+                        @DistinctEmployeeCount(row.WorkDays) employee(s) and
+                        @DistinctWorkDayCount(row.WorkDays) workday(s).
+                        Affected duration: @HoursClock.Format(row.AffectedDuration).
+                    </p>
+                    @if (showDetails)
+                    {
+                        <ul>
+                            @foreach (var workDay in row.WorkDays)
+                            {
+                                <li><a href="@WorkDayLink(workDay)">@workDay</a></li>
+                            }
+                        </ul>
+                    }
+                </article>
+            }
+        }
+    </section>
+}
+else if (pressure is not null)
+{
+    <section class="card">
+        <div class="summary-grid">
+            <div><span class="muted">Recorded extra work</span><strong>@HoursClock.Format(pressure.Total)</strong></div>
+            <div><span class="muted">Customer/project attributed</span><strong>@HoursClock.Format(pressure.Attributed)</strong></div>
+            <div><span class="muted">Unattributed</span><strong>@HoursClock.Format(pressure.Unattributed)</strong></div>
+            <div><span class="muted">Contributing employees</span><strong>@DistinctEmployeeCount(pressure.Report.Rows.SelectMany(row => row.WorkDays))</strong></div>
+            <div><span class="muted">Contributing workdays</span><strong>@DistinctWorkDayCount(pressure.Report.Rows.SelectMany(row => row.WorkDays))</strong></div>
+        </div>
+        <button type="button" @onclick="ToggleDetails">
+            @(showDetails ? "Hide source detail" : "Show source detail")
+        </button>
+        @if (pressure.Report.Rows.Length == 0)
+        {
+            <p>No explicit temporal overlap was recorded.</p>
+        }
+        else
+        {
+            @foreach (var row in pressure.Report.Rows)
+            {
+                <article class="card">
+                    <h2>@DisplayPressureValue(row.DimensionId, row.ValueId)</h2>
+                    <p>
+                        Overlapping duration: @HoursClock.Format(row.Duration)
+                        (@FormatShare(row.Duration, pressure.Total) of recorded extra work)
+                        across @DistinctEmployeeCount(row.WorkDays) employee(s) and
+                        @DistinctWorkDayCount(row.WorkDays) workday(s).
+                    </p>
+                    @if (showDetails)
+                    {
+                        <ul>
+                            @foreach (var workDay in row.WorkDays)
+                            {
+                                <li><a href="@WorkDayLink(workDay)">@workDay</a></li>
+                            }
+                        </ul>
+                    }
+                </article>
+            }
+        }
+    </section>
+}
+
+@code {
+    private HealthConcernsReportResponse? health;
+    private PressureModel? pressure;
+    private string error = string.Empty;
+    private bool showDetails;
+
+    private bool IsHealth =>
+        Navigation.Uri.EndsWith("/reports/health", StringComparison.OrdinalIgnoreCase);
+
+    private string Title => IsHealth ? "Health" : "Pressure";
+
+    private string Description => IsHealth
+        ? "Aggregated working-pattern indicators for organisational understanding."
+        : "Aggregated temporal overlap between recorded extra work and customer or project allocations.";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        health = null;
+        pressure = null;
+        error = string.Empty;
+        showDetails = false;
+        await Session.RestoreAsync();
+        if (Session.ApiClient is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (IsHealth)
+            {
+                health = await Session.ApiClient.GetHealthReportAsync();
+            }
+            else
+            {
+                pressure = new PressureModel(await Session.ApiClient.GetBusinessPressureReportAsync());
+            }
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+        }
+    }
+
+    private void ToggleDetails() => showDetails = !showDetails;
+
+    private static string DisplayPressureValue(string dimensionId, string valueId) =>
+        string.Equals(valueId, "Unattributed", StringComparison.OrdinalIgnoreCase)
+            ? "Unattributed extra work"
+            : $"{dimensionId}: {valueId}";
+
+    private static string FormatShare(TimeSpan value, TimeSpan total)
+    {
+        if (total <= TimeSpan.Zero)
+        {
+            return "0%";
+        }
+
+        return $"{value.TotalSeconds / total.TotalSeconds:P0}";
+    }
+
+    private static int DistinctEmployeeCount(IEnumerable<string> workDays) =>
+        workDays
+            .Select(ExtractEmployeeId)
+            .Where(employeeId => employeeId.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+    private static int DistinctWorkDayCount(IEnumerable<string> workDays) =>
+        workDays.Distinct(StringComparer.Ordinal).Count();
+
+    private static string ExtractEmployeeId(string workDay)
+    {
+        var separator = workDay.IndexOf(':');
+        return separator < 0 ? string.Empty : workDay[..separator];
+    }
+
+    private static string WorkDayLink(string key)
+    {
+        var separator = key.IndexOf(':');
+        return separator < 0
+            ? "/"
+            : $"/workdays/{key[..separator]}/{key[(separator + 1)..]}";
+    }
+}

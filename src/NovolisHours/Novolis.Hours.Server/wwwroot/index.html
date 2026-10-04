@@ -5,74 +5,26 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Novolis Hours</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { margin: 0; background: Canvas; color: CanvasText; }
-    main { max-width: 68rem; margin: auto; padding: 2rem 1rem 4rem; }
-    header { border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, transparent); margin-bottom: 1.5rem; }
-    .card { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: .65rem; padding: 1rem; margin: 1rem 0; background: color-mix(in srgb, Canvas 94%, CanvasText); }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .75rem; }
-    label { display: grid; gap: .35rem; font-size: .9rem; }
-    input, select, button, textarea { font: inherit; padding: .5rem; }
-    button { cursor: pointer; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); padding: .5rem; text-align: left; }
-    .hidden { display: none; } .notice { border-left: .3rem solid #b97800; padding: .5rem .75rem; margin: .4rem 0; background: color-mix(in srgb, #dca837 15%, Canvas); }
-    .status { min-height: 1.5rem; } .muted { opacity: .75; }
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", sans-serif;
+      background: #f4f2ee;
+      color: #1b1a17;
+    }
+    main { max-width: 40rem; margin: auto; padding: 3rem 1.25rem; }
+    h1 { font-weight: 600; letter-spacing: .04em; }
+    p { line-height: 1.5; }
+    a { color: inherit; }
   </style>
 </head>
 <body>
   <main>
-    <header><h1>Novolis Hours</h1><p>Worktime traces, flex saldo, approvals, and legal notices — not payroll or leave.</p></header>
-    <section id="sign-in" class="card">
-      <h2>Sign in</h2>
-      <form id="login-form" class="grid">
-        <label>Login <input id="login" autocomplete="username" required></label>
-        <label>Password <input id="password" type="password" autocomplete="current-password" required></label>
-        <button type="submit">Sign in</button>
-      </form>
-      <p class="muted">Use an administrator-provisioned account. Local demo credentials, when enabled, are deliberately not documented by the product UI.</p>
-    </section>
-    <section id="hours" class="hidden">
-      <div class="card"><span id="who"></span> <button id="logout">Sign out</button></div>
-      <section class="card">
-        <h2>Register work</h2>
-        <form id="work-form" class="grid">
-          <label>Employee ID <input id="employee-id" value="admin" required></label>
-          <label>Day <input id="day" type="date" required></label>
-          <label>Started <input id="started" type="time" value="08:00" required></label>
-          <label>Ended <input id="ended" type="time" value="16:00" required></label>
-          <label>Break started <input id="break-started" type="time" value="11:30"></label>
-          <label>Break ended <input id="break-ended" type="time" value="12:00"></label>
-          <label>Comment <input id="comment" value="Working day" required></label>
-          <button type="submit">Register worktime</button>
-        </form>
-        <p class="muted">Record actual presence. Use an adjustment or compensation classification when a manager has a documented reason.</p>
-      </section>
-      <section class="card"><h2>Current worktime view</h2><div id="summary"></div><div id="anomalies"></div><table><thead><tr><th>Day</th><th>Presence</th><th>Expected</th><th>Actual</th><th>Flex</th><th>Comment</th></tr></thead><tbody id="entries"></tbody></table></section>
-      <section id="administrator" class="card hidden">
-        <h2>Administrator setup</h2>
-        <p class="muted">Create role profiles, then assign the employee’s starter policy and expected working time. Draft legal presets are informational until locally reviewed.</p>
-        <form id="user-form" class="grid">
-          <label>Employee ID <input id="new-employee-id" required></label>
-          <label>Login <input id="new-login" autocomplete="username" required></label>
-          <label>Display name <input id="new-display-name" required></label>
-          <label>Password <input id="new-password" type="password" autocomplete="new-password" required></label>
-          <label>Role <select id="new-role"><option value="Employee">Employee</option><option value="Manager">Manager</option><option value="HumanResources">Human Resources</option><option value="Higher">Higher</option><option value="Administrator">Administrator</option></select></label>
-          <button type="submit">Create user</button>
-        </form>
-        <form id="settings-form" class="grid">
-          <label>Employee ID <input id="settings-employee-id" required></label>
-          <label>Legal preset <select id="settings-legal-preset"></select></label>
-          <label>Work fraction <input id="settings-work-fraction" type="number" min="0.01" max="1" step="0.01" value="1" required></label>
-          <label>Expected start <input id="settings-start" type="time"></label>
-          <label>Expected end <input id="settings-end" type="time"></label>
-          <button type="submit">Save worktime settings</button>
-        </form>
-        <div id="users"></div>
-      </section>
-    </section>
-    <p id="status" class="status" role="status"></p>
+    <p>Hours</p>
+    <h1>Novolis Hours</h1>
+    <p>This host is the Hours service API. The product web client is the Blazor app (port 5710 in the Aspire AppHost).</p>
+    <p>Sign in from that client. There is no table UI on this server.</p>
   </main>
-  <script src="/app.js" defer></script>
 </body>
 </html>

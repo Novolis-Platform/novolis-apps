@@ -2,7 +2,7 @@
   <PropertyGroup>
     <RootNamespace>Novolis.Hours.Server</RootNamespace>
     <AssemblyName>Novolis.Hours.Server</AssemblyName>
-    <Description>Self-contained web host, API, realtime transport, and SPA delivery for Novolis Hours.</Description>
+    <Description>Self-contained web host, API, and realtime transport for Novolis Hours.</Description>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>

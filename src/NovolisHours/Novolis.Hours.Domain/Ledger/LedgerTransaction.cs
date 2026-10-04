@@ -11,7 +11,7 @@ public sealed record LedgerTransaction
         Guid id,
         WorkDayKey workDay,
         Guid sourceRegistrationId,
-        IEnumerable<DurationPosting> postings,
+        ImmutableArray<DurationPosting> postings,
         string reason)
     {
         if (id == Guid.Empty)
@@ -26,17 +26,15 @@ public sealed record LedgerTransaction
                 nameof(sourceRegistrationId));
         }
 
-        ArgumentNullException.ThrowIfNull(postings);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        var materialized = postings.ToImmutableArray();
-        if (materialized.IsEmpty)
+        if (postings.IsDefaultOrEmpty)
         {
             throw new ArgumentException(
                 "A ledger transaction requires at least one posting.",
                 nameof(postings));
         }
 
-        var balance = materialized.Aggregate(
+        var balance = postings.Aggregate(
             TimeSpan.Zero,
             (total, posting) => total + posting.SignedDuration);
         if (balance != TimeSpan.Zero)
@@ -49,7 +47,7 @@ public sealed record LedgerTransaction
         Id = id;
         WorkDay = workDay;
         SourceRegistrationId = sourceRegistrationId;
-        Postings = materialized;
+        Postings = postings;
         Reason = reason.Trim();
     }
 

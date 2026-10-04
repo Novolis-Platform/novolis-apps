@@ -20,7 +20,7 @@ public sealed class HoursHostFeatureTests
     [Test]
     public async Task The_real_host_serves_the_spa_and_records_a_demo_admin_workday_without_mocks()
     {
-        await using var app = HoursApplication.Build(
+        await using var app = HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -37,8 +37,8 @@ public sealed class HoursHostFeatureTests
 
         var page = await client.GetStringAsync("/");
         await Assert.That(page).Contains("Novolis Hours");
-        await Assert.That(page).Contains("src=\"/app.js\"");
-        await Assert.That(await client.GetStringAsync("/app.js")).Contains("settings-form");
+        await Assert.That(page).Contains("product web client");
+        await Assert.That(page).DoesNotContain("app.js");
 
         var antiforgeryResponse = await client.GetAsync("/api/auth/antiforgery");
         await Assert.That(antiforgeryResponse.StatusCode).IsEqualTo(HttpStatusCode.OK);
@@ -123,7 +123,7 @@ public sealed class HoursHostFeatureTests
     [Test]
     public async Task The_authenticated_SignalR_hub_projects_a_durable_journal_append_from_the_real_channel()
     {
-        await using var app = HoursApplication.Build(
+        await using var app = HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -183,7 +183,7 @@ public sealed class HoursHostFeatureTests
         var dataPath = Path.Combine(Path.GetTempPath(), $"novolis-hours-feature-{Guid.NewGuid():N}");
         try
         {
-            await using (var app = HoursApplication.Build(
+            await using (var app = HoursServerApplication.Build(
                              [],
                              builder =>
                              {
@@ -339,7 +339,7 @@ public sealed class HoursHostFeatureTests
     [Test]
     public async Task An_administrator_can_persist_individual_policy_and_work_fraction_settings_before_registration()
     {
-        await using var app = HoursApplication.Build(
+        await using var app = HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -433,7 +433,7 @@ public sealed class HoursHostFeatureTests
     [Test]
     public async Task A_non_demo_host_provisions_its_first_administrator_through_the_real_security_path()
     {
-        await using var app = HoursApplication.Build(
+        await using var app = HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -468,7 +468,7 @@ public sealed class HoursHostFeatureTests
     [Test]
     public async Task A_non_demo_host_refuses_to_start_without_an_existing_administrator_or_bootstrap_secret()
     {
-        await using var app = HoursApplication.Build(
+        await using var app = HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -515,7 +515,7 @@ public sealed class HoursHostFeatureTests
     [Test]
     public async Task An_authenticated_HR_level_endpoint_resolution_preserves_the_dispute_and_applies_only_the_selected_outcome()
     {
-        await using var app = HoursApplication.Build(
+        await using var app = HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -578,7 +578,7 @@ public sealed class HoursHostFeatureTests
             .ToArray();
 
     private static WebApplication BuildJsonDemoHost(string dataPath) =>
-        HoursApplication.Build(
+        HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -596,7 +596,7 @@ public sealed class HoursHostFeatureTests
         string connectionString,
         string tablePrefix,
         string administratorPassword) =>
-        HoursApplication.Build(
+        HoursServerApplication.Build(
             [],
             builder =>
             {

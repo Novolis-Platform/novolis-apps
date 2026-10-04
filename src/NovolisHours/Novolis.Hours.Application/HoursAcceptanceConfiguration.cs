@@ -31,7 +31,7 @@ public sealed class HoursAcceptanceConfiguration
             calendarVersion,
             "acceptance.dimensions.v1",
             "acceptance.compliance.v1",
-            "acceptance.review.v1",
+            HoursReviewWorkflowCatalog.WorkflowVersion(employeeId),
             "acceptance.ledger.v1",
             HoursCustomerCatalog.TimeZoneId(employeeId));
     }
@@ -181,17 +181,9 @@ public sealed class HoursAcceptanceConfiguration
         ];
     }
 
-    /// <summary>Gets the four-stage review policy used by the acceptance workflow.</summary>
-    public ReviewPolicy GetReviewPolicy() =>
-        new(
-            "acceptance-review",
-            "1",
-            [
-                new ReviewStage("employee-submit", ReviewActionKind.Submit, ResponsibilityRole.Employee, null, 2),
-                new ReviewStage("manager-level-1", ReviewActionKind.Approve, ResponsibilityRole.Manager, 1, 2),
-                new ReviewStage("manager-level-2", ReviewActionKind.Approve, ResponsibilityRole.Manager, 2, 2),
-                new ReviewStage("hr-final", ReviewActionKind.Approve, ResponsibilityRole.HumanResources, null, 2),
-            ]);
+    /// <summary>Gets the review policy that applies to one employee's customer.</summary>
+    public ReviewPolicy GetReviewPolicy(string employeeId) =>
+        HoursReviewWorkflowCatalog.ForEmployee(employeeId);
 
     /// <summary>Gets the explicit mapping from derived flex meaning to duration accounts.</summary>
     public LedgerProjector GetLedgerProjector() =>

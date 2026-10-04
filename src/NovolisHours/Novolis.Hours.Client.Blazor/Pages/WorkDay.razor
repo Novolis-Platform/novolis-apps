@@ -1,0 +1,271 @@
+@page "/workdays/{EmployeeId}/{DateText}"
+@inject HoursBrowserSession Session
+@inject IJSRuntime Js
+@using Microsoft.AspNetCore.Components.Web
+
+<PageTitle>@title</PageTitle>
+
+@if (Session.CurrentUser is null || Session.ApiClient is null)
+{
+    <section class="card"><p role="alert">Sign in before opening a day.</p><a href="/">Return to sign in</a></section>
+}
+else if (studio is null)
+{
+    <section class="card"><p>Loading day…</p></section>
+}
+else
+{
+    <section class="card">
+        <div class="toolbar">
+            <div>
+                <p class="eyebrow">@studio.Day.OrganisationId · @studio.Day.Configuration.TimeZoneId</p>
+                <h1>@title</h1>
+                <p class="muted">@(studio.Day.IsWorkingDay ? "Working day" : "Non-working day")</p>
+            </div>
+            <div class="toolbar">
+                <button class="action" @onclick="WorkedAsScheduledAsync" disabled="@busy">Worked as scheduled</button>
+                <button @onclick="() => paintMode = !paintMode">@(paintMode ? "Adjust times" : "Paint")</button>
+                <a href="/">Week</a>
+            </div>
+        </div>
+        <div class="summary-grid">
+            <div><span class="muted">Expected</span><strong>@studio.ExpectedLabel</strong></div>
+            <div><span class="muted">Actual</span><strong>@HoursClock.Format(studio.ActualWork)</strong></div>
+            <div><span class="muted">Flex</span><strong>@HoursClock.Format(studio.Flex, signed: true)</strong></div>
+            <div><span class="muted">Paid</span><strong>@HoursClock.Format(studio.Day.PaidEntitlement)</strong></div>
+        </div>
+        <div class="strip" @ref="stripRef" @onpointerdown="OnPointerDown" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointerleave="OnPointerUp">
+            @if (studio.Day.WorkEnvelopeRange is { } envelope)
+            {
+                <div class="strip-lane" style="@Lane(envelope, 8, "var(--ngp-border)")"></div>
+            }
+            @foreach (var core in studio.Day.CoreHourRanges)
+            {
+                <div class="strip-lane" style="@Lane(core, 24, "var(--ngp-action-soft)")"></div>
+            }
+            @foreach (var routine in studio.Day.RoutineRanges)
+            {
+                <div class="strip-lane" style="@Lane(routine, 40, "var(--ngp-accent-fill)")"></div>
+            }
+            @foreach (var actual in studio.Actual)
+            {
+                <div class="strip-lane" style="@Lane(actual.Start, actual.End, 58, "var(--ngp-action)")"></div>
+            }
+            @foreach (var stroke in studio.Paints)
+            {
+                <div class="strip-lane" style="@Lane(stroke.Start, stroke.End, 78, "var(--ngp-accent)")"></div>
+            }
+        </div>
+        <div class="strip-ticks">
+            <span>06</span><span>08</span><span>10</span><span>12</span><span>14</span><span>16</span><span>18</span><span>20</span>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Rules, live while you enter</h2>
+        <div class="rail">
+            @foreach (var row in studio.LayerRail())
+            {
+                <div class="rail-row @(row.Speaking ? "speaking" : null)">
+                    <strong>@row.Order · @row.Kind</strong>
+                    <span class="muted">@row.Said</span>
+                </div>
+            }
+        </div>
+    </section>
+
+    @if (paintMode && studio.Day.BrushCatalog.Length > 0)
+    {
+        <section class="card">
+            <h2>Paint meaning on actual work</h2>
+            <div class="form-grid">
+                <label>Dimension
+                    <select @bind="studio.BrushDimensionId">
+                        @foreach (var brush in studio.Day.BrushCatalog)
+                        {
+                            <option value="@brush.Id">@brush.Name</option>
+                        }
+                    </select>
+                </label>
+                <label>Value
+                    <select @bind="studio.BrushValueId">
+                        @foreach (var value in CurrentBrushValues)
+                        {
+                            <option value="@value.Id">@value.Name</option>
+                        }
+                    </select>
+                </label>
+            </div>
+            <button @onclick="SavePaintAsync" disabled="@busy">Save paint</button>
+        </section>
+    }
+
+    <details class="card">
+        <summary>Evidence</summary>
+        <p class="evidence">Snapshot @studio.Day.Configuration.Id · calendar @studio.Day.Configuration.CalendarVersion</p>
+        <ul class="evidence">
+            @foreach (var rule in studio.Day.AppliedRules)
+            {
+                <li>@rule.LayerKind · @rule.RuleId · @rule.Summary</li>
+            }
+        </ul>
+    </details>
+}
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <p class="status" role="alert">@error</p>
+}
+
+@code {
+    [Parameter]
+    public string EmployeeId { get; set; } = string.Empty;
+
+    [Parameter]
+    public string DateText { get; set; } = string.Empty;
+
+    private DayStudioModel? studio;
+    private string title = "Day";
+    private string error = string.Empty;
+    private bool busy;
+    private bool paintMode;
+    private bool dragging;
+    private ElementReference stripRef;
+
+    private IEnumerable<DimensionBrushValueResponse> CurrentBrushValues =>
+        studio?.Day.BrushCatalog.FirstOrDefault(brush => brush.Id == studio.BrushDimensionId)?.Values
+        ?? [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        error = string.Empty;
+        await Session.RestoreAsync();
+        if (Session.ApiClient is null || !DateOnly.TryParse(DateText, out var date))
+        {
+            error = "A signed-in session and a valid nominal date are required.";
+            return;
+        }
+
+        var day = await Session.ApiClient.GetWorkDayAsync(EmployeeId, date);
+        studio = new DayStudioModel(day);
+        title = $"{HoursClock.FormatDate(date)} · {day.OrganisationId}";
+    }
+
+    private async Task WorkedAsScheduledAsync()
+    {
+        if (Session.ApiClient is null || studio is null)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            await Session.ApiClient.RecordWorkRegistrationAsync(new RecordWorkRegistrationRequest(
+                EmployeeId,
+                studio.Day.NominalDate,
+                WorkRegistrationIntent.WorkedAsScheduled,
+                [],
+                null,
+                "Worked as scheduled."));
+            studio.ApplyScheduledRoutine();
+            var day = await Session.ApiClient.GetWorkDayAsync(EmployeeId, studio.Day.NominalDate);
+            studio = new DayStudioModel(day);
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task SavePaintAsync()
+    {
+        if (Session.ApiClient is null || studio is null)
+        {
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            foreach (var stroke in studio.Paints)
+            {
+                var date = studio.Day.NominalDate;
+                await Session.ApiClient.RecordDimensionAssignmentAsync(
+                    EmployeeId,
+                    new RecordDimensionAssignmentRequest(
+                        EmployeeId,
+                        date,
+                        stroke.DimensionId,
+                        stroke.ValueId,
+                        [
+                            new WorkIntervalRequest(
+                                HoursClock.ToNominalTimestamp(date, stroke.Start, studio.Day.Configuration.TimeZoneId),
+                                HoursClock.ToNominalTimestamp(date, stroke.End, studio.Day.Configuration.TimeZoneId)),
+                        ],
+                        null));
+            }
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task OnPointerDown(PointerEventArgs args)
+    {
+        if (studio is null)
+        {
+            return;
+        }
+
+        dragging = true;
+        studio.BeginDrag(await RatioAsync(args), paintMode);
+        StateHasChanged();
+    }
+
+    private async Task OnPointerMove(PointerEventArgs args)
+    {
+        if (!dragging || studio is null)
+        {
+            return;
+        }
+
+        studio.MoveDrag(await RatioAsync(args));
+        StateHasChanged();
+    }
+
+    private async Task OnPointerUp(PointerEventArgs args)
+    {
+        if (!dragging || studio is null)
+        {
+            return;
+        }
+
+        studio.MoveDrag(await RatioAsync(args));
+        studio.EndDrag();
+        dragging = false;
+        StateHasChanged();
+    }
+
+    private async Task<double> RatioAsync(PointerEventArgs args) =>
+        Math.Clamp(await Js.InvokeAsync<double>("hoursStripRatio", stripRef, args.ClientX), 0, 1);
+
+    private static string Lane(LocalTimeRangeDto range, int top, string color) =>
+        Lane(range.Start, range.End, top, color);
+
+    private static string Lane(TimeOnly start, TimeOnly end, int top, string color)
+    {
+        var left = DayStripGeometry.ToRatio(start) * 100;
+        var width = (DayStripGeometry.ToRatio(end) - DayStripGeometry.ToRatio(start)) * 100;
+        return $"left:{left:0.###}%;width:{width:0.###}%;top:{top}px;background:{color};";
+    }
+}

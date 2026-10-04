@@ -1,5 +1,67 @@
 @inherits LayoutComponentBase
+@inject HoursBrowserSession Session
+@inject NavigationManager Navigation
 
-<main class="page-shell">
+<div class="page-shell">
+    <header class="chrome">
+        <span class="wordmark">Hours</span>
+        @if (Session.CurrentUser is not null)
+        {
+            <span>@Session.CurrentUser.DisplayName</span>
+            <span class="muted">@organisation · @timeZone</span>
+            <span class="muted">Flex @flex</span>
+            <nav class="toolbar" aria-label="Hours navigation">
+                <a href="/">Week</a>
+                <a href="@TodayUrl">Today</a>
+                <a href="settings">Settings</a>
+                @if (Session.CurrentUser.Role is HoursClientRole.Manager or HoursClientRole.HumanResources or HoursClientRole.Higher or HoursClientRole.Auditor or HoursClientRole.Administrator)
+                {
+                    <a href="reports/health">Health</a>
+                    <a href="reports/business-pressure">Pressure</a>
+                }
+            </nav>
+        }
+    </header>
     @Body
-</main>
+</div>
+
+@code {
+    [Inject]
+    private HoursBrowserSession LayoutSession { get; set; } = null!;
+
+    private string organisation = string.Empty;
+    private string timeZone = string.Empty;
+    private string flex = "0:00";
+
+    private string TodayUrl =>
+        Session.CurrentUser is null
+            ? "/"
+            : $"workdays/{Uri.EscapeDataString(Session.CurrentUser.EmployeeId)}/{DateOnly.FromDateTime(DateTime.Today):yyyy-MM-dd}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.RestoreAsync();
+        if (Session.ApiClient is not null && Session.CurrentUser is not null)
+        {
+            try
+            {
+                var summary = await Session.ApiClient.GetEmployeeSummaryAsync(Session.CurrentUser.EmployeeId);
+                flex = HoursClock.Format(summary.FlexSaldo, signed: true);
+                var start = WeekStudioModel.MondayOnOrBefore(DateOnly.FromDateTime(DateTime.Today));
+                var week = await Session.ApiClient.GetWorkDaysAsync(
+                    Session.CurrentUser.EmployeeId,
+                    start,
+                    start.AddDays(6));
+                if (week.Count > 0)
+                {
+                    organisation = week[0].OrganisationId;
+                    timeZone = week[0].Configuration.TimeZoneId;
+                }
+            }
+            catch
+            {
+                // Chrome stays signed-in even if the week call is empty.
+            }
+        }
+    }
+}

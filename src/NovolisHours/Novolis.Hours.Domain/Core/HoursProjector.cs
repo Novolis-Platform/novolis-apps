@@ -21,6 +21,7 @@ public static class HoursProjector
 
         var entries = new List<HoursEntry>();
         var ledgerTransactions = new List<LedgerTransaction>();
+        var compatibilityRegistrations = new Dictionary<Guid, WorkRegistration>();
         var adjustments = new Dictionary<Guid, HoursAdjustment>();
         var periods = new Dictionary<Guid, HoursApprovalPeriod>();
 
@@ -37,15 +38,24 @@ public static class HoursProjector
                 case HoursEventType.WorkRegistrationRecorded:
                     if (policy is not null)
                     {
-                        entries.Add(ToCompatibilityEntry(
-                            entry.ReadPayload<WorkRegistration>(),
-                            policy));
+                        var registration = entry.ReadPayload<WorkRegistration>();
+                        compatibilityRegistrations[registration.Id] = registration;
+                        entries.Add(ToCompatibilityEntry(registration, policy));
                     }
 
                     break;
 
                 case HoursEventType.LedgerTransactionRecorded:
                     ledgerTransactions.Add(entry.ReadPayload<LedgerTransaction>());
+                    break;
+
+                case HoursEventType.ConfigurationSnapshotRecorded:
+                case HoursEventType.ConfigurationPublished:
+                case HoursEventType.DimensionAssignmentRecorded:
+                case HoursEventType.ReviewPeriodCreated:
+                case HoursEventType.ReviewActionRecorded:
+                    // These v2 facts belong to the acceptance projections. The
+                    // legacy employee summary intentionally ignores them.
                     break;
 
                 case HoursEventType.AdjustmentProposed:
@@ -80,12 +90,25 @@ public static class HoursProjector
             .Select(item => item.SourceRegistrationId)
             .ToHashSet();
         var postings = orderedEntries
-            .Where(entry => !ledgerSourceRegistrationIds.Contains(entry.Id))
+            .Where(entry =>
+                !compatibilityRegistrations.ContainsKey(entry.Id) &&
+                !ledgerSourceRegistrationIds.Contains(entry.Id))
             .SelectMany(entry => HoursLedger.ForEntry(entry))
             .Concat(orderedAdjustments
                 .Where(item => item.State is HoursAdjustmentState.Accepted or HoursAdjustmentState.ResolvedAccepted)
                 .SelectMany(adjustment => HoursLedger.ForAdjustment(adjustment)))
-            .Concat(ledgerTransactions.SelectMany(ToCompatibilityPostings))
+            .Concat(compatibilityRegistrations.Values
+                .OrderBy(registration => registration.RecordedAt)
+                .ThenBy(registration => registration.Id)
+                .SelectMany(registration => HoursLedger.ForMovement(
+                    registration.Id,
+                    registration.WorkDay.EmployeeId,
+                    CompatibilityFlexDelta(registration, compatibilityRegistrations, policy!),
+                    HoursPostingReason.RecordedFlexDifference,
+                    registration.Note ?? "Work registration compatibility projection.")))
+            .Concat(ledgerTransactions
+                .Where(transaction => !compatibilityRegistrations.ContainsKey(transaction.SourceRegistrationId))
+                .SelectMany(ToCompatibilityPostings))
             .ToImmutableArray();
         var anomalies = orderedEntries
             .SelectMany(item => item.LegalNotices.Select(notice => new HoursAnomaly(
@@ -131,6 +154,21 @@ public static class HoursProjector
             posting.SignedDuration,
             HoursPostingReason.RecordedFlexDifference,
             transaction.Reason));
+
+    private static TimeSpan CompatibilityFlexDelta(
+        WorkRegistration registration,
+        IReadOnlyDictionary<Guid, WorkRegistration> registrations,
+        HoursPolicy policy)
+    {
+        var current = ToCompatibilityEntry(registration, policy).FlexDelta;
+        if (registration.CorrectsRegistrationId is { } correctedId &&
+            registrations.TryGetValue(correctedId, out var corrected))
+        {
+            return current - ToCompatibilityEntry(corrected, policy).FlexDelta;
+        }
+
+        return current;
+    }
 
     private static HoursEntry ToCompatibilityEntry(
         WorkRegistration registration,

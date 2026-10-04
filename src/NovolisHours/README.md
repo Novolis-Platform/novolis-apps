@@ -72,8 +72,9 @@ All included presets start as `Draft`; a tenant must complete country-specific l
 ## Hosts
 
 - `Novolis.Hours.Server` — ASP.NET Core API, SignalR hub, selectable JSON/Azure Table persistence, SPA delivery, workflow scheduling, and HTML report export.
-- `Novolis.Hours.Cli` — prints the listening URL after starting the host.
+- `Novolis.Hours.Server.Cli` — prints the listening URL after starting the host.
 - `Novolis.Hours.Client` — authenticated cookie and antiforgery API client shared by native hosts.
+- `Novolis.Hours.Client.Cli` — employee command-line studio against a running Hours server.
 - `Novolis.Hours.Client.Avalonia` — shared-profile native client with real service sign-in, summary loading, and an opt-in UI agent hook.
 - `Novolis.Hours.Client.Maui` — shared-profile mobile and Windows client with real service sign-in, summary loading, and an opt-in UI agent hook.
 - `Novolis.Hours.Client.Blazor` — standalone Blazor WebAssembly client using the same protected API and browser credentials.
@@ -121,7 +122,7 @@ The feature test project uses a real `WebApplication` and `TestServer`, real in-
 Run the product locally:
 
 ```powershell
-dotnet run --project src/NovolisHours/Novolis.Hours.Cli/Novolis.Hours.Cli.csproj -p:NovolisUseProjectReferences=true -- serve --demo
+dotnet run --project src/NovolisHours/Novolis.Hours.Server.Cli/Novolis.Hours.Server.Cli.csproj -p:NovolisUseProjectReferences=true -- serve --demo
 ```
 
 Run the feature suite:
@@ -152,7 +153,7 @@ dotnet test tests/Novolis.Hours.AspireTests/Novolis.Hours.AspireTests.csproj -p:
 ## Aspire host
 
 The supported local composition is the project-based Aspire AppHost. It starts
-exactly one `Novolis.Hours.Server` process and one persistent Azurite Table
+exactly one `hours-server` (`Novolis.Hours.Server`) process and one persistent Azurite Table
 Storage container under Podman. The server connects through the Azurite
 development-storage connection string and exposes `/health/ready` only after
 the Table service is reachable. The standalone Blazor client is available as a

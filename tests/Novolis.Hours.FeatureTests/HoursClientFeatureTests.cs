@@ -12,7 +12,7 @@ public sealed class HoursClientFeatureTests
     [Test]
     public async Task The_native_api_client_uses_the_real_cookie_and_antiforgery_flow_to_post_and_read_work()
     {
-        await using var app = HoursApplication.Build(
+        await using var app = HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -59,7 +59,7 @@ public sealed class HoursClientFeatureTests
     [Test]
     public async Task The_client_can_record_and_read_an_immutable_v2_scheduled_assertion()
     {
-        await using var app = HoursApplication.Build(
+        await using var app = HoursServerApplication.Build(
             [],
             builder =>
             {
@@ -100,7 +100,7 @@ public sealed class HoursClientFeatureTests
     [Test]
     public async Task A_v2_manual_registration_is_visible_in_the_summary_and_projects_flex()
     {
-        await using var app = HoursApplication.Build(
+        await using var app = HoursServerApplication.Build(
             [],
             builder =>
             {

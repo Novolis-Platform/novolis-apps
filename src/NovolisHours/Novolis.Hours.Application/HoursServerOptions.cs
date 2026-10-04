@@ -12,7 +12,10 @@ public sealed class HoursServerOptions
         "Novolis",
         "Hours");
 
-    /// <summary>Azure Table or Azurite connection string used when <see cref="StorageProvider"/> is <c>azure-tables</c>.</summary>
+    /// <summary>
+    /// Azure Table connection string, Azurite connection string, or https table endpoint.
+    /// An absolute endpoint uses the host's Azure credential instead of a shared key.
+    /// </summary>
     public string? AzureTablesConnectionString { get; set; }
 
     /// <summary>Prefix used to isolate this Hours tenant's Azure Tables.</summary>
@@ -24,7 +27,10 @@ public sealed class HoursServerOptions
     /// <summary>Requires HTTPS for the application surface outside Development.</summary>
     public bool RequireHttps { get; set; } = true;
 
-    /// <summary>Proxy addresses allowed to supply forwarded scheme and client-address headers.</summary>
+    /// <summary>
+    /// Proxy addresses allowed to supply forwarded scheme and client-address headers.
+    /// <c>*</c> trusts any proxy, for a platform ingress that is the only path to the container.
+    /// </summary>
     public string[] TrustedProxyAddresses { get; set; } = ["127.0.0.1", "::1"];
 
     /// <summary>Origins allowed to call the protected API from a standalone browser client.</summary>
@@ -44,6 +50,12 @@ public sealed class HoursServerOptions
 
     /// <summary>Secret used only when no real administrator exists; supply it through secure configuration rather than source control.</summary>
     public string? InitialAdministratorPassword { get; set; }
+
+    /// <summary>Enables the development-only named acceptance identities and configuration catalog.</summary>
+    public bool EnableAcceptanceSeed { get; set; }
+
+    /// <summary>Password used for development-only acceptance identities.</summary>
+    public string? AcceptanceSeedPassword { get; set; }
 
     /// <summary>Stable legal-preset identifier selected for this tenant's starting worktime policy.</summary>
     public string LegalPresetId { get; set; } = "norway.private.flex";

@@ -1,3 +1,4 @@
+using Novolis.Hours.Domain.Work;
 using System.Collections.Immutable;
 
 namespace Novolis.Hours.Contracts;
@@ -9,4 +10,5 @@ public sealed record RecordWorkRegistrationRequest(
     WorkRegistrationIntent Intent,
     ImmutableArray<WorkIntervalRequest> Intervals,
     Guid? CorrectsRegistrationId,
-    string? Note);
+    string? Note,
+    WorkRecordSource? Source = null);

@@ -1,81 +1,55 @@
 @page "/"
-@implements IDisposable
-@inject IConfiguration Configuration
+@inject HoursBrowserSession Session
+@inject NavigationManager Navigation
 
 <PageTitle>Novolis Hours</PageTitle>
 
-<header class="hero">
-    <p class="eyebrow">Novolis Hours · standalone browser client</p>
-    <h1>Worktime, presence, and flex traceability</h1>
-    <p>
-        Record when work happened relative to the expected working day. This client does not calculate pay or leave.
-    </p>
-</header>
-
-<section class="card">
-    <h2>Sign in</h2>
-    <div class="form-grid">
-        <label>
-            Hours service URL
-            <input @bind="serviceUrl" type="url" autocomplete="url" />
-        </label>
-        <label>
-            Login
-            <input @bind="login" autocomplete="username" />
-        </label>
-        <label>
-            Password
-            <input @bind="password" type="password" autocomplete="current-password" />
-        </label>
-    </div>
-    <button @onclick="SignInAsync" disabled="@busy">@(busy ? "Signing in…" : "Sign in")</button>
-</section>
-
-@if (currentUser is not null)
+@if (Session.CurrentUser is null)
+{
+    <section class="card">
+        <p class="eyebrow">Sign in</p>
+        <h1>Hours</h1>
+        <div class="form-grid">
+            <label>Login <input @bind="login" autocomplete="username" /></label>
+            <label>Password <input @bind="password" type="password" autocomplete="current-password" /></label>
+        </div>
+        <details>
+            <summary class="muted">Host settings</summary>
+            <label>Hours service URL <input @bind="serviceUrl" type="url" autocomplete="url" /></label>
+        </details>
+        <button class="action" @onclick="SignInAsync" disabled="@busy">@(busy ? "Signing in…" : "Enter this week")</button>
+    </section>
+}
+else if (week is not null)
 {
     <section class="card">
         <div class="toolbar">
             <div>
-                <h2>Welcome, @currentUser.DisplayName</h2>
-                <p class="muted">@currentUser.EmployeeId · @currentUser.Role</p>
+                <p class="eyebrow">Week</p>
+                <h1>@HoursClock.FormatDate(week.WeekStart) – @HoursClock.FormatDate(week.WeekEnd)</h1>
             </div>
-            <button @onclick="SignOut" disabled="@busy">Sign out</button>
+            <div class="toolbar">
+                <button @onclick="() => ShiftWeek(-7)">Previous</button>
+                <button @onclick="GoToday">Today</button>
+                <button @onclick="() => ShiftWeek(7)">Next</button>
+                <button @onclick="SignOutAsync" disabled="@busy">Sign out</button>
+            </div>
+        </div>
+        <div class="week-grid">
+            @foreach (var tile in week.Tiles)
+            {
+                <a class="week-tile @(tile.IsToday ? "open" : null)" href="@DayUrl(tile.Date)">
+                    <span class="muted">@tile.Weekday</span>
+                    <strong>@tile.Expected</strong>
+                    <span class="muted">@tile.Chip</span>
+                </a>
+            }
+        </div>
+        <div class="summary-grid">
+            <div><span class="muted">Expected</span><strong>@HoursClock.Format(week.ExpectedWork)</strong></div>
+            <div><span class="muted">Recorded</span><strong>@HoursClock.Format(week.RecordedWork)</strong></div>
         </div>
     </section>
-
-    <section class="card">
-        <h2>Register presence</h2>
-        <p class="muted">
-            Presence is the fact being recorded. Financial-compensation classification and approvals remain explicit
-            server-side records.
-        </p>
-        <button @onclick="RegisterScheduledAsync" disabled="@busy">
-            @(busy ? "Recording…" : "Worked as scheduled")
-        </button>
-        <div class="form-grid">
-            <label>Employee ID <input @bind="employeeId" /></label>
-            <label>Day <input @bind="day" type="date" /></label>
-            <label>Started <input @bind="startedAt" type="time" /></label>
-            <label>Ended <input @bind="endedAt" type="time" /></label>
-            <label>Break started <input @bind="breakStartedAt" type="time" /></label>
-            <label>Break ended <input @bind="breakEndedAt" type="time" /></label>
-            <label class="wide">Comment <input @bind="comment" /></label>
-        </div>
-        <button @onclick="RegisterWorkAsync" disabled="@busy">Register worktime</button>
-    </section>
-
-    @if (summary is not null)
-    {
-        <section class="card">
-            <h2>Current summary</h2>
-            <div class="summary-grid">
-                <div><span class="muted">Flex saldo</span><strong>@summary.FlexSaldo</strong></div>
-                <div><span class="muted">Presence records</span><strong>@summary.PresenceRecordCount</strong></div>
-                <div><span class="muted">Adjustments</span><strong>@summary.AdjustmentCount</strong></div>
-                <div><span class="muted">Anomalies</span><strong>@summary.AnomalyCount</strong></div>
-            </div>
-        </section>
-    }
 }
 
 @if (!string.IsNullOrWhiteSpace(status))
@@ -84,135 +58,37 @@
 }
 
 @code {
-    private HoursApiClient? apiClient;
-    private HoursClientUser? currentUser;
-    private HoursEmployeeSummary? summary;
     private string serviceUrl = "https://localhost:5700/";
-    private string login = "admin";
+    private string login = string.Empty;
     private string password = string.Empty;
-    private string employeeId = "admin";
-    private DateTime day = DateTime.Today;
-    private TimeOnly startedAt = new(8, 0);
-    private TimeOnly endedAt = new(16, 0);
-    private TimeOnly? breakStartedAt = new(11, 30);
-    private TimeOnly? breakEndedAt = new(12, 0);
-    private string comment = "Working day";
     private string status = string.Empty;
     private bool busy;
+    private WeekStudioModel? week;
+    private DateOnly weekStart = WeekStudioModel.MondayOnOrBefore(DateOnly.FromDateTime(DateTime.Today));
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        serviceUrl = Configuration["HoursServiceUrl"] ?? serviceUrl;
+        await Session.RestoreAsync();
+        serviceUrl = Session.ServiceUrl;
+        if (Session.CurrentUser is not null)
+        {
+            login = Session.CurrentUser.EmployeeId;
+            await LoadWeekAsync();
+        }
     }
+
+    private string DayUrl(DateOnly date) =>
+        $"workdays/{Uri.EscapeDataString(Session.CurrentUser!.EmployeeId)}/{date:yyyy-MM-dd}";
 
     private async Task SignInAsync()
-    {
-        await RunAsync(async () =>
-        {
-            if (!Uri.TryCreate(serviceUrl, UriKind.Absolute, out var endpoint))
-            {
-                throw new InvalidOperationException("Enter an absolute HTTPS Hours service URL.");
-            }
-
-            apiClient?.Dispose();
-            apiClient = new HoursApiClient(
-                new HttpClient { BaseAddress = EnsureTrailingSlash(endpoint) },
-                request => request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include));
-            currentUser = await apiClient.SignInAsync(login, password);
-            employeeId = currentUser.EmployeeId;
-            await RefreshSummaryAsync();
-            status = "Signed in.";
-        });
-    }
-
-    private async Task RegisterWorkAsync()
-    {
-        await RunAsync(async () =>
-        {
-            if (apiClient is null)
-            {
-                throw new InvalidOperationException("Sign in before registering worktime.");
-            }
-
-            await apiClient.RecordWorkRegistrationAsync(new RecordWorkRegistrationRequest(
-                employeeId,
-                DateOnly.FromDateTime(day),
-                WorkRegistrationIntent.ManualRegistration,
-                CreateIntervals(),
-                null,
-                comment
-            ));
-            await RefreshSummaryAsync();
-            status = "Work assertion created.";
-        });
-    }
-
-    private async Task RegisterScheduledAsync()
-    {
-        await RunAsync(async () =>
-        {
-            if (apiClient is null)
-            {
-                throw new InvalidOperationException("Sign in before recording a work assertion.");
-            }
-
-            await apiClient.RecordWorkRegistrationAsync(new RecordWorkRegistrationRequest(
-                employeeId,
-                DateOnly.FromDateTime(day),
-                WorkRegistrationIntent.WorkedAsScheduled,
-                [],
-                null,
-                "Worked as scheduled."));
-            await RefreshSummaryAsync();
-            status = "Scheduled work assertion created.";
-        });
-    }
-
-    private ImmutableArray<WorkIntervalRequest> CreateIntervals()
-    {
-        var date = DateOnly.FromDateTime(day);
-        var start = ToOffset(date, startedAt);
-        var end = ToOffset(date, endedAt);
-        if (breakStartedAt is not { } breakStart ||
-            breakEndedAt is not { } breakEnd)
-        {
-            return [new WorkIntervalRequest(start, end)];
-        }
-
-        return
-        [
-            new WorkIntervalRequest(start, ToOffset(date, breakStart)),
-            new WorkIntervalRequest(ToOffset(date, breakEnd), end),
-        ];
-    }
-
-    private static DateTimeOffset ToOffset(DateOnly date, TimeOnly time) =>
-        new(date.ToDateTime(time), TimeSpan.Zero);
-
-    private async Task RefreshSummaryAsync()
-    {
-        if (apiClient is not null && currentUser is not null)
-        {
-            summary = await apiClient.GetEmployeeSummaryAsync(employeeId);
-        }
-    }
-
-    private void SignOut()
-    {
-        apiClient?.Dispose();
-        apiClient = null;
-        currentUser = null;
-        summary = null;
-        status = "Signed out. The browser session remains protected by the server.";
-    }
-
-    private async Task RunAsync(Func<Task> operation)
     {
         busy = true;
         status = string.Empty;
         try
         {
-            await operation();
+            Session.ServiceUrl = serviceUrl;
+            await Session.SignInAsync(login, password);
+            await LoadWeekAsync();
         }
         catch (Exception exception)
         {
@@ -224,10 +100,43 @@
         }
     }
 
-    public void Dispose() => apiClient?.Dispose();
+    private async Task SignOutAsync()
+    {
+        busy = true;
+        try
+        {
+            await Session.SignOutAsync();
+            week = null;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
 
-    private static Uri EnsureTrailingSlash(Uri value) =>
-        value.AbsoluteUri.EndsWith("/", StringComparison.Ordinal)
-            ? value
-            : new Uri($"{value.AbsoluteUri}/", UriKind.Absolute);
+    private async Task ShiftWeek(int days)
+    {
+        weekStart = weekStart.AddDays(days);
+        await LoadWeekAsync();
+    }
+
+    private async Task GoToday()
+    {
+        weekStart = WeekStudioModel.MondayOnOrBefore(DateOnly.FromDateTime(DateTime.Today));
+        await LoadWeekAsync();
+    }
+
+    private async Task LoadWeekAsync()
+    {
+        if (Session.ApiClient is null || Session.CurrentUser is null)
+        {
+            return;
+        }
+
+        var days = await Session.ApiClient.GetWorkDaysAsync(
+            Session.CurrentUser.EmployeeId,
+            weekStart,
+            weekStart.AddDays(6));
+        week = new WeekStudioModel(days, DateOnly.FromDateTime(DateTime.Today));
+    }
 }

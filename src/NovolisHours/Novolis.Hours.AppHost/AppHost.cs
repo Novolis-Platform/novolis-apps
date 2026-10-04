@@ -9,67 +9,113 @@ Environment.SetEnvironmentVariable("ASPIRE_CONTAINER_RUNTIME", "podman");
 var builder = DistributedApplication.CreateBuilder(args);
 builder.Configuration.AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true);
 
+var publishing = builder.ExecutionContext.IsPublishMode;
+
+builder.AddAzureContainerAppEnvironment("hours-aca");
+
 var administratorPassword = builder.AddParameter(
     "hours-initial-administrator-password",
     secret: true);
 
-var azurite = builder
-    .AddContainer("hours-azurite", "mcr.microsoft.com/azure-storage/azurite", "3.35.0")
-    .WithLifetime(ContainerLifetime.Persistent)
-    .WithEntrypoint("azurite")
-    .WithArgs(
-        "--tableHost",
-        "0.0.0.0",
-        "--tablePort",
-        "10002",
-        "--location",
-        "/data",
-        "--skipApiVersionCheck")
-    .WithVolume("novolis-hours-azurite-data", "/data")
-    .WithEndpoint(targetPort: 10002, port: 10002, name: "table")
-    .WithEndpointProxySupport(false);
+var storage = builder.AddAzureStorage("hours-storage");
+if (!publishing)
+{
+    storage.RunAsEmulator(azurite =>
+    {
+        azurite.WithLifetime(ContainerLifetime.Persistent);
+        azurite.WithDataVolume("novolis-hours-azurite-data");
+        azurite.WithTablePort(10002);
+    });
+}
 
-var hours = builder
-    .AddProject<Projects.Novolis_Hours_Server>("hours")
+var tables = storage.AddTables("hours-tables");
+
+var hoursServer = builder
+    .AddProject<Projects.Novolis_Hours_Server>("hours-server")
     .WithReplicas(1)
-    .WithEnvironment(
-        "Hours__DataPath",
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Novolis",
-            "Hours",
-            "Aspire"))
     .WithEnvironment("Hours__InitialAdministratorPassword", administratorPassword)
     .WithEnvironment("Hours__EnableDemoAdminCredentials", "false")
     .WithEnvironment("Hours__UseInMemoryJournal", "false")
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", builder.Environment.EnvironmentName)
     .WithEnvironment("Hours__StorageProvider", "azure-tables")
-    .WithEnvironment("Hours__AzureTablesConnectionString", "UseDevelopmentStorage=true")
+    .WithEnvironment("Hours__AzureTablesConnectionString", tables)
     .WithEnvironment("Hours__AzureTablesTablePrefix", "novolis-hours")
-    .WithEnvironment("Hours__AllowedClientOrigins__0", "https://localhost:5710")
     .WithEnvironment("Hours__RequireHttps", "true")
     .WithEnvironment("OTEL_SERVICE_NAME", "novolis-hours")
-    .WithHttpsEndpoint(name: "https", port: 5700)
-    .WithExternalHttpEndpoints()
+    .WithReference(tables)
+    .WaitFor(tables)
     .WithHttpHealthCheck("/health/ready")
-    .WaitFor(azurite);
+    .PublishAsAzureContainerApp(static (_, app) =>
+    {
+        // The table journal has one authoritative writer.
+        app.Template.Scale.MinReplicas = 1;
+        app.Template.Scale.MaxReplicas = 1;
+    });
 
-// Keep one server instance while the Azure Table journal is the authoritative writer.
-_ = hours;
+if (publishing)
+{
+    hoursServer
+        .WithHttpEndpoint(name: "http", targetPort: 8080)
+        .WithExternalHttpEndpoints()
+        .WithEnvironment("Hours__TrustedProxyAddresses__0", "*");
+}
+else
+{
+    hoursServer
+        .WithHttpsEndpoint(name: "https", port: 5700)
+        .WithExternalHttpEndpoints();
+}
+
+if (builder.Environment.IsDevelopment())
+{
+    var acceptanceSeedPassword = builder.AddParameter(
+        "hours-acceptance-seed-password",
+        secret: true);
+    hoursServer
+        .WithEnvironment("Hours__EnableAcceptanceSeed", "true")
+        .WithEnvironment("Hours__AcceptanceSeedPassword", acceptanceSeedPassword);
+}
+
+var serverEndpoint = publishing
+    ? hoursServer.GetEndpoint("http")
+    : hoursServer.GetEndpoint("https");
 
 builder.AddProject<Projects.Novolis_Hours_Client_Avalonia>("hours-client-avalonia")
-    .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", hours.GetEndpoint("https"))
+    .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", serverEndpoint)
     .WithEnvironment("NOVOLIS_AVALONIA_AGENT", "1")
-    .WithExplicitStart();
+    .WithExplicitStart()
+    .ExcludeFromManifest();
 
 builder.AddProject<Projects.Novolis_Hours_Client_Maui>("hours-client-maui")
-    .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", hours.GetEndpoint("https"))
+    .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", serverEndpoint)
     .WithEnvironment("NOVOLIS_MAUI_AGENT", "1")
+    .WithExplicitStart()
+    .ExcludeFromManifest();
+
+var blazor = builder.AddProject<Projects.Novolis_Hours_Client_Blazor>("hours-client-blazor")
+    .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", serverEndpoint)
     .WithExplicitStart();
 
-builder.AddProject<Projects.Novolis_Hours_Client_Blazor>("hours-client-blazor")
-    .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", hours.GetEndpoint("https"))
-    .WithHttpsEndpoint(name: "https", port: 5710)
-    .WithExternalHttpEndpoints()
-    .WithExplicitStart();
+if (publishing)
+{
+    blazor
+        .WithHttpEndpoint(name: "http", targetPort: 8080)
+        .WithExternalHttpEndpoints();
+}
+else
+{
+    blazor
+        .WithHttpsEndpoint(name: "https", port: 5710)
+        .WithExternalHttpEndpoints();
+}
+
+hoursServer.WithEnvironment(
+    "Hours__AllowedClientOrigins__0",
+    publishing ? blazor.GetEndpoint("http") : blazor.GetEndpoint("https"));
+
+builder.AddProject<Projects.Novolis_Hours_Client_Cli>("hours-client-cli")
+    .WithEnvironment("NOVOLIS_HOURS_SERVICE_URL", serverEndpoint)
+    .WithExplicitStart()
+    .ExcludeFromManifest();
 
 builder.Build().Run();

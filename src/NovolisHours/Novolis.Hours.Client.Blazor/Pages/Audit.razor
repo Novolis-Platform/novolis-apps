@@ -1,0 +1,95 @@
+@page "/audit/{EmployeeId}"
+@inject HoursBrowserSession Session
+
+<PageTitle>Ledger and audit</PageTitle>
+
+<header class="hero">
+    <p class="eyebrow">Ledger and audit</p>
+    <h1>@EmployeeId</h1>
+    <p>Every registration, projection, review action, and configuration fact remains available after refresh.</p>
+</header>
+
+@if (Session.CurrentUser is null || Session.ApiClient is null)
+{
+    <section class="card">
+        <p role="alert">Sign in before opening the audit trail.</p>
+        <a href="/">Return to sign in</a>
+    </section>
+}
+else if (events is null)
+{
+    <section class="card"><p>Loading audit trail…</p></section>
+}
+else
+{
+    <section class="card">
+        <div class="toolbar">
+            <div>
+                <h2>Append-only facts</h2>
+                <p class="muted">@events.Count event(s) for @EmployeeId.</p>
+            </div>
+            <a href="@WorkDayUrl">Open WorkDay</a>
+        </div>
+        @if (events.Count == 0)
+        {
+            <p>No facts have been recorded for this employee.</p>
+        }
+        else
+        {
+            <ol class="audit-list">
+                @foreach (var eventItem in events)
+                {
+                    <li>
+                        <div class="toolbar">
+                            <strong>@eventItem.EventType</strong>
+                            <span class="muted">@eventItem.OccurredAtUtc.ToLocalTime()</span>
+                        </div>
+                        <p class="muted">
+                            Actor @eventItem.ActorId · @eventItem.ActorRole · event @eventItem.EventId
+                        </p>
+                        @if (!string.IsNullOrWhiteSpace(eventItem.PayloadReference))
+                        {
+                            <p>Payload reference: <code>@eventItem.PayloadReference</code></p>
+                        }
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+}
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <p class="status" role="alert">@error</p>
+}
+
+@code {
+    [Parameter]
+    public string EmployeeId { get; set; } = string.Empty;
+
+    private IReadOnlyList<HoursAuditEventResponse>? events;
+    private string error = string.Empty;
+
+    private string WorkDayUrl => $"/workdays/{EmployeeId}/{DateOnly.FromDateTime(DateTime.Today):yyyy-MM-dd}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        events = null;
+        error = string.Empty;
+        await Session.RestoreAsync();
+        if (Session.ApiClient is null)
+        {
+            error = "A signed-in session is required.";
+            return;
+        }
+
+        try
+        {
+            events = await Session.ApiClient.GetAuditAsync(EmployeeId);
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+        }
+    }
+}
