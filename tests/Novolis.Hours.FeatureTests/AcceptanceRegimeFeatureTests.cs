@@ -395,10 +395,7 @@ public sealed class AcceptanceRegimeFeatureTests
         }
         finally
         {
-            if (Directory.Exists(dataPath))
-            {
-                Directory.Delete(dataPath, recursive: true);
-            }
+            await DeleteJournalDirectoryAsync(dataPath);
         }
     }
 
@@ -507,13 +504,13 @@ public sealed class AcceptanceRegimeFeatureTests
         using var pierre = await fixture.ConnectAsync("pierre");
         using var anna = await fixture.ConnectAsync("anna");
         using var liisa = await fixture.ConnectAsync("liisa");
-        using var helen = await fixture.ConnectAsync("helen");
+        using var marc = await fixture.ConnectAsync("marc");
 
         var adaBefore = await ada.GetWorkDayAsync("ada", new DateOnly(2026, 5, 1));
         var france = await pierre.GetWorkDayAsync("pierre", new DateOnly(2026, 5, 1));
         var poland = await anna.GetWorkDayAsync("anna", new DateOnly(2026, 5, 3));
         var finland = await liisa.GetWorkDayAsync("liisa", new DateOnly(2026, 12, 6));
-        await helen.PublishConfigurationAsync("pierre", new PublishConfigurationRequest(
+        await marc.PublishConfigurationAsync("pierre", new PublishConfigurationRequest(
             new DateOnly(2026, 5, 15)));
         var adaAfter = await ada.GetWorkDayAsync("ada", new DateOnly(2026, 5, 1));
 
@@ -601,7 +598,6 @@ public sealed class AcceptanceRegimeFeatureTests
         await using var fixture = await HoursAcceptanceFixture.StartAsync();
         using var bob = await fixture.ConnectAsync("bob");
         using var nina = await fixture.ConnectAsync("nina");
-        using var helen = await fixture.ConnectAsync("helen");
         var periodId = await bob.CreateReviewPeriodAsync(new CreateReviewPeriodRequest(
             "bob",
             new DateOnly(2026, 10, 1),
@@ -623,9 +619,9 @@ public sealed class AcceptanceRegimeFeatureTests
         await bob.RecordReviewActionAsync(
             periodId,
             new RecordReviewActionRequest("Dispute", null, "I worked until 16:30.", null));
-        await helen.RecordReviewActionAsync(
+        await nina.RecordReviewActionAsync(
             periodId,
-            new RecordReviewActionRequest("Resolve", null, "HR recorded the disagreement.", null));
+            new RecordReviewActionRequest("Resolve", null, "Station lead recorded the disagreement.", null));
 
         var registrations = await bob.GetWorkRegistrationsAsync("bob");
         var review = await bob.GetReviewAsync(periodId);
@@ -634,7 +630,7 @@ public sealed class AcceptanceRegimeFeatureTests
         await Assert.That(registrations).Contains(registration => registration.Id == employee.Id);
         await Assert.That(review.Actions).Contains(action => action.Kind == "Dispute");
         await Assert.That(review.Actions).Contains(action =>
-            action.Kind == "Resolve" && action.ActorId == "helen");
+            action.Kind == "Resolve" && action.ActorId == "nina");
     }
 
     [Test]
@@ -957,6 +953,26 @@ public sealed class AcceptanceRegimeFeatureTests
         catch (HttpRequestException exception)
         {
             return exception.StatusCode;
+        }
+    }
+
+    private static async Task DeleteJournalDirectoryAsync(string dataPath)
+    {
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(dataPath))
+                {
+                    Directory.Delete(dataPath, recursive: true);
+                }
+
+                return;
+            }
+            catch (IOException) when (attempt < 7)
+            {
+                await Task.Delay(150);
+            }
         }
     }
 }

@@ -69,7 +69,7 @@ public static class HoursCustomerCatalog
             "bob" or "nina" => NordvikStationCustomer,
             "pierre" or "marc" => AtelierCurieCustomer,
             "anna" or "kasia" => WarsawSettlementCustomer,
-            "liisa" => HelsinkiFlexCustomer,
+            "liisa" or "aino" => HelsinkiFlexCustomer,
             "jamie" or "priya" => GameRetailCustomer,
             "jordan" or "pat" => PacificYardCustomer,
             "casey" => TorontoYardCustomer,

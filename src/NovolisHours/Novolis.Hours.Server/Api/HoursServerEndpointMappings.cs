@@ -602,10 +602,10 @@ public static class HoursServerEndpointMappings
             return forbidden;
         }
 
-        var actor = HoursServerPrincipalFactory.ToActor(context.User);
-        if (actor.Role == HoursActorRole.Administrator)
+        if (HoursServerPrincipalFactory.HasRole(context.User, HoursActorRole.Administrator) &&
+            !HoursServerPrincipalFactory.HasRole(context.User, HoursActorRole.System))
         {
-            var self = users.FindByEmployeeId(actor.Id);
+            var self = users.FindByEmployeeId(HoursServerPrincipalFactory.ToActor(context.User).Id);
             if (self is null ||
                 !string.Equals(self.OrganisationId, organisationId, StringComparison.OrdinalIgnoreCase))
             {
@@ -796,9 +796,21 @@ public static class HoursServerEndpointMappings
     {
         var actor = HoursServerPrincipalFactory.ToActor(context.User);
         var isSelf = string.Equals(actor.Id, employeeId, StringComparison.OrdinalIgnoreCase);
-        if (!isSelf && actor.Role != HoursActorRole.Administrator)
+        if (!isSelf)
         {
-            return Results.Forbid();
+            if (!HoursServerPrincipalFactory.HasRole(context.User, HoursActorRole.Administrator))
+            {
+                return Results.Forbid();
+            }
+
+            var viewer = users.FindByEmployeeId(actor.Id);
+            var subject = users.FindByEmployeeId(employeeId);
+            if (viewer is null ||
+                subject is null ||
+                !string.Equals(viewer.OrganisationId, subject.OrganisationId, StringComparison.Ordinal))
+            {
+                return Results.Forbid();
+            }
         }
 
         if (request.End <= request.Start)

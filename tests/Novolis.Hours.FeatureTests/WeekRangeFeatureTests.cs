@@ -9,7 +9,7 @@ public sealed class WeekRangeFeatureTests
     {
         await using var fixture = await HoursAcceptanceFixture.StartAsync();
         var ada = await fixture.ConnectAsync("ada");
-        var helen = await fixture.ConnectAsync("helen");
+        var marc = await fixture.ConnectAsync("marc");
 
         var week = await ada.GetWorkDaysAsync("ada", new DateOnly(2026, 9, 28), new DateOnly(2026, 10, 4));
         await Assert.That(week).Count().IsEqualTo(7);
@@ -20,7 +20,7 @@ public sealed class WeekRangeFeatureTests
         await Assert.That(thursday.OrganisationId).IsEqualTo("nordvik-office");
 
         var adaMay = await ada.GetWorkDayAsync("ada", new DateOnly(2026, 5, 1));
-        await helen.PublishConfigurationAsync(
+        await marc.PublishConfigurationAsync(
             "pierre",
             new Novolis.Hours.Contracts.PublishConfigurationRequest(new DateOnly(2026, 5, 1)));
         var adaMayAfter = await ada.GetWorkDayAsync("ada", new DateOnly(2026, 5, 1));

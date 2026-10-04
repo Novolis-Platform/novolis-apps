@@ -1,3 +1,4 @@
+using Microsoft.Playwright;
 using TUnit.Core;
 using TUnit.Playwright;
 
@@ -45,14 +46,13 @@ public sealed class HoursRoleHomeTests : HoursUiTestBase
         await SignOutAsync("Ada is done.");
 
         Part("4. Mixed manager");
-        await SignInAsync("alice", SeedPassword, "Alice is manager, employee, and admin. She keeps a week.");
+        await SignInAsync("alice", SeedPassword, "Alice is manager and employee. She keeps a week and still approves.");
         await Session.StepAsync(
-            "Mixed manager chrome",
-            "This week, Workplace, and Reviews. One person, three jobs.",
+            "Working manager chrome",
+            "This week and Reviews. Pat on Pacific Yard is the store lead who is also admin.",
             async page =>
             {
                 await Expect(page.GetByRole(AriaRole.Link, new() { Name = "This week" })).ToBeVisibleAsync();
-                await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Workplace" })).ToBeVisibleAsync();
                 await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Reviews" })).ToBeVisibleAsync();
             });
         await SignOutAsync("Alice is done.");

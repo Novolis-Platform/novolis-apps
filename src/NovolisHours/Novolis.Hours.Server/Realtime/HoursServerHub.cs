@@ -13,7 +13,12 @@ public sealed class HoursServerHub : Hub
         var actor = HoursServerPrincipalFactory.ToActor(
             Context.User ?? throw new HubException("An authenticated Hours principal is required."));
         await Groups.AddToGroupAsync(Context.ConnectionId, EmployeeGroup(actor.Id), Context.ConnectionAborted);
-        if (actor.Role != Novolis.Hours.Domain.HoursActorRole.Employee)
+        if (HoursServerPrincipalFactory.HasRole(Context.User!, Novolis.Hours.Domain.HoursActorRole.Manager) ||
+            HoursServerPrincipalFactory.HasRole(Context.User!, Novolis.Hours.Domain.HoursActorRole.HumanResources) ||
+            HoursServerPrincipalFactory.HasRole(Context.User!, Novolis.Hours.Domain.HoursActorRole.Higher) ||
+            HoursServerPrincipalFactory.HasRole(Context.User!, Novolis.Hours.Domain.HoursActorRole.Administrator) ||
+            HoursServerPrincipalFactory.HasRole(Context.User!, Novolis.Hours.Domain.HoursActorRole.Auditor) ||
+            HoursServerPrincipalFactory.HasRole(Context.User!, Novolis.Hours.Domain.HoursActorRole.System))
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, AdministratorsGroup, Context.ConnectionAborted);
         }

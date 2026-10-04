@@ -89,12 +89,14 @@ public static class HoursServerRewriteEndpointMappings
             });
         }
 
-        var source = HoursContractMapping.ToDomain(request.Source) ?? (actor.Role == HoursActorRole.Employee
-            ? DomainWorkSource.Employee
-            : actor.Role == HoursActorRole.System
+        var source = HoursContractMapping.ToDomain(request.Source) ?? (
+            Has(actor, users, HoursActorRole.System)
                 ? DomainWorkSource.Integration
-                : DomainWorkSource.Employer);
-        if (source == DomainWorkSource.Integration && actor.Role != HoursActorRole.System)
+                : string.Equals(actor.Id, request.EmployeeId, StringComparison.Ordinal) &&
+                  Has(actor, users, HoursActorRole.Employee)
+                    ? DomainWorkSource.Employee
+                    : DomainWorkSource.Employer);
+        if (source == DomainWorkSource.Integration && !Has(actor, users, HoursActorRole.System))
         {
             return Results.Forbid();
         }
@@ -648,16 +650,29 @@ public static class HoursServerRewriteEndpointMappings
         string employeeId,
         HoursUserDirectory users)
     {
+        if (Has(actor, users, HoursActorRole.System))
+        {
+            return true;
+        }
+
         if (HasAny(
             actor,
             users,
             HoursActorRole.Administrator,
             HoursActorRole.HumanResources,
             HoursActorRole.Higher,
-            HoursActorRole.Auditor,
-            HoursActorRole.System))
+            HoursActorRole.Auditor))
         {
-            return true;
+            if (string.Equals(actor.Id, employeeId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            var viewer = users.FindByEmployeeId(actor.Id);
+            var subject = users.FindByEmployeeId(employeeId);
+            return viewer is not null &&
+                subject is not null &&
+                string.Equals(viewer.OrganisationId, subject.OrganisationId, StringComparison.Ordinal);
         }
 
         if (string.Equals(actor.Id, employeeId, StringComparison.Ordinal))

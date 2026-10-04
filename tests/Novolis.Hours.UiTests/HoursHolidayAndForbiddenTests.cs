@@ -1,3 +1,4 @@
+using Microsoft.Playwright;
 using Novolis.Hours.Client.Presentation;
 using Novolis.Testing.Playwright;
 using TUnit.Core;

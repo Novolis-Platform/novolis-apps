@@ -62,14 +62,14 @@ public sealed class WorkflowDivergenceFeatureTests
     {
         await using var fixture = await HoursAcceptanceFixture.StartAsync();
         using var liisa = await fixture.ConnectAsync("liisa");
-        using var helen = await fixture.ConnectAsync("helen");
+        using var aino = await fixture.ConnectAsync("aino");
 
         var periodId = await liisa.CreateReviewPeriodAsync(new CreateReviewPeriodRequest(
             "liisa",
             new DateOnly(2026, 12, 1),
             new DateOnly(2026, 12, 31)));
         await liisa.RecordReviewActionAsync(periodId, new RecordReviewActionRequest("Submit", null, "December submitted.", null));
-        await helen.RecordReviewActionAsync(periodId, new RecordReviewActionRequest("Approve", null, "HR close.", null));
+        await aino.RecordReviewActionAsync(periodId, new RecordReviewActionRequest("Approve", null, "HR close.", null));
         var review = await liisa.GetReviewAsync(periodId);
 
         await Assert.That(review.PolicyId).IsEqualTo("employee-hr");

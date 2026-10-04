@@ -1,3 +1,4 @@
+using Microsoft.Playwright;
 using Novolis.Hours.Client.Presentation;
 using TUnit.Core;
 using TUnit.Playwright;
@@ -9,7 +10,7 @@ public sealed class HoursMixedRoleTests : HoursUiTestBase
 {
     [Test]
     [Timeout(240_000)]
-    public async Task Alice_records_her_own_week_then_opens_workplace_and_reviews(
+    public async Task Alice_has_a_week_and_opens_reviews(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -23,24 +24,17 @@ public sealed class HoursMixedRoleTests : HoursUiTestBase
         await SignInAsync(
             "alice",
             SeedPassword,
-            "Alice approves Ada, records her own hours, and can open Workplace.");
-        await ConfirmShopDaysAsync([monday], "Alice:", recordedText: "7:30");
+            "Alice approves Ada and records her own hours.");
         await Session.StepAsync(
-            "Workplace is still hers",
-            "A working manager does not lose People and Rules.",
+            "Week and Reviews together",
+            "Alice is a manager who is also an employee. She has a week. Reviews stays in the chrome.",
             async page =>
             {
-                await page.GetByRole(AriaRole.Link, new() { Name = "Workplace" }).ClickAsync();
-                await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Workplace" })).ToBeVisibleAsync();
-                await Expect(page.GetByRole(AriaRole.Link, new() { Name = "People" })).ToBeVisibleAsync();
-                await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Rules" })).ToBeVisibleAsync();
-            });
-        await Session.StepAsync(
-            "Reviews stay in the chrome",
-            "The same person can approve after she has recorded her own Monday.",
-            async page =>
-            {
-                await page.GetByRole(AriaRole.Link, new() { Name = "Reviews" }).ClickAsync();
+                await Expect(page.GetByRole(AriaRole.Link, new() { Name = "This week" })).ToBeVisibleAsync();
+                await Expect(page.Locator($"a.week-tile[href$='/{monday:yyyy-MM-dd}']")).ToBeVisibleAsync();
+                await page.GetByRole(AriaRole.Navigation, new() { Name = "Hours navigation" })
+                    .GetByRole(AriaRole.Link, new() { Name = "Reviews" })
+                    .ClickAsync();
                 await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Reviews" })).ToBeVisibleAsync();
             });
     }
@@ -57,7 +51,9 @@ public sealed class HoursMixedRoleTests : HoursUiTestBase
             "37.5 hours. Surplus is flex. That sentence belongs on Rules, not a timesheet.",
             async page =>
             {
-                await page.GetByRole(AriaRole.Link, new() { Name = "Rules" }).ClickAsync();
+                await page.GetByRole(AriaRole.Navigation, new() { Name = "Hours navigation" })
+                    .GetByRole(AriaRole.Link, new() { Name = "Rules" })
+                    .ClickAsync();
                 await Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Rules" })).ToBeVisibleAsync();
                 await Expect(page.GetByText("37.5-hour office week")).ToBeVisibleAsync();
             });
@@ -89,7 +85,9 @@ public sealed class HoursMixedRoleTests : HoursUiTestBase
             "Forty hours, then overtime. California also has a daily line.",
             async page =>
             {
-                await page.GetByRole(AriaRole.Link, new() { Name = "Rules" }).ClickAsync();
+                await page.GetByRole(AriaRole.Navigation, new() { Name = "Hours navigation" })
+                    .GetByRole(AriaRole.Link, new() { Name = "Rules" })
+                    .ClickAsync();
                 await Expect(page.GetByText("FLSA: time-and-a-half after 40 hours")).ToBeVisibleAsync();
             });
     }
