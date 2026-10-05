@@ -170,6 +170,22 @@ public sealed class CiMatrixPlannerTests
     }
 
     [Test]
+    public async Task EveryProductTreeHasAManifestRow()
+    {
+        var root = FindRepoRoot();
+        var src = Path.Combine(root, "src");
+        var document = LoadManifest();
+        var missing = Directory.GetDirectories(src)
+            .Where(dir => Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Any())
+            .Select(Path.GetFileName)
+            .Where(name => document.Apps.All(app =>
+                !string.Equals(app.SourceRoot, $"src/{name}", StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+        await Assert.That(missing).IsEmpty();
+    }
+
+    [Test]
     public async Task GeneratedLinuxSolutionsExcludePlatformHeads()
     {
         var root = FindRepoRoot();
