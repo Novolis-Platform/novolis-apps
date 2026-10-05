@@ -64,7 +64,6 @@ public sealed class MainPage : ContentPage
         };
         _diagnosticsViewer = new NdjsonSliceView
         {
-            AutomationId = "PdfReaderDiagnosticsViewer",
             IsVisible = false,
             MinimumHeightRequest = 420,
         };

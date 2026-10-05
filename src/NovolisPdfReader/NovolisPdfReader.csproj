@@ -37,6 +37,10 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
+    <!-- SkiaSharp 4 keeps Android natives in a separate package. Without it, opening a PDF
+         crashes while loading libSkiaSharp.so. -->
+    <PackageReference Include="SkiaSharp.NativeAssets.Android"
+                      Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
     <LibraryReference Include="Novolis.IO.Ndjson" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
     <LibraryReference Include="Novolis.Maui.Ndjson" />
