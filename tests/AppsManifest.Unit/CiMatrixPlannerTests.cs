@@ -10,12 +10,12 @@ public sealed class CiMatrixPlannerTests
         var document = LoadManifest();
         var plan = Program.CreateCiMatrix(document, [], forceAll: false, fullCoverage: false);
 
-        await Assert.That(document.Apps).Count().IsEqualTo(16);
-        await Assert.That(plan.Linux).Count().IsEqualTo(13);
-        await Assert.That(plan.Android).Count().IsEqualTo(8);
+        await Assert.That(document.Apps).Count().IsEqualTo(15);
+        await Assert.That(plan.Linux).Count().IsEqualTo(12);
+        await Assert.That(plan.Android).Count().IsEqualTo(7);
         await Assert.That(plan.Windows).Count().IsEqualTo(5);
-        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(27);
-        await Assert.That(plan.Summary.EstimatedWorkloadInstalls).IsEqualTo(8);
+        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(25);
+        await Assert.That(plan.Summary.EstimatedWorkloadInstalls).IsEqualTo(7);
     }
 
     [Test]
@@ -58,9 +58,9 @@ public sealed class CiMatrixPlannerTests
             forceAll: false,
             fullCoverage: true);
 
-        await Assert.That(plan.Summary.SelectedApps).IsEqualTo(16);
-        await Assert.That(plan.Linux).Count().IsEqualTo(13);
-        await Assert.That(plan.Android).Count().IsEqualTo(8);
+        await Assert.That(plan.Summary.SelectedApps).IsEqualTo(15);
+        await Assert.That(plan.Linux).Count().IsEqualTo(12);
+        await Assert.That(plan.Android).Count().IsEqualTo(7);
     }
 
     [Test]
