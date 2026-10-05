@@ -123,10 +123,6 @@
     <PackageVersion Include="Novolis.Agent.Surface" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Raylib.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Rendering.Backends.Vulkan" Version="2026.1.*" />
-    <PackageVersion Include="Silk.NET.OpenGL" Version="2.23.0" />
-    <PackageVersion Include="Silk.NET.Vulkan" Version="2.23.0" />
-    <PackageVersion Include="Silk.NET.Shaderc" Version="2.23.0" />
-    <PackageVersion Include="Silk.NET.Shaderc.Native" Version="2.23.0" />
     <PackageVersion Include="Novolis.Simulation.Mesh" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Simulation.View" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Commands.Expressions" Version="2026.1.*" />
@@ -205,7 +201,7 @@
     <PackageVersion Include="Novolis.Rendering.DependencyInjection" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Rendering.Materials" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Rendering.PathTrace.Demos" Version="2026.1.*" />
-    <PackageVersion Include="Novolis.Rendering.Presentation.Silk" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Silk" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Rendering.Runtime" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Rendering.Scene" Version="2026.1.*" />
     <PackageVersion Include="WeCantSpell.Hunspell" Version="7.0.1" />
