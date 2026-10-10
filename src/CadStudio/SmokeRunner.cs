@@ -1,5 +1,5 @@
 using Novolis.Agent.Core;
-using Novolis.Avalonia.ThreeD.Session;
+using Novolis.Avalonia.Modeling.Session;
 using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
@@ -8,7 +8,7 @@ using Novolis.Avalonia.Ship.Design;
 using Novolis.Avalonia.Ship.Design.Session;
 using Novolis.Cad.SceneBridge;
 using Novolis.Ship.Design;
-using Novolis.ThreeD;
+using Novolis.Modeling;
 
 namespace CadStudio;
 

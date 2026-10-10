@@ -10,11 +10,11 @@
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <LibraryReference Include="Novolis.Avalonia.Cad" />
-    <LibraryReference Include="Novolis.Avalonia.ThreeD" />
+    <LibraryReference Include="Novolis.Avalonia.Modeling" />
     <LibraryReference Include="Novolis.Cad.Primitives" />
     <LibraryReference Include="Novolis.Cad.Evaluation" />
     <LibraryReference Include="Novolis.Cad.SceneBridge" />
-    <LibraryReference Include="Novolis.ThreeD.Scene" />
+    <LibraryReference Include="Novolis.Modeling.Scene" />
     <LibraryReference Include="Novolis.Agent.Core" />
     <LibraryReference Include="Novolis.Agent.Surface" />
   </ItemGroup>

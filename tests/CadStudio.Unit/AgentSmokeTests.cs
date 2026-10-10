@@ -2,8 +2,8 @@ using Novolis.Avalonia.Cad.Commands;
 using Novolis.Avalonia.Cad.Core;
 using Novolis.Avalonia.Cad.Services;
 using Novolis.Avalonia.Cad.Session;
-using Novolis.Avalonia.ThreeD.Session;
-using Novolis.ThreeD;
+using Novolis.Avalonia.Modeling.Session;
+using Novolis.Modeling;
 
 namespace CadStudio.Unit;
 

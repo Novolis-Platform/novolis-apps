@@ -5,9 +5,9 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Novolis.Agent.Core;
-using Novolis.Avalonia.ThreeD;
-using Novolis.Avalonia.ThreeD.Session;
-using Novolis.Avalonia.ThreeD.Ui;
+using Novolis.Avalonia.Modeling;
+using Novolis.Avalonia.Modeling.Session;
+using Novolis.Avalonia.Modeling.Ui;
 using Novolis.Avalonia.Agent;
 using Novolis.Avalonia.Agent.Protocol;
 using Novolis.Avalonia.Cad.Commands;
@@ -23,7 +23,7 @@ using Novolis.Ship.Design;
 using Novolis.Avalonia.Studio;
 using Novolis.Cad.Primitives;
 using Novolis.Cad.SceneBridge;
-using Novolis.ThreeD;
+using Novolis.Modeling;
 
 namespace CadStudio;
 
