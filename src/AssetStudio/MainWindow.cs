@@ -45,23 +45,55 @@ internal sealed class MainWindow : Window
         object? sender,
         Novolis.Avalonia.Studio.StudioCommandSubmittedEventArgs args)
     {
-        if (string.Equals(args.Text, "validate", StringComparison.OrdinalIgnoreCase))
+        var command = args.Text.Trim();
+        if (string.Equals(command, "apply", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(command, "apply source", StringComparison.OrdinalIgnoreCase))
         {
-            if (_surface.Document is { } document)
-            {
-                _surface.SetCompilation(
-                    VisualCompiler.Compile(
-                        document.Recipe,
-                        new VisualCompileOptions(
-                            registry: VisualCompiler.CreateDefaultRegistry(),
-                            strict: true)));
-            }
-
+            _surface.TryApplySource(out var message);
+            _surface.Feedback.SetStatus(message);
             return;
         }
 
-        _surface.Feedback.SetStatus(
-            $"Command staged · {args.Text} · use Validate to refresh diagnostics.");
+        if (string.Equals(command, "validate", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!_surface.TryApplySource(out var message))
+            {
+                _surface.Feedback.SetStatus(message);
+                return;
+            }
+
+            CompileCurrentDocument();
+            return;
+        }
+
+        if (string.Equals(command, "preview", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = _surface.RefreshPreviewAsync();
+            _surface.Feedback.SetStatus("CPU preview requested.");
+            return;
+        }
+
+        if (string.Equals(command, "help", StringComparison.OrdinalIgnoreCase))
+        {
+            _surface.Feedback.SetStatus(
+                "Commands: apply source · validate · preview · help");
+            return;
+        }
+
+        _surface.Feedback.SetStatus($"Unknown command · {command} · type help.");
+    }
+
+    private void CompileCurrentDocument()
+    {
+        if (_surface.Document is { } document)
+        {
+            _surface.SetCompilation(
+                VisualCompiler.Compile(
+                    document.Recipe,
+                    new VisualCompileOptions(
+                        registry: VisualCompiler.CreateDefaultRegistry(),
+                        strict: true)));
+        }
     }
 
     private static VisualRecipe CreateSampleRecipe()
