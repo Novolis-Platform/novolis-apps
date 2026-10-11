@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>AssetStudio</RootNamespace>
+    <AssemblyName>AssetStudio</AssemblyName>
+    <ApplicationTitle>Asset Studio</ApplicationTitle>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <Description>Novolis Asset Studio product host for host-neutral visual authoring.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <LibraryReference Include="Novolis.Avalonia.AssetStudio" />
+    <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
+    <LibraryReference Include="Novolis.AssetStudio.Core" />
+    <LibraryReference Include="Novolis.Visual.Definitions" />
+    <LibraryReference Include="Novolis.Visual.Compile" />
+  </ItemGroup>
+</Project>
