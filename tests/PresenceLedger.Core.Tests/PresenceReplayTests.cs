@@ -112,6 +112,64 @@ public sealed class PresenceReplayTests
         await Assert.That(after.Events.Single().At).IsEqualTo(start);
     }
 
+    [Test]
+    public async Task Sparse_gps_fixes_confirm_a_legacy_location_only_place()
+    {
+        var locationId = Guid.Parse("923ad1ea-4522-43ea-a4c1-387c0a1dbc52");
+        var location = new TrackedLocation(
+            locationId,
+            "third place",
+            new GeoCircle(new GeoCoordinate(58.147712, 8.001682), 50),
+            null,
+            new PresencePolicy(
+                TimeSpan.FromMinutes(5),
+                TimeSpan.FromMinutes(3),
+                TimeSpan.FromMinutes(2)));
+        var start = new DateTimeOffset(2026, 10, 8, 16, 41, 0, TimeSpan.Zero);
+        var center = location.Area.Center;
+        var records = new[]
+        {
+            new PresenceObservationRecord(
+                start,
+                center,
+                15,
+                RecordedWifiStatus.Redacted,
+                null),
+            new PresenceObservationRecord(
+                start.AddMinutes(4),
+                center,
+                15,
+                RecordedWifiStatus.Redacted,
+                null),
+            new PresenceObservationRecord(
+                start.AddMinutes(8),
+                center,
+                100,
+                RecordedWifiStatus.Redacted,
+                null),
+            new PresenceObservationRecord(
+                start.AddMinutes(12),
+                new GeoCoordinate(58.16, 8.04),
+                10,
+                RecordedWifiStatus.Redacted,
+                null),
+            new PresenceObservationRecord(
+                start.AddMinutes(16),
+                new GeoCoordinate(58.16, 8.04),
+                10,
+                RecordedWifiStatus.Redacted,
+                null),
+        };
+
+        var replay = PresenceReplay.Replay([location], records);
+
+        await Assert.That(replay.Events).Count().IsEqualTo(2);
+        await Assert.That(replay.Events[0].Transition).IsEqualTo(PresenceTransition.Arrived);
+        await Assert.That(replay.Events[0].At).IsEqualTo(start);
+        await Assert.That(replay.Events[1].Transition).IsEqualTo(PresenceTransition.Left);
+        await Assert.That(replay.Events[1].At).IsEqualTo(start.AddMinutes(12));
+    }
+
     static TrackedLocation Home() =>
         new(
             HomeId,

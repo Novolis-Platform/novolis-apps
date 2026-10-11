@@ -20,6 +20,7 @@ public static class PresenceReplay
         var current = locations
             .GroupBy(location => location.Id)
             .Select(group => group.Last())
+            .Select(PresencePolicyDefaults.UpgradeLegacyLocationOnly)
             .ToArray();
         var states = current.ToDictionary(
             location => location.Id,

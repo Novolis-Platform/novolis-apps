@@ -953,6 +953,58 @@
       },
       "update": { "enabled": false, "appId": "Novolis.AssetStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": false, "checksums": true }
+    },
+    {
+      "key": "frank-moat",
+      "choice": "FrankMoat",
+      "displayName": "Frank Moat",
+      "sourceRoot": "src/FrankMoat",
+      "solution": "src/FrankMoat/FrankMoat.slnx",
+      "artifactPrefix": "FrankMoat",
+      "stack": "avalonia-desktop",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/FrankMoat/FrankMoat.csproj",
+        "linuxCi": [],
+        "android": null,
+        "maui": null,
+        "tests": ["tests/FrankMoat.Unit/FrankMoat.Unit.csproj"],
+        "all": [
+          "src/FrankMoat/FrankMoat.csproj",
+          "tests/FrankMoat.Unit/FrankMoat.Unit.csproj"
+        ]
+      },
+      "local": ["windows"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/FrankMoat/**", "tests/FrankMoat.Unit/**"],
+        "runTests": true,
+        "androidCompile": false,
+        "windowsCi": false,
+        "windowsWorkload": false,
+        "linuxCi": false,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "FrankMoat.exe",
+        "appId": "Novolis.FrankMoat",
+        "installDir": "Novolis\\Frank Moat",
+        "groupName": "Frank Moat",
+        "setupBase": "FrankMoatSetup",
+        "scriptFile": "frank-moat.iss",
+        "closeApplicationsFilter": "FrankMoat.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\frank-moat",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\frank-moat\\cache",
+        "credentialsNamespace": "Novolis.FrankMoat",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": false, "appId": "Novolis.FrankMoat", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "preview", "distribution": "direct-github" },
+      "release": { "githubRelease": false, "checksums": true }
     }
   ]
 }

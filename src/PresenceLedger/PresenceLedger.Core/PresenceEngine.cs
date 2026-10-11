@@ -33,10 +33,11 @@ public sealed class PresenceEngine
         await foreach (var location in _locations.ReadAsync(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var state = await _states.GetAsync(location.Id, cancellationToken)
-                ?? LocationPresenceState.CreateAbsent(location.Id);
+            var effectiveLocation = PresencePolicyDefaults.UpgradeLegacyLocationOnly(location);
+            var state = await _states.GetAsync(effectiveLocation.Id, cancellationToken)
+                ?? LocationPresenceState.CreateAbsent(effectiveLocation.Id);
             var result = PresenceInference.Apply(
-                location,
+                effectiveLocation,
                 state,
                 effectiveObservation);
 

@@ -11,6 +11,7 @@
     <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
     <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
     <Project Path="src/CadStudio/CadStudio.csproj" />
+    <Project Path="src/FrankMoat/FrankMoat.csproj" />
     <Project Path="src/LiveStudio/host/LiveStudio.Host.csproj" />
     <Project Path="src/LiveStudio/launcher/LiveStudio.Launcher.csproj" />
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
@@ -29,6 +30,7 @@
     <Project Path="tests/AssetStudio.Unit/AssetStudio.Unit.csproj" />
     <Project Path="tests/BooksWriterStudio.Unit/BooksWriterStudio.Unit.csproj" />
     <Project Path="tests/CadStudio.Unit/CadStudio.Unit.csproj" />
+    <Project Path="tests/FrankMoat.Unit/FrankMoat.Unit.csproj" />
     <Project Path="tests/Merglyph.Core.Tests/Merglyph.Core.Tests.csproj" />
     <Project Path="tests/Merglyph.UiTests/Merglyph.UiTests.csproj" />
     <Project Path="tests/Novolis.Ndjson.App.Tests/Novolis.Ndjson.App.Tests.csproj" />

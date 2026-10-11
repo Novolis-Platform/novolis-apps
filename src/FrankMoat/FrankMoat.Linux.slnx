@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/FrankMoat.Unit/FrankMoat.Unit.csproj" />
+  </Folder>
+</Solution>
