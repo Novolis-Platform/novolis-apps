@@ -143,6 +143,62 @@ public sealed class AlphaFlowTests
     }
 
     [Test]
+    public async Task Control_mode_hotkey_switches_to_directional_aim()
+    {
+        var scene = new PlanarScene();
+        var input = new FrankInputBuffer();
+
+        input.KeyDown(Key.C);
+        var toggle = input.BuildFrame(
+            scene,
+            new Vector2(400f, 300f),
+            800,
+            600,
+            Vector3.Zero,
+            default);
+        input.ConsumeEdges();
+        input.ToggleControlMode();
+        input.KeyDown(Key.Right);
+        var directional = input.BuildFrame(
+            scene,
+            new Vector2(400f, 300f),
+            800,
+            600,
+            Vector3.Zero,
+            default);
+
+        await Assert.That(toggle.ControlModePressed).IsTrue();
+        await Assert.That(input.ControlMode).IsEqualTo(ControlMode.DirectionalAim);
+        await Assert.That(directional.AimWorld.X).IsEqualTo(1f);
+        await Assert.That(directional.AimWorld.Z).IsEqualTo(0f);
+    }
+
+    [Test]
+    public async Task Nearby_interaction_hints_identify_objects_and_locked_routes()
+    {
+        var campaign = new CampaignState();
+        var world = new FrankMoatWorld();
+        world.LoadFloor(
+            FacilityCatalog.Find(FacilityCatalog.Build(), FloorId.Level0),
+            campaign);
+        world.Frank.Position = new Vector3(7f, 0f, 6f);
+
+        var reception = world.NearestInteraction(campaign);
+
+        await Assert.That(reception).IsNotNull();
+        await Assert.That(reception!.Label).IsEqualTo("CHECK RECEPTION STATION");
+        await Assert.That(reception.IsAvailable).IsTrue();
+        await Assert.That(reception.IsInRange(world.Frank.Position)).IsTrue();
+
+        world.Frank.Position = new Vector3(21f, 0f, 24f);
+        var elevator = world.NearestInteraction(campaign);
+
+        await Assert.That(elevator).IsNotNull();
+        await Assert.That(elevator!.IsAvailable).IsFalse();
+        await Assert.That(elevator.LockReason).Contains("DIRECTIVE");
+    }
+
+    [Test]
     public async Task Campaign_worlds_keep_the_alpha_flow_connected()
     {
         var floors = FacilityCatalog.Build();

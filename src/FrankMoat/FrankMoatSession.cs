@@ -409,6 +409,7 @@ internal sealed class FrankMoatSession : IDisposable
         _presenter.Sync(
             _scene,
             _world,
+            _campaign,
             _viewport.PixelWidth,
             _viewport.PixelHeight);
         _hud.Refresh(_world, _campaign, _status, _recording, _input.ControlMode);

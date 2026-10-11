@@ -42,10 +42,16 @@ internal sealed class FrankMoatPresenter
             },
         };
         scene.Sprites.Add(_floor);
+        BuildProps(scene, world.Floor);
         _walls.Build(scene, world.Walls, _art);
     }
 
-    public void Sync(PlanarScene scene, FrankMoatWorld world, int pixelWidth, int pixelHeight)
+    public void Sync(
+        PlanarScene scene,
+        FrankMoatWorld world,
+        CampaignState campaign,
+        int pixelWidth,
+        int pixelHeight)
     {
         if (_builtFloor != world.Floor.Id)
         {
@@ -66,6 +72,7 @@ internal sealed class FrankMoatPresenter
         SyncBarrels(scene, world);
         SyncEnemies(scene, world);
         SyncProjectiles(scene, world);
+        SyncInteractionMarkers(scene, world, campaign);
         SyncPlayer(scene, world);
         SyncParticles(scene, world);
         SyncFlashlight(scene, world);
@@ -115,6 +122,38 @@ internal sealed class FrankMoatPresenter
                 new Vector3(5f, 1f, 5f),
                 new Rgba32(220, 30, 20, 70),
                 6);
+        }
+    }
+
+    private void BuildProps(PlanarScene scene, FloorDefinition floor)
+    {
+        foreach (var prop in floor.Props)
+        {
+            scene.Sprites.Add(
+                new PlanarSpriteInstance
+                {
+                    Texture = _art.SoftGlow,
+                    Tint = new Rgba32(8, 10, 14, 105),
+                    SortKey = 18 + (int)(prop.Position.Z * 2f),
+                    Transform =
+                    {
+                        Position = PlanarElevation.Elevate(prop.Position, 0.025f),
+                        Scale = new Vector3(prop.Size.X * 1.12f, 1f, prop.Size.Y * 1.12f),
+                    },
+                });
+            scene.Sprites.Add(
+                new PlanarSpriteInstance
+                {
+                    Texture = _art.Prop(prop.Kind),
+                    Tint = Rgba32.White,
+                    SortKey = 30 + (int)(prop.Position.Z * 2f),
+                    Transform =
+                    {
+                        Position = PlanarElevation.Elevate(prop.Position, prop.Elevation),
+                        Scale = new Vector3(prop.Size.X, 1f, prop.Size.Y),
+                        RotationY = prop.Rotation,
+                    },
+                });
         }
     }
 
@@ -238,6 +277,39 @@ internal sealed class FrankMoatPresenter
                     ? new Rgba32(255, 230, 120, 230)
                     : new Rgba32(255, 80, 70, 220),
                 80);
+        }
+    }
+
+    private void SyncInteractionMarkers(
+        PlanarScene scene,
+        FrankMoatWorld world,
+        CampaignState campaign)
+    {
+        foreach (var hint in world.GetInteractionHints(campaign))
+        {
+            var distance = hint.DistanceFrom(world.Frank.Position);
+            if (distance > 10f)
+            {
+                continue;
+            }
+
+            var tint = hint.IsAvailable
+                ? new Rgba32(246, 202, 76, (byte)Math.Clamp(220 - (int)(distance * 12f), 80, 220))
+                : new Rgba32(226, 74, 62, (byte)Math.Clamp(205 - (int)(distance * 10f), 80, 205));
+            Add(
+                scene,
+                _art.SoftGlow,
+                PlanarElevation.Elevate(hint.Position, 0.08f),
+                new Vector3(1.35f, 1f, 1.35f),
+                new Rgba32(tint.R, tint.G, tint.B, (byte)(tint.A / 3)),
+                58 + (int)(hint.Position.Z * 2f));
+            Add(
+                scene,
+                _art.Interact,
+                PlanarElevation.Elevate(hint.Position, 0.28f),
+                new Vector3(0.68f, 1f, 0.68f),
+                tint,
+                64 + (int)(hint.Position.Z * 2f));
         }
     }
 

@@ -14,6 +14,8 @@ dotnet run --project d:\novolis\novolis-apps\src\FrankMoat\FrankMoat.csproj -p:N
 
 - `WASD` / left stick: move
 - Mouse / right stick: aim
+- `C`: switch between mouse aim and arrow-key directional aim
+- Arrow keys: aim while directional aim is active
 - Left mouse / right trigger: fire
 - `Shift` / left shoulder: run
 - `R` / `X`: reload
