@@ -6,11 +6,11 @@
     <File Path="build/apps.json" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/AssetStudio/AssetStudio.csproj" />
     <Project Path="src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj" />
     <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
     <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
     <Project Path="src/CadStudio/CadStudio.csproj" />
-    <Project Path="src/AssetStudio/AssetStudio.csproj" />
     <Project Path="src/LiveStudio/host/LiveStudio.Host.csproj" />
     <Project Path="src/LiveStudio/launcher/LiveStudio.Launcher.csproj" />
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
@@ -35,9 +35,7 @@
     <Project Path="tests/PresenceLedger.App.Tests/PresenceLedger.App.Tests.csproj" />
     <Project Path="tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj" />
     <Project Path="tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj" />
-    <Project Path="tests/Reach.Avalonia.Unit/Reach.Avalonia.Unit.csproj" />
     <Project Path="tests/Reach.Unit/Reach.Unit.csproj" />
-    <Project Path="tests/Reach.UiTests/Reach.UiTests.csproj" />
     <Project Path="tests/ReadAloud.Unit/ReadAloud.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
   </Folder>

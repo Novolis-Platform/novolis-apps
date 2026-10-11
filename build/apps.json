@@ -901,6 +901,55 @@
       },
       "update": { "enabled": false, "appId": "Novolis.RoboSharpStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": false, "checksums": true }
+    },
+    {
+      "key": "asset-studio",
+      "choice": "AssetStudio",
+      "displayName": "Asset Studio",
+      "sourceRoot": "src/AssetStudio",
+      "solution": "src/AssetStudio/AssetStudio.slnx",
+      "artifactPrefix": "AssetStudio",
+      "stack": "avalonia-desktop",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/AssetStudio/AssetStudio.csproj",
+        "linuxCi": ["src/AssetStudio/AssetStudio.csproj"],
+        "android": null,
+        "maui": null,
+        "tests": [],
+        "all": ["src/AssetStudio/AssetStudio.csproj"]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/AssetStudio/**"],
+        "runTests": false,
+        "androidCompile": false,
+        "windowsCi": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "AssetStudio.exe",
+        "appId": "Novolis.AssetStudio",
+        "installDir": "Novolis\\Asset Studio",
+        "groupName": "Asset Studio",
+        "setupBase": "AssetStudioSetup",
+        "scriptFile": "asset-studio.iss",
+        "closeApplicationsFilter": "AssetStudio.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\asset-studio",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\asset-studio\\cache",
+        "credentialsNamespace": "Novolis.AssetStudio",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": false, "appId": "Novolis.AssetStudio", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
+      "release": { "githubRelease": false, "checksums": true }
     }
   ]
 }
