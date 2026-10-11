@@ -40,3 +40,4 @@
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
   </Folder>
 </Solution>
+    <Project Path="tests/AssetStudio.Unit/AssetStudio.Unit.csproj" />

@@ -916,14 +916,17 @@
         "linuxCi": ["src/AssetStudio/AssetStudio.csproj"],
         "android": null,
         "maui": null,
-        "tests": [],
-        "all": ["src/AssetStudio/AssetStudio.csproj"]
+        "tests": ["tests/AssetStudio.Unit/AssetStudio.Unit.csproj"],
+        "all": [
+          "src/AssetStudio/AssetStudio.csproj",
+          "tests/AssetStudio.Unit/AssetStudio.Unit.csproj"
+        ]
       },
       "local": ["windows", "linux"],
       "ship": ["windows-inno"],
       "validation": {
-        "changedPathGlobs": ["src/AssetStudio/**"],
-        "runTests": false,
+        "changedPathGlobs": ["src/AssetStudio/**", "tests/AssetStudio.Unit/**"],
+        "runTests": true,
         "androidCompile": false,
         "windowsCi": true,
         "windowsWorkload": false,
