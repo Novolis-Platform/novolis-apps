@@ -96,6 +96,12 @@ internal sealed class FrankMoatSession : IDisposable
             _world.Frank.Position,
             gamepad);
 
+        if (frame.ControlModePressed)
+        {
+            _input.ToggleControlMode();
+            _status = $"Control mode: {_input.ControlMode}.";
+        }
+
         if (frame.PausePressed)
         {
             TogglePause();
@@ -405,6 +411,6 @@ internal sealed class FrankMoatSession : IDisposable
             _world,
             _viewport.PixelWidth,
             _viewport.PixelHeight);
-        _hud.Refresh(_world, _campaign, _status, _recording);
+        _hud.Refresh(_world, _campaign, _status, _recording, _input.ControlMode);
     }
 }

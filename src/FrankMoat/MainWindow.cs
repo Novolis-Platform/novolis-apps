@@ -48,7 +48,9 @@ internal sealed class MainWindow : Window
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         _session.KeyDown(e.Key);
-        if (e.Key is Key.W or Key.A or Key.S or Key.D or Key.Escape)
+        if (e.Key is Key.W or Key.A or Key.S or Key.D
+            or Key.Left or Key.Right or Key.Up or Key.Down
+            or Key.C or Key.Escape)
         {
             e.Handled = true;
         }
@@ -57,7 +59,8 @@ internal sealed class MainWindow : Window
     private void OnKeyUp(object? sender, KeyEventArgs e)
     {
         _session.KeyUp(e.Key);
-        if (e.Key is Key.W or Key.A or Key.S or Key.D)
+        if (e.Key is Key.W or Key.A or Key.S or Key.D
+            or Key.Left or Key.Right or Key.Up or Key.Down)
         {
             e.Handled = true;
         }

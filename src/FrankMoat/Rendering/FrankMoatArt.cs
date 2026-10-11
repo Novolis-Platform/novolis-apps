@@ -43,6 +43,20 @@ internal sealed class FrankMoatArt
 
     public required PlanarTextureId Interact { get; init; }
 
+    public required PlanarTextureId Counter { get; init; }
+
+    public required PlanarTextureId Console { get; init; }
+
+    public required PlanarTextureId Table { get; init; }
+
+    public required PlanarTextureId Shelf { get; init; }
+
+    public required PlanarTextureId Elevator { get; init; }
+
+    public required PlanarTextureId Cabinet { get; init; }
+
+    public required PlanarTextureId PipeBank { get; init; }
+
     public PlanarTextureId Wall(WallMaterial material) => material switch
     {
         WallMaterial.Steel => Steel,
@@ -56,6 +70,17 @@ internal sealed class FrankMoatArt
         EnemyKind.Runner => Runner,
         EnemyKind.ContaminatedSecurity => Security,
         _ => Shambler,
+    };
+
+    public PlanarTextureId Prop(PropKind kind) => kind switch
+    {
+        PropKind.Counter => Counter,
+        PropKind.Console => Console,
+        PropKind.Table => Table,
+        PropKind.Shelf => Shelf,
+        PropKind.Elevator => Elevator,
+        PropKind.Cabinet => Cabinet,
+        _ => PipeBank,
     };
 
     public static FrankMoatArt Create(PlanarTextureRegistry registry)
@@ -73,13 +98,20 @@ internal sealed class FrankMoatArt
             Security = Actor(registry, 70, 84, 102, 30, 48, 72, "security"),
             Barrel = Drum(registry),
             Pickup = Crate(registry),
-            Floor = Surface(registry, new Rgba32(36, 40, 48), new Rgba32(50, 54, 60), "floor"),
-            Steel = Surface(registry, new Rgba32(62, 68, 76), new Rgba32(96, 102, 110), "steel"),
-            Concrete = Surface(registry, new Rgba32(54, 56, 58), new Rgba32(72, 72, 70), "concrete"),
-            Emergency = Surface(registry, new Rgba32(76, 26, 24), new Rgba32(148, 34, 25), "emergency"),
-            Founder = Surface(registry, new Rgba32(78, 58, 40), new Rgba32(148, 112, 62), "founder"),
+            Floor = Surface(registry, new Rgba32(36, 40, 48), new Rgba32(48, 52, 60), "floor"),
+            Steel = Surface(registry, new Rgba32(62, 68, 76), new Rgba32(88, 96, 104), "steel"),
+            Concrete = Surface(registry, new Rgba32(54, 56, 58), new Rgba32(68, 70, 72), "concrete"),
+            Emergency = Surface(registry, new Rgba32(76, 26, 24), new Rgba32(132, 34, 28), "emergency"),
+            Founder = Surface(registry, new Rgba32(78, 58, 40), new Rgba32(132, 98, 58), "founder"),
             FlashCone = Cone(registry),
             Interact = registry.Cross(20, new Rgba32(240, 210, 100, 220), "interact"),
+            Counter = Furniture(registry, PropKind.Counter),
+            Console = Furniture(registry, PropKind.Console),
+            Table = Furniture(registry, PropKind.Table),
+            Shelf = Furniture(registry, PropKind.Shelf),
+            Elevator = Furniture(registry, PropKind.Elevator),
+            Cabinet = Furniture(registry, PropKind.Cabinet),
+            PipeBank = Furniture(registry, PropKind.PipeBank),
         };
     }
 
@@ -172,18 +204,92 @@ internal sealed class FrankMoatArt
         Rgba32 light,
         string name)
     {
-        const int size = 64;
+        const int size = 96;
         var pixels = new Rgba32[size * size];
         for (var y = 0; y < size; y++)
         {
             for (var x = 0; x < size; x++)
             {
-                var stripe = ((x / 8) + (y / 8)) % 2 == 0;
-                pixels[y * size + x] = stripe ? dark : light;
+                var tileX = x / 24;
+                var tileY = y / 24;
+                var alternate = (tileX + tileY) % 3 == 0;
+                var edge = x % 24 == 0 || y % 24 == 0;
+                pixels[y * size + x] = edge
+                    ? dark
+                    : alternate
+                        ? Rgba32.Lerp(dark, light, 0.28f)
+                        : Rgba32.Lerp(dark, light, 0.12f);
             }
         }
 
         return registry.Register(pixels, size, size, name);
+    }
+
+    private static PlanarTextureId Furniture(
+        PlanarTextureRegistry registry,
+        PropKind kind)
+    {
+        const int size = 64;
+        var pixels = new Rgba32[size * size];
+        var edge = new Rgba32(20, 23, 28, 245);
+        var body = kind switch
+        {
+            PropKind.Counter => new Rgba32(136, 94, 52, 255),
+            PropKind.Console => new Rgba32(60, 90, 104, 255),
+            PropKind.Table => new Rgba32(112, 82, 48, 255),
+            PropKind.Shelf => new Rgba32(94, 101, 108, 255),
+            PropKind.Elevator => new Rgba32(78, 88, 98, 255),
+            PropKind.Cabinet => new Rgba32(74, 82, 88, 255),
+            _ => new Rgba32(48, 92, 100, 255),
+        };
+
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var filled = kind switch
+                {
+                    PropKind.Counter => x is >= 4 and < 60 && y is >= 16 and < 52,
+                    PropKind.Console => x is >= 16 and < 48 && y is >= 14 and < 58,
+                    PropKind.Table => x is >= 6 and < 58 && y is >= 12 and < 52,
+                    PropKind.Shelf => x is >= 5 and < 59 && y is >= 10 and < 55,
+                    PropKind.Elevator => x is >= 5 and < 59 && y is >= 5 and < 59,
+                    PropKind.Cabinet => x is >= 12 and < 52 && y is >= 6 and < 58,
+                    _ => x is >= 4 and < 60 && y is >= 22 and < 44,
+                };
+                if (!filled)
+                {
+                    continue;
+                }
+
+                var border = x <= 6 || x >= 57 || y <= 6 || y >= 56;
+                pixels[y * size + x] = border ? edge : body;
+            }
+        }
+
+        if (kind == PropKind.Console)
+        {
+            for (var y = 18; y < 33; y++)
+            for (var x = 20; x < 44; x++)
+                pixels[y * size + x] = new Rgba32(105, 205, 202, 240);
+        }
+        else if (kind == PropKind.Elevator)
+        {
+            for (var y = 11; y < 54; y++)
+            {
+                pixels[y * size + 31] = new Rgba32(184, 148, 70, 255);
+                pixels[y * size + 32] = new Rgba32(184, 148, 70, 255);
+            }
+        }
+        else if (kind == PropKind.PipeBank)
+        {
+            for (var y = 24; y < 40; y++)
+            for (var x = 8; x < 56; x++)
+                if (x % 12 < 4)
+                    pixels[y * size + x] = new Rgba32(166, 192, 198, 230);
+        }
+
+        return registry.Register(pixels, size, size, $"prop-{kind.ToString().ToLowerInvariant()}");
     }
 
     private static PlanarTextureId Cone(PlanarTextureRegistry registry)

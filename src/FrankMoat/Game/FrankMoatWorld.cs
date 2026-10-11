@@ -395,6 +395,68 @@ internal sealed class FrankMoatWorld
         return null;
     }
 
+    public IReadOnlyList<InteractionHint> GetInteractionHints(CampaignState campaign) =>
+        _floor.Id switch
+        {
+            FloorId.Level0 =>
+            [
+                new InteractionHint(
+                    "reception",
+                    new Vector3(7f, 0f, 6f),
+                    "CHECK RECEPTION STATION",
+                    2.2f,
+                    true,
+                    string.Empty),
+                new InteractionHint(
+                    "founder-elevator",
+                    new Vector3(21f, 0f, 24f),
+                    "USE PRIVATE ELEVATOR",
+                    3.2f,
+                    campaign.DirectiveActive,
+                    "DIRECTIVE 4761 REQUIRED"),
+            ],
+            FloorId.Level69 =>
+            [
+                new InteractionHint(
+                    "founder-recording",
+                    new Vector3(10f, 0f, 7f),
+                    "PLAY FOUNDER RECORDING",
+                    2.7f,
+                    true,
+                    string.Empty),
+                ..LoadoutHints(campaign),
+                new InteractionHint(
+                    "service-elevator",
+                    new Vector3(36.5f, 0f, 29.5f),
+                    "USE SERVICE ELEVATOR",
+                    3.3f,
+                    campaign.Level69LoadoutChosen,
+                    "SELECT A LOADOUT FIRST"),
+                ..SecretHints(campaign, "founder-bar", "INSPECT PRESERVE SECRET", new Vector3(34f, 0f, 7f)),
+            ],
+            FloorId.Level68 =>
+            [
+                ..GateHints(campaign),
+                ..SecretHints(campaign, "maintenance-cache", "SEARCH MAINTENANCE CACHE", new Vector3(8f, 0f, 28f)),
+                new InteractionHint(
+                    "upward-route",
+                    new Vector3(45f, 0f, 30f),
+                    "USE UPWARD SERVICE ROUTE",
+                    3.5f,
+                    IsCleared,
+                    "STABILIZE LEVEL 68 FIRST"),
+            ],
+            _ => [],
+        };
+
+    public InteractionHint? NearestInteraction(
+        CampaignState campaign,
+        float maxDistance = 8f) =>
+        GetInteractionHints(campaign)
+            .Where(hint => hint.DistanceFrom(Frank.Position) <= maxDistance)
+            .OrderBy(hint => hint.DistanceFrom(Frank.Position))
+            .FirstOrDefault();
+
     public string ObjectiveText(CampaignState campaign) =>
         campaign.CurrentObjectiveId switch
         {
@@ -408,6 +470,46 @@ internal sealed class FrankMoatWorld
                 "Reach the upward service route",
             _ => _floor.PrimaryObjective.Title,
         };
+
+    private IReadOnlyList<InteractionHint> LoadoutHints(CampaignState campaign) =>
+        campaign.Level69LoadoutChosen
+            ? []
+            :
+            [
+                new InteractionHint(
+                    "loadout",
+                    new Vector3(7f, 0f, 23f),
+                    "CHOOSE LOADOUT",
+                    7f,
+                    true,
+                    string.Empty),
+            ];
+
+    private IReadOnlyList<InteractionHint> GateHints(CampaignState campaign) =>
+        Gates
+            .Where(gate => !gate.IsOpen)
+            .Select(gate => new InteractionHint(
+                gate.Id,
+                gate.Position,
+                "OPEN CONTAINMENT GATE",
+                2.7f,
+                campaign.HasFlag("containment-clearance"),
+                campaign.HasFlag("containment-clearance")
+                    ? string.Empty
+                    : "RESTORE SECURITY OFFICE FIRST"))
+            .ToArray();
+
+    private IReadOnlyList<InteractionHint> SecretHints(
+        CampaignState campaign,
+        string id,
+        string label,
+        Vector3 position) =>
+        campaign.HasFlag($"{id}:found")
+            ? []
+            :
+            [
+                new InteractionHint(id, position, label, 1.6f, true, string.Empty),
+            ];
 
     public string MapText() =>
         string.Join(

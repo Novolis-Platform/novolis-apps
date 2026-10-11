@@ -23,6 +23,8 @@ internal sealed class FloorDefinition
 
     public required IReadOnlyList<LightFixtureDefinition> Fixtures { get; init; }
 
+    public required IReadOnlyList<FacilityProp> Props { get; init; }
+
     public required ObjectiveDefinition PrimaryObjective { get; init; }
 
     public string EntryPrompt { get; init; } = string.Empty;

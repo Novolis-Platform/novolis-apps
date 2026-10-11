@@ -48,6 +48,14 @@ internal static class FacilityCatalog
                 new LightFixtureDefinition(new Vector3(20f, 0f, 24f), new(210, 225, 255), 7f, 1f),
                 new LightFixtureDefinition(new Vector3(4f, 0f, 5f), new(210, 225, 255), 5f, 0.8f),
             ],
+            Props =
+            [
+                new FacilityProp("reception-counter", PropKind.Counter, new Vector3(8f, 0f, 8f), new Vector2(4.8f, 1.3f)),
+                new FacilityProp("reception-console", PropKind.Console, new Vector3(7f, 0f, 6f), new Vector2(1.1f, 0.9f)),
+                new FacilityProp("lobby-table", PropKind.Table, new Vector3(21f, 0f, 7f), new Vector2(3.2f, 1.8f)),
+                new FacilityProp("private-elevator", PropKind.Elevator, new Vector3(21f, 0f, 24f), new Vector2(4.2f, 2.8f)),
+                new FacilityProp("loading-cabinet", PropKind.Cabinet, new Vector3(34f, 0f, 7f), new Vector2(2.2f, 1.2f)),
+            ],
             PrimaryObjective = new ObjectiveDefinition(
                 "morning",
                 "Finish the morning round",
@@ -104,6 +112,15 @@ internal static class FacilityCatalog
                 new LightFixtureDefinition(new Vector3(10f, 0f, 24f), new(220, 230, 255), 8f, 1f),
                 new LightFixtureDefinition(new Vector3(31f, 0f, 21f), new(255, 220, 150), 6f, 1f),
                 new LightFixtureDefinition(new Vector3(31f, 0f, 30f), new(255, 220, 150), 5f, 1f),
+            ],
+            Props =
+            [
+                new FacilityProp("founder-console", PropKind.Console, new Vector3(10f, 0f, 7f), new Vector2(1.2f, 0.9f)),
+                new FacilityProp("gallery-shelf-a", PropKind.Shelf, new Vector3(24f, 0f, 7f), new Vector2(3.8f, 1.1f)),
+                new FacilityProp("gallery-shelf-b", PropKind.Shelf, new Vector3(29f, 0f, 7f), new Vector2(3.8f, 1.1f)),
+                new FacilityProp("loadout-table", PropKind.Table, new Vector3(11f, 0f, 25f), new Vector2(5.8f, 1.8f)),
+                new FacilityProp("prototype-cabinet", PropKind.Cabinet, new Vector3(31f, 0f, 21f), new Vector2(3.2f, 2.2f)),
+                new FacilityProp("service-elevator", PropKind.Elevator, new Vector3(36.5f, 0f, 29.5f), new Vector2(4.2f, 2.8f)),
             ],
             PrimaryObjective = new ObjectiveDefinition(
                 "choose-loadout",
@@ -195,6 +212,16 @@ internal static class FacilityCatalog
                 new LightFixtureDefinition(new Vector3(10f, 0f, 27f), new(130, 170, 210), 7f, 0.65f),
                 new LightFixtureDefinition(new Vector3(33f, 0f, 27f), new(170, 200, 225), 8f, 0.8f),
                 new LightFixtureDefinition(new Vector3(45f, 0f, 30f), new(200, 80, 60), 5f, 0.8f, true),
+            ],
+            Props =
+            [
+                new FacilityProp("service-elevator", PropKind.Elevator, new Vector3(6f, 0f, 6f), new Vector2(4.2f, 2.8f)),
+                new FacilityProp("security-console", PropKind.Console, new Vector3(20f, 0f, 8f), new Vector2(1.3f, 1f)),
+                new FacilityProp("security-cabinets", PropKind.Cabinet, new Vector3(24f, 0f, 6f), new Vector2(3.2f, 1.2f)),
+                new FacilityProp("coolant-pipes-a", PropKind.PipeBank, new Vector3(8f, 0f, 27f), new Vector2(5.2f, 1.1f)),
+                new FacilityProp("coolant-pipes-b", PropKind.PipeBank, new Vector3(15f, 0f, 30f), new Vector2(4.2f, 1.1f)),
+                new FacilityProp("containment-cabinets", PropKind.Cabinet, new Vector3(34f, 0f, 30f), new Vector2(3.8f, 1.3f)),
+                new FacilityProp("upward-elevator", PropKind.Elevator, new Vector3(45f, 0f, 30f), new Vector2(4.2f, 2.8f)),
             ],
             PrimaryObjective = new ObjectiveDefinition(
                 "containment-incident",
