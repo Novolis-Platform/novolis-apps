@@ -16,9 +16,8 @@ internal sealed class ReachSessionControl(ReachSessionHost host)
             case ReachMessageType.SessionOpen:
             {
                 var open = ReachMessageCodec.ReadBody<ReachSessionOpen>(envelope);
-                host._selectedDisplayId = string.IsNullOrWhiteSpace(open.RequestedDisplayId)
-                    ? "display-0"
-                    : open.RequestedDisplayId;
+                host._selectedDisplayId = "display-0";
+                host.SelectDisplay(open.RequestedDisplayId);
                 host._audioEnabled = open.EnableAudio;
                 if (host._capture is null)
                     await host.Capture.StartAsync(cancellationToken).ConfigureAwait(false);
@@ -78,11 +77,18 @@ internal sealed class ReachSessionControl(ReachSessionHost host)
                 host._input.Text(ReachMessageCodec.ReadBody<ReachTextInput>(envelope).Text);
                 break;
             case ReachMessageType.ClipboardContent:
-                ApplyClipboard(ReachMessageCodec.ReadBody<ReachClipboardContent>(envelope));
+                await ApplyClipboardAsync(
+                        ReachMessageCodec.ReadBody<ReachClipboardContent>(envelope),
+                        cancellationToken)
+                    .ConfigureAwait(false);
                 break;
             case ReachMessageType.ClipboardChanged:
-                await SendClipboardAsync(cancellationToken).ConfigureAwait(false);
+            {
+                var request = ReachMessageCodec.ReadBody<ReachClipboardChanged>(envelope);
+                await SendClipboardAsync(request.Format, cancellationToken)
+                    .ConfigureAwait(false);
                 break;
+            }
             case ReachMessageType.VideoStreamConfiguration:
             {
                 var configuration = ReachMessageCodec.ReadBody<ReachVideoStreamConfiguration>(
@@ -122,9 +128,12 @@ internal sealed class ReachSessionControl(ReachSessionHost host)
             }
             case ReachMessageType.DisplaySelect:
             {
-                host._selectedDisplayId = ReachMessageCodec
-                    .ReadBody<ReachDisplaySelect>(envelope)
-                    .DisplayId;
+                if (!host.SelectDisplay(
+                        ReachMessageCodec.ReadBody<ReachDisplaySelect>(envelope).DisplayId))
+                {
+                    break;
+                }
+
                 if (host._capture is not null)
                 {
                     await host.Capture.RestartAsync(
@@ -151,33 +160,52 @@ internal sealed class ReachSessionControl(ReachSessionHost host)
         }
     }
 
-    private void ApplyClipboard(ReachClipboardContent clipboard)
+    private async Task ApplyClipboardAsync(
+        ReachClipboardContent clipboard,
+        CancellationToken cancellationToken)
     {
         if (string.Equals(clipboard.Format, "text", StringComparison.OrdinalIgnoreCase)
             && clipboard.Text is not null)
         {
-            host._clipboard.WriteText(clipboard.Text);
+            await host.Clipboard.WriteTextAsync(
+                    clipboard.Text,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
         else if (string.Equals(clipboard.Format, "files", StringComparison.OrdinalIgnoreCase)
                  && clipboard.Files is not null)
         {
-            host._clipboard.WriteFileDropList(clipboard.Files);
+            await host.Clipboard.WriteFileDropListAsync(
+                    clipboard.Files,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 
-    private async Task SendClipboardAsync(CancellationToken cancellationToken)
+    private async Task SendClipboardAsync(
+        string requestedFormat,
+        CancellationToken cancellationToken)
     {
         var connection = host._connection;
         if (connection is null)
             return;
 
-        var files = host._clipboard.ReadFileDropList();
+        var supportsFiles = string.Equals(
+            requestedFormat,
+            "files",
+            StringComparison.OrdinalIgnoreCase);
+        var files = supportsFiles
+            ? await host.Clipboard.ReadFileDropListAsync(cancellationToken)
+                .ConfigureAwait(false)
+            : Array.Empty<string>();
+        var text = await host.Clipboard.ReadTextAsync(cancellationToken)
+            .ConfigureAwait(false);
         await host.SendAsync(
                 connection,
                 ReachMessageType.ClipboardContent,
                 new ReachClipboardContent(
                     files.Count == 0 ? "text" : "files",
-                    host._clipboard.ReadText(),
+                    text,
                     files.ToArray()),
                 "control",
                 cancellationToken)

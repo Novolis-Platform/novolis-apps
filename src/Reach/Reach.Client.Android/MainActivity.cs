@@ -2,11 +2,12 @@ using Android.App;
 using Android.Content.PM;
 using Android.OS;
 using Avalonia.Android;
+using Novolis.Avalonia.Reach;
 
 namespace Novolis.Reach.Client.Android;
 
 [Activity(
-    Label = "Novolis Reach",
+    Label = ReachBranding.ProductName,
     Theme = "@style/MainTheme",
     MainLauncher = true,
     Icon = "@mipmap/ic_launcher",

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Ngp = Novolis.Avalonia.GraphicalProfile.GraphicalProfile;
 
 namespace Novolis.Reach.Host.Windows;
 
@@ -12,5 +13,6 @@ public sealed class ReachHostWindow : Window
         Width = 1040;
         Height = 720;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Ngp.ApplyWindowChrome(this);
     }
 }

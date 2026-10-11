@@ -15,13 +15,15 @@ public sealed class ReachClientView : UserControl
     internal readonly ReachClientSession _session;
     internal readonly IReachVideoPresenter _presenter;
     internal readonly IReachAudioPresenter _audioPresenter;
-    internal readonly HashSet<Key> _pressedKeys = [];
+    internal readonly ReachClipboardSynchronizer _clipboard;
+    internal readonly ReachPressedKeyTracker _pressedKeys = new();
     internal readonly Dictionary<int, Point> _touchPoints = [];
     internal readonly ScaleTransform _videoScale = new(1, 1);
     internal readonly TranslateTransform _videoTranslation = new();
     internal readonly object _inputGate = new();
     internal readonly object _frameGate = new();
     internal readonly Dictionary<string, string> _discoveredHostEndpoints = [];
+    internal IReadOnlyList<ReachDisplay> _displays = Array.Empty<ReachDisplay>();
     internal TextBox _endpoint = null!;
     internal TextBlock _status = null!;
     internal TextBlock _capabilities = null!;
@@ -30,6 +32,7 @@ public sealed class ReachClientView : UserControl
     internal ListBox _discoveredHosts = null!;
     internal Button _discover = null!;
     internal Button _connect = null!;
+    internal ComboBox _displaySelector = null!;
     internal Button _keyboardToggle = null!;
     internal Button _fitToScreen = null!;
     internal Button _resetZoom = null!;
@@ -72,13 +75,17 @@ public sealed class ReachClientView : UserControl
     internal CancellationTokenSource? _reconnectCancellation;
     internal CancellationTokenSource? _connectCancellation;
     internal ReachVideoProfileController? _videoProfileController;
+    internal ReachVideoProfile? _activeVideoProfile;
     internal bool _sessionEnded;
+    internal bool _displaySelectionUpdating;
+    internal string? _selectedDisplayId;
 
     /// <summary>Creates the shared client surface.</summary>
     public ReachClientView(
         ReachClientSession session,
         IReachVideoPresenter? presenter = null,
-        IReachAudioPresenter? audioPresenter = null)
+        IReachAudioPresenter? audioPresenter = null,
+        IReachClipboardBridge? clipboardBridge = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         Connection = new ReachClientViewConnection(this);
@@ -97,7 +104,6 @@ public sealed class ReachClientView : UserControl
         _session.DisplayTopologyReceived += OnDisplayTopology;
         _session.VideoStreamStarted += OnVideoStreamStarted;
         _session.VideoStreamReset += OnVideoStreamReset;
-        _session.ClipboardContentReceived += OnClipboardContent;
         _presenter = presenter ?? new NullReachVideoPresenter();
         _session.VideoFrameReceived += _presenter.Present;
         _presenter.FrameDecoded += OnFrameDecoded;
@@ -109,7 +115,13 @@ public sealed class ReachClientView : UserControl
             keyFrameRequester.KeyFrameRequested += OnKeyFrameRequested;
         _audioPresenter = audioPresenter ?? new NullReachAudioPresenter();
         _session.AudioFrameReceived += _audioPresenter.Present;
+        _clipboard = new ReachClipboardSynchronizer(
+            _session,
+            clipboardBridge ?? new AvaloniaReachClipboardBridge(this));
+        _clipboard.StatusChanged += OnStatusChanged;
         Content = ReachClientChrome.Build(this);
+        AttachedToVisualTree += (_, _) => _ = _clipboard.StartAsync();
+        DetachedFromVisualTree += (_, _) => _ = _clipboard.StopAsync();
         _ = Connection.DiscoverHostsAsync();
     }
 
@@ -124,6 +136,9 @@ public sealed class ReachClientView : UserControl
 
     internal void DiscoveredHostSelected(object? sender, SelectionChangedEventArgs args) =>
         Connection.DiscoveredHostSelected(sender, args);
+
+    internal void DisplaySelectionChanged(object? sender, SelectionChangedEventArgs args) =>
+        Frames.DisplaySelectionChanged(sender, args);
 
     internal void DiscoverClicked(object? sender, RoutedEventArgs args) =>
         Connection.DiscoverClicked(sender, args);
@@ -190,8 +205,9 @@ public sealed class ReachClientView : UserControl
     internal void OnVideoStreamStarted(ReachVideoStreamStart stream) =>
         Frames.OnVideoStreamStarted(stream);
 
-    internal void OnClipboardContent(ReachClipboardContent content) =>
-        Frames.OnClipboardContent(content);
+    internal Task RequestRemoteClipboardAsync(
+        CancellationToken cancellationToken = default) =>
+        _clipboard.RequestRemoteClipboardAsync(cancellationToken);
 
     internal void OnVideoPointerPressed(object? sender, PointerPressedEventArgs args) =>
         Pointer.OnVideoPointerPressed(sender, args);
@@ -241,6 +257,11 @@ public sealed class ReachClientView : UserControl
     internal void OnVideoKeyDown(object? sender, KeyEventArgs args) =>
         Keyboard.OnVideoKeyDown(sender, args);
 
+    internal void OnVideoSurfaceLostFocus(
+        object? sender,
+        RoutedEventArgs args) =>
+        Keyboard.ReleasePressedKeys();
+
     internal void OnVideoKeyUp(object? sender, KeyEventArgs args) =>
         Keyboard.OnVideoKeyUp(sender, args);
 
@@ -254,6 +275,8 @@ public sealed class ReachClientView : UserControl
         Keyboard.TryGetRemotePoint(point, out x, out y);
 
     internal void QueueInput(Func<Task> input) => Keyboard.QueueInput(input);
+
+    internal void ReleasePressedKeys() => Keyboard.ReleasePressedKeys();
 
     internal void QueuePointerMove(double x, double y) => Keyboard.QueuePointerMove(x, y);
 

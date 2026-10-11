@@ -130,6 +130,7 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
         internal async Task<bool> ConnectToEndpointAsync()
         {
             view.CancelReconnect();
+            view.ReleasePressedKeys();
             view._sessionEnded = false;
             view._connect.IsEnabled = false;
             view._platformVideoConfigured = false;
@@ -152,6 +153,7 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
                 ReachClientEndpointStore.Remember(view._endpoint.Text);
                 view._discoveredHosts.IsVisible = false;
                 view.SetConnectedStatus();
+                await view.RequestRemoteClipboardAsync(timeout.Token);
                 return true;
             }
             catch (OperationCanceledException) when (timeout.IsCancellationRequested)
@@ -180,6 +182,7 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
         {
             if (cancelExistingReconnect)
                 view.CancelReconnect();
+            view.ReleasePressedKeys();
             view._connect.IsEnabled = false;
             view._sessionEnded = false;
             view._platformVideoConfigured = false;
@@ -197,6 +200,7 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
                       + $"video={string.Join(",", capabilities.OfferedVideoCodecs)}"
                     : "Capabilities: none";
                 view.SetConnectedStatus(reconnected: true);
+                await view.RequestRemoteClipboardAsync(timeout.Token);
                 return true;
             }
             catch (Exception exception)

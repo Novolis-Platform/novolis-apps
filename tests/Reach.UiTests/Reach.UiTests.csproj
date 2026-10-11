@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Reach.UiTests</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <LibraryReference Include="Novolis.Testing.Appium" />
+    <LibraryReference Include="Novolis.Testing.Budgets" />
+    <LibraryReference Include="Novolis.Testing.Coverage" />
+    <LibraryReference Include="Novolis.Testing.Logging" />
+    <LibraryReference Include="Novolis.Testing.Timeline" />
+    <LibraryReference Include="Novolis.Testing.TestBases" />
+    <LibraryReference Include="Novolis.Testing.TUnit" />
+    <ProjectReference Include="..\..\src\Reach\Reach.Protocol\Reach.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\Reach\Reach.Client\Reach.Client.csproj" />
+  </ItemGroup>
+</Project>

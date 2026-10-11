@@ -8,7 +8,18 @@ internal static class ReachClientKeyMap
         key is >= Key.A and <= Key.Z
             or >= Key.D0 and <= Key.D9
             or >= Key.NumPad0 and <= Key.NumPad9
-            or Key.Space;
+            or Key.Space
+            or Key.OemPlus
+            or Key.OemMinus
+            or Key.OemComma
+            or Key.OemPeriod
+            or Key.OemQuestion
+            or Key.OemOpenBrackets
+            or Key.OemCloseBrackets
+            or Key.OemPipe
+            or Key.OemSemicolon
+            or Key.OemQuotes
+            or Key.OemTilde;
 
     internal static bool TryGetVirtualKey(Key key, out ushort virtualKey)
     {
@@ -36,7 +47,14 @@ internal static class ReachClientKeyMap
             Key.LeftShift or Key.RightShift => 0x10,
             Key.LeftCtrl or Key.RightCtrl => 0x11,
             Key.LeftAlt or Key.RightAlt => 0x12,
-            Key.LWin or Key.RWin => 0x5B,
+            Key.LWin => 0x5B,
+            Key.RWin => 0x5C,
+            Key.Apps => 0x5D,
+            Key.CapsLock => 0x14,
+            Key.NumLock => 0x90,
+            Key.Scroll => 0x91,
+            Key.PrintScreen => 0x2C,
+            Key.Pause => 0x13,
             >= Key.F1 and <= Key.F12 => (ushort)(0x70 + ((int)key - (int)Key.F1)),
             Key.OemPlus or Key.Add => 0xBB,
             Key.OemMinus or Key.Subtract => 0xBD,

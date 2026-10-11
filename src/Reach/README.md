@@ -65,3 +65,42 @@ Launch Reach, allow discovery to finish, and connect to the Windows host.
 Reach's protocol is product-private. Generic framing, datagrams, discovery,
 Tailscale binding, Windows capabilities, and video codecs live in their
 respective Novolis libraries and do not contain Reach types.
+
+## Usability validation
+
+The first usability gate is a Windows client controlling a Windows host on a
+trusted LAN or Tailscale path. Keep TCP `19800`, TCP `19801`, and UDP `19802`
+reachable between the two private-network peers. The gate covers video,
+pointer and keyboard input, Unicode text, host audio, text clipboard
+synchronization, monitor selection, reconnect behavior, and adaptive quality.
+
+Run the deterministic protocol and adapter coverage with project references:
+
+```powershell
+dotnet test d:\novolis\novolis-apps\tests\Reach.Unit\Reach.Unit.csproj -p:NovolisUseProjectReferences=true
+dotnet test d:\novolis\novolis-apps\tests\Reach.Avalonia.Unit\Reach.Avalonia.Unit.csproj -p:NovolisUseProjectReferences=true
+```
+
+The interoperability contract runs the same Windows-host exchange twice:
+once as an Android client and once as a Windows client. It verifies the
+negotiated H.264, clipboard, display-selection, and adaptive-video commands
+without requiring either device. The live Appium gate then exercises the
+actual Android client against the configured Windows host and records the
+first-frame budget in the timeline.
+
+The Appium evidence run is environment-aware. Set
+`NOVOLIS_REACH_UI_APP`, `NOVOLIS_REACH_UI_ENDPOINT`,
+`NOVOLIS_REACH_UI_ANDROID_ENDPOINT`, optionally
+`NOVOLIS_REACH_UI_TAILSCALE_ENDPOINT`, and
+`NOVOLIS_REACH_UI_ANDROID_APK` for Android evidence; set
+`NOVOLIS_REACH_UI_LOG` to a host or service log excerpt when available. Then
+run:
+
+```powershell
+dotnet test d:\novolis\novolis-apps\tests\Reach.UiTests\Reach.UiTests.csproj -p:NovolisUseProjectReferences=true
+```
+
+Each configured run writes timestamped screenshots, telemetry, logs, and a
+browsable `timeline.html` beside `timeline.md` and `timeline.json` through
+the framework-neutral `Novolis.Testing.Timeline` package. Artifacts live under
+`d:\novolis\novolis-apps\artifacts\Reach\usability-timeline`.

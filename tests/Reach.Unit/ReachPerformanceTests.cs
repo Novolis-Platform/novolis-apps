@@ -70,6 +70,15 @@ public sealed class ReachPerformanceTests
         await Assert.That(downgraded).IsNotNull();
         await Assert.That(downgraded!.Kind).IsEqualTo(ReachVideoProfileKind.Routed);
         await Assert.That(downgraded.Width).IsLessThanOrEqualTo(720);
+        var held = controller.Observe(
+            pressure with
+            {
+                DroppedFrames = 1,
+                FrameAgeP95Milliseconds = 220,
+                InputRoundTripP95Milliseconds = 220,
+            },
+            DateTimeOffset.UtcNow.AddSeconds(6));
+        await Assert.That(held).IsNull();
 
         var stable = pressure with
         {

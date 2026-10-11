@@ -34,7 +34,9 @@
     <Project Path="tests/PresenceLedger.App.Tests/PresenceLedger.App.Tests.csproj" />
     <Project Path="tests/PresenceLedger.Core.Tests/PresenceLedger.Core.Tests.csproj" />
     <Project Path="tests/PresenceLedger.Storage.Tests/PresenceLedger.Storage.Tests.csproj" />
+    <Project Path="tests/Reach.Avalonia.Unit/Reach.Avalonia.Unit.csproj" />
     <Project Path="tests/Reach.Unit/Reach.Unit.csproj" />
+    <Project Path="tests/Reach.UiTests/Reach.UiTests.csproj" />
     <Project Path="tests/ReadAloud.Unit/ReadAloud.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
   </Folder>

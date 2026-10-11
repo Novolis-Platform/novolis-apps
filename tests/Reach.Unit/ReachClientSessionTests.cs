@@ -57,6 +57,85 @@ public sealed class ReachClientSessionTests
     }
 
     [Test]
+    [Arguments(ReachPlatform.Android)]
+    [Arguments(ReachPlatform.Windows)]
+    public async Task ClientPlatformSendsTheSameWindowsHostContract(
+        ReachPlatform platform)
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var clipboardReceived = new TaskCompletionSource<ReachClipboardContent>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var displaySelected = new TaskCompletionSource<ReachDisplaySelect>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var videoConfigured = new TaskCompletionSource<ReachVideoStreamConfiguration>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var remoteClipboard = new TaskCompletionSource<ReachClipboardContent>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var emulator = ReachClientSessionEmulator.RunInteractionAsync(
+            listener,
+            clipboardReceived,
+            displaySelected,
+            videoConfigured,
+            cancellation.Token);
+
+        await using var session = new ReachClientSession(mediaPort: 0);
+        session.ClipboardContentReceived += content =>
+            remoteClipboard.TrySetResult(content);
+        await session.ConnectAsync(
+                $"tcp://127.0.0.1:{endpoint.Port}",
+                platform,
+                "Reach.Unit",
+                cancellation.Token)
+            .ConfigureAwait(false);
+
+        var remote = await remoteClipboard.Task.WaitAsync(cancellation.Token);
+        await Assert.That(remote.Text).IsEqualTo("from-host");
+        await Assert.That(session.NegotiatedCapabilities).IsNotNull();
+        await Assert.That(
+                session.NegotiatedCapabilities!.Supports(
+                    ReachCapability.ClipboardText))
+            .IsTrue();
+        await Assert.That(
+                session.NegotiatedCapabilities.Supports(ReachCapability.H264))
+            .IsTrue();
+        await Assert.That(
+                session.NegotiatedCapabilities.Supports(ReachCapability.Audio))
+            .IsEqualTo(platform == ReachPlatform.Windows);
+
+        await session.SendClipboardTextAsync(
+                "from-client",
+                cancellation.Token)
+            .ConfigureAwait(false);
+        await session.SelectDisplayAsync(
+                "display-1",
+                cancellation.Token)
+            .ConfigureAwait(false);
+        await session.ConfigureVideoAsync(
+                1280,
+                720,
+                30,
+                4_000_000,
+                cancellation.Token)
+            .ConfigureAwait(false);
+
+        var clipboard = await clipboardReceived.Task.WaitAsync(cancellation.Token);
+        var display = await displaySelected.Task.WaitAsync(cancellation.Token);
+        var video = await videoConfigured.Task.WaitAsync(cancellation.Token);
+        await Assert.That(clipboard.Text).IsEqualTo("from-client");
+        await Assert.That(display.DisplayId).IsEqualTo("display-1");
+        await Assert.That(video.Width).IsEqualTo(1280);
+        await Assert.That(video.Height).IsEqualTo(720);
+        await Assert.That(video.TargetBitrate).IsEqualTo(4_000_000);
+
+        await session.DisconnectAsync().ConfigureAwait(false);
+        cancellation.Cancel();
+        await emulator.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+    }
+
+    [Test]
     public async Task ClientSessionReportsControlLossAndClearsConnectionState()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);

@@ -21,7 +21,6 @@ public sealed class ReachSessionHost : BackgroundService
     private const string Endpoint = "Novolis.Reach.Host.Windows";
     internal readonly ILogger<ReachSessionHost> _log;
     internal readonly WindowsInputController _input;
-    internal readonly WindowsClipboardService _clipboard;
     internal readonly WindowsDisplayTopology _display;
     internal readonly WindowsLoopbackAudioCapture _audioCapture;
     internal readonly SemaphoreSlim _sendGate = new(1, 1);
@@ -55,9 +54,10 @@ public sealed class ReachSessionHost : BackgroundService
     {
         _log = log;
         _input = input;
-        _clipboard = clipboard;
         _display = display;
         _audioCapture = audioCapture;
+        Clipboard = new ReachSessionClipboard(clipboard);
+        Clipboard.TextChanged += OnClipboardTextChanged;
         Capture = new ReachSessionCapture(this);
         Encoder = new ReachSessionEncoder(this);
         Audio = new ReachSessionAudio(this);
@@ -67,6 +67,7 @@ public sealed class ReachSessionHost : BackgroundService
     internal ReachSessionCapture Capture { get; }
     internal ReachSessionEncoder Encoder { get; }
     internal ReachSessionAudio Audio { get; }
+    internal ReachSessionClipboard Clipboard { get; }
     internal ReachSessionControl Control { get; }
 
     /// <inheritdoc />
@@ -140,7 +141,54 @@ public sealed class ReachSessionHost : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await Capture.StopAsync().ConfigureAwait(false);
+        Clipboard.TextChanged -= OnClipboardTextChanged;
+        await Clipboard.DisposeAsync().ConfigureAwait(false);
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    internal bool SelectDisplay(string? displayId)
+    {
+        if (string.IsNullOrWhiteSpace(displayId))
+        {
+            _selectedDisplayId = "display-0";
+            return true;
+        }
+
+        if (!displayId.StartsWith("display-", StringComparison.Ordinal)
+            || !int.TryParse(
+                displayId["display-".Length..],
+                out var index)
+            || index < 0
+            || index >= _display.GetMonitors().Count)
+        {
+            return false;
+        }
+
+        _selectedDisplayId = displayId;
+        return true;
+    }
+
+    private void OnClipboardTextChanged(string? text)
+    {
+        var connection = _connection;
+        if (connection is null)
+            return;
+
+        _ = SendAsync(
+                connection,
+                ReachMessageType.ClipboardContent,
+                new ReachClipboardContent("text", text ?? string.Empty),
+                "control",
+                CancellationToken.None)
+            .ContinueWith(
+                task =>
+                {
+                    if (task.IsFaulted)
+                        _log.LogDebug(
+                            task.Exception,
+                            "Reach clipboard change notification failed.");
+                },
+                TaskScheduler.Default);
     }
 
     internal async Task SendAsync<T>(

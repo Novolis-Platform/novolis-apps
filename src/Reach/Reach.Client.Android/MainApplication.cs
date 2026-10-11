@@ -27,6 +27,7 @@ public class MainApplication : AvaloniaAndroidApplication<App>
             {
                 services.AddNovolisMobileAndroid("ReachClientAndroid");
                 services.AddSingleton<ReachClientSession>();
+                services.AddSingleton<IReachClipboardBridge, AndroidReachClipboardBridge>();
                 services.AddSingleton<IReachVideoPresenter, AndroidReachVideoPresenter>();
                 services.AddSingleton<ReachClientView>();
             })

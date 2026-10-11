@@ -80,13 +80,17 @@ internal sealed class ReachClientViewKeyboard(ReachClientView view)
 
         internal void OnVideoKeyDown(object? sender, KeyEventArgs args)
         {
-            if (ReachClientKeyMap.IsPrintable(args.Key) && args.KeyModifiers == KeyModifiers.None)
+            var shortcutModifiers = KeyModifiers.Control | KeyModifiers.Alt;
+            if (ReachClientKeyMap.IsPrintable(args.Key)
+                && (args.KeyModifiers & shortcutModifiers) == KeyModifiers.None)
                 return;
-            if (!ReachClientKeyMap.TryGetVirtualKey(args.Key, out var virtualKey)
-                || !view._pressedKeys.Add(args.Key))
+            if (!ReachClientKeyMap.TryGetVirtualKey(args.Key, out var virtualKey))
             {
                 return;
             }
+
+            if (!view._pressedKeys.TryPress(args.Key))
+                return;
 
             view.QueueInput(() => view._session.SendKeyAsync(virtualKey, true));
             args.Handled = true;
@@ -94,8 +98,10 @@ internal sealed class ReachClientViewKeyboard(ReachClientView view)
 
         internal void OnVideoKeyUp(object? sender, KeyEventArgs args)
         {
-            if (!view._pressedKeys.Remove(args.Key)
-                || !ReachClientKeyMap.TryGetVirtualKey(args.Key, out var virtualKey))
+            if (!view._pressedKeys.TryRelease(args.Key))
+                return;
+
+            if (!ReachClientKeyMap.TryGetVirtualKey(args.Key, out var virtualKey))
             {
                 return;
             }
@@ -111,6 +117,18 @@ internal sealed class ReachClientViewKeyboard(ReachClientView view)
 
             view.QueueInput(() => view._session.SendTextInputAsync(args.Text));
             args.Handled = true;
+        }
+
+        internal void ReleasePressedKeys()
+        {
+            var pressed = view._pressedKeys.ReleaseAll();
+
+            foreach (var key in pressed)
+            {
+                if (ReachClientKeyMap.TryGetVirtualKey(key, out var virtualKey))
+                    view.QueueInput(
+                        () => view._session.SendKeyAsync(virtualKey, false));
+            }
         }
 
         internal bool TryGetRemotePoint(

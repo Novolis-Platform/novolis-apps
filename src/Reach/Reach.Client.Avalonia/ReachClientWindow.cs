@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Ngp = Novolis.Avalonia.GraphicalProfile.GraphicalProfile;
 
 namespace Novolis.Avalonia.Reach;
 
@@ -8,9 +9,10 @@ public sealed class ReachClientWindow : Window
     /// <summary>Creates the client window.</summary>
     public ReachClientWindow()
     {
-        Title = "Novolis Reach";
+        Title = ReachBranding.ProductName;
         Width = 1280;
         Height = 840;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Ngp.ApplyWindowChrome(this);
     }
 }

@@ -170,6 +170,116 @@ internal static class ReachClientSessionEmulator
         }
     }
 
+    internal static async Task RunClipboardAsync(
+        TcpListener listener,
+        TaskCompletionSource<ReachClipboardContent> received,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = await listener.AcceptTcpClientAsync(cancellationToken)
+                .ConfigureAwait(false);
+            using var stream = client.GetStream();
+            await CompleteHandshakeAsync(stream, cancellationToken)
+                .ConfigureAwait(false);
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var envelope = await ReadEnvelopeAsync(stream, cancellationToken)
+                    .ConfigureAwait(false);
+                if (envelope is null)
+                    return;
+
+                switch (envelope.Type)
+                {
+                    case ReachMessageType.ClipboardChanged:
+                        await SendAsync(
+                                stream,
+                                ReachMessageType.ClipboardContent,
+                                new ReachClipboardContent("text", "from-host"),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        break;
+                    case ReachMessageType.ClipboardContent:
+                        received.TrySetResult(
+                            ReachMessageCodec.ReadBody<ReachClipboardContent>(envelope));
+                        return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    internal static async Task RunInteractionAsync(
+        TcpListener listener,
+        TaskCompletionSource<ReachClipboardContent> clipboardReceived,
+        TaskCompletionSource<ReachDisplaySelect> displaySelected,
+        TaskCompletionSource<ReachVideoStreamConfiguration> videoConfigured,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = await listener.AcceptTcpClientAsync(cancellationToken)
+                .ConfigureAwait(false);
+            using var stream = client.GetStream();
+            await CompleteHandshakeAsync(stream, cancellationToken)
+                .ConfigureAwait(false);
+            await SendAsync(
+                    stream,
+                    ReachMessageType.ClipboardContent,
+                    new ReachClipboardContent("text", "from-host"),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var envelope = await ReadEnvelopeAsync(stream, cancellationToken)
+                    .ConfigureAwait(false);
+                if (envelope is null)
+                    return;
+
+                switch (envelope.Type)
+                {
+                    case ReachMessageType.ClipboardContent:
+                        clipboardReceived.TrySetResult(
+                            ReachMessageCodec.ReadBody<ReachClipboardContent>(envelope));
+                        break;
+                    case ReachMessageType.DisplaySelect:
+                        displaySelected.TrySetResult(
+                            ReachMessageCodec.ReadBody<ReachDisplaySelect>(envelope));
+                        break;
+                    case ReachMessageType.VideoStreamConfiguration:
+                        videoConfigured.TrySetResult(
+                            ReachMessageCodec.ReadBody<ReachVideoStreamConfiguration>(
+                                envelope));
+                        break;
+                }
+
+                if (clipboardReceived.Task.IsCompleted
+                    && displaySelected.Task.IsCompleted
+                    && videoConfigured.Task.IsCompleted)
+                {
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
     private static async Task CompleteHandshakeAsync(
         Stream stream,
         CancellationToken cancellationToken)

@@ -193,6 +193,13 @@
     <PackageVersion Include="Novolis.Maui.Agent.Protocol" Version="2026.1.*" />
     <PackageVersion Include="Appium.WebDriver" Version="9.0.0" />
     <PackageVersion Include="Novolis.Testing.Appium" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Testing.Budgets" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Testing.Coverage" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Testing.Logging" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Testing.Playwright" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Testing.Timeline" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Testing.TestBases" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Testing.TUnit" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Raylib" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Raylib.Bindings" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Raylib.Runtime" Version="2026.1.*" />

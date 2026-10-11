@@ -141,6 +141,7 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
         {
             void Clear()
             {
+                view.Keyboard.ReleasePressedKeys();
                 lock (view._frameGate)
                 {
                     view._pendingFrame = null;
@@ -151,6 +152,7 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
                 view._videoHeight = 0;
                 view._platformVideoConfigured = false;
                 view._videoProfileController = null;
+                view._activeVideoProfile = null;
                 view._streamStatusShown = false;
                 view._touchPoints.Clear();
                 view._touchGestureActive = false;
@@ -177,16 +179,47 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
 
         internal void OnDisplayTopology(ReachDisplayTopology topology)
         {
-            var display = topology.Displays.FirstOrDefault();
+            var displays = topology.Displays
+                .Where(static display =>
+                    display.Width > 0
+                    && display.Height > 0)
+                .ToArray();
+            var display = displays.FirstOrDefault(candidate =>
+                string.Equals(
+                    candidate.Id,
+                    view._selectedDisplayId,
+                    StringComparison.Ordinal))
+                ?? displays.FirstOrDefault();
             if (display is null)
                 return;
 
             void Apply()
             {
-                view._selectedDisplayLeft = display.Left;
-                view._selectedDisplayTop = display.Top;
-                view._selectedDisplayWidth = display.Width;
-                view._selectedDisplayHeight = display.Height;
+                view._displays = displays;
+                view._selectedDisplayId = display.Id;
+                view._displaySelectionUpdating = true;
+                try
+                {
+                    view._displaySelector.ItemsSource = displays
+                        .Select((candidate, index) =>
+                            FormatDisplay(candidate, index))
+                        .ToArray();
+                    view._displaySelector.SelectedIndex = Array.FindIndex(
+                        displays,
+                        candidate => string.Equals(
+                            candidate.Id,
+                            display.Id,
+                            StringComparison.Ordinal));
+                }
+                finally
+                {
+                    view._displaySelectionUpdating = false;
+                }
+
+                view._displaySelector.IsVisible =
+                    OperatingSystem.IsWindows()
+                    && displays.Length > 1;
+                ApplyDisplayBounds(view, display);
             }
 
             if (Dispatcher.UIThread.CheckAccess())
@@ -198,29 +231,64 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
                 && !view._platformVideoConfigured)
             {
                 view._platformVideoConfigured = true;
-                if (OperatingSystem.IsWindows())
-                {
-                    view.QueueInput(() => view._session.ConfigureVideoAsync(
-                        display.Width,
-                        display.Height,
-                        30,
-                        8_000_000));
-                }
-                else
-                {
-                    view._videoProfileController = new ReachVideoProfileController(
-                        display,
-                        ResolveInitialVideoProfileKind(
-                            Volatile.Read(ref view._endpointValue)));
-                    var profile = view._videoProfileController.Current;
-                    view.QueueInput(() => view._session.ConfigureVideoAsync(
-                        profile.Width,
-                        profile.Height,
-                        profile.FramesPerSecond,
-                        profile.TargetBitrate));
-                }
+                view._videoProfileController = new ReachVideoProfileController(
+                    display,
+                    ResolveInitialVideoProfileKind(
+                        Volatile.Read(ref view._endpointValue)));
+                var profile = view._videoProfileController.Current;
+                view._activeVideoProfile = profile;
+                view.QueueInput(() => view._session.ConfigureVideoAsync(
+                    profile.Width,
+                    profile.Height,
+                    profile.FramesPerSecond,
+                    profile.TargetBitrate));
             }
         }
+
+        internal void DisplaySelectionChanged(
+            object? sender,
+            SelectionChangedEventArgs args)
+        {
+            if (view._displaySelectionUpdating
+                || view._displaySelector.SelectedIndex < 0
+                || view._displaySelector.SelectedIndex >= view._displays.Count)
+            {
+                return;
+            }
+
+            var display = view._displays[view._displaySelector.SelectedIndex];
+            if (string.Equals(
+                    display.Id,
+                    view._selectedDisplayId,
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            view._selectedDisplayId = display.Id;
+            view._platformVideoConfigured = false;
+            ApplyDisplayBounds(view, display);
+            view.OnStatusChanged(
+                $"Switching to display {view._displaySelector.SelectedIndex + 1}.");
+            view.QueueInput(
+                () => view._session.SelectDisplayAsync(display.Id));
+        }
+
+        private static void ApplyDisplayBounds(
+            ReachClientView view,
+            ReachDisplay display)
+        {
+            view._selectedDisplayLeft = display.Left;
+            view._selectedDisplayTop = display.Top;
+            view._selectedDisplayWidth = display.Width;
+            view._selectedDisplayHeight = display.Height;
+        }
+
+        private static string FormatDisplay(
+            ReachDisplay display,
+            int index) =>
+            $"{index + 1}: {display.Width}x{display.Height}"
+            + $" at {display.Left},{display.Top}";
 
         internal void OnVideoStreamStarted(ReachVideoStreamStart stream)
         {
@@ -228,18 +296,6 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
                 view._videoWidth = stream.Width;
             if (stream.Height > 0)
                 view._videoHeight = stream.Height;
-        }
-
-        internal void OnClipboardContent(ReachClipboardContent content)
-        {
-            var description = content.Format switch
-            {
-                "text" when content.Text is { Length: > 0 } => "Remote clipboard text received.",
-                "files" when content.Files is { Length: > 0 } =>
-                    $"Remote clipboard: {content.Files.Length} file(s) received.",
-                _ => "Remote clipboard content received.",
-            };
-            view.OnStatusChanged(description);
         }
 
         internal static ReachVideoProfileKind ResolveInitialVideoProfileKind(

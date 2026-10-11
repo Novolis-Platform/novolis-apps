@@ -58,23 +58,32 @@ internal sealed class ReachClientViewStatus(ReachClientView view)
                 var roundTrip = snapshot.InputRoundTripP95Milliseconds is { } rtt
                     ? $"{rtt:0} ms"
                     : "n/a";
+                var profile = view._activeVideoProfile is { } activeProfile
+                    ? $"quality: {activeProfile.Kind} "
+                      + $"({activeProfile.Width}x{activeProfile.Height}, "
+                      + $"{activeProfile.FramesPerSecond} FPS); "
+                    : string.Empty;
                 view._performanceStatus.Text =
                     $"Transport: {view._session.ActiveTransport}; "
+                    + profile
                     + $"frame age p95: {frameAge}; input RTT p95: {roundTrip}; "
                     + $"drops: {snapshot.DroppedFrames}; "
                     + $"keyframes: {snapshot.KeyFrameRequests}";
                 view._performanceStatus.IsVisible =
-                    OperatingSystem.IsAndroid() && snapshot.ReceivedFrames > 0;
+                    (OperatingSystem.IsAndroid() || OperatingSystem.IsWindows())
+                    && snapshot.ReceivedFrames > 0;
             }
 
-            if (OperatingSystem.IsAndroid()
-                && view._videoProfileController is { } profileController
+            if (view._videoProfileController is { } profileController
                 && view._session.IsConnected
+                && view._session.NegotiatedCapabilities?.Supports(
+                    ReachCapability.AdaptiveQuality) == true
                 && profileController.Observe(
                         snapshot,
                         DateTimeOffset.UtcNow)
                     is { } profile)
             {
+                view._activeVideoProfile = profile;
                 view.QueueInput(() => view._session.ConfigureVideoAsync(
                     profile.Width,
                     profile.Height,
@@ -145,6 +154,7 @@ internal sealed class ReachClientViewStatus(ReachClientView view)
 
         internal void OnSessionEnded(string reason)
         {
+            view.ReleasePressedKeys();
             view._sessionEnded = true;
             view.ClearVideoFrame();
             view.OnStatusChanged($"Remote session ended: {reason}");
@@ -168,6 +178,7 @@ internal sealed class ReachClientViewStatus(ReachClientView view)
 
         internal void OnConnectionLost()
         {
+            view.ReleasePressedKeys();
             view.ClearVideoFrame();
             if (view._sessionEnded)
             {

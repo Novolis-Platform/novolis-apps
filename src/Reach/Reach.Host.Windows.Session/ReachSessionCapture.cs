@@ -176,31 +176,46 @@ internal sealed class ReachSessionCapture(ReachSessionHost host)
             .ConfigureAwait(false);
     }
 
-    private WindowsDesktopCaptureSource CreateSource() =>
-        new(
+    private WindowsDesktopCaptureSource CreateSource()
+    {
+        var monitor = GetSelectedMonitor();
+        return new WindowsDesktopCaptureSource(
             host._framesPerSecond,
-            captureAllMonitors: GetSelectedMonitor() is null,
-            captureBounds: GetSelectedMonitor() is { } monitor
+            captureAllMonitors: monitor is null,
+            captureBounds: monitor is { } selected
                 ? new Rectangle(
-                    monitor.Left,
-                    monitor.Top,
-                    monitor.Width,
-                    monitor.Height)
+                    selected.Left,
+                    selected.Top,
+                    selected.Width,
+                    selected.Height)
                 : null,
             targetWidth: host._targetWidth,
             targetHeight: host._targetHeight);
+    }
 
     private WindowsMonitorInfo? GetSelectedMonitor()
     {
+        var monitors = host._display.GetMonitors();
         if (!int.TryParse(
                 host._selectedDisplayId.StartsWith("display-", StringComparison.Ordinal)
                     ? host._selectedDisplayId["display-".Length..]
                     : string.Empty,
                 out var index))
         {
-            return null;
+            if (monitors.FirstOrDefault() is not { } firstMonitor)
+                return null;
+
+            host._selectedDisplayId = "display-0";
+            return firstMonitor;
         }
 
-        return host._display.GetMonitors().ElementAtOrDefault(index);
+        if (monitors.ElementAtOrDefault(index) is { } selected)
+            return selected;
+
+        if (monitors.FirstOrDefault() is not { } fallback)
+            return null;
+
+        host._selectedDisplayId = "display-0";
+        return fallback;
     }
 }
