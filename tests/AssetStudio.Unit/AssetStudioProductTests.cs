@@ -15,5 +15,13 @@ public sealed class AssetStudioProductTests
             .Contains("Image/Sprite");
         await Assert.That(AssetStudioProductInfo.SupportedAuthoringModes)
             .Contains("Frame");
+        await Assert.That(AssetStudioProductInfo.SupportedAuthoringModes)
+            .Contains("Lightsaber Blade");
+        await Assert.That(AssetStudioProductInfo.SupportedAuthoringModes)
+            .Contains("Neon Sign");
+        await Assert.That(AssetStudioProductInfo.SupportedAuthoringModes)
+            .Contains("Glass");
+        await Assert.That(AssetStudioProductInfo.SupportedAuthoringModes)
+            .Contains("Orbital Reusable Rocket");
     }
 }

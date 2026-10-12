@@ -9,4 +9,8 @@ internal enum PropKind
     Elevator,
     Cabinet,
     PipeBank,
+    PortalFrame,
+    GlassPanel,
+    Vent,
+    HazardStripe,
 }

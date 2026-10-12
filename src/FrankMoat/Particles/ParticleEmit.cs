@@ -37,6 +37,7 @@ internal static class ParticleEmit
             });
         }
 
+        Shells(field, origin, direction, weapon, random);
         for (var i = 0; i < 5; i++)
         {
             field.Emit(new SpriteParticle
@@ -52,6 +53,71 @@ internal static class ParticleEmit
                 SizeEnd = 0.7f,
                 Kind = (int)ParticleKind.Smoke,
                 Drag = 1.6f,
+            });
+        }
+    }
+
+    public static void Shells(
+        SpriteParticleField field,
+        Vector3 origin,
+        Vector3 aim,
+        WeaponSpec weapon,
+        Random random)
+    {
+        if (weapon.Explosive)
+        {
+            return;
+        }
+
+        var direction = aim.NormalizeXz();
+        var side = new Vector3(-direction.Z, 0f, direction.X);
+        var count = weapon.PelletCount > 1 ? 2 : 1;
+        for (var i = 0; i < count; i++)
+        {
+            field.Emit(new SpriteParticle
+            {
+                Position = origin + side * (i == 0 ? 0.16f : -0.16f),
+                Velocity = side * ((i == 0 ? 1f : -1f) * (1.2f + random.NextSingle() * 1.6f))
+                    - direction * (0.35f + random.NextSingle() * 0.5f),
+                Elevation = 0.46f,
+                ElevationVelocity = 1.4f + random.NextSingle() * 0.8f,
+                MaxLife = 0.55f + random.NextSingle() * 0.25f,
+                ColorStart = new Rgba32(230, 188, 82, 255),
+                ColorEnd = new Rgba32(96, 66, 32, 0),
+                SizeStart = 0.09f,
+                SizeEnd = 0.035f,
+                Kind = (int)ParticleKind.Shell,
+                Drag = 2.8f,
+                Spin = 9f,
+            });
+        }
+    }
+
+    public static void Impact(
+        SpriteParticleField field,
+        Vector3 origin,
+        Vector3 normal,
+        Random random)
+    {
+        var direction = normal.NormalizeXz(new Vector3(0f, 0f, 1f));
+        for (var i = 0; i < 7; i++)
+        {
+            var spread = (random.NextSingle() - 0.5f) * 1.2f;
+            var velocity = Vector3PlanarExtensions.FromHeadingXz(
+                direction.Atan2Xz() + spread) * (2.5f + random.NextSingle() * 4f);
+            field.Emit(new SpriteParticle
+            {
+                Position = origin,
+                Velocity = velocity,
+                Elevation = 0.24f,
+                ElevationVelocity = 0.6f + random.NextSingle() * 1.3f,
+                MaxLife = 0.16f + random.NextSingle() * 0.16f,
+                ColorStart = new Rgba32(224, 208, 154, 230),
+                ColorEnd = new Rgba32(88, 82, 68, 0),
+                SizeStart = 0.08f,
+                SizeEnd = 0.025f,
+                Kind = (int)ParticleKind.Debris,
+                Drag = 7f,
             });
         }
     }

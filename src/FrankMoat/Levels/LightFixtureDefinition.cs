@@ -7,4 +7,5 @@ internal sealed record LightFixtureDefinition(
     RgbaLightColor Color,
     float Radius,
     float Intensity,
-    bool EmergencyOnly = false);
+    bool EmergencyOnly = false,
+    bool RotatingAlarm = false);

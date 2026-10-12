@@ -21,6 +21,7 @@ internal sealed class FrankMoatWorld
     private float _noiseTimer;
     private Vector3 _noisePosition;
     private float _noiseRadius;
+    private Vector3 _lastExplosionPosition;
 
     public FrankActor Frank { get; } = new();
 
@@ -46,7 +47,7 @@ internal sealed class FrankMoatWorld
 
     public List<SecretDefinition> Secrets { get; } = [];
 
-    public SpriteParticleField Particles { get; } = new(7000, 0x4761u);
+    public SpriteParticleField Particles { get; } = new(1800, 0x4761u);
 
     public SpriteDecalField Decals { get; } = new(2800);
 
@@ -75,6 +76,8 @@ internal sealed class FrankMoatWorld
         && Encounters.All(encounter => encounter.IsComplete);
 
     public float NoiseRadius => _noiseRadius;
+
+    public Vector3 LastExplosionPosition => _lastExplosionPosition;
 
     public void Reset(CampaignState campaign)
     {
@@ -105,6 +108,7 @@ internal sealed class FrankMoatWorld
         Faith.Reset();
         _noiseTimer = 0f;
         _noiseRadius = 0f;
+        _lastExplosionPosition = Vector3.Zero;
         _ambientTimer = 0f;
     }
 
@@ -195,6 +199,11 @@ internal sealed class FrankMoatWorld
                 gate.Position.X + gate.Width * 0.5f,
                 gate.Position.Z + 0.42f);
             scene.Collision.AddStatic(new PlanarCollider(footprint));
+        }
+
+        foreach (var prop in _floor.Props.Where(prop => prop.BlocksMovement))
+        {
+            scene.Collision.AddStatic(new PlanarCollider(prop.GetFootprint()));
         }
     }
 
@@ -890,6 +899,7 @@ internal sealed class FrankMoatWorld
             else
             {
                 ParticleEmit.Tracer(Particles, wallHit.Point, projectile.FromFrank);
+                ParticleEmit.Impact(Particles, wallHit.Point, wallHit.Normal, _random);
                 Decals.Add(new SpriteDecal
                 {
                     Position = wallHit.Point + wallHit.Normal * 0.02f,
@@ -1150,6 +1160,7 @@ internal sealed class FrankMoatWorld
 
     private void Explode(Vector3 position)
     {
+        _lastExplosionPosition = position;
         ParticleEmit.Explosion(Particles, position, 1.25f, _random);
         Juice.AddShake(0.55f);
         Juice.FlashExplosion();

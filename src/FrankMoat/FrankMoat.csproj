@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Library</OutputType>
     <RootNamespace>FrankMoat</RootNamespace>
     <AssemblyName>FrankMoat</AssemblyName>
     <ApplicationTitle>Frank Moat</ApplicationTitle>
@@ -15,12 +15,10 @@
 
   <ItemGroup>
     <PackageReference Include="Avalonia" />
-    <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <LibraryReference Include="Novolis.Avalonia.Gaming" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
     <LibraryReference Include="Novolis.Avalonia.Rendering" />
     <LibraryReference Include="Novolis.Game.Scenes" />
-    <LibraryReference Include="Novolis.Silk" />
   </ItemGroup>
 </Project>

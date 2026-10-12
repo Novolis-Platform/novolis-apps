@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>FrankMoat.Desktop</RootNamespace>
+    <AssemblyName>FrankMoat.Desktop</AssemblyName>
+    <ApplicationTitle>Frank Moat</ApplicationTitle>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FrankMoat\FrankMoat.csproj" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
+  </ItemGroup>
+</Project>

@@ -29,23 +29,26 @@ internal sealed class FrankMoatSession : IDisposable
     private readonly FrankMoatPresenter _presenter;
     private readonly IReadOnlyList<FloorDefinition> _floors = FacilityCatalog.Build();
     private readonly FrankInputBuffer _input = new();
-    private readonly WindowsGamepadReader _gamepad = new();
+    private readonly IGamepadReader _gamepad;
     private readonly FixedStepClock _clock = new();
     private readonly ElevatorSystem _elevator = new();
     private readonly CampaignSaveStore _saveStore = new();
     private CampaignState _campaign = new();
     private FounderRecording? _recording;
     private string _status = "Morning round in progress.";
+    private float _targetWorldUnitsPerPixel = 0.021f;
     private bool _disposed;
 
     public FrankMoatSession(
         PlanarSceneControl viewport,
         GameShell shell,
-        FrankMoatHud hud)
+        FrankMoatHud hud,
+        IGamepadReader? gamepad = null)
     {
         _viewport = viewport;
         _shell = shell;
         _hud = hud;
+        _gamepad = gamepad ?? new WindowsGamepadReader();
         _presenter = new FrankMoatPresenter(
             FrankMoatArt.Create(_scene.Textures));
 
@@ -94,6 +97,7 @@ internal sealed class FrankMoatSession : IDisposable
             _viewport.PixelWidth,
             _viewport.PixelHeight,
             _world.Frank.Position,
+            _world.Frank.Facing,
             gamepad);
 
         if (frame.ControlModePressed)
@@ -101,6 +105,8 @@ internal sealed class FrankMoatSession : IDisposable
             _input.ToggleControlMode();
             _status = $"Control mode: {_input.ControlMode}.";
         }
+
+        ApplyZoom(frame.ZoomTicks, e.DeltaSeconds);
 
         if (frame.PausePressed)
         {
@@ -282,7 +288,8 @@ internal sealed class FrankMoatSession : IDisposable
         _world.LoadFloor(floor, _campaign);
         _world.ApplyCollision(_scene);
         _presenter.BuildStatic(_scene, _world);
-        _scene.Camera.WorldUnitsPerPixel = 0.018f;
+        _targetWorldUnitsPerPixel = 0.021f;
+        _scene.Camera.WorldUnitsPerPixel = _targetWorldUnitsPerPixel;
         _scene.Camera.Position = _world.Frank.Position;
         _scene.Camera.ClearColor = _world.Lighting.AmbientColor;
         _clock.Reset();
@@ -402,6 +409,21 @@ internal sealed class FrankMoatSession : IDisposable
             0f,
             _scene.Camera.Position.Z);
         _scene.Camera.ClearColor = _world.Lighting.AmbientColor;
+    }
+
+    private void ApplyZoom(int ticks, float dt)
+    {
+        if (ticks != 0)
+        {
+            _targetWorldUnitsPerPixel = Math.Clamp(
+                _targetWorldUnitsPerPixel * (ticks > 0 ? 0.88f : 1.14f),
+                0.011f,
+                0.032f);
+        }
+
+        var blend = Math.Clamp(dt * 10f, 0f, 1f);
+        _scene.Camera.WorldUnitsPerPixel +=
+            (_targetWorldUnitsPerPixel - _scene.Camera.WorldUnitsPerPixel) * blend;
     }
 
     private void RefreshPresentation()

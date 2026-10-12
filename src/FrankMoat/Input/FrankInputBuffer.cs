@@ -12,9 +12,8 @@ internal sealed class FrankInputBuffer
     private readonly HashSet<FrankAction> _edges = [];
     private bool _leftMouseDown;
     private bool _rightMouseDown;
-    private Vector3 _lastAim = Vector3.UnitZ;
 
-    public ControlMode ControlMode { get; private set; } = ControlMode.MouseAim;
+    public ControlMode ControlMode { get; private set; } = ControlMode.IndependentMovement;
 
     public void KeyDown(Key key)
     {
@@ -32,9 +31,9 @@ internal sealed class FrankInputBuffer
     public void KeyUp(Key key) => _keysDown.Remove(key);
 
     public void ToggleControlMode() =>
-        ControlMode = ControlMode == ControlMode.MouseAim
-            ? ControlMode.DirectionalAim
-            : ControlMode.MouseAim;
+        ControlMode = ControlMode == ControlMode.IndependentMovement
+            ? ControlMode.CharacterOriented
+            : ControlMode.IndependentMovement;
 
     public void PointerPressed(PresentationMouseButton button)
     {
@@ -66,10 +65,24 @@ internal sealed class FrankInputBuffer
         int pixelWidth,
         int pixelHeight,
         Vector3 playerPosition,
+        Vector3 playerFacing,
         WindowsGamepadSnapshot gamepad)
     {
-        var moveX = Axis(IsDown(Key.A), IsDown(Key.D)) + gamepad.MoveX;
-        var moveZ = Axis(IsDown(Key.S), IsDown(Key.W)) + gamepad.MoveZ;
+        var rawMoveX = Axis(IsDown(Key.A), IsDown(Key.D)) + gamepad.MoveX;
+        var rawMoveZ = Axis(IsDown(Key.S), IsDown(Key.W)) + gamepad.MoveZ;
+        var moveX = rawMoveX;
+        var moveZ = rawMoveZ;
+        var forward = playerFacing.LengthSquaredXz() > 0.01f
+            ? playerFacing.NormalizeXz()
+            : Vector3.UnitZ;
+        if (ControlMode == ControlMode.CharacterOriented)
+        {
+            var right = new Vector3(forward.Z, 0f, -forward.X);
+            var oriented = right * rawMoveX + forward * rawMoveZ;
+            moveX = oriented.X;
+            moveZ = oriented.Z;
+        }
+
         var moveLength = MathF.Sqrt(moveX * moveX + moveZ * moveZ);
         if (moveLength > 1f)
         {
@@ -77,9 +90,7 @@ internal sealed class FrankInputBuffer
             moveZ /= moveLength;
         }
 
-        var aim = ControlMode == ControlMode.DirectionalAim
-            ? DirectionalAim()
-            : scene.Camera.ScreenToWorld(mousePixels.X, mousePixels.Y) - playerPosition;
+        var aim = scene.Camera.ScreenToWorld(mousePixels.X, mousePixels.Y) - playerPosition;
         if (gamepad.AimX != 0f || gamepad.AimZ != 0f)
         {
             aim = new Vector3(gamepad.AimX, 0f, gamepad.AimZ);
@@ -87,12 +98,11 @@ internal sealed class FrankInputBuffer
 
         if (aim.LengthSquaredXz() < 0.01f)
         {
-            aim = _lastAim;
+            aim = forward;
         }
         else
         {
             aim = aim.NormalizeXz();
-            _lastAim = aim;
         }
 
         var slot = SlotFromKeyboard();
@@ -105,6 +115,13 @@ internal sealed class FrankInputBuffer
             || gamepad.RightTrigger > 0.35f && gamepad.RightTriggerWasPressed;
         var pausePressed = _edges.Contains(FrankAction.Pause)
             || WindowsGamepadReader.IsStartDown(gamepad);
+        var inspectPressed = _edges.Contains(FrankAction.Inspect)
+            || WindowsGamepadReader.IsLeftThumbPressed(gamepad)
+                && WindowsGamepadReader.IsRightThumbDown(gamepad)
+            || WindowsGamepadReader.IsRightThumbPressed(gamepad)
+                && WindowsGamepadReader.IsLeftThumbDown(gamepad);
+        var controlModePressed = _edges.Contains(FrankAction.ToggleControlMode)
+            || WindowsGamepadReader.IsRightThumbPressed(gamepad) && !inspectPressed;
 
         return new FrankInputFrame(
             moveX,
@@ -120,18 +137,14 @@ internal sealed class FrankInputBuffer
             _edges.Contains(FrankAction.Melee) || WindowsGamepadReader.IsBSelected(gamepad),
             _edges.Contains(FrankAction.PreviousWeapon) || WindowsGamepadReader.IsYSelected(gamepad),
             _edges.Contains(FrankAction.Map) || WindowsGamepadReader.IsBackDown(gamepad),
-            _edges.Contains(FrankAction.Inspect)
-                || WindowsGamepadReader.IsLeftThumbPressed(gamepad)
-                && WindowsGamepadReader.IsRightThumbDown(gamepad)
-                || WindowsGamepadReader.IsRightThumbPressed(gamepad)
-                && WindowsGamepadReader.IsLeftThumbDown(gamepad),
+            inspectPressed,
             pausePressed,
             _edges.Contains(FrankAction.Save),
             _edges.Contains(FrankAction.Load),
             slot,
             ZoomTicks())
         {
-            ControlModePressed = _edges.Contains(FrankAction.ToggleControlMode),
+            ControlModePressed = controlModePressed,
         };
     }
 
@@ -191,12 +204,6 @@ internal sealed class FrankInputBuffer
 
     private static float Axis(bool negative, bool positive) =>
         (positive ? 1f : 0f) - (negative ? 1f : 0f);
-
-    private Vector3 DirectionalAim() =>
-        new(
-            Axis(IsDown(Key.Left), IsDown(Key.Right)),
-            0f,
-            Axis(IsDown(Key.Down), IsDown(Key.Up)));
 
     private static bool TryMapAction(Key key, out FrankAction action)
     {

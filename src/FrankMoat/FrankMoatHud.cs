@@ -17,7 +17,7 @@ internal sealed class FrankMoatHud : UserControl
     private readonly TextBlock _faith = Text(string.Empty, 14, FontWeight.Normal);
     private readonly TextBlock _interaction = Text(string.Empty, 14, FontWeight.Bold);
     private readonly TextBlock _controls = Text(
-        "WASD move · mouse aim · LMB fire · R reload · E interact · C control mode",
+        "WASD / left stick move · mouse / right stick aim · fire · reload · interact",
         12,
         FontWeight.Normal);
     private readonly TextBlock _map = Text(string.Empty, 15, FontWeight.Normal);
@@ -162,9 +162,9 @@ internal sealed class FrankMoatHud : UserControl
         _controls.Text =
             $"{controlMode switch
             {
-                ControlMode.MouseAim => "WASD move · mouse aim",
-                _ => "WASD move · arrow-key aim",
-            }} · LMB fire · R reload · E interact · C switch aim · Tab map · Esc pause";
+                ControlMode.IndependentMovement => "WASD / left stick world movement · mouse / right stick aim",
+                _ => "WASD / left stick character-relative movement · mouse / right stick aim",
+            }} · fire · reload · interact · C / R3 switch movement · Tab map · Esc pause";
         _map.Text = world.MapText();
         _mapPanel.IsVisible = world.MapVisible && recording is null;
         _recordingPanel.IsVisible = recording is not null;

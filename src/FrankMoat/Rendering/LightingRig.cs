@@ -12,13 +12,25 @@ internal sealed class LightingRig
 
     public float FlashlightStrength { get; private set; } = 0.9f;
 
+    public float AlarmAngle => _time * 2.9f;
+
+    public float AmbientIntensity => Mode switch
+    {
+        LightingMode.ElevatorTransit => 0.25f,
+        LightingMode.DarkContainment => 0.38f,
+        LightingMode.Combat => 0.45f,
+        LightingMode.Emergency => 0.5f,
+        LightingMode.Preserved => 0.85f,
+        _ => 0.68f,
+    };
+
     public Rgba32 AmbientColor => Mode switch
     {
         LightingMode.Lockdown => new Rgba32(28, 22, 28),
-        LightingMode.Emergency => new Rgba32(44, 18, 20),
+        LightingMode.Emergency => new Rgba32(24, 24, 30),
         LightingMode.Preserved => new Rgba32(58, 48, 38),
         LightingMode.DarkContainment => new Rgba32(18, 22, 30),
-        LightingMode.Combat => new Rgba32(34, 18, 24),
+        LightingMode.Combat => new Rgba32(26, 20, 28),
         LightingMode.ElevatorTransit => new Rgba32(12, 15, 22),
         _ => new Rgba32(30, 34, 42),
     };
@@ -39,12 +51,12 @@ internal sealed class LightingRig
 
         FlashlightStrength = Mode switch
         {
-            LightingMode.Preserved => 0.35f,
-            LightingMode.Emergency => 1.1f,
-            LightingMode.DarkContainment => 1.35f,
-            LightingMode.Combat => 1.45f,
+            LightingMode.Preserved => 0.8f,
+            LightingMode.Emergency => 1.15f,
+            LightingMode.DarkContainment => 1.3f,
+            LightingMode.Combat => 1.35f,
             LightingMode.ElevatorTransit => 0.2f,
-            _ => 0.9f,
+            _ => 1.1f,
         };
     }
 
@@ -84,6 +96,6 @@ internal sealed class LightingRig
             fixture.Color.R,
             fixture.Color.G,
             fixture.Color.B,
-            (byte)Math.Clamp((int)(100f * strength), 0, 255));
+            (byte)Math.Clamp((int)(128f * strength), 0, 220));
     }
 }

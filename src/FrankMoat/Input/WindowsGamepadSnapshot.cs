@@ -1,12 +1,12 @@
 namespace FrankMoat.Input;
 
-internal readonly record struct WindowsGamepadSnapshot(
+public readonly record struct WindowsGamepadSnapshot(
     float MoveX,
     float MoveZ,
     float AimX,
     float AimZ,
     float LeftTrigger,
     float RightTrigger,
-    ushort Buttons,
-    ushort Pressed,
+    GamepadButtons Buttons,
+    GamepadButtons Pressed,
     bool RightTriggerWasPressed);

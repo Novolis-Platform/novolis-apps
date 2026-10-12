@@ -10,5 +10,6 @@ public static class AssetStudioProductInfo
     public const string GraphicalProfile = "Novolis.GraphicalProfile";
 
     public const string SupportedAuthoringModes =
-        "Material,Geometry,Light,Effect,Image/Sprite,Scene/Assembly,Frame";
+        "Material,Geometry,Light,Effect,Image/Sprite,Scene/Assembly,Frame," +
+        "Lightsaber Blade,Neon Sign,Glass,Orbital Reusable Rocket";
 }

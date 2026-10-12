@@ -61,6 +61,20 @@ public sealed class AlphaFlowTests
     }
 
     [Test]
+    public async Task Weapon_visual_profiles_are_not_a_single_shared_silhouette()
+    {
+        var profiles = WeaponCatalog.All
+            .Select(weapon => WeaponVisualCatalog.For(weapon.Id))
+            .ToArray();
+
+        await Assert.That(profiles.Select(profile => profile.Width).Distinct().Count())
+            .IsGreaterThan(2);
+        await Assert.That(profiles.Count(profile => profile.Heavy)).IsEqualTo(1);
+        await Assert.That(profiles.Select(profile => profile.Accent).Distinct().Count())
+            .IsGreaterThan(2);
+    }
+
+    [Test]
     public async Task Save_round_trip_preserves_floor_and_weapon_state()
     {
         var path = Path.Combine(
@@ -119,6 +133,7 @@ public sealed class AlphaFlowTests
             800,
             600,
             Vector3.Zero,
+            Vector3.UnitZ,
             default);
         var repeated = input.BuildFrame(
             scene,
@@ -126,6 +141,7 @@ public sealed class AlphaFlowTests
             800,
             600,
             Vector3.Zero,
+            Vector3.UnitZ,
             default);
 
         await Assert.That(first.InteractPressed).IsTrue();
@@ -138,12 +154,13 @@ public sealed class AlphaFlowTests
             800,
             600,
             Vector3.Zero,
+            Vector3.UnitZ,
             default);
         await Assert.That(consumed.InteractPressed).IsFalse();
     }
 
     [Test]
-    public async Task Control_mode_hotkey_switches_to_directional_aim()
+    public async Task Control_mode_hotkey_switches_to_character_oriented_movement()
     {
         var scene = new PlanarScene();
         var input = new FrankInputBuffer();
@@ -155,22 +172,107 @@ public sealed class AlphaFlowTests
             800,
             600,
             Vector3.Zero,
+            Vector3.UnitZ,
             default);
         input.ConsumeEdges();
         input.ToggleControlMode();
-        input.KeyDown(Key.Right);
+        input.KeyDown(Key.W);
         var directional = input.BuildFrame(
             scene,
             new Vector2(400f, 300f),
             800,
             600,
             Vector3.Zero,
+            Vector3.UnitX,
             default);
 
         await Assert.That(toggle.ControlModePressed).IsTrue();
-        await Assert.That(input.ControlMode).IsEqualTo(ControlMode.DirectionalAim);
-        await Assert.That(directional.AimWorld.X).IsEqualTo(1f);
-        await Assert.That(directional.AimWorld.Z).IsEqualTo(0f);
+        await Assert.That(input.ControlMode).IsEqualTo(ControlMode.CharacterOriented);
+        await Assert.That(directional.MoveX).IsEqualTo(1f);
+        await Assert.That(directional.MoveZ).IsEqualTo(0f);
+        await Assert.That(directional.AimWorld).IsEqualTo(Vector3.UnitX);
+    }
+
+    [Test]
+    public async Task Lobby_has_an_external_rotating_red_alarm_fixture()
+    {
+        var lobby = FacilityCatalog.Find(FacilityCatalog.Build(), FloorId.Level0);
+        var alarm = lobby.Fixtures.Single(fixture => fixture.RotatingAlarm);
+
+        await Assert.That(alarm.Position.X).IsLessThan(0f);
+        await Assert.That(alarm.Color.R).IsGreaterThan(alarm.Color.G);
+        await Assert.That(alarm.Color.R).IsGreaterThan(alarm.Color.B);
+    }
+
+    [Test]
+    public async Task Controller_sticks_and_buttons_drive_aim_actions_and_triggers()
+    {
+        var scene = new PlanarScene();
+        var input = new FrankInputBuffer();
+        var gamepad = new WindowsGamepadSnapshot(
+            MoveX: 0.8f,
+            MoveZ: 0.6f,
+            AimX: -1f,
+            AimZ: 0f,
+            LeftTrigger: 0.75f,
+            RightTrigger: 0.9f,
+            Buttons: GamepadButtons.A,
+            Pressed: GamepadButtons.A,
+            RightTriggerWasPressed: true);
+
+        var frame = input.BuildFrame(
+            scene,
+            new Vector2(400f, 300f),
+            800,
+            600,
+            Vector3.Zero,
+            Vector3.UnitZ,
+            gamepad);
+
+        await Assert.That(frame.MoveX).IsGreaterThan(0f);
+        await Assert.That(frame.MoveZ).IsGreaterThan(0f);
+        await Assert.That(frame.AimWorld).IsEqualTo(-Vector3.UnitX);
+        await Assert.That(frame.ShootHeld).IsTrue();
+        await Assert.That(frame.ShootPressed).IsTrue();
+        await Assert.That(frame.SecondaryHeld).IsTrue();
+        await Assert.That(frame.InteractPressed).IsTrue();
+
+        var modeFrame = input.BuildFrame(
+            scene,
+            new Vector2(400f, 300f),
+            800,
+            600,
+            Vector3.Zero,
+            Vector3.UnitZ,
+            gamepad with
+            {
+                Buttons = GamepadButtons.RightThumb,
+                Pressed = GamepadButtons.RightThumb,
+            });
+        await Assert.That(modeFrame.ControlModePressed).IsTrue();
+    }
+
+    [Test]
+    public async Task Authored_furniture_footprints_rotate_with_their_visuals()
+    {
+        var prop = new FacilityProp(
+            "test-console",
+            PropKind.Console,
+            Vector3.Zero,
+            new Vector2(4f, 2f),
+            Rotation: MathF.PI / 2f,
+            Height: 0.9f);
+        var footprint = prop.GetFootprint();
+        var minX = footprint.Min(vertex => vertex.X);
+        var maxX = footprint.Max(vertex => vertex.X);
+        var minZ = footprint.Min(vertex => vertex.Z);
+        var maxZ = footprint.Max(vertex => vertex.Z);
+
+        await Assert.That(prop.Height).IsEqualTo(0.9f);
+        await Assert.That(maxX - minX).IsGreaterThan(1.99f);
+        await Assert.That(maxX - minX).IsLessThan(2.01f);
+        await Assert.That(maxZ - minZ).IsGreaterThan(3.99f);
+        await Assert.That(maxZ - minZ).IsLessThan(4.01f);
     }
 
     [Test]

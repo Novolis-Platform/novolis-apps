@@ -3,7 +3,9 @@ using FrankMoat.Actors;
 using FrankMoat.Game;
 using FrankMoat.Levels;
 using FrankMoat.Particles;
+using FrankMoat.Weapons;
 using Novolis.Math.Geometry;
+using Novolis.Math.Topology;
 using Novolis.Rendering.Planar;
 
 namespace FrankMoat.Rendering;
@@ -13,7 +15,6 @@ internal sealed class FrankMoatPresenter
     private readonly FrankMoatArt _art;
     private readonly RaisedWallDrawer _walls = new();
     private readonly List<PlanarSpriteInstance> _dynamic = [];
-    private PlanarSpriteInstance? _floor;
     private FloorId? _builtFloor;
 
     public FrankMoatPresenter(FrankMoatArt art) => _art = art;
@@ -23,25 +24,31 @@ internal sealed class FrankMoatPresenter
         scene.Sprites.Clear();
         scene.StaticPolygons.Clear();
         _dynamic.Clear();
-        _floor = null;
         _builtFloor = world.Floor.Id;
 
         var bounds = FloorBounds(world.Floor);
-        _floor = new PlanarSpriteInstance
+        const float tileSize = 4f;
+        for (var z = bounds.MinZ; z < bounds.MaxZ; z += tileSize)
         {
-            Texture = _art.Floor,
-            Tint = Rgba32.White,
-            SortKey = 0,
-            Transform =
+            for (var x = bounds.MinX; x < bounds.MaxX; x += tileSize)
             {
-                Position = new Vector3(
-                    (bounds.MinX + bounds.MaxX) * 0.5f,
-                    0f,
-                    (bounds.MinZ + bounds.MaxZ) * 0.5f),
-                Scale = new Vector3(bounds.MaxX - bounds.MinX, 1f, bounds.MaxZ - bounds.MinZ),
-            },
-        };
-        scene.Sprites.Add(_floor);
+                var width = MathF.Min(tileSize, bounds.MaxX - x);
+                var height = MathF.Min(tileSize, bounds.MaxZ - z);
+                scene.Sprites.Add(
+                    new PlanarSpriteInstance
+                    {
+                        Texture = _art.Floor,
+                        Tint = Rgba32.White,
+                        SortKey = -100000,
+                        Transform =
+                        {
+                            Position = new Vector3(x + width * 0.5f, 0f, z + height * 0.5f),
+                            Scale = new Vector3(width, 1f, height),
+                        },
+                    });
+            }
+        }
+        BuildRoomGuides(scene, world.Floor);
         BuildProps(scene, world.Floor);
         _walls.Build(scene, world.Walls, _art);
     }
@@ -89,12 +96,14 @@ internal sealed class FrankMoatPresenter
         _dynamic.Clear();
         scene.Sprites.Clear();
         scene.StaticPolygons.Clear();
-        _floor = null;
         _builtFloor = null;
     }
 
     private void SyncLights(PlanarScene scene, FrankMoatWorld world)
     {
+        scene.Lighting.Clear();
+        scene.Lighting.AmbientColor = Rgba32.White;
+        scene.Lighting.AmbientIntensity = world.Lighting.AmbientIntensity;
         foreach (var fixture in world.Floor.Fixtures)
         {
             var tint = world.Lighting.FixtureTint(fixture);
@@ -103,25 +112,120 @@ internal sealed class FrankMoatPresenter
                 continue;
             }
 
+            if (fixture.RotatingAlarm)
+            {
+                var angle = world.Lighting.AlarmAngle;
+                var direction = Vector3PlanarExtensions.FromHeadingXz(angle);
+                var beaconTint = new Rgba32(
+                    255,
+                    48,
+                    36,
+                    (byte)Math.Clamp((int)(150f * fixture.Intensity), 80, 220));
+                Add(
+                    scene,
+                    _art.SoftGlow,
+                    PlanarElevation.Elevate(fixture.Position, 0.08f),
+                    new Vector3(fixture.Radius * 0.62f, 1f, fixture.Radius * 0.62f),
+                    new Rgba32(255, 34, 28, 105),
+                    5,
+                    layer: PlanarDrawLayer.Additive,
+                    receivesLighting: false);
+                Add(
+                    scene,
+                    _art.AlarmSweep,
+                    PlanarElevation.Elevate(
+                        fixture.Position + direction * (fixture.Radius * 0.2f),
+                        0.12f),
+                    new Vector3(fixture.Radius * 0.32f, 1f, fixture.Radius * 0.95f),
+                    new Rgba32(255, 42, 32, 122),
+                    7,
+                    -angle + MathF.PI * 0.5f,
+                    PlanarDrawLayer.Additive,
+                    false);
+                Add(
+                    scene,
+                    _art.AlarmBeacon,
+                    PlanarElevation.Elevate(fixture.Position, 0.22f),
+                    new Vector3(0.82f, 1f, 0.82f),
+                    beaconTint,
+                    10,
+                    angle,
+                    PlanarDrawLayer.Additive,
+                    false);
+                scene.Lighting.Sources.Add(
+                    new PlanarLightSource(
+                        fixture.Position,
+                        new Rgba32(255, 40, 32),
+                        fixture.Radius,
+                        fixture.Intensity,
+                        PlanarLightKind.Spot,
+                        direction,
+                        0.95f));
+                continue;
+            }
+
             Add(
                 scene,
                 _art.SoftGlow,
                 PlanarElevation.Elevate(fixture.Position, 0.03f),
-                new Vector3(fixture.Radius, 1f, fixture.Radius),
+                new Vector3(fixture.Radius * 0.46f, 1f, fixture.Radius * 0.46f),
                 tint,
-                5);
-        }
-
-        if (world.Lighting.Mode == LightingMode.Emergency
-            || world.Lighting.Mode == LightingMode.Combat)
-        {
+                5,
+                layer: PlanarDrawLayer.BehindWorld,
+                receivesLighting: false);
+            scene.Lighting.Sources.Add(
+                new PlanarLightSource(
+                    fixture.Position,
+                    new Rgba32(fixture.Color.R, fixture.Color.G, fixture.Color.B),
+                    fixture.Radius,
+                    fixture.Intensity * 1.1f,
+                    PlanarLightKind.Point,
+                    Vector3.Zero,
+                    MathF.PI));
             Add(
                 scene,
-                _art.SoftGlow,
-                PlanarElevation.Elevate(new Vector3(45f, 0f, 30f), 0.06f),
-                new Vector3(5f, 1f, 5f),
-                new Rgba32(220, 30, 20, 70),
-                6);
+                _art.CeilingFixture,
+                PlanarElevation.Elevate(fixture.Position, 0.06f),
+                new Vector3(0.9f, 1f, 0.34f),
+                new Rgba32(232, 236, 238, 235),
+                8,
+                layer: PlanarDrawLayer.BehindWorld,
+                receivesLighting: false);
+
+            if (fixture.EmergencyOnly
+                && world.Lighting.Mode is LightingMode.Emergency or LightingMode.Combat)
+            {
+                Add(
+                    scene,
+                    _art.SoftGlow,
+                    PlanarElevation.Elevate(fixture.Position, 0.07f),
+                    new Vector3(fixture.Radius * 0.34f, 1f, fixture.Radius * 0.34f),
+                    new Rgba32(226, 48, 38, 70),
+                    6,
+                    layer: PlanarDrawLayer.BehindWorld,
+                    receivesLighting: false);
+            }
+        }
+    }
+
+    private static void BuildRoomGuides(PlanarScene scene, FloorDefinition floor)
+    {
+        foreach (var room in floor.Rooms)
+        {
+            var polygon = new PlanarStaticPolygon(
+                PlanarScenePrimitives.Rectangle(
+                    room.MinX,
+                    room.MinZ,
+                    room.MaxX,
+                    room.MaxZ),
+                new Rgba32(78, 90, 104, 24))
+            {
+                DrawFilled = true,
+                DrawOutline = true,
+                OutlineColor = new Rgba32(122, 138, 154, 70),
+                SortKey = -99990,
+            };
+            scene.StaticPolygons.Add(polygon);
         }
     }
 
@@ -132,28 +236,41 @@ internal sealed class FrankMoatPresenter
             scene.Sprites.Add(
                 new PlanarSpriteInstance
                 {
-                    Texture = _art.SoftGlow,
-                    Tint = new Rgba32(8, 10, 14, 105),
-                    SortKey = 18 + (int)(prop.Position.Z * 2f),
+                    Texture = _art.Shadow,
+                    Tint = Rgba32.White,
+                    SortKey = DepthSort(prop.Position.Z) - 2,
                     Transform =
                     {
                         Position = PlanarElevation.Elevate(prop.Position, 0.025f),
-                        Scale = new Vector3(prop.Size.X * 1.12f, 1f, prop.Size.Y * 1.12f),
-                    },
-                });
-            scene.Sprites.Add(
-                new PlanarSpriteInstance
-                {
-                    Texture = _art.Prop(prop.Kind),
-                    Tint = Rgba32.White,
-                    SortKey = 30 + (int)(prop.Position.Z * 2f),
-                    Transform =
-                    {
-                        Position = PlanarElevation.Elevate(prop.Position, prop.Elevation),
-                        Scale = new Vector3(prop.Size.X, 1f, prop.Size.Y),
+                        Scale = new Vector3(prop.Size.X * 1.16f, 1f, prop.Size.Y * 1.2f),
                         RotationY = prop.Rotation,
                     },
                 });
+
+            var footprint = prop.GetFootprint();
+            var firstPart = scene.StaticPolygons.Count;
+            var height = prop.Height > 0f
+                ? prop.Height
+                : FurnitureHeight(prop.Kind);
+            PlanarWallComposer.Add(
+                scene,
+                footprint.Extrude(PlanarElevation.Offset(height)),
+                _art.PropSide,
+                textureMeters: MathF.Max(prop.Size.X, prop.Size.Y),
+                frontFacesOnly: true,
+                capTexture: _art.Prop(prop.Kind),
+                faceFill: _art.PropSideTint(prop.Kind),
+                capFill: _art.PropCapTint(prop.Kind));
+
+            for (var i = firstPart; i < scene.StaticPolygons.Count; i++)
+            {
+                var part = scene.StaticPolygons[i];
+                part.Layer = PlanarDrawLayer.World;
+                part.SortKey = DepthSort(MinimumZ(part.Shape))
+                    + (part.WallPart == PlanarWallPartKind.Cap ? -1 : 1);
+                part.DrawOutline = true;
+                part.OutlineColor = new Rgba32(12, 16, 22, 230);
+            }
         }
     }
 
@@ -167,7 +284,7 @@ internal sealed class FrankMoatPresenter
                 PlanarElevation.Elevate(gate.Position, 0.24f),
                 new Vector3(gate.Width, 1f, 0.72f),
                 new Rgba32(210, 54, 42, 210),
-                42);
+                DepthSort(gate.Position.Z) + 2);
             Add(
                 scene,
                 _art.Interact,
@@ -194,7 +311,11 @@ internal sealed class FrankMoatPresenter
                 PlanarElevation.Elevate(decal.Position, decal.Elevation),
                 new Vector3(decal.Width, 1f, decal.Height),
                 decal.Color,
-                20);
+                20,
+                layer: decal.Kind == (int)DecalKind.BloodWall
+                    ? PlanarDrawLayer.Foreground
+                    : PlanarDrawLayer.BehindWorld,
+                receivesLighting: false);
         }
     }
 
@@ -208,7 +329,7 @@ internal sealed class FrankMoatPresenter
                 PlanarElevation.Elevate(corpse.Position, 0.06f),
                 new Vector3(0.9f, 1f, 0.55f),
                 new Rgba32(90, 30, 30, 220),
-                25,
+                DepthSort(corpse.Position.Z),
                 corpse.Rotation);
         }
     }
@@ -223,7 +344,7 @@ internal sealed class FrankMoatPresenter
                 PlanarElevation.Elevate(pickup.Position, 0.22f),
                 new Vector3(0.5f, 1f, 0.5f),
                 new Rgba32(250, 204, 92, 240),
-                35);
+                DepthSort(pickup.Position.Z) + 2);
         }
     }
 
@@ -237,7 +358,7 @@ internal sealed class FrankMoatPresenter
                 PlanarElevation.Elevate(barrel.Position, 0.2f),
                 new Vector3(0.7f, 1f, 0.7f),
                 Rgba32.White,
-                45);
+                DepthSort(barrel.Position.Z) + 2);
         }
     }
 
@@ -245,6 +366,15 @@ internal sealed class FrankMoatPresenter
     {
         foreach (var enemy in world.Undead)
         {
+            Add(
+                scene,
+                _art.Shadow,
+                PlanarElevation.Elevate(enemy.Position, 0.035f),
+                new Vector3(enemy.Radius * 2.3f, 1f, enemy.Radius * 1.9f),
+                Rgba32.White,
+                44,
+                layer: PlanarDrawLayer.BehindWorld,
+                receivesLighting: false);
             var tint = enemy.HitFlash > 0f
                 ? new Rgba32(255, 200, 200)
                 : enemy.Alerted
@@ -256,8 +386,21 @@ internal sealed class FrankMoatPresenter
                 PlanarElevation.Elevate(enemy.Position, 0.14f),
                 new Vector3(enemy.Radius * 2.5f, 1f, enemy.Radius * 2.5f),
                 tint,
-                50 + (int)(enemy.Position.Z * 2f),
-                -enemy.Facing.Atan2Xz());
+                DepthSort(enemy.Position.Z) + 4,
+                -enemy.Facing.Atan2Xz(),
+                PlanarDrawLayer.World);
+            if (enemy.IsRanged)
+            {
+                Add(
+                    scene,
+                    _art.Weapon(WeaponId.Automatic),
+                    PlanarElevation.Elevate(enemy.Position + enemy.Facing * 0.38f, 0.2f),
+                    new Vector3(0.2f, 1f, 0.8f),
+                    new Rgba32(74, 84, 94, 255),
+                    DepthSort(enemy.Position.Z) + 6,
+                    -enemy.Facing.Atan2Xz(),
+                    PlanarDrawLayer.World);
+            }
         }
     }
 
@@ -276,7 +419,9 @@ internal sealed class FrankMoatPresenter
                 projectile.FromFrank
                     ? new Rgba32(255, 230, 120, 230)
                     : new Rgba32(255, 80, 70, 220),
-                80);
+                80,
+                layer: PlanarDrawLayer.Additive,
+                receivesLighting: false);
         }
     }
 
@@ -302,14 +447,18 @@ internal sealed class FrankMoatPresenter
                 PlanarElevation.Elevate(hint.Position, 0.08f),
                 new Vector3(1.35f, 1f, 1.35f),
                 new Rgba32(tint.R, tint.G, tint.B, (byte)(tint.A / 3)),
-                58 + (int)(hint.Position.Z * 2f));
+                58 + (int)(hint.Position.Z * 2f),
+                layer: PlanarDrawLayer.Additive,
+                receivesLighting: false);
             Add(
                 scene,
                 _art.Interact,
                 PlanarElevation.Elevate(hint.Position, 0.28f),
                 new Vector3(0.68f, 1f, 0.68f),
                 tint,
-                64 + (int)(hint.Position.Z * 2f));
+                64 + (int)(hint.Position.Z * 2f),
+                layer: PlanarDrawLayer.Foreground,
+                receivesLighting: false);
         }
     }
 
@@ -321,12 +470,36 @@ internal sealed class FrankMoatPresenter
             : Rgba32.White;
         Add(
             scene,
+            _art.Shadow,
+            PlanarElevation.Elevate(world.Frank.Position, 0.035f),
+            new Vector3(0.92f, 1f, 0.92f),
+            Rgba32.White,
+            65,
+            -world.Frank.Facing.Atan2Xz());
+        Add(
+            scene,
             _art.Frank,
             PlanarElevation.Elevate(world.Frank.Position, 0.16f),
-            new Vector3(0.95f, 1f, 0.95f),
+            new Vector3(1.32f, 1f, 1.32f),
             tint,
-            70 + (int)(world.Frank.Position.Z * 2f),
-            -world.Frank.Facing.Atan2Xz());
+            DepthSort(world.Frank.Position.Z) + 4,
+            -world.Frank.Facing.Atan2Xz(),
+            PlanarDrawLayer.World);
+        Add(
+            scene,
+            _art.Weapon(world.Weapon.Spec.Id),
+            PlanarElevation.Elevate(
+                world.Frank.Position
+                + world.Frank.Facing * (0.34f + WeaponVisualCatalog.For(world.Weapon.Spec.Id).Length * 0.22f),
+                0.22f),
+            new Vector3(
+                WeaponVisualCatalog.For(world.Weapon.Spec.Id).Width,
+                1f,
+                WeaponVisualCatalog.For(world.Weapon.Spec.Id).Length),
+            Rgba32.White,
+            DepthSort(world.Frank.Position.Z) + 6,
+            -world.Frank.Facing.Atan2Xz(),
+            PlanarDrawLayer.World);
     }
 
     private void SyncParticles(PlanarScene scene, FrankMoatWorld world)
@@ -345,14 +518,25 @@ internal sealed class FrankMoatPresenter
                 ? 0f
                 : 1f - Math.Clamp(particle.Life / particle.MaxLife, 0f, 1f);
             var size = particle.SizeStart + (particle.SizeEnd - particle.SizeStart) * t;
+            var color = Rgba32.Lerp(particle.ColorStart, particle.ColorEnd, t);
+            var layer = particle.Kind switch
+            {
+                (int)ParticleKind.Blood => PlanarDrawLayer.Foreground,
+                (int)ParticleKind.Smoke => PlanarDrawLayer.BehindWorld,
+                (int)ParticleKind.SoftGlow or (int)ParticleKind.Spark =>
+                    PlanarDrawLayer.Additive,
+                _ => PlanarDrawLayer.World,
+            };
             Add(
                 scene,
                 texture,
                 PlanarElevation.Elevate(particle.Position, particle.Elevation),
                 new Vector3(size, 1f, size),
-                particle.ColorStart,
+                color,
                 90,
-                particle.Rotation);
+                particle.Rotation,
+                layer,
+                receivesLighting: false);
         }
     }
 
@@ -363,15 +547,97 @@ internal sealed class FrankMoatPresenter
             255,
             236,
             200,
-            (byte)Math.Clamp((int)(90f * strength), 30, 220));
+            (byte)Math.Clamp((int)(92f * strength), 58, 132));
         Add(
             scene,
             _art.FlashCone,
-            PlanarElevation.Elevate(world.Frank.Position + world.Frank.Facing * 3.5f, 0.11f),
-            new Vector3(6.2f * strength, 1f, 9f * strength),
+            PlanarElevation.Elevate(world.Frank.Position + world.Frank.Facing * 1.9f, 0.11f),
+            new Vector3(2.6f * strength, 1f, 5.4f * strength),
             tint,
             12,
-            -world.Frank.Facing.Atan2Xz() + MathF.PI * 0.5f);
+            -world.Frank.Facing.Atan2Xz() + MathF.PI * 0.5f,
+            PlanarDrawLayer.Additive,
+            false);
+        scene.Lighting.Sources.Add(
+            new PlanarLightSource(
+                world.Frank.Position + world.Frank.Facing * 0.35f,
+                new Rgba32(255, 236, 200),
+                7.2f * strength,
+                1.15f * strength,
+                PlanarLightKind.Spot,
+                world.Frank.Facing,
+                0.72f));
+        if (world.Juice.MuzzleTimer > 0f)
+        {
+            scene.Lighting.Sources.Add(
+                new PlanarLightSource(
+                    world.Frank.Position + world.Frank.Facing * 0.55f,
+                    new Rgba32(255, 164, 72),
+                    3.5f,
+                    2.4f,
+                    PlanarLightKind.Point,
+                    Vector3.Zero,
+                    MathF.PI));
+        }
+
+        if (world.Juice.ExplosionTimer > 0f)
+        {
+            var explosionStrength = Math.Clamp(world.Juice.ExplosionTimer / 0.24f, 0f, 1f);
+            Add(
+                scene,
+                _art.SoftGlow,
+                PlanarElevation.Elevate(world.LastExplosionPosition, 0.34f),
+                new Vector3(
+                    2.2f + explosionStrength * 1.3f,
+                    1f,
+                    2.2f + explosionStrength * 1.3f),
+                new Rgba32(
+                    255,
+                    104,
+                    28,
+                    (byte)(100 + explosionStrength * 120f)),
+                96,
+                layer: PlanarDrawLayer.Additive,
+                receivesLighting: false);
+            scene.Lighting.Sources.Add(
+                new PlanarLightSource(
+                    world.LastExplosionPosition,
+                    new Rgba32(255, 106, 36),
+                    7.5f,
+                    2.2f * explosionStrength,
+                    PlanarLightKind.Point,
+                    Vector3.Zero,
+                    MathF.PI));
+        }
+    }
+
+    private static float FurnitureHeight(PropKind kind) => kind switch
+    {
+        PropKind.Counter => 0.68f,
+        PropKind.Console => 0.82f,
+        PropKind.Table => 0.46f,
+        PropKind.Shelf => 1.15f,
+        PropKind.Elevator => 1.25f,
+        PropKind.Cabinet => 1f,
+        PropKind.PortalFrame => 1.35f,
+        PropKind.GlassPanel => 0.82f,
+        PropKind.Vent => 0.34f,
+        PropKind.HazardStripe => 0.24f,
+        _ => 0.62f,
+    };
+
+    private static int DepthSort(float worldZ) =>
+        -(int)MathF.Round(worldZ * 100f);
+
+    private static float MinimumZ(Novolis.Math.Topology.Polygon shape)
+    {
+        var minimum = float.MaxValue;
+        foreach (var vertex in shape)
+        {
+            minimum = MathF.Min(minimum, vertex.Z);
+        }
+
+        return minimum == float.MaxValue ? 0f : minimum;
     }
 
     private PlanarSpriteInstance Add(
@@ -381,13 +647,17 @@ internal sealed class FrankMoatPresenter
         Vector3 scale,
         Rgba32 tint,
         int sortKey,
-        float rotation = 0f)
+        float rotation = 0f,
+        PlanarDrawLayer layer = PlanarDrawLayer.World,
+        bool receivesLighting = true)
     {
         var sprite = new PlanarSpriteInstance
         {
             Texture = texture,
             Tint = tint,
+            Layer = layer,
             SortKey = sortKey,
+            ReceivesLighting = receivesLighting,
             Transform =
             {
                 Position = position,

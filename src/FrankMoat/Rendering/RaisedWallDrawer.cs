@@ -22,7 +22,15 @@ internal sealed class RaisedWallDrawer
         {
             var firstPart = scene.StaticPolygons.Count;
             var prism = wall.Footprint.Extrude(PlanarElevation.Offset(wall.Height));
-            var faces = PlanarWallComposer.Add(scene, prism, art.Wall(wall.Material));
+            var faces = PlanarWallComposer.Add(
+                scene,
+                prism,
+                art.Wall(wall.Material),
+                textureMeters: 1.6f,
+                frontFacesOnly: true,
+                capTexture: art.Wall(wall.Material),
+                faceFill: art.WallSideTint(wall.Material),
+                capFill: art.WallCapTint(wall.Material));
             _faces.AddRange(faces);
             var center = wall.Segments.Count == 0
                 ? Vector3.Zero
@@ -30,8 +38,11 @@ internal sealed class RaisedWallDrawer
             for (var i = firstPart; i < scene.StaticPolygons.Count; i++)
             {
                 var polygon = scene.StaticPolygons[i];
+                polygon.Layer = PlanarDrawLayer.World;
+                polygon.SortKey = -(int)MathF.Round(MinimumZ(polygon.Shape) * 100f)
+                    + (polygon.WallPart == PlanarWallPartKind.Cap ? -1 : 1);
                 polygon.DrawOutline = true;
-                polygon.OutlineColor = new Rgba32(16, 19, 24, 190);
+                polygon.OutlineColor = new Rgba32(12, 16, 22, 235);
                 _parts.Add((polygon, center));
             }
         }
@@ -55,5 +66,16 @@ internal sealed class RaisedWallDrawer
                 fill.B,
                 (byte)Math.Min(fill.A, readableAlpha));
         }
+    }
+
+    private static float MinimumZ(Novolis.Math.Topology.Polygon shape)
+    {
+        var minimum = float.MaxValue;
+        foreach (var vertex in shape)
+        {
+            minimum = MathF.Min(minimum, vertex.Z);
+        }
+
+        return minimum == float.MaxValue ? 0f : minimum;
     }
 }

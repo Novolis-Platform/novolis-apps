@@ -2,24 +2,9 @@ using System.Runtime.InteropServices;
 
 namespace FrankMoat.Input;
 
-internal sealed class WindowsGamepadReader
+internal sealed class WindowsGamepadReader : IGamepadReader
 {
-    private const ushort DPadUp = 0x0001;
-    private const ushort DPadDown = 0x0002;
-    private const ushort DPadLeft = 0x0004;
-    private const ushort DPadRight = 0x0008;
-    private const ushort Start = 0x0010;
-    private const ushort Back = 0x0020;
-    private const ushort LeftThumb = 0x0040;
-    private const ushort RightThumb = 0x0080;
-    private const ushort LeftShoulder = 0x0100;
-    private const ushort RightShoulder = 0x0200;
-    private const ushort A = 0x1000;
-    private const ushort B = 0x2000;
-    private const ushort X = 0x4000;
-    private const ushort Y = 0x8000;
-
-    private ushort _previousButtons;
+    private GamepadButtons _previousButtons;
     private float _previousRightTrigger;
     private bool _available = true;
 
@@ -34,12 +19,13 @@ internal sealed class WindowsGamepadReader
         {
             if (XInputGetState(0, out var state) != 0)
             {
-                _previousButtons = 0;
+                _previousButtons = GamepadButtons.None;
+                _previousRightTrigger = 0f;
                 return default;
             }
 
-            var buttons = state.Gamepad.Buttons;
-            var pressed = (ushort)(buttons & ~_previousButtons);
+            var buttons = (GamepadButtons)state.Gamepad.Buttons;
+            var pressed = buttons & ~_previousButtons;
             var rightTrigger = state.Gamepad.RightTrigger / 255f;
             var rightTriggerWasPressed = rightTrigger > 0.35f && _previousRightTrigger <= 0.35f;
             _previousButtons = buttons;
@@ -67,49 +53,59 @@ internal sealed class WindowsGamepadReader
         }
     }
 
-    public static bool IsDown(WindowsGamepadSnapshot snapshot, ushort button) =>
+    public static bool IsDown(WindowsGamepadSnapshot snapshot, GamepadButtons button) =>
         (snapshot.Buttons & button) != 0;
 
-    public static bool WasPressed(WindowsGamepadSnapshot snapshot, ushort button) =>
+    public static bool WasPressed(WindowsGamepadSnapshot snapshot, GamepadButtons button) =>
         (snapshot.Pressed & button) != 0;
 
-    public static bool IsDPadUp(WindowsGamepadSnapshot snapshot) => IsDown(snapshot, DPadUp);
+    public static bool IsDPadUp(WindowsGamepadSnapshot snapshot) =>
+        IsDown(snapshot, GamepadButtons.DPadUp);
 
-    public static bool IsDPadDown(WindowsGamepadSnapshot snapshot) => IsDown(snapshot, DPadDown);
+    public static bool IsDPadDown(WindowsGamepadSnapshot snapshot) =>
+        IsDown(snapshot, GamepadButtons.DPadDown);
 
-    public static bool IsDPadLeft(WindowsGamepadSnapshot snapshot) => IsDown(snapshot, DPadLeft);
+    public static bool IsDPadLeft(WindowsGamepadSnapshot snapshot) =>
+        IsDown(snapshot, GamepadButtons.DPadLeft);
 
-    public static bool IsDPadRight(WindowsGamepadSnapshot snapshot) => IsDown(snapshot, DPadRight);
+    public static bool IsDPadRight(WindowsGamepadSnapshot snapshot) =>
+        IsDown(snapshot, GamepadButtons.DPadRight);
 
-    public static bool IsStartDown(WindowsGamepadSnapshot snapshot) => WasPressed(snapshot, Start);
+    public static bool IsStartDown(WindowsGamepadSnapshot snapshot) =>
+        WasPressed(snapshot, GamepadButtons.Start);
 
-    public static bool IsBackDown(WindowsGamepadSnapshot snapshot) => WasPressed(snapshot, Back);
+    public static bool IsBackDown(WindowsGamepadSnapshot snapshot) =>
+        WasPressed(snapshot, GamepadButtons.Back);
 
-    public static bool IsASelected(WindowsGamepadSnapshot snapshot) => WasPressed(snapshot, A);
+    public static bool IsASelected(WindowsGamepadSnapshot snapshot) =>
+        WasPressed(snapshot, GamepadButtons.A);
 
-    public static bool IsBSelected(WindowsGamepadSnapshot snapshot) => WasPressed(snapshot, B);
+    public static bool IsBSelected(WindowsGamepadSnapshot snapshot) =>
+        WasPressed(snapshot, GamepadButtons.B);
 
-    public static bool IsXSelected(WindowsGamepadSnapshot snapshot) => WasPressed(snapshot, X);
+    public static bool IsXSelected(WindowsGamepadSnapshot snapshot) =>
+        WasPressed(snapshot, GamepadButtons.X);
 
-    public static bool IsYSelected(WindowsGamepadSnapshot snapshot) => WasPressed(snapshot, Y);
+    public static bool IsYSelected(WindowsGamepadSnapshot snapshot) =>
+        WasPressed(snapshot, GamepadButtons.Y);
 
     public static bool IsLeftShoulderDown(WindowsGamepadSnapshot snapshot) =>
-        IsDown(snapshot, LeftShoulder);
+        IsDown(snapshot, GamepadButtons.LeftShoulder);
 
     public static bool IsRightShoulderDown(WindowsGamepadSnapshot snapshot) =>
-        IsDown(snapshot, RightShoulder);
+        IsDown(snapshot, GamepadButtons.RightShoulder);
 
     public static bool IsLeftThumbDown(WindowsGamepadSnapshot snapshot) =>
-        IsDown(snapshot, LeftThumb);
+        IsDown(snapshot, GamepadButtons.LeftThumb);
 
     public static bool IsRightThumbDown(WindowsGamepadSnapshot snapshot) =>
-        IsDown(snapshot, RightThumb);
+        IsDown(snapshot, GamepadButtons.RightThumb);
 
     public static bool IsLeftThumbPressed(WindowsGamepadSnapshot snapshot) =>
-        WasPressed(snapshot, LeftThumb);
+        WasPressed(snapshot, GamepadButtons.LeftThumb);
 
     public static bool IsRightThumbPressed(WindowsGamepadSnapshot snapshot) =>
-        WasPressed(snapshot, RightThumb);
+        WasPressed(snapshot, GamepadButtons.RightThumb);
 
     private static float NormalizeAxis(short value)
     {

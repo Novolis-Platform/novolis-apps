@@ -7,15 +7,22 @@ first connected Level 68 containment floor.
 ## Local run
 
 ```powershell
-dotnet run --project d:\novolis\novolis-apps\src\FrankMoat\FrankMoat.csproj -p:NovolisUseProjectReferences=true
+dotnet run --project d:\novolis\novolis-apps\src\FrankMoat.Desktop\FrankMoat.Desktop.csproj -p:NovolisUseProjectReferences=true
+```
+
+Android builds use the Avalonia Android host and accept Bluetooth gamepads
+through the native Android key and joystick motion events:
+
+```powershell
+dotnet build d:\novolis\novolis-apps\src\FrankMoat.Android\FrankMoat.Android.csproj -p:NovolisUseProjectReferences=true
 ```
 
 ## Controls
 
-- `WASD` / left stick: move
-- Mouse / right stick: aim
-- `C`: switch between mouse aim and arrow-key directional aim
-- Arrow keys: aim while directional aim is active
+- `WASD` / left stick: move in world mode
+- `C` / right-stick click: switch between world movement and character-oriented movement
+- Character mode: WASD / left stick moves relative to Frank's facing
+- Mouse / right stick: aim in both movement modes
 - Left mouse / right trigger: fire
 - `Shift` / left shoulder: run
 - `R` / `X`: reload

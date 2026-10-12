@@ -5,6 +5,7 @@ using Novolis.Avalonia.AssetStudio;
 using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Visual.Compile;
 using Novolis.Visual.Definitions;
+using Novolis.Visual.Presets;
 
 namespace AssetStudio;
 
@@ -31,13 +32,9 @@ internal sealed class MainWindow : Window
 
         _surface = new AssetStudioEditorSurface();
         _surface.CommandSubmitted += OnCommandSubmitted;
-        _surface.SetDocument(new AssetStudioSemanticState(CreateSampleRecipe()));
-        _surface.SetCompilation(
-            VisualCompiler.Compile(
-                _surface.Document!.Recipe,
-                new VisualCompileOptions(
-                    registry: VisualCompiler.CreateDefaultRegistry(),
-                    strict: true)));
+        _surface.SetAssetTemplate(
+            VisualPresetCatalog.CreateDefault()
+                .Find("lightsaber-blade")!);
         Content = _surface;
     }
 
@@ -73,10 +70,71 @@ internal sealed class MainWindow : Window
             return;
         }
 
+        if (string.Equals(command, "new material", StringComparison.OrdinalIgnoreCase))
+        {
+            var material = VisualPresetCatalog.CreateDefault()
+                .Find("glass")!
+                .Materials
+                .Single();
+            _surface.SetMaterial(material);
+            _surface.Feedback.SetStatus(
+                "New Glass material instance created.");
+            return;
+        }
+
+        if (string.Equals(command, "new asset", StringComparison.OrdinalIgnoreCase))
+        {
+            _surface.SetAssetTemplate(
+                VisualPresetCatalog.CreateDefault()
+                    .Find("orbital-reusable-rocket")!);
+            _surface.Feedback.SetStatus(
+                "New Orbital Reusable Rocket asset created.");
+            return;
+        }
+
+        if (command.StartsWith("open template ", StringComparison.OrdinalIgnoreCase))
+        {
+            var id = command["open template ".Length..].Trim();
+            var template = VisualPresetCatalog.CreateDefault().Find(id);
+            if (template is null)
+            {
+                _surface.Feedback.SetStatus($"Template not found · {id}");
+                return;
+            }
+
+            _surface.SetAssetTemplate(template);
+            return;
+        }
+
+        if (string.Equals(command, "create instance", StringComparison.OrdinalIgnoreCase))
+        {
+            _surface.Feedback.SetStatus(
+                "A reusable child instance is active; edit controls to create overrides.");
+            return;
+        }
+
+        if (string.Equals(command, "save preset", StringComparison.OrdinalIgnoreCase))
+        {
+            _surface.Feedback.SetStatus(
+                "Preset state is canonical and ready to export.");
+            return;
+        }
+
+        if (string.Equals(command, "build", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(command, "export", StringComparison.OrdinalIgnoreCase))
+        {
+            CompileCurrentDocument();
+            _surface.Feedback.SetStatus(
+                $"{command} completed for the current no-code recipe.");
+            return;
+        }
+
         if (string.Equals(command, "help", StringComparison.OrdinalIgnoreCase))
         {
             _surface.Feedback.SetStatus(
-                "Commands: apply source · validate · preview · help");
+                "Commands: new material · new asset · open template <id> · " +
+                "create instance · save preset · apply source · validate · " +
+                "preview · build · export · help");
             return;
         }
 
