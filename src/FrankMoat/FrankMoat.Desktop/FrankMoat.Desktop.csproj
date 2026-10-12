@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FrankMoat\FrankMoat.csproj" />
+    <ProjectReference Include="..\FrankMoat.csproj" />
     <PackageReference Include="Avalonia.Desktop" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
   </ItemGroup>

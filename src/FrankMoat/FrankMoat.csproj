@@ -8,6 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="FrankMoat.Android/**/*.cs" />
+    <Compile Remove="FrankMoat.Desktop/**/*.cs" />
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>FrankMoat.Unit</_Parameter1>
     </AssemblyAttribute>

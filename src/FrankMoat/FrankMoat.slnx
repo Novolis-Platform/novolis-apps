@@ -1,4 +1,10 @@
 <Solution>
+  <Folder Name="/FrankMoat.Android/">
+    <Project Path="FrankMoat.Android/FrankMoat.Android.csproj" />
+  </Folder>
+  <Folder Name="/FrankMoat.Desktop/">
+    <Project Path="FrankMoat.Desktop/FrankMoat.Desktop.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="FrankMoat.csproj" />
   </Folder>

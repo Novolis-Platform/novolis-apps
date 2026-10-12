@@ -961,29 +961,31 @@
       "sourceRoot": "src/FrankMoat",
       "solution": "src/FrankMoat/FrankMoat.slnx",
       "artifactPrefix": "FrankMoat",
-      "stack": "avalonia-desktop",
+      "stack": "avalonia-mobile",
       "status": "internal",
       "projects": {
-        "publishWindows": "src/FrankMoat/FrankMoat.csproj",
+        "publishWindows": "src/FrankMoat/FrankMoat.Desktop/FrankMoat.Desktop.csproj",
         "linuxCi": [],
-        "android": null,
+        "android": "src/FrankMoat/FrankMoat.Android/FrankMoat.Android.csproj",
         "maui": null,
         "tests": ["tests/FrankMoat.Unit/FrankMoat.Unit.csproj"],
         "all": [
           "src/FrankMoat/FrankMoat.csproj",
+          "src/FrankMoat/FrankMoat.Desktop/FrankMoat.Desktop.csproj",
+          "src/FrankMoat/FrankMoat.Android/FrankMoat.Android.csproj",
           "tests/FrankMoat.Unit/FrankMoat.Unit.csproj"
         ]
       },
-      "local": ["windows"],
-      "ship": ["windows-inno"],
+      "local": ["windows", "android"],
+      "ship": ["windows-inno", "android-apk"],
       "validation": {
         "changedPathGlobs": ["src/FrankMoat/**", "tests/FrankMoat.Unit/**"],
         "runTests": true,
-        "androidCompile": false,
+        "androidCompile": true,
         "windowsCi": false,
         "windowsWorkload": false,
         "linuxCi": false,
-        "fanOutStacks": ["avalonia"]
+        "fanOutStacks": ["avalonia", "android"]
       },
       "windows": {
         "exeName": "FrankMoat.exe",
@@ -995,7 +997,16 @@
         "closeApplicationsFilter": "FrankMoat.exe",
         "fileAssociationsAllowed": false
       },
-      "android": null,
+      "android": {
+        "project": "src/FrankMoat/FrankMoat.Android/FrankMoat.Android.csproj",
+        "applicationId": "com.novolis.frankmoat",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "FRANKMOAT_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [],
+        "networkPolicy": "none"
+      },
       "data": {
         "appDataRoot": "%LOCALAPPDATA%\\Novolis\\frank-moat",
         "cacheRoot": "%LOCALAPPDATA%\\Novolis\\frank-moat\\cache",
