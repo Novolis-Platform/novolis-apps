@@ -11,7 +11,6 @@
     <Project Path="src/BooksMobile/BooksMobile/BooksMobile.csproj" />
     <Project Path="src/BooksWriterStudio/BooksWriterStudio.csproj" />
     <Project Path="src/CadStudio/CadStudio.csproj" />
-    <Project Path="src/FrankMoat/FrankMoat.csproj" />
     <Project Path="src/LiveStudio/host/LiveStudio.Host.csproj" />
     <Project Path="src/LiveStudio/launcher/LiveStudio.Launcher.csproj" />
     <Project Path="src/LiveStudio/shared/LiveStudio.Shared.csproj" />
