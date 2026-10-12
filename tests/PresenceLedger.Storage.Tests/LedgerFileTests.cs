@@ -41,4 +41,62 @@ public sealed class LedgerFileTests
                 Directory.Delete(published, recursive: true);
         }
     }
+
+    [Test]
+    public async Task Catalog_includes_cumulative_and_diagnostics_exports()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "presence-ledger-tests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            await File.WriteAllTextAsync(
+                Path.Combine(root, "cumulative.ndjson"),
+                "{}\n");
+            await File.WriteAllTextAsync(
+                Path.Combine(root, "diagnostics.ndjson"),
+                "{}\n");
+
+            var files = LedgerFiles.List(root);
+
+            await Assert.That(files.Select(file => file.RelativePath).ToArray())
+                .IsEquivalentTo(new[] { "cumulative.ndjson", "diagnostics.ndjson" });
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Catalog_ignores_legacy_share_snapshots()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "presence-ledger-tests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "share"));
+            await File.WriteAllTextAsync(
+                Path.Combine(root, "share", "cumulative.ndjson"),
+                "{}\n");
+            await File.WriteAllTextAsync(
+                Path.Combine(root, "cumulative.ndjson"),
+                "{}\n");
+
+            var files = LedgerFiles.List(root);
+
+            await Assert.That(files.Select(file => file.RelativePath).ToArray())
+                .IsEquivalentTo(new[] { "cumulative.ndjson" });
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
 }

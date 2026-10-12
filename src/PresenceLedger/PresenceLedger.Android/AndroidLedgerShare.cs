@@ -22,12 +22,13 @@ public sealed class AndroidLedgerShare : ILedgerFileShare
     public Task ShareAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var files = LedgerFiles.List(_sourceRoot);
-        if (files.Count == 0)
+        if (LedgerFiles.List(_sourceRoot).Count == 0)
             throw new InvalidOperationException("No ledger files have been stored yet.");
 
         var context = global::Android.App.Application.Context
             ?? throw new InvalidOperationException("Android application context is unavailable.");
+        var stagingRoot = AndroidLedgerShareStaging.StageLedger(context, _sourceRoot);
+        var files = LedgerFiles.List(stagingRoot);
         var authority = $"{context.PackageName}.ledger";
         var uris = new List<IParcelable>(files.Count);
         foreach (var file in files)

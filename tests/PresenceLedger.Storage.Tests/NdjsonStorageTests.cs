@@ -214,6 +214,54 @@ public sealed class NdjsonStorageTests
         }
     }
 
+    [Test]
+    public async Task Cumulative_export_orders_observations_and_keeps_diagnostics_separate()
+    {
+        var root = CreateRoot();
+        try
+        {
+            var storage = new NdjsonPresenceStorage(root);
+            var later = new PresenceObservationRecord(
+                DateTimeOffset.Parse("2026-10-03T12:00:00Z"),
+                null,
+                null,
+                RecordedWifiStatus.Available,
+                "Later");
+            var earlier = new PresenceObservationRecord(
+                DateTimeOffset.Parse("2026-10-01T12:00:00Z"),
+                null,
+                null,
+                RecordedWifiStatus.Available,
+                "Earlier");
+
+            await storage.Observations.AppendAsync(later);
+            await storage.Observations.AppendAsync(earlier);
+            await storage.Diagnostics.AppendAsync(
+                new PresenceDiagnosticRecord(
+                    DateTimeOffset.Parse("2026-10-03T12:01:00Z"),
+                    "info",
+                    "test",
+                    "Diagnostic entry"));
+
+            var count = await storage.BuildCumulativeAsync();
+            var diagnostics = await ReadAll(storage.Diagnostics.ReadAsync());
+            var cumulative = File.ReadAllLines(storage.CumulativeFilePath);
+
+            await Assert.That(count).IsEqualTo(2);
+            await Assert.That(cumulative).Count().IsEqualTo(2);
+            await Assert.That(cumulative[0]).Contains("Earlier");
+            await Assert.That(cumulative[1]).Contains("Later");
+            await Assert.That(diagnostics).Count().IsEqualTo(1);
+            await Assert.That(File.Exists(storage.Diagnostics.FilePath)).IsTrue();
+            await Assert.That(storage.CumulativeFilePath)
+                .IsNotEqualTo(storage.Diagnostics.FilePath);
+        }
+        finally
+        {
+            DeleteRoot(root);
+        }
+    }
+
     static TrackedLocation Location() =>
         new(
             Guid.Parse("5ad8d6e7-63f1-4d22-a5e4-0a972702b4d1"),

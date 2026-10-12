@@ -38,6 +38,8 @@ public static class PresenceLedgerServiceCollectionExtensions
             sp.GetRequiredService<NdjsonPresenceStorage>().States);
         services.AddSingleton<IPresenceObservationStore>(sp =>
             sp.GetRequiredService<NdjsonPresenceStorage>().Observations);
+        services.AddSingleton<IPresenceDiagnosticsStore>(sp =>
+            sp.GetRequiredService<NdjsonPresenceStorage>().Diagnostics);
         services.AddSingleton<IPresenceEngine>(sp =>
             new PresenceEngine(
                 TimeProvider.System,
@@ -59,6 +61,7 @@ public static class PresenceLedgerServiceCollectionExtensions
         services.AddSingleton<IMapPlaceSearch, GeonorgeAddressSearch>();
         services.AddSingleton<PresenceHistoryRebuild>();
         services.AddSingleton<PresenceObservationCoordinator>();
+        services.AddSingleton<LedgerExportService>();
         services.AddSingleton<ILedgerFilePublisher>(sp =>
             DirectoryLedgerFilePublisher.ForDownloads(
                 sp.GetRequiredService<IAppDataPaths>().RootDirectory));

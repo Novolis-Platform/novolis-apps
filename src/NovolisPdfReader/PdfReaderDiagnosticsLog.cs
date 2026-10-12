@@ -20,7 +20,13 @@ public sealed class PdfReaderDiagnosticsLog
     public PdfReaderDiagnosticsLog()
     {
 #if ANDROID
-        var directory = AndroidAppStorage.DefaultRoot("NovolisPdfReader");
+        var context = global::Android.App.Application.Context
+            ?? throw new InvalidOperationException("Android application context is unavailable.");
+        var directory = AndroidAppStorage.Open(
+                context,
+                "NovolisPdfReader",
+                AndroidStoragePreference.AppPrivate)
+            .RootDirectory;
 #else
         var directory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

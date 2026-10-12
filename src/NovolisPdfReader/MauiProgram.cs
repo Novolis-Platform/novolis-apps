@@ -40,7 +40,13 @@ public static class MauiProgram
     static string AppStorageRoot()
     {
 #if ANDROID
-        return AndroidAppStorage.DefaultRoot("NovolisPdfReader");
+        var context = global::Android.App.Application.Context
+            ?? throw new InvalidOperationException("Android application context is unavailable.");
+        return AndroidAppStorage.Open(
+                context,
+                "NovolisPdfReader",
+                AndroidStoragePreference.AppPrivate)
+            .RootDirectory;
 #else
         return FileSystem.Current.AppDataDirectory;
 #endif

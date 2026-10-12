@@ -32,6 +32,7 @@ public sealed class MainView : UserControl
     readonly IMapPlaceSearch _searchProvider;
     readonly IServiceProvider _services;
     readonly PresenceHistoryRebuild _history;
+    readonly LedgerExportService _exports;
     readonly ContentControl _content = new();
     readonly TextBlock _status = new();
 
@@ -61,7 +62,8 @@ public sealed class MainView : UserControl
         IMapRasterSource rasterSource,
         IMapPlaceSearch searchProvider,
         IServiceProvider services,
-        PresenceHistoryRebuild history)
+        PresenceHistoryRebuild history,
+        LedgerExportService exports)
     {
         _locations = locations ?? throw new ArgumentNullException(nameof(locations));
         _events = events ?? throw new ArgumentNullException(nameof(events));
@@ -73,6 +75,7 @@ public sealed class MainView : UserControl
         _searchProvider = searchProvider ?? throw new ArgumentNullException(nameof(searchProvider));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _history = history ?? throw new ArgumentNullException(nameof(history));
+        _exports = exports ?? throw new ArgumentNullException(nameof(exports));
 
         Background = GraphicalProfile.BackgroundBrush;
         BuildShell();
@@ -1028,20 +1031,50 @@ public sealed class MainView : UserControl
             TextWrapping = TextWrapping.Wrap,
         };
 
-    async Task PublishLedgerAsync()
+    async Task<bool> PublishLedgerAsync(bool includeExportArtifacts = false)
     {
+        if (includeExportArtifacts)
+        {
+            try
+            {
+                await _exports.BuildAsync();
+            }
+            catch (Exception exception)
+            {
+                await RecordDiagnosticAsync(
+                    "error",
+                    "export-build-failed",
+                    "Could not prepare ledger export artifacts.",
+                    exception.ToString());
+                SetStatus($"Could not build exports: {exception.Message}");
+                return false;
+            }
+        }
+
         var publisher = _services.GetService<ILedgerFilePublisher>();
         if (publisher is null)
-            return;
+            return false;
 
         try
         {
             var where = await publisher.PublishAsync();
             SetStatus($"Ledger saved to {where}");
+            await RecordDiagnosticAsync(
+                "info",
+                "ledger-published",
+                "Published the current ledger files.",
+                where);
+            return true;
         }
         catch (Exception ex)
         {
+            await RecordDiagnosticAsync(
+                "error",
+                "ledger-publish-failed",
+                "Could not publish the current ledger files.",
+                ex.ToString());
             SetStatus($"Could not publish ledger: {ex.Message}");
+            return false;
         }
     }
 
@@ -1075,6 +1108,11 @@ public sealed class MainView : UserControl
         }
         catch (Exception ex)
         {
+            await RecordDiagnosticAsync(
+                "error",
+                "report-read-failed",
+                "Could not read the local event ledger for the report.",
+                ex.ToString());
             _content.Content = ErrorSurface(
                 "Report is unavailable",
                 "The local event ledger could not be read.",
@@ -1087,16 +1125,40 @@ public sealed class MainView : UserControl
     async Task ExportReportAsync(AttendanceReport report, TimeZoneInfo zone)
     {
         var text = report.Format(DateTimeOffset.Now, zone, CultureInfo.CurrentCulture);
+        try
+        {
+            await _exports.BuildAsync();
+        }
+        catch (Exception exception)
+        {
+            await RecordDiagnosticAsync(
+                "error",
+                "report-export-preparation-failed",
+                "Could not prepare the ledger artifacts before exporting the report.",
+                exception.ToString());
+            SetStatus($"Could not build exports: {exception.Message}");
+            return;
+        }
+
         var exporter = _services.GetService<IReportExport>();
         if (exporter is not null)
         {
             try
             {
                 await exporter.ExportAsync(text);
+                await RecordDiagnosticAsync(
+                    "info",
+                    "report-shared",
+                    "Opened the presence report share sheet.");
                 SetStatus("Report share opened");
             }
             catch (Exception ex)
             {
+                await RecordDiagnosticAsync(
+                    "error",
+                    "report-share-failed",
+                    "Could not open the presence report share sheet.",
+                    ex.ToString());
                 SetStatus($"Could not export the report: {ex.Message}");
             }
 
@@ -1121,6 +1183,11 @@ public sealed class MainView : UserControl
             await using var stream = await file.OpenWriteAsync();
             await using var writer = new StreamWriter(stream);
             await writer.WriteAsync(text);
+            await RecordDiagnosticAsync(
+                "info",
+                "report-saved",
+                "Saved the presence report through the host file picker.",
+                file.Name);
             SetStatus("Report saved");
             return;
         }
@@ -1229,6 +1296,8 @@ public sealed class MainView : UserControl
         var wifiStatus = wifiSource?.GetStatus();
         var today = await ReadDayProjectionAsync(DateOnly.FromDateTime(DateTime.Now));
         var storage = _services.GetService<NdjsonPresenceStorage>();
+        var paths = _services.GetService<IAppDataPaths>();
+        var storageStatus = _services.GetService<ILedgerStorageStatus>();
         var stack = PageStack("More", "The ledger, the event list, and what the phone is able to read.");
         var events = new Button
         {
@@ -1240,6 +1309,21 @@ public sealed class MainView : UserControl
         };
         events.Click += async (_, _) => await ShowHistoryAsync();
         stack.Children.Add(events);
+        stack.Children.Add(DiagnosticLine(
+            "Ledger root",
+            paths?.RootDirectory ?? "Unavailable"));
+        if (storageStatus is not null)
+        {
+            stack.Children.Add(DiagnosticLine(
+                "Storage mode",
+                storageStatus.Kind));
+            stack.Children.Add(DiagnosticLine(
+                "Imported legacy files",
+                storageStatus.ImportedFileCount.ToString(CultureInfo.InvariantCulture)));
+            stack.Children.Add(DiagnosticLine(
+                "Storage import",
+                storageStatus.ImportError ?? "No import error"));
+        }
         stack.Children.Add(DiagnosticLine(
             "Location source",
             locationStatus is { } locationCapability
@@ -1286,7 +1370,7 @@ public sealed class MainView : UserControl
         });
         stack.Children.Add(new TextBlock
         {
-            Text = "Every ledger file is copied to Downloads/PresenceLedger as it is written. Share sends the same files, including ones created later.",
+            Text = "Save and share build cumulative.ndjson from all daily observations and keep diagnostics.ndjson separate. The complete ledger is then published to Downloads/PresenceLedger.",
             Foreground = GraphicalProfile.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
         });
@@ -1333,6 +1417,21 @@ public sealed class MainView : UserControl
         };
         stack.Children.Add(_ledgerViewer);
 
+        var recovery = _services.GetService<ILedgerStorageRecovery>();
+        if (recovery is not null)
+        {
+            var import = new Button
+            {
+                Content = "Import shared Documents ledger",
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                MinHeight = 48,
+                Background = GraphicalProfile.SurfaceBrush,
+                Foreground = GraphicalProfile.TextBrush,
+            };
+            import.Click += async (_, _) => await ImportLegacyLedgerAsync(recovery);
+            stack.Children.Add(import);
+        }
+
         var save = new Button
         {
             Content = "Save ledger to Downloads",
@@ -1343,7 +1442,7 @@ public sealed class MainView : UserControl
         };
         save.Click += async (_, _) =>
         {
-            await PublishLedgerAsync();
+            await PublishLedgerAsync(includeExportArtifacts: true);
             await ShowDiagnosticsAsync();
         };
         var share = new Button
@@ -1360,23 +1459,66 @@ public sealed class MainView : UserControl
             if (sharer is null)
             {
                 SetStatus("This host saves the ledger to Downloads instead of a share sheet.");
-                await PublishLedgerAsync();
+                await PublishLedgerAsync(includeExportArtifacts: true);
                 return;
             }
 
             try
             {
-                await PublishLedgerAsync();
+                if (!await PublishLedgerAsync(includeExportArtifacts: true))
+                    return;
                 await sharer.ShareAsync();
+                await RecordDiagnosticAsync(
+                    "info",
+                    "ledger-shared",
+                    "Opened the ledger share sheet.");
                 SetStatus("Ledger share opened");
             }
             catch (Exception ex)
             {
+                await RecordDiagnosticAsync(
+                    "error",
+                    "ledger-share-failed",
+                    "Could not open the ledger share sheet.",
+                    ex.ToString());
                 SetStatus($"Could not share ledger: {ex.Message}");
             }
         };
         stack.Children.Add(save);
         stack.Children.Add(share);
+    }
+
+    async Task ImportLegacyLedgerAsync(ILedgerStorageRecovery recovery)
+    {
+        SetStatus("Choose Documents/Novolis/PresenceLedger in the folder picker.");
+        try
+        {
+            var count = await recovery.RequestImportAsync();
+            if (count > 0)
+            {
+                await _history.RebuildAsync();
+                SetStatus($"Imported {count} legacy ledger file{(count == 1 ? string.Empty : "s")}.");
+            }
+            else
+            {
+                SetStatus("No new ledger files were imported.");
+            }
+
+            await ShowDiagnosticsAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Ledger import cancelled.");
+        }
+        catch (Exception exception)
+        {
+            await RecordDiagnosticAsync(
+                "error",
+                "legacy-import-ui-failed",
+                "The shared ledger import could not be completed.",
+                exception.ToString());
+            SetStatus($"Could not import the shared ledger: {exception.Message}");
+        }
     }
 
     async Task OpenLedgerFileAsync(LedgerFile file)
@@ -1397,6 +1539,11 @@ public sealed class MainView : UserControl
         }
         catch (Exception ex)
         {
+            await RecordDiagnosticAsync(
+                "error",
+                "ledger-read-failed",
+                $"Could not open ledger file {file.RelativePath}.",
+                ex.ToString());
             SetStatus($"Ledger file unavailable: {ex.Message}");
         }
     }
@@ -1527,6 +1674,22 @@ public sealed class MainView : UserControl
         string.IsNullOrWhiteSpace(status.Detail)
             ? status.Status.ToString()
             : $"{status.Status}: {status.Detail}";
+
+    async Task RecordDiagnosticAsync(
+        string level,
+        string code,
+        string message,
+        string? detail = null)
+    {
+        try
+        {
+            await _exports.RecordAsync(level, code, message, detail);
+        }
+        catch
+        {
+            // Diagnostics must not hide the result of the user action.
+        }
+    }
 
     void SetStatus(string text) => _status.Text = text;
 

@@ -38,6 +38,16 @@ public static class PresenceReplay
                         states[location.Id],
                         observation);
                     states[location.Id] = result.State;
+                    if (result.Event is { Transition: PresenceTransition.Arrived } arrival)
+                    {
+                        CloseOtherLocations(
+                            location,
+                            arrival,
+                            current,
+                            states,
+                            events);
+                    }
+
                     if (result.Event is not null)
                         events.Add(result.Event);
                 }
@@ -45,6 +55,39 @@ public static class PresenceReplay
         }
 
         return new PresenceReplayResult(events, states.Values.ToArray());
+    }
+
+    static void CloseOtherLocations(
+        TrackedLocation arrivedLocation,
+        PresenceEvent arrival,
+        IReadOnlyList<TrackedLocation> locations,
+        IDictionary<Guid, LocationPresenceState> states,
+        ICollection<PresenceEvent> events)
+    {
+        foreach (var location in locations)
+        {
+            if (location.Id == arrivedLocation.Id)
+                continue;
+
+            var state = states[location.Id];
+            if (state.State == PresenceState.Present)
+            {
+                events.Add(
+                    new PresenceEvent(
+                        Guid.NewGuid(),
+                        location.Id,
+                        PresenceTransition.Left,
+                        arrival.At,
+                        new PresenceEvidence(
+                            PresenceConfidence.Confirmed,
+                            location.Policy.DepartureDuration)));
+            }
+
+            states[location.Id] = LocationPresenceState.CreateAbsent(location.Id) with
+            {
+                LastEvidenceAt = arrival.At,
+            };
+        }
     }
 
     static IEnumerable<Observation> Interpret(PresenceObservationRecord record)

@@ -9,6 +9,7 @@ namespace PresenceLedger.Android;
 /// <summary>Publishes the ledger into the public Downloads folder so My Files and a computer can read it.</summary>
 public sealed class AndroidDownloadsLedgerPublisher : ILedgerFilePublisher
 {
+    static readonly Lock PublishGate = new();
     readonly string _sourceRoot;
 
     /// <summary>Creates a publisher for the private ledger root.</summary>
@@ -41,10 +42,13 @@ public sealed class AndroidDownloadsLedgerPublisher : ILedgerFilePublisher
         var collection = MediaStore.Downloads.ExternalContentUri
             ?? throw new InvalidOperationException("Android Downloads collection is unavailable.");
 
-        foreach (var file in LedgerFiles.List(_sourceRoot))
+        lock (PublishGate)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            Write(resolver, collection, file);
+            foreach (var file in LedgerFiles.List(_sourceRoot))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Write(resolver, collection, file);
+            }
         }
 
         return "Downloads/PresenceLedger";
@@ -59,10 +63,30 @@ public sealed class AndroidDownloadsLedgerPublisher : ILedgerFilePublisher
             ? "Download/PresenceLedger/"
             : $"Download/PresenceLedger/{directory}/";
 
-        var existing = Find(resolver, collection, displayName, relativePath);
+        var matches = FindMatches(resolver, collection, displayName, relativePath);
+        var existing = matches
+            .Where(match => string.Equals(
+                match.DisplayName,
+                displayName,
+                StringComparison.Ordinal)
+                && match.IsOwnedByApplication)
+            .Concat(matches.Where(match =>
+                !string.Equals(match.DisplayName, displayName, StringComparison.Ordinal)
+                && match.IsOwnedByApplication))
+            .Select(match => match.Uri)
+            .FirstOrDefault();
+        foreach (var match in matches)
+        {
+            if (match.IsOwnedByApplication
+                && (existing is null || !match.Uri.Equals(existing)))
+                DeleteBestEffort(resolver, match.Uri);
+        }
+
         if (existing is not null)
         {
-            using var stream = resolver.OpenOutputStream(existing, "wt")
+            // MediaProvider rejects "wt" for some already-indexed Downloads
+            // rows. Its default write mode still truncates the existing row.
+            using var stream = resolver.OpenOutputStream(existing)
                 ?? throw new InvalidOperationException($"Android could not open {file.RelativePath}.");
             using var input = File.OpenRead(file.FullPath);
             input.CopyTo(stream);
@@ -73,7 +97,6 @@ public sealed class AndroidDownloadsLedgerPublisher : ILedgerFilePublisher
         values.Put(MediaStore.IMediaColumns.DisplayName, displayName);
         values.Put(MediaStore.IMediaColumns.MimeType, "application/x-ndjson");
         values.Put(MediaStore.IMediaColumns.RelativePath, relativePath);
-        values.Put(MediaStore.IMediaColumns.IsPending, 1);
         var uri = resolver.Insert(collection, values)
             ?? throw new InvalidOperationException($"Android could not create {file.RelativePath}.");
         try
@@ -83,31 +106,81 @@ public sealed class AndroidDownloadsLedgerPublisher : ILedgerFilePublisher
             using var input = File.OpenRead(file.FullPath);
             input.CopyTo(stream);
         }
-        finally
+        catch
         {
-            var ready = new ContentValues();
-            ready.Put(MediaStore.IMediaColumns.IsPending, 0);
-            resolver.Update(uri, ready, null, null);
+            resolver.Delete(uri, null, null);
+            throw;
         }
     }
 
     [SupportedOSPlatform("android29.0")]
-    static global::Android.Net.Uri? Find(
+    static List<(global::Android.Net.Uri Uri, string DisplayName, bool IsOwnedByApplication)> FindMatches(
         ContentResolver resolver,
         global::Android.Net.Uri collection,
         string displayName,
         string relativePath)
     {
+        var matches =
+            new List<(global::Android.Net.Uri Uri, string DisplayName, bool IsOwnedByApplication)>();
+        var relativePathColumn = MediaStore.IMediaColumns.RelativePath;
+        const string ownerPackageColumn = "owner_package_name";
+        var packageName = global::Android.App.Application.Context?.PackageName;
         using var cursor = resolver.Query(
             collection,
-            ["_id"],
-            $"{MediaStore.IMediaColumns.DisplayName}=? AND {MediaStore.IMediaColumns.RelativePath}=?",
-            [displayName, relativePath],
+            ["_id", MediaStore.IMediaColumns.DisplayName, relativePathColumn, ownerPackageColumn],
+            null,
+            null,
             null);
-        if (cursor is null || !cursor.MoveToFirst())
-            return null;
+        if (cursor is null)
+            return matches;
 
-        var id = cursor.GetLong(cursor.GetColumnIndexOrThrow("_id"));
-        return ContentUris.WithAppendedId(collection, id);
+        var idColumn = cursor.GetColumnIndexOrThrow("_id");
+        var displayNameColumn = cursor.GetColumnIndexOrThrow(
+            MediaStore.IMediaColumns.DisplayName);
+        var relativePathIndex = cursor.GetColumnIndexOrThrow(relativePathColumn);
+        var ownerPackageIndex = cursor.GetColumnIndexOrThrow(ownerPackageColumn);
+        if (!cursor.MoveToFirst())
+            return matches;
+
+        do
+        {
+            var foundName = cursor.GetString(displayNameColumn);
+            if (foundName is null)
+                continue;
+
+            if (!string.Equals(
+                    cursor.GetString(relativePathIndex),
+                    relativePath,
+                    StringComparison.Ordinal)
+                || (!string.Equals(foundName, displayName, StringComparison.Ordinal)
+                    && !foundName.StartsWith(
+                        displayName + " (",
+                        StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            var id = cursor.GetLong(idColumn);
+            var ownerPackage = cursor.GetString(ownerPackageIndex);
+            matches.Add((
+                ContentUris.WithAppendedId(collection, id),
+                foundName,
+                string.Equals(ownerPackage, packageName, StringComparison.Ordinal)));
+        } while (cursor.MoveToNext());
+
+        return matches;
+    }
+
+    static void DeleteBestEffort(
+        ContentResolver resolver,
+        global::Android.Net.Uri uri)
+    {
+        try
+        {
+            resolver.Delete(uri, null, null);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+        }
     }
 }

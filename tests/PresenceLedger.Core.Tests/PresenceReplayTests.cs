@@ -16,6 +16,7 @@ public sealed class PresenceReplayTests
 
     static readonly Guid HomeId = Guid.Parse("a2f98b1b-795e-49c5-87cb-c22366325958");
     static readonly Guid WorkId = Guid.Parse("0c2cdf46-fac0-4107-b3bb-f8c21c3fac46");
+    static readonly Guid BarrikadenId = Guid.Parse("d7cb3f5c-95e3-4df6-9b5b-2b7bca3f0d87");
 
     [Test]
     public async Task Phone_day_applies_home_and_work_to_samples_recorded_before_the_places_mattered()
@@ -168,6 +169,76 @@ public sealed class PresenceReplayTests
         await Assert.That(replay.Events[0].At).IsEqualTo(start);
         await Assert.That(replay.Events[1].Transition).IsEqualTo(PresenceTransition.Left);
         await Assert.That(replay.Events[1].At).IsEqualTo(start.AddMinutes(12));
+    }
+
+    [Test]
+    public async Task Confirming_Barrikaden_closes_an_existing_work_presence()
+    {
+        var start = new DateTimeOffset(2026, 10, 8, 16, 0, 0, TimeSpan.Zero);
+        var workCenter = new GeoCoordinate(58.143788, 7.992383);
+        var barrikadenCenter = new GeoCoordinate(58.147712, 8.001682);
+        var work = new TrackedLocation(
+            WorkId,
+            "Work",
+            new GeoCircle(workCenter, 80),
+            null,
+            new PresencePolicy(
+                TimeSpan.FromMinutes(5),
+                TimeSpan.FromMinutes(20),
+                TimeSpan.FromMinutes(10)));
+        var barrikaden = new TrackedLocation(
+            BarrikadenId,
+            "Barrikaden",
+            new GeoCircle(barrikadenCenter, 80),
+            new WifiEvidence("Barrikaden"),
+            new PresencePolicy(
+                TimeSpan.FromMinutes(3),
+                TimeSpan.FromMinutes(3),
+                TimeSpan.FromMinutes(5)));
+        var observations = new[]
+        {
+            new PresenceObservationRecord(start, workCenter, 5, RecordedWifiStatus.Redacted, null),
+            new PresenceObservationRecord(
+                start.AddMinutes(5),
+                workCenter,
+                5,
+                RecordedWifiStatus.Redacted,
+                null),
+            new PresenceObservationRecord(
+                start.AddMinutes(10),
+                null,
+                null,
+                RecordedWifiStatus.Available,
+                "Barrikaden"),
+            new PresenceObservationRecord(
+                start.AddMinutes(13),
+                null,
+                null,
+                RecordedWifiStatus.Available,
+                "Barrikaden"),
+        };
+
+        var replay = PresenceReplay.Replay([work, barrikaden], observations);
+        var workEvents = replay.Events.Where(item => item.LocationId == WorkId).ToArray();
+        var barrikadenEvents = replay.Events
+            .Where(item => item.LocationId == BarrikadenId)
+            .ToArray();
+        var workLeft = workEvents.Single(
+            item => item.Transition == PresenceTransition.Left);
+        var barrikadenArrival = barrikadenEvents.Single(
+            item => item.Transition == PresenceTransition.Arrived);
+
+        await Assert.That(workEvents.Count(item => item.Transition == PresenceTransition.Arrived))
+            .IsEqualTo(1);
+        await Assert.That(workLeft.At).IsEqualTo(barrikadenArrival.At);
+        await Assert.That(replay.States.Single(item => item.LocationId == WorkId).State)
+            .IsEqualTo(PresenceState.Absent);
+        await Assert.That(
+                replay.States.Count(item => item.State == PresenceState.Present))
+            .IsEqualTo(1);
+        await Assert.That(
+                replay.States.Single(item => item.LocationId == BarrikadenId).State)
+            .IsEqualTo(PresenceState.Present);
     }
 
     static TrackedLocation Home() =>

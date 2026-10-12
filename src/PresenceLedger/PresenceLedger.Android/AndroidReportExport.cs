@@ -1,5 +1,4 @@
 using Android.Content;
-using Android.OS;
 using AndroidX.Core.Content;
 using PresenceLedger.App;
 
@@ -8,26 +7,22 @@ namespace PresenceLedger.Android;
 /// <summary>Writes the presence report into app storage and opens the share sheet.</summary>
 public sealed class AndroidReportExport : IReportExport
 {
-    readonly string _sourceRoot;
-
-    /// <summary>Creates an exporter that stores the report under the private ledger root.</summary>
-    public AndroidReportExport(string sourceRoot)
+    /// <summary>Creates an exporter that stages reports under app-owned files.</summary>
+    public AndroidReportExport()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
-        _sourceRoot = sourceRoot;
     }
 
     /// <inheritdoc />
-    public async Task ExportAsync(string report, CancellationToken cancellationToken = default)
+    public Task ExportAsync(string report, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(report);
         cancellationToken.ThrowIfCancellationRequested();
-        Directory.CreateDirectory(_sourceRoot);
-        var path = Path.Combine(_sourceRoot, "presence-report.txt");
-        await File.WriteAllTextAsync(path, report, cancellationToken);
-
         var context = global::Android.App.Application.Context
             ?? throw new InvalidOperationException("Android application context is unavailable.");
+        var path = AndroidLedgerShareStaging.StageText(
+            context,
+            "presence-report.txt",
+            report);
         var authority = $"{context.PackageName}.ledger";
         var uri = FileProvider.GetUriForFile(context, authority, new Java.IO.File(path))
             ?? throw new InvalidOperationException("Unable to share the presence report.");
@@ -44,5 +39,6 @@ public sealed class AndroidReportExport : IReportExport
             ?? throw new InvalidOperationException("Android could not create a report share chooser."))
             .AddFlags(ActivityFlags.NewTask | ActivityFlags.GrantReadUriPermission);
         context.StartActivity(chooser);
+        return Task.CompletedTask;
     }
 }

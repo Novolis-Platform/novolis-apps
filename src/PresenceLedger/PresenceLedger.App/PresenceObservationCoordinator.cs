@@ -18,6 +18,7 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
     readonly IPresenceEngine _engine;
     readonly IPresenceObservationStore _observations;
     readonly PresenceHistoryRebuild _history;
+    readonly IPresenceDiagnosticsStore? _diagnostics;
     readonly object _gate = new();
 
     CancellationTokenSource? _cancellation;
@@ -34,12 +35,14 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         IServiceProvider services,
         IPresenceEngine engine,
         IPresenceObservationStore observations,
-        PresenceHistoryRebuild history)
+        PresenceHistoryRebuild history,
+        IPresenceDiagnosticsStore? diagnostics = null)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _observations = observations ?? throw new ArgumentNullException(nameof(observations));
         _history = history ?? throw new ArgumentNullException(nameof(history));
+        _diagnostics = diagnostics;
     }
 
     /// <summary>Whether a platform observation session is currently active.</summary>
@@ -201,6 +204,10 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         catch (Exception ex)
         {
             SetError(ex);
+            await RecordDiagnosticAsync(
+                "history-rebuild-failed",
+                "Could not rebuild presence history at observation startup.",
+                ex);
         }
 
         using var timer = new PeriodicTimer(WifiInterval);
@@ -217,6 +224,10 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
             catch (Exception ex)
             {
                 SetError(ex);
+                await RecordDiagnosticAsync(
+                    "observation-cycle-failed",
+                    "An observation cycle failed.",
+                    ex);
             }
 
             try
@@ -373,6 +384,10 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         catch (Exception exception)
         {
             SetError(exception);
+            await RecordDiagnosticAsync(
+                "publisher-failed",
+                "Could not publish the current ledger.",
+                exception);
         }
     }
 
@@ -397,6 +412,34 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         catch (Exception exception)
         {
             SetError(exception);
+            await RecordDiagnosticAsync(
+                "observation-retain-failed",
+                "Could not retain a platform observation.",
+                exception);
+        }
+    }
+
+    async Task RecordDiagnosticAsync(
+        string code,
+        string message,
+        Exception exception)
+    {
+        if (_diagnostics is null)
+            return;
+
+        try
+        {
+            await _diagnostics.AppendAsync(
+                new PresenceDiagnosticRecord(
+                    DateTimeOffset.UtcNow,
+                    "error",
+                    code,
+                    message,
+                    exception.ToString()));
+        }
+        catch
+        {
+            // A diagnostics failure must not stop presence observation.
         }
     }
 

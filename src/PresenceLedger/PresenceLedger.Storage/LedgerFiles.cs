@@ -21,6 +21,9 @@ public static class LedgerFiles
                     .Replace('\\', '/');
                 return new LedgerFile(relative, path, new FileInfo(path).Length);
             })
+            // A legacy shared tree can contain a prior share snapshot. It is
+            // an export artifact, not another copy of the live ledger.
+            .Where(file => !file.RelativePath.StartsWith("share/", StringComparison.Ordinal))
             .OrderBy(file => file.RelativePath, StringComparer.Ordinal)
             .ToArray();
     }

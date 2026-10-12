@@ -5,7 +5,9 @@ using Android.OS;
 using Android.Runtime;
 using Android.Views;
 using Avalonia.Android;
+using Microsoft.Extensions.DependencyInjection;
 using System.Runtime.Versioning;
+using PresenceLedgerApp = PresenceLedger.App.App;
 
 namespace PresenceLedger.Android;
 
@@ -27,11 +29,23 @@ public sealed class MainActivity : AvaloniaMainActivity
     const int BackgroundPermissionRequest = 7402;
     bool _backgroundPermissionRequested;
 
+    /// <summary>Activity currently able to show the legacy folder picker.</summary>
+    public static MainActivity? Current { get; private set; }
+
     /// <inheritdoc />
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        Current = this;
         RequestObservationPermissions();
+    }
+
+    /// <inheritdoc />
+    protected override void OnDestroy()
+    {
+        if (ReferenceEquals(Current, this))
+            Current = null;
+        base.OnDestroy();
     }
 
     /// <inheritdoc />
@@ -56,6 +70,21 @@ public sealed class MainActivity : AvaloniaMainActivity
         else if (requestCode == BackgroundPermissionRequest)
         {
             StartObservationService();
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void OnActivityResult(
+        int requestCode,
+        Result resultCode,
+        Intent? data)
+    {
+        base.OnActivityResult(requestCode, resultCode, data);
+        if (requestCode == AndroidLegacyLedgerImport.RequestCode)
+        {
+            PresenceLedgerApp.Services
+                .GetService<AndroidLegacyLedgerImport>()
+                ?.Complete(resultCode, data);
         }
     }
 

@@ -4,7 +4,9 @@ using Avalonia;
 using Avalonia.Android;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Mobile.Android;
+using Novolis.IO.Platform.Android;
 using PresenceLedger.App;
+using PresenceLedger.Core;
 using PresenceLedgerApp = PresenceLedger.App.App;
 
 namespace PresenceLedger.Android;
@@ -25,8 +27,31 @@ public class MainApplication : AvaloniaAndroidApplication<PresenceLedgerApp>
         // Use the minimal container on Android so process startup does not
         // synchronously load the generic host configuration pipeline.
         var services = new ServiceCollection();
+        var locations = AndroidAppStorage.Open(
+            global::Android.App.Application.Context
+                ?? throw new InvalidOperationException("Android application context is unavailable."),
+            "PresenceLedger",
+            AndroidStoragePreference.AppPrivate);
+        var storageStatus = new LedgerStorageStatus(
+            locations.Kind.ToString(),
+            locations.ImportResult.FilesCopied,
+            locations.ImportResult.ErrorMessage);
         services.AddNovolisMobileAndroid("PresenceLedger");
+        services.AddSingleton(locations);
+        services.AddSingleton<Novolis.Avalonia.Mobile.IAppDataPaths>(
+            new AndroidAppDataPaths(locations));
+        services.AddSingleton<ILedgerStorageStatus>(storageStatus);
         services.AddPresenceLedger();
+        services.AddSingleton<AndroidLegacyLedgerImport>(sp =>
+            new AndroidLegacyLedgerImport(
+                global::Android.App.Application.Context
+                    ?? throw new InvalidOperationException("Android application context is unavailable."),
+                sp.GetRequiredService<Novolis.Avalonia.Mobile.IAppDataPaths>().RootDirectory,
+                sp.GetRequiredService<IPresenceDiagnosticsStore>(),
+                storageStatus,
+                () => MainActivity.Current));
+        services.AddSingleton<ILedgerStorageRecovery>(sp =>
+            sp.GetRequiredService<AndroidLegacyLedgerImport>());
         services.AddSingleton<ILedgerFilePublisher>(sp =>
             new AndroidDownloadsLedgerPublisher(
                 sp.GetRequiredService<Novolis.Avalonia.Mobile.IAppDataPaths>().RootDirectory));
@@ -34,9 +59,27 @@ public class MainApplication : AvaloniaAndroidApplication<PresenceLedgerApp>
             new AndroidLedgerShare(
                 sp.GetRequiredService<Novolis.Avalonia.Mobile.IAppDataPaths>().RootDirectory));
         services.AddSingleton<IReportExport>(sp =>
-            new AndroidReportExport(
-                sp.GetRequiredService<Novolis.Avalonia.Mobile.IAppDataPaths>().RootDirectory));
-        PresenceLedgerApp.Services = services.BuildServiceProvider();
+            new AndroidReportExport());
+        var provider = services.BuildServiceProvider();
+        PresenceLedgerApp.Services = provider;
+        try
+        {
+            provider.GetRequiredService<IPresenceDiagnosticsStore>()
+                .AppendAsync(
+                    new PresenceDiagnosticRecord(
+                        DateTimeOffset.UtcNow,
+                        locations.ImportResult.ErrorMessage is null ? "info" : "warning",
+                        "storage-resolved",
+                        $"Resolved {locations.Kind} ledger storage.",
+                        locations.ImportResult.ErrorMessage
+                            ?? $"Imported {locations.ImportResult.FilesCopied} legacy file(s)."))
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch
+        {
+            // A startup diagnostic failure must not prevent the host from opening.
+        }
         base.OnCreate();
     }
 

@@ -29,10 +29,17 @@ public sealed class PresenceEngine
     {
         ArgumentNullException.ThrowIfNull(observation);
         var effectiveObservation = NormalizeTimestamp(observation);
+        Guid? exclusiveLocationId = null;
 
         await foreach (var location in _locations.ReadAsync(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (exclusiveLocationId is { } alreadyArrived
+                && alreadyArrived != location.Id)
+            {
+                continue;
+            }
+
             var effectiveLocation = PresencePolicyDefaults.UpgradeLegacyLocationOnly(location);
             var state = await _states.GetAsync(effectiveLocation.Id, cancellationToken)
                 ?? LocationPresenceState.CreateAbsent(effectiveLocation.Id);
@@ -40,10 +47,59 @@ public sealed class PresenceEngine
                 effectiveLocation,
                 state,
                 effectiveObservation);
+            if (result.Event is { Transition: PresenceTransition.Arrived } arrival)
+            {
+                exclusiveLocationId = effectiveLocation.Id;
+                await CloseOtherLocationsAsync(
+                    effectiveLocation,
+                    arrival,
+                    cancellationToken);
+            }
 
             await _states.SaveAsync(result.State, cancellationToken);
             if (result.Event is not null)
                 await _events.AppendAsync(result.Event, cancellationToken);
+        }
+    }
+
+    async Task CloseOtherLocationsAsync(
+        TrackedLocation arrivedLocation,
+        PresenceEvent arrival,
+        CancellationToken cancellationToken)
+    {
+        await foreach (var location in _locations.ReadAsync(cancellationToken))
+        {
+            var effectiveLocation = PresencePolicyDefaults.UpgradeLegacyLocationOnly(location);
+            if (effectiveLocation.Id == arrivedLocation.Id)
+                continue;
+
+            var state = await _states.GetAsync(
+                    effectiveLocation.Id,
+                    cancellationToken)
+                ?? LocationPresenceState.CreateAbsent(effectiveLocation.Id);
+            if (state.State == PresenceState.Present)
+            {
+                await _events.AppendAsync(
+                    new PresenceEvent(
+                        Guid.NewGuid(),
+                        effectiveLocation.Id,
+                        PresenceTransition.Left,
+                        arrival.At,
+                        new PresenceEvidence(
+                            PresenceConfidence.Confirmed,
+                            effectiveLocation.Policy.DepartureDuration)),
+                    cancellationToken);
+            }
+
+            await _states.SaveAsync(
+                state with
+                {
+                    State = PresenceState.Absent,
+                    CandidatePresent = null,
+                    CandidateAbsent = null,
+                    LastEvidenceAt = arrival.At,
+                },
+                cancellationToken);
         }
     }
 
