@@ -13,5 +13,6 @@
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
   </ItemGroup>
 </Project>
