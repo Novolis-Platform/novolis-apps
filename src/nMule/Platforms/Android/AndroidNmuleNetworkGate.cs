@@ -13,6 +13,7 @@ public sealed class AndroidNmuleNetworkGate : INmuleNetworkGate
     private const string TailscaleDnsAddress = "100.100.100.100";
     private readonly ConnectivityManager _connectivity;
     private int _allowTailscale;
+    private int _allowUnrestrictedNetwork;
 
     /// <summary>Creates a gate over the process' active Android network.</summary>
     public AndroidNmuleNetworkGate()
@@ -38,11 +39,26 @@ public sealed class AndroidNmuleNetworkGate : INmuleNetworkGate
     }
 
     /// <inheritdoc />
+    public bool SupportsUnrestrictedNetworkOverride => true;
+
+    /// <inheritdoc />
+    public bool AllowUnrestrictedNetwork
+    {
+        get => Volatile.Read(ref _allowUnrestrictedNetwork) != 0;
+        set => Volatile.Write(ref _allowUnrestrictedNetwork, value ? 1 : 0);
+    }
+
+    /// <inheritdoc />
     public ValueTask<NmuleNetworkDecision> CheckAsync(
         IPAddress? endpointAddress = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (AllowUnrestrictedNetwork)
+        {
+            return ValueTask.FromResult(NmuleNetworkDecision.Allow());
+        }
+
         try
         {
             var activeNetwork = _connectivity.ActiveNetwork;
@@ -51,7 +67,8 @@ public sealed class AndroidNmuleNetworkGate : INmuleNetworkGate
                 return ValueTask.FromResult(
                     NmuleNetworkPolicy.Evaluate(
                         NmuleVpnTransportKind.NoVpn,
-                        AllowTailscale));
+                        AllowTailscale,
+                        AllowUnrestrictedNetwork));
             }
 
             var capabilities = _connectivity.GetNetworkCapabilities(activeNetwork);
@@ -62,7 +79,8 @@ public sealed class AndroidNmuleNetworkGate : INmuleNetworkGate
                 return ValueTask.FromResult(
                     NmuleNetworkPolicy.Evaluate(
                         NmuleVpnTransportKind.NoVpn,
-                        AllowTailscale));
+                        AllowTailscale,
+                        AllowUnrestrictedNetwork));
             }
 
             var linkProperties = _connectivity.GetLinkProperties(activeNetwork);
@@ -72,7 +90,10 @@ public sealed class AndroidNmuleNetworkGate : INmuleNetworkGate
                 ? NmuleVpnTransportKind.Tailscale
                 : NmuleVpnTransportKind.Vpn;
             return ValueTask.FromResult(
-                NmuleNetworkPolicy.Evaluate(transport, AllowTailscale));
+                NmuleNetworkPolicy.Evaluate(
+                    transport,
+                    AllowTailscale,
+                    AllowUnrestrictedNetwork));
         }
         catch (global::Java.Lang.SecurityException)
         {

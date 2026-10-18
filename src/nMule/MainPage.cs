@@ -25,6 +25,7 @@ public sealed class MainPage : ContentPage
     private readonly CollectionView _results;
     private readonly CollectionView _downloads;
     private readonly Switch _allowTailscale;
+    private readonly Switch _allowUnrestrictedNetwork;
     private readonly ObservableCollection<NmuleSearchHit> _searchResults = [];
     private readonly ObservableCollection<NmuleDownloadResult> _downloadResults = [];
     private readonly View _searchView;
@@ -91,6 +92,7 @@ public sealed class MainPage : ContentPage
             AutomationId = "NmuleAllowTailscale",
             IsVisible = _session.NetworkGate.SupportsTailscaleOverride,
             IsToggled = _session.NetworkGate.AllowTailscale,
+            IsEnabled = !_session.NetworkGate.AllowUnrestrictedNetwork,
             HorizontalOptions = LayoutOptions.End,
         };
         SemanticProperties.SetDescription(
@@ -99,6 +101,23 @@ public sealed class MainPage : ContentPage
         _allowTailscale.Toggled += (_, args) =>
         {
             _session.NetworkGate.AllowTailscale = args.Value;
+            _ = RefreshNetworkStatusAsync();
+        };
+
+        _allowUnrestrictedNetwork = new Switch
+        {
+            AutomationId = "NmuleAllowUnrestrictedNetwork",
+            IsVisible = _session.NetworkGate.SupportsUnrestrictedNetworkOverride,
+            IsToggled = _session.NetworkGate.AllowUnrestrictedNetwork,
+            HorizontalOptions = LayoutOptions.End,
+        };
+        SemanticProperties.SetDescription(
+            _allowUnrestrictedNetwork,
+            "Allow nMule network access without a VPN for this session");
+        _allowUnrestrictedNetwork.Toggled += (_, args) =>
+        {
+            _session.NetworkGate.AllowUnrestrictedNetwork = args.Value;
+            _allowTailscale.IsEnabled = !args.Value;
             _ = RefreshNetworkStatusAsync();
         };
 
@@ -285,6 +304,40 @@ public sealed class MainPage : ContentPage
 
     private View BuildNetworkPolicyCard()
     {
+        var controls = new Grid
+        {
+            RowDefinitions =
+            {
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Auto),
+            },
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto),
+            },
+            ColumnSpacing = 12,
+        };
+        var tailscaleLabel = new Label
+        {
+            Text = "Allow Tailscale for this session",
+            VerticalTextAlignment = TextAlignment.Center,
+        };
+        var unrestrictedLabel = new Label
+        {
+            Text = "Allow network without VPN (not recommended)",
+            VerticalTextAlignment = TextAlignment.Center,
+        };
+        controls.Children.Add(tailscaleLabel);
+        controls.Children.Add(_allowTailscale);
+        controls.Children.Add(unrestrictedLabel);
+        controls.Children.Add(_allowUnrestrictedNetwork);
+        Grid.SetColumn(_allowTailscale, 1);
+        Grid.SetRow(_allowTailscale, 0);
+        Grid.SetRow(unrestrictedLabel, 1);
+        Grid.SetColumn(_allowUnrestrictedNetwork, 1);
+        Grid.SetRow(_allowUnrestrictedNetwork, 1);
+
         var card = CreateCard(
             new VerticalStackLayout
             {
@@ -293,34 +346,16 @@ public sealed class MainPage : ContentPage
                 {
                     CreateSectionTitle("Network policy"),
                     _networkStatus,
-                    new Grid
-                    {
-                        ColumnDefinitions =
-                        {
-                            new ColumnDefinition(GridLength.Star),
-                            new ColumnDefinition(GridLength.Auto),
-                        },
-                        ColumnSpacing = 12,
-                        Children =
-                        {
-                            new Label
-                            {
-                                Text = "Allow Tailscale for this session",
-                                VerticalTextAlignment = TextAlignment.Center,
-                            },
-                            _allowTailscale,
-                        },
-                    },
+                    controls,
                     new Label
                     {
-                        Text = "VPN access is checked before DNS, HTTPS, TCP, and UDP activity. The override is off again when nMule restarts.",
+                        Text = "VPN access is checked before DNS, HTTPS, TCP, and UDP activity. Both overrides are session-only and reset when nMule restarts.",
                         FontSize = GraphicalProfileColors.CaptionSize,
                         TextColor = Profile.Muted,
                         LineBreakMode = LineBreakMode.WordWrap,
                     },
                 },
             });
-        Grid.SetColumn(_allowTailscale, 1);
         return card;
     }
 
@@ -576,7 +611,9 @@ public sealed class MainPage : ContentPage
                 () =>
                 {
                     _networkStatus.Text = decision.IsAllowed
-                        ? _session.NetworkGate.AllowTailscale
+                        ? _session.NetworkGate.AllowUnrestrictedNetwork
+                            ? "VPN requirement bypassed for this session. This is not recommended."
+                            : _session.NetworkGate.AllowTailscale
                             ? "VPN gate ready; the explicit Tailscale override is on."
                             : "VPN gate ready; Tailscale remains blocked."
                         : decision.DenialReason

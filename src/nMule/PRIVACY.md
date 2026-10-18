@@ -12,7 +12,9 @@ When the VPN gate is open, nMule connects to the configured HTTPS bootstrap
 source and to eD2K/Kad peers selected by the protocol. Search terms and file
 metadata are sent to the selected eD2K server. The app does not enable
 cleartext HTTP. Tailscale is denied unless the user explicitly enables the
-session-only override.
+session-only override. Security settings also expose a complete, session-only
+VPN requirement override. It is off by default, is not persisted, is not
+recommended, and permits ordinary Wi-Fi/mobile and Tailscale paths.
 
 No transfer runs in the background in this MVP. Users remain responsible for
 the files they search for, retrieve, and share through the selected network.

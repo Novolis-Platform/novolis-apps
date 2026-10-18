@@ -122,6 +122,10 @@ public sealed class NmuleStorageTests
 
         public bool AllowTailscale { get; set; }
 
+        public bool SupportsUnrestrictedNetworkOverride => true;
+
+        public bool AllowUnrestrictedNetwork { get; set; }
+
         public ValueTask<NmuleNetworkDecision> CheckAsync(
             IPAddress? endpointAddress = null,
             CancellationToken cancellationToken = default)

@@ -21,6 +21,18 @@ public sealed class AllowAllNmuleNetworkGate : INmuleNetworkGate
     }
 
     /// <inheritdoc />
+    public bool SupportsUnrestrictedNetworkOverride => false;
+
+    /// <inheritdoc />
+    public bool AllowUnrestrictedNetwork
+    {
+        get => false;
+        set
+        {
+        }
+    }
+
+    /// <inheritdoc />
     public ValueTask<NmuleNetworkDecision> CheckAsync(
         IPAddress? endpointAddress = null,
         CancellationToken cancellationToken = default)

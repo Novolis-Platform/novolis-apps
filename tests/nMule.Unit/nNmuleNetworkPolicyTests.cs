@@ -46,4 +46,26 @@ public sealed class NmuleNetworkPolicyTests
 
         await Assert.That(decision.IsAllowed).IsTrue();
     }
+
+    [Test]
+    public async Task Complete_override_allows_a_non_vpn_path()
+    {
+        var decision = NmuleNetworkPolicy.Evaluate(
+            NmuleVpnTransportKind.NoVpn,
+            allowTailscale: false,
+            allowUnrestrictedNetwork: true);
+
+        await Assert.That(decision.IsAllowed).IsTrue();
+    }
+
+    [Test]
+    public async Task Complete_override_also_allows_tailscale()
+    {
+        var decision = NmuleNetworkPolicy.Evaluate(
+            NmuleVpnTransportKind.Tailscale,
+            allowTailscale: false,
+            allowUnrestrictedNetwork: true);
+
+        await Assert.That(decision.IsAllowed).IsTrue();
+    }
 }

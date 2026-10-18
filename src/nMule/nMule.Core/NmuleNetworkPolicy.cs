@@ -6,8 +6,12 @@ public static class NmuleNetworkPolicy
     /// <summary>Evaluates one observed transport state.</summary>
     public static NmuleNetworkDecision Evaluate(
         NmuleVpnTransportKind transport,
-        bool allowTailscale)
+        bool allowTailscale,
+        bool allowUnrestrictedNetwork = false)
     {
+        if (allowUnrestrictedNetwork)
+            return NmuleNetworkDecision.Allow();
+
         return transport switch
         {
             NmuleVpnTransportKind.Vpn => NmuleNetworkDecision.Allow(),
