@@ -7,6 +7,8 @@ using Android.Util;
 using Android.Views;
 using Android.Widget;
 using AndroidUri = Android.Net.Uri;
+using DeviceConfiguration = global::Android.Content.Res.Configuration;
+using DeviceOrientation = global::Android.Content.Res.Orientation;
 using MediaPlayer = Android.Media.MediaPlayer;
 using WidgetOrientation = Android.Widget.Orientation;
 
@@ -19,6 +21,7 @@ namespace NovolisQuietVideo.Android;
     Exported = true,
     LaunchMode = LaunchMode.SingleTop,
     ExcludeFromRecents = true,
+    ScreenOrientation = ScreenOrientation.FullSensor,
     ConfigurationChanges = ConfigChanges.Orientation
         | ConfigChanges.ScreenSize
         | ConfigChanges.UiMode
@@ -34,22 +37,29 @@ public sealed class MainActivity : Activity
     private const int OpenVideoRequestCode = 4101;
     private const int SeekBarMaximum = 1000;
     private const int VolumeMaximum = 100;
+    private const float MinimumZoom = 1f;
+    private const float MaximumZoom = 4f;
 
     private readonly Handler _main = new(Looper.MainLooper!);
+    private readonly Matrix _videoTransform = new();
     private TextureView? _video;
     private MediaPlayer? _player;
     private Surface? _surface;
     private TextView? _status;
     private Button? _openButton;
     private Button? _playPauseButton;
+    private Button? _resetZoomButton;
+    private Button? _orientationButton;
     private SeekBar? _seekBar;
     private SeekBar? _volumeBar;
     private Button? _muteButton;
+    private ScaleGestureDetector? _zoomDetector;
     private Action? _progressTick;
     private AndroidUri? _sessionUri;
     private int _durationMilliseconds;
     private float _volume = 1f;
     private float _volumeBeforeMute = 1f;
+    private float _zoom = MinimumZoom;
     private bool _muted;
     private bool _prepared;
     private bool _destroyed;
@@ -117,8 +127,11 @@ public sealed class MainActivity : Activity
                 1f));
 
         _video = new TextureView(this);
+        _video.ContentDescription = "Video playback surface; pinch to zoom";
         _video.SurfaceTextureAvailable += OnSurfaceTextureAvailable;
         _video.SurfaceTextureDestroyed += OnSurfaceTextureDestroyed;
+        _video.Touch += OnVideoTouch;
+        _zoomDetector = new ScaleGestureDetector(this, new ZoomGestureListener(this));
         stage.AddView(
             _video,
             new FrameLayout.LayoutParams(
@@ -235,9 +248,40 @@ public sealed class MainActivity : Activity
                 ViewGroup.LayoutParams.MatchParent,
                 ViewGroup.LayoutParams.WrapContent));
 
+        var viewControls = new LinearLayout(this)
+        {
+            Orientation = WidgetOrientation.Horizontal,
+        };
+        viewControls.SetPadding(12, 0, 12, 4);
+
+        _resetZoomButton = CreateButton("Fit view", "Reset video zoom");
+        _resetZoomButton.Click += (_, _) => ResetZoom();
+        viewControls.AddView(
+            _resetZoomButton,
+            new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WrapContent,
+                1f));
+
+        _orientationButton = CreateButton("Landscape", "Switch to horizontal playback");
+        _orientationButton.Click += (_, _) => ToggleOrientation();
+        var orientationParameters = new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WrapContent,
+            1f);
+        orientationParameters.LeftMargin = 8;
+        viewControls.AddView(_orientationButton, orientationParameters);
+
+        root.AddView(
+            viewControls,
+            new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent,
+                ViewGroup.LayoutParams.WrapContent));
+        UpdateOrientationButton();
+
         var privacyNote = new TextView(this)
         {
-            Text = "Foreground only · no playback history",
+            Text = "Foreground only · no playback history · pinch to zoom",
         };
         privacyNote.SetTextColor(Color.Rgb(166, 184, 191));
         privacyNote.SetTextSize(ComplexUnitType.Sp, 12);
@@ -250,6 +294,13 @@ public sealed class MainActivity : Activity
                 ViewGroup.LayoutParams.WrapContent));
 
         return root;
+    }
+
+    public override void OnConfigurationChanged(DeviceConfiguration newConfig)
+    {
+        base.OnConfigurationChanged(newConfig);
+        UpdateOrientationButton();
+        _video?.Post(() => ApplyZoom());
     }
 
     private Button CreateButton(string text, string description)
@@ -356,6 +407,7 @@ public sealed class MainActivity : Activity
         {
             _surface?.Release();
             _surface = new Surface(args.Surface);
+            ApplyZoom();
             TryStartPlayback();
         }
         catch
@@ -373,6 +425,13 @@ public sealed class MainActivity : Activity
         _surface = null;
     }
 
+    private void OnVideoTouch(object? sender, View.TouchEventArgs args)
+    {
+        if (args.Event is { } motionEvent)
+            _zoomDetector?.OnTouchEvent(motionEvent);
+        args.Handled = true;
+    }
+
     private void HandlePrepared()
     {
         if (_player is null || _destroyed || _sessionUri is null)
@@ -385,7 +444,7 @@ public sealed class MainActivity : Activity
             SetControls(enabled: true);
             ApplyAudioVolume();
             _player.Start();
-            _playPauseButton.Text = "Pause";
+            _playPauseButton!.Text = "Pause";
             SetStatus(string.Empty, visible: false);
             StartProgressUpdates();
         }
@@ -570,6 +629,53 @@ public sealed class MainActivity : Activity
         }
     }
 
+    private void SetZoom(float zoom)
+    {
+        _zoom = Math.Clamp(zoom, MinimumZoom, MaximumZoom);
+        ApplyZoom();
+    }
+
+    private void ResetZoom()
+    {
+        SetZoom(MinimumZoom);
+    }
+
+    private void ApplyZoom()
+    {
+        if (_video is null || _video.Width <= 0 || _video.Height <= 0)
+            return;
+
+        _videoTransform.Reset();
+        _videoTransform.SetScale(
+            _zoom,
+            _zoom,
+            _video.Width / 2f,
+            _video.Height / 2f);
+        _video.SetTransform(_videoTransform);
+    }
+
+    private void ToggleOrientation()
+    {
+        var isLandscape = Resources?.Configuration?.Orientation
+            == DeviceOrientation.Landscape;
+        RequestedOrientation = isLandscape
+            ? ScreenOrientation.Portrait
+            : ScreenOrientation.Landscape;
+    }
+
+    private void UpdateOrientationButton()
+    {
+        if (_orientationButton is null)
+            return;
+
+        var isLandscape = Resources?.Configuration?.Orientation
+            == DeviceOrientation.Landscape;
+        _orientationButton.Text = isLandscape ? "Portrait" : "Landscape";
+        _orientationButton.ContentDescription = isLandscape
+            ? "Switch to vertical playback"
+            : "Switch to horizontal playback";
+    }
+
     private void StartProgressUpdates()
     {
         if (_progressTick is null)
@@ -630,5 +736,21 @@ public sealed class MainActivity : Activity
 
         _status.Text = text;
         _status.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
+    }
+
+    private sealed class ZoomGestureListener : ScaleGestureDetector.SimpleOnScaleGestureListener
+    {
+        private readonly MainActivity _owner;
+
+        public ZoomGestureListener(MainActivity owner)
+        {
+            _owner = owner;
+        }
+
+        public override bool OnScale(ScaleGestureDetector detector)
+        {
+            _owner.SetZoom(_owner._zoom * detector.ScaleFactor);
+            return true;
+        }
     }
 }
