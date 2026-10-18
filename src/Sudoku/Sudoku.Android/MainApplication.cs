@@ -29,8 +29,7 @@ public class MainApplication : AvaloniaAndroidApplication<SudokuApplication>
             ?? throw new InvalidOperationException("Android application context is unavailable.");
         var locations = AndroidAppStorage.Open(
             context,
-            "Sudoku",
-            AndroidStoragePreference.AppPrivate);
+            "Sudoku");
 
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
