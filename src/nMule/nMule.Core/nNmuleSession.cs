@@ -402,7 +402,12 @@ public sealed class NmuleSession : IAsyncDisposable
         string cachePath,
         CancellationToken cancellationToken)
     {
-        if (Uri.TryCreate(source.Trim(), UriKind.Absolute, out var uri))
+        var trimmedSource = source.Trim();
+        var isWindowsPath = trimmedSource.Length >= 2
+            && trimmedSource[1] == ':';
+        if (Uri.TryCreate(trimmedSource, UriKind.Absolute, out var uri)
+            && !uri.IsFile
+            && !isWindowsPath)
         {
             if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
             {
@@ -438,7 +443,8 @@ public sealed class NmuleSession : IAsyncDisposable
             }
         }
 
-        if (string.Equals(source.Trim(), "cache", StringComparison.OrdinalIgnoreCase))
+        source = trimmedSource;
+        if (string.Equals(trimmedSource, "cache", StringComparison.OrdinalIgnoreCase))
             source = cachePath;
         if (!File.Exists(source))
             throw new FileNotFoundException(

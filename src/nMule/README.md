@@ -13,6 +13,11 @@ allow Tailscale for the current session only; restarting nMule clears that
 choice. Every HTTPS, TCP, and UDP operation passes through the same gate.
 Cleartext HTTP bootstrap sources are rejected.
 
+Android does not expose the active VPN application's package through the
+public API, so nMule uses conservative interface, address, and Quad100 DNS
+signals to recognize Tailscale-like paths. Ambiguous Tailscale-like paths
+remain blocked unless the session-only override is enabled.
+
 ## MVP limits
 
 - No uploads, background transfers, callback hosting, or LowID callback path.

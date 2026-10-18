@@ -106,6 +106,19 @@ public sealed class AndroidNmuleNetworkGate : INmuleNetworkGate
             return true;
         }
 
+        if (linkProperties?.LinkAddresses is { } linkAddresses)
+        {
+            foreach (var linkAddress in linkAddresses)
+            {
+                if (linkAddress?.Address?.HostAddress is { } hostAddress
+                    && IPAddress.TryParse(hostAddress, out var address)
+                    && IsTailscaleIpv4(address))
+                {
+                    return true;
+                }
+            }
+        }
+
         if (linkProperties?.DnsServers is not { } dnsServers)
             return false;
 

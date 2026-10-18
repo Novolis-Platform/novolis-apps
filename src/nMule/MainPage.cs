@@ -72,11 +72,11 @@ public sealed class MainPage : ContentPage
         };
 
         _serverSource = CreateEntry(
-            "HTTPS server.met source",
+            "HTTPS server.met source (clear to disable)",
             NmuleDefaults.ServerListUrl,
             "NmuleServerSource");
         _kadSource = CreateEntry(
-            "HTTPS nodes.dat source",
+            "HTTPS nodes.dat source (clear to disable)",
             NmuleDefaults.KadNodesUrl,
             "NmuleKadSource");
         _query = CreateEntry(
@@ -188,43 +188,6 @@ public sealed class MainPage : ContentPage
 
     private View BuildSearchView()
     {
-        var policyCard = CreateCard(
-            new VerticalStackLayout
-            {
-                Spacing = 8,
-                Children =
-                {
-                    CreateSectionTitle("Network policy"),
-                    _networkStatus,
-                    new Grid
-                    {
-                        ColumnDefinitions =
-                        {
-                            new ColumnDefinition(GridLength.Star),
-                            new ColumnDefinition(GridLength.Auto),
-                        },
-                        ColumnSpacing = 12,
-                        Children =
-                        {
-                            new Label
-                            {
-                                Text = "Allow Tailscale for this session",
-                                VerticalTextAlignment = TextAlignment.Center,
-                            },
-                            _allowTailscale,
-                        },
-                    },
-                    new Label
-                    {
-                        Text = "VPN access is checked before DNS, HTTPS, TCP, and UDP activity. The override is off again when nMule restarts.",
-                        FontSize = GraphicalProfileColors.CaptionSize,
-                        TextColor = Profile.Muted,
-                        LineBreakMode = LineBreakMode.WordWrap,
-                    },
-                },
-            });
-        Grid.SetColumn(_allowTailscale, 1);
-
         var serverCard = CreateCard(
             new VerticalStackLayout
             {
@@ -281,7 +244,6 @@ public sealed class MainPage : ContentPage
                 Spacing = 12,
                 Children =
                 {
-                    policyCard,
                     serverCard,
                     kadCard,
                     searchCard,
@@ -300,6 +262,7 @@ public sealed class MainPage : ContentPage
                 Spacing = 12,
                 Children =
                 {
+                    BuildNetworkPolicyCard(),
                     CreateCard(
                         new VerticalStackLayout
                         {
@@ -319,6 +282,47 @@ public sealed class MainPage : ContentPage
                 },
             },
         };
+
+    private View BuildNetworkPolicyCard()
+    {
+        var card = CreateCard(
+            new VerticalStackLayout
+            {
+                Spacing = 8,
+                Children =
+                {
+                    CreateSectionTitle("Network policy"),
+                    _networkStatus,
+                    new Grid
+                    {
+                        ColumnDefinitions =
+                        {
+                            new ColumnDefinition(GridLength.Star),
+                            new ColumnDefinition(GridLength.Auto),
+                        },
+                        ColumnSpacing = 12,
+                        Children =
+                        {
+                            new Label
+                            {
+                                Text = "Allow Tailscale for this session",
+                                VerticalTextAlignment = TextAlignment.Center,
+                            },
+                            _allowTailscale,
+                        },
+                    },
+                    new Label
+                    {
+                        Text = "VPN access is checked before DNS, HTTPS, TCP, and UDP activity. The override is off again when nMule restarts.",
+                        FontSize = GraphicalProfileColors.CaptionSize,
+                        TextColor = Profile.Muted,
+                        LineBreakMode = LineBreakMode.WordWrap,
+                    },
+                },
+            });
+        Grid.SetColumn(_allowTailscale, 1);
+        return card;
+    }
 
     private View BuildSettingsView() =>
         new ScrollView
@@ -446,8 +450,16 @@ public sealed class MainPage : ContentPage
         await RunActionAsync(
             async cancellationToken =>
             {
+                var source = (_serverSource.Text ?? string.Empty).Trim();
+                if (source.Length == 0)
+                {
+                    _serverStatus.Text =
+                        "Server-list refresh is disabled. Enter an HTTPS source or 'cache'.";
+                    return;
+                }
+
                 var list = await _session.LoadServerListAsync(
-                        _serverSource.Text ?? string.Empty,
+                        source,
                         cancellationToken);
                 _serverStatus.Text =
                     $"{list.Servers.Count} server endpoint(s) loaded.";
@@ -459,8 +471,16 @@ public sealed class MainPage : ContentPage
             {
                 if (_session.ServerList is null)
                 {
+                    var source = (_serverSource.Text ?? string.Empty).Trim();
+                    if (source.Length == 0)
+                    {
+                        _serverStatus.Text =
+                            "Server-list refresh is disabled. Load a list before connecting.";
+                        return;
+                    }
+
                     var list = await _session.LoadServerListAsync(
-                            _serverSource.Text ?? string.Empty,
+                            source,
                             cancellationToken);
                     _serverStatus.Text =
                         $"{list.Servers.Count} server endpoint(s) loaded.";
@@ -477,8 +497,16 @@ public sealed class MainPage : ContentPage
         await RunActionAsync(
             async cancellationToken =>
             {
+                var source = (_kadSource.Text ?? string.Empty).Trim();
+                if (source.Length == 0)
+                {
+                    _kadStatus.Text =
+                        "Kad bootstrap is disabled. Enter an HTTPS source or 'cache'.";
+                    return;
+                }
+
                 var contacts = await _session.BootstrapKadAsync(
-                        _kadSource.Text ?? string.Empty,
+                        source,
                         cancellationToken);
                 _kadStatus.Text =
                     $"Kad ready with {contacts.Count} known contact(s).";

@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Http;
+using System.Text;
 using Novolis.NMule.Core;
 
 namespace Novolis.NMule.Unit;
@@ -65,5 +68,76 @@ public sealed class NmuleStorageTests
                 out var kadUri))
             .IsTrue();
         await Assert.That(kadUri!.Scheme).IsEqualTo(Uri.UriSchemeHttps);
+    }
+
+    [Test]
+    public async Task Session_blocks_server_connect_before_opening_a_socket()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "nMule-tests",
+            Guid.NewGuid().ToString("N"));
+        var source = Path.Combine(root, "servers.txt");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(source, "127.0.0.1 4661");
+
+        await using var session = new NmuleSession(
+            new DenyNetworkGate(),
+            NmuleStoragePaths.FromRoot(Path.Combine(root, "profile")));
+        await session.LoadServerListAsync(source);
+
+        await Assert.That(async () => await session.ConnectServerAsync())
+            .Throws<NmuleNetworkBlockedException>();
+    }
+
+    [Test]
+    public async Task Failed_https_refresh_uses_the_cached_server_list()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "nMule-tests",
+            Guid.NewGuid().ToString("N"));
+        var paths = NmuleStoragePaths.FromRoot(Path.Combine(root, "profile"));
+        Directory.CreateDirectory(Path.GetDirectoryName(paths.ServerListPath)!);
+        await File.WriteAllTextAsync(
+            paths.ServerListPath,
+            "127.0.0.1 4661",
+            Encoding.UTF8);
+
+        using var httpClient = new HttpClient(new FailingHttpHandler());
+        await using var session = new NmuleSession(
+            new AllowAllNmuleNetworkGate(),
+            paths,
+            httpClient);
+
+        var list = await session.LoadServerListAsync(
+            "https://bootstrap.example.test/server.met");
+
+        await Assert.That(list.Servers).Count().IsEqualTo(1);
+    }
+
+    private sealed class DenyNetworkGate : INmuleNetworkGate
+    {
+        public bool SupportsTailscaleOverride => true;
+
+        public bool AllowTailscale { get; set; }
+
+        public ValueTask<NmuleNetworkDecision> CheckAsync(
+            IPAddress? endpointAddress = null,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(
+                NmuleNetworkDecision.Deny("test gate blocked network access"));
+        }
+    }
+
+    private sealed class FailingHttpHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            Task.FromException<HttpResponseMessage>(
+                new HttpRequestException("test bootstrap unavailable"));
     }
 }
