@@ -31,6 +31,9 @@
     <LibraryReference Include="Novolis.Maui.Navigation" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Remove="nMule.Core\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="nMule.Core\nMule.Core.csproj" />
   </ItemGroup>
 </Project>
