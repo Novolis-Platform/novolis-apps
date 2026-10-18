@@ -7,6 +7,8 @@ using Android.Util;
 using Android.Views;
 using Android.Widget;
 using AndroidUri = Android.Net.Uri;
+using MediaPlayer = Android.Media.MediaPlayer;
+using WidgetOrientation = Android.Widget.Orientation;
 
 namespace NovolisQuietVideo.Android;
 
@@ -33,7 +35,9 @@ public sealed class MainActivity : Activity
     private const int SeekBarMaximum = 1000;
 
     private readonly Handler _main = new(Looper.MainLooper!);
-    private VideoView? _video;
+    private TextureView? _video;
+    private MediaPlayer? _player;
+    private Surface? _surface;
     private TextView? _status;
     private Button? _openButton;
     private Button? _playPauseButton;
@@ -93,7 +97,7 @@ public sealed class MainActivity : Activity
     {
         var root = new LinearLayout(this)
         {
-            Orientation = Orientation.Vertical,
+            Orientation = WidgetOrientation.Vertical,
         };
         root.SetBackgroundColor(Color.Rgb(7, 21, 29));
 
@@ -106,11 +110,9 @@ public sealed class MainActivity : Activity
                 0,
                 1f));
 
-        _video = new VideoView(this);
-        _video.SetBackgroundColor(Color.Black);
-        _video.Prepared += (_, _) => HandlePrepared();
-        _video.Completion += (_, _) => HandleCompletion();
-        _video.Error += (_, _) => HandlePlaybackError();
+        _video = new TextureView(this);
+        _video.SurfaceTextureAvailable += OnSurfaceTextureAvailable;
+        _video.SurfaceTextureDestroyed += OnSurfaceTextureDestroyed;
         stage.AddView(
             _video,
             new FrameLayout.LayoutParams(
@@ -149,7 +151,7 @@ public sealed class MainActivity : Activity
 
         var controls = new LinearLayout(this)
         {
-            Orientation = Orientation.Horizontal,
+            Orientation = WidgetOrientation.Horizontal,
         };
         controls.SetPadding(12, 4, 12, 8);
 
@@ -257,10 +259,29 @@ public sealed class MainActivity : Activity
         UpdateSeekBar(0);
         SetStatus("Loading video", visible: true);
         SetControls(enabled: false);
+        TryStartPlayback();
+    }
+
+    private void TryStartPlayback()
+    {
+        if (_sessionUri is null
+            || _surface is null
+            || _player is not null
+            || _destroyed)
+        {
+            return;
+        }
 
         try
         {
-            _video.SetVideoURI(uri);
+            var player = new MediaPlayer();
+            player.Prepared += (_, _) => HandlePrepared();
+            player.Completion += (_, _) => HandleCompletion();
+            player.Error += (_, _) => HandlePlaybackError();
+            player.SetSurface(_surface);
+            player.SetDataSource(this, _sessionUri);
+            _player = player;
+            player.PrepareAsync();
         }
         catch
         {
@@ -268,18 +289,46 @@ public sealed class MainActivity : Activity
         }
     }
 
-    private void HandlePrepared()
+    private void OnSurfaceTextureAvailable(
+        object? sender,
+        TextureView.SurfaceTextureAvailableEventArgs args)
     {
-        if (_video is null || _destroyed || _sessionUri is null)
+        if (_destroyed)
             return;
 
         try
         {
-            _durationMilliseconds = Math.Max(0, _video.Duration);
+            _surface?.Release();
+            _surface = new Surface(args.Surface);
+            TryStartPlayback();
+        }
+        catch
+        {
+            HandlePlaybackError();
+        }
+    }
+
+    private void OnSurfaceTextureDestroyed(
+        object? sender,
+        TextureView.SurfaceTextureDestroyedEventArgs args)
+    {
+        ReleasePlayback();
+        _surface?.Release();
+        _surface = null;
+    }
+
+    private void HandlePrepared()
+    {
+        if (_player is null || _destroyed || _sessionUri is null)
+            return;
+
+        try
+        {
+            _durationMilliseconds = Math.Max(0, _player.Duration);
             _prepared = true;
             _seekBar!.Enabled = _durationMilliseconds > 0;
             _playPauseButton!.Enabled = true;
-            _video.Start();
+            _player.Start();
             _playPauseButton.Text = "Pause";
             SetStatus(string.Empty, visible: false);
             StartProgressUpdates();
@@ -317,21 +366,21 @@ public sealed class MainActivity : Activity
 
     private void TogglePlayback()
     {
-        if (_video is null || !_prepared)
+        if (_player is null || !_prepared)
             return;
 
         try
         {
-            if (_video.IsPlaying)
+            if (_player.IsPlaying)
             {
                 PausePlayback();
                 return;
             }
 
-            if (_durationMilliseconds > 0 && _video.CurrentPosition >= _durationMilliseconds)
-                _video.SeekTo(0);
+            if (_durationMilliseconds > 0 && _player.CurrentPosition >= _durationMilliseconds)
+                _player.SeekTo(0);
 
-            _video.Start();
+            _player.Start();
             _playPauseButton!.Text = "Pause";
             SetStatus(string.Empty, visible: false);
             StartProgressUpdates();
@@ -344,13 +393,13 @@ public sealed class MainActivity : Activity
 
     private void PausePlayback()
     {
-        if (_video is null || !_prepared)
+        if (_player is null || !_prepared)
             return;
 
         try
         {
-            if (_video.IsPlaying)
-                _video.Pause();
+            if (_player.IsPlaying)
+                _player.Pause();
         }
         catch
         {
@@ -366,15 +415,26 @@ public sealed class MainActivity : Activity
     private void ReleasePlayback()
     {
         StopProgressUpdates();
-        if (_video is not null)
+        if (_player is not null)
         {
             try
             {
-                _video.StopPlayback();
+                _player.Stop();
             }
             catch
             {
             }
+
+            try
+            {
+                _player.Reset();
+            }
+            catch
+            {
+            }
+
+            _player.Release();
+            _player = null;
         }
 
         _sessionUri = null;
@@ -387,7 +447,7 @@ public sealed class MainActivity : Activity
     private void OnSeekProgressChanged(object? sender, SeekBar.ProgressChangedEventArgs args)
     {
         if (!args.FromUser
-            || _video is null
+            || _player is null
             || !_prepared
             || _durationMilliseconds <= 0)
         {
@@ -397,7 +457,7 @@ public sealed class MainActivity : Activity
         try
         {
             var position = (int)((long)_durationMilliseconds * args.Progress / SeekBarMaximum);
-            _video.SeekTo(position);
+            _player.SeekTo(position);
         }
         catch
         {
@@ -421,14 +481,14 @@ public sealed class MainActivity : Activity
 
     private void UpdateProgress()
     {
-        if (_destroyed || _video is null || !_prepared)
+        if (_destroyed || _player is null || !_prepared)
             return;
 
         try
         {
-            if (_video.IsPlaying && _durationMilliseconds > 0)
+            if (_player.IsPlaying && _durationMilliseconds > 0)
             {
-                var position = Math.Clamp(_video.CurrentPosition, 0, _durationMilliseconds);
+                var position = Math.Clamp(_player.CurrentPosition, 0, _durationMilliseconds);
                 UpdateSeekBar(
                     (int)((long)position * SeekBarMaximum / _durationMilliseconds));
                 _main.PostDelayed(_progressTick!, 500);
