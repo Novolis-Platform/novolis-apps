@@ -18,19 +18,175 @@ public static class ReachClientDiscovery
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
+        return await ScanAsync(
+                timeout,
+                ReachClientDiscoveryOptions.FromEnvironment(),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Scans LAN broadcast plus any explicitly configured HTTP(S) registry and
+    /// DNS SRV/TXT sources.
+    /// </summary>
+    public static async Task<IReadOnlyList<ReachDiscoveredHost>> ScanAsync(
+        TimeSpan timeout,
+        ReachClientDiscoveryOptions options,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
+        ArgumentNullException.ThrowIfNull(options);
 
         var targets = GetProbeTargets();
         var scans = targets.Select(target =>
             ScanTargetAsync(target, timeout, cancellationToken));
-        var results = await Task.WhenAll(scans).ConfigureAwait(false);
+        var legacyScan = Task.WhenAll(scans);
+        var routedScan = ScanRoutedSourcesAsync(
+            options,
+            timeout,
+            cancellationToken);
+        var legacyResults = await legacyScan.ConfigureAwait(false);
+        var routedResults = await routedScan.ConfigureAwait(false);
 
-        return results
+        return legacyResults
             .SelectMany(static result => result)
+            .Concat(routedResults)
             .DistinctBy(static host => host.Endpoint, StringComparer.OrdinalIgnoreCase)
             .OrderBy(static host => host.HostName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static host => host.Endpoint, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static async Task<IReadOnlyList<ReachDiscoveredHost>>
+        ScanRoutedSourcesAsync(
+            ReachClientDiscoveryOptions options,
+            TimeSpan timeout,
+            CancellationToken cancellationToken)
+    {
+        var query = new ServiceDiscoveryQuery(
+            options.Cohort,
+            options.ServiceName);
+        var sourceTasks = new List<Task<IReadOnlyList<ServiceRegistration>>>();
+        foreach (var address in options.HttpRegistryAddresses)
+        {
+            if (address is null)
+                continue;
+
+            sourceTasks.Add(
+                ReadSourceSafelyAsync(
+                    () => ScanHttpRegistryAsync(
+                        address,
+                        query,
+                        timeout,
+                        cancellationToken),
+                    cancellationToken));
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.DnsDomain))
+        {
+            sourceTasks.Add(
+                ReadSourceSafelyAsync(
+                    () => ScanDnsAsync(
+                        options,
+                        query,
+                        cancellationToken),
+                    cancellationToken));
+        }
+
+        if (sourceTasks.Count == 0)
+            return Array.Empty<ReachDiscoveredHost>();
+
+        var sourceResults = await Task.WhenAll(sourceTasks)
+            .ConfigureAwait(false);
+        var map = new ServiceDiscoveryMap();
+        map.Replace(sourceResults.SelectMany(static result => result));
+
+        return map.Find(query)
+            .SelectMany(ToReachHosts)
+            .ToArray();
+    }
+
+    private static async Task<IReadOnlyList<ServiceRegistration>>
+        ReadSourceSafelyAsync(
+            Func<Task<IReadOnlyList<ServiceRegistration>>> read,
+            CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await read().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Optional routed sources must not hide a reachable LAN host.
+            return Array.Empty<ServiceRegistration>();
+        }
+    }
+
+    private static async Task<IReadOnlyList<ServiceRegistration>>
+        ScanHttpRegistryAsync(
+            Uri address,
+            ServiceDiscoveryQuery query,
+            TimeSpan timeout,
+            CancellationToken cancellationToken)
+    {
+        using var http = new HttpClient
+        {
+            Timeout = timeout,
+        };
+        var registry = new HttpServiceRegistry(http, address);
+        return await registry.DiscoverAsync(query, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<IReadOnlyList<ServiceRegistration>>
+        ScanDnsAsync(
+            ReachClientDiscoveryOptions options,
+            ServiceDiscoveryQuery query,
+            CancellationToken cancellationToken)
+    {
+        var source = new DnsSrvServiceDiscovery(
+            new DnsSrvServiceDiscoveryOptions(options.DnsDomain!)
+            {
+                Protocol = options.DnsProtocol,
+                EndpointScheme = options.DnsEndpointScheme,
+            });
+        return await source.DiscoverAsync(query, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static IEnumerable<ReachDiscoveredHost> ToReachHosts(
+        ServiceRegistration registration)
+    {
+        var hostName = registration.Metadata.TryGetValue(
+                "hostName",
+                out var advertisedHostName)
+            && !string.IsNullOrWhiteSpace(advertisedHostName)
+            ? advertisedHostName
+            : registration.InstanceId;
+        var protocolVersion = registration.Metadata.TryGetValue(
+                "protocolVersion",
+                out var advertisedProtocolVersion)
+            && !string.IsNullOrWhiteSpace(advertisedProtocolVersion)
+            ? advertisedProtocolVersion
+            : ReachProtocol.Version;
+
+        foreach (var endpoint in registration.Endpoints)
+        {
+            if (TryNormalizeEndpoint(
+                    endpoint.Address.ToString(),
+                    out var normalized))
+            {
+                yield return new ReachDiscoveredHost(
+                    hostName,
+                    protocolVersion,
+                    normalized);
+            }
+        }
     }
 
     private static async Task<IReadOnlyList<ReachDiscoveredHost>> ScanTargetAsync(

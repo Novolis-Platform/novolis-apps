@@ -18,7 +18,7 @@ public sealed class PdfDocumentPicker
                     FileTypes = new FilePickerFileType(
                         new Dictionary<DevicePlatform, IEnumerable<string>>
                         {
-                            [DevicePlatform.Android] = ["application/pdf"],
+                            [DevicePlatform.Android] = ["application/pdf", "application/x-pdf"],
                             [DevicePlatform.WinUI] = [".pdf"],
                         }),
                 })

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application
+      android:allowBackup="false"
+      android:icon="@drawable/quiet_video_icon"
+      android:roundIcon="@drawable/quiet_video_icon"
+      android:label="Novolis Quiet Video"
+      android:supportsRtl="true"
+      android:theme="@style/QuietVideoTheme"
+      android:usesCleartextTraffic="false" />
+</manifest>

@@ -18,6 +18,6 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <LibraryReference Include="Novolis.Avalonia.Mobile.Desktop" />
     <LibraryReference Include="Novolis.MSBuild.BuildReference" />
-    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
   </ItemGroup>
 </Project>

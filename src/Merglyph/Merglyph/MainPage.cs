@@ -2,10 +2,12 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using Merglyph.Core;
+using Novolis.Commands.Navigation;
 using Novolis.Maui.Activation;
 using Novolis.Maui.Markdown;
 using Microsoft.Maui.Controls.Shapes;
 using Novolis.Maui.GraphicalProfile;
+using Novolis.Maui.Navigation;
 
 namespace Merglyph;
 
@@ -29,18 +31,6 @@ public sealed class MainPage : ContentPage
         LineBreakMode = LineBreakMode.TailTruncation,
         MaxLines = 1,
         VerticalTextAlignment = TextAlignment.Center,
-    };
-    private readonly Label _brandName = new()
-    {
-        Text = "MERGLYPH",
-        FontAttributes = FontAttributes.Bold,
-        FontSize = 18,
-        CharacterSpacing = 2.2,
-    };
-    private readonly Label _brandTagline = new()
-    {
-        Text = "A quiet home for Markdown",
-        FontSize = 10,
     };
     private readonly Label _welcomeEyebrow = new()
     {
@@ -96,13 +86,12 @@ public sealed class MainPage : ContentPage
     {
         Spacing = 8,
     };
-    private readonly Border _brandMarkFrame;
     private readonly Border _welcomeCard;
     private readonly Border _viewerCard;
     private readonly ScrollView _welcomeScroll;
     private readonly ContentView _bodyHost = new();
-    private readonly Button _openButton;
     private readonly Button _heroOpenButton;
+    private readonly MobileNavigationShell _navigationShell;
     private CancellationTokenSource? _activationCancellation;
     private Task? _activationTask;
     private bool _themeSubscribed;
@@ -120,21 +109,9 @@ public sealed class MainPage : ContentPage
         _recentStore = recentStore;
         _activationInbox = activationInbox;
 
-        Title = "Merglyph";
+        Title = "Merglyph · Markdown Reader";
         _viewer.WebView.ExternalNavigationRequested += async (_, uri) =>
             await Launcher.Default.OpenAsync(uri);
-
-        _openButton = new Button
-        {
-            AutomationId = "OpenDocument",
-            Text = "Open",
-            FontAttributes = FontAttributes.Bold,
-            FontSize = 13,
-            CornerRadius = 18,
-            Padding = new Thickness(16, 9),
-            HorizontalOptions = LayoutOptions.End,
-        };
-        _openButton.Clicked += async (_, _) => await PickAndOpenAsync();
 
         _heroOpenButton = new Button
         {
@@ -147,47 +124,6 @@ public sealed class MainPage : ContentPage
             HorizontalOptions = LayoutOptions.Fill,
         };
         _heroOpenButton.Clicked += async (_, _) => await PickAndOpenAsync();
-
-        _brandMarkFrame = new Border
-        {
-            WidthRequest = 52,
-            HeightRequest = 52,
-            Padding = 7,
-            StrokeThickness = 1,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(17) },
-            Content = new Image
-            {
-                Source = "appiconfg.png",
-                Aspect = Aspect.AspectFit,
-            },
-        };
-
-        var brandCopy = new VerticalStackLayout
-        {
-            Spacing = 1,
-            VerticalOptions = LayoutOptions.Center,
-            Children =
-            {
-                _brandName,
-                _documentName,
-                _brandTagline,
-            },
-        };
-
-        var header = new Grid
-        {
-            Padding = new Thickness(18, 16, 18, 12),
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
-            ColumnSpacing = 12,
-        };
-        header.Add(_brandMarkFrame, 0, 0);
-        header.Add(brandCopy, 1, 0);
-        header.Add(_openButton, 2, 0);
 
         _welcomeCard = CreateCard(
             new VerticalStackLayout
@@ -228,6 +164,7 @@ public sealed class MainPage : ContentPage
             Spacing = 3,
             Children =
             {
+                _documentName,
                 _documentEyebrow,
                 _documentMeta,
             },
@@ -273,17 +210,24 @@ public sealed class MainPage : ContentPage
         };
         body.Add(_bodyHost, 0, 0);
 
-        var layout = new Grid
-        {
-            RowDefinitions =
+        var menuTree = new MobileMenuTree(
+        [
+            new MobileMenuNode(
+                "document.open",
+                "Open Markdown file",
+                MobileMenuNodeKind.Action)
             {
-                new RowDefinition(GridLength.Auto),
-                new RowDefinition(GridLength.Star),
+                CommandId = "document.open",
             },
+        ]);
+        var controller = new MobileNavigationController(menuTree);
+        _navigationShell = new MobileNavigationShell(controller)
+        {
+            Title = "Merglyph",
+            Body = body,
         };
-        layout.Add(header, 0, 0);
-        layout.Add(body, 0, 1);
-        Content = layout;
+        _navigationShell.ActivationRequested += OnNavigationActivationRequested;
+        Content = _navigationShell;
 
         ShowWelcome();
     }
@@ -320,6 +264,10 @@ public sealed class MainPage : ContentPage
         base.OnDisappearing();
     }
 
+    /// <summary>Closes the menu first, then delegates to the platform page stack.</summary>
+    protected override bool OnBackButtonPressed() =>
+        _navigationShell.TryHandleBack() || base.OnBackButtonPressed();
+
     private async Task PickAndOpenAsync()
     {
         try
@@ -332,6 +280,14 @@ public sealed class MainPage : ContentPage
         {
             await DisplayAlertAsync("Unable to open document", exception.Message, "OK");
         }
+    }
+
+    private void OnNavigationActivationRequested(
+        object? sender,
+        MobileMenuActivationEventArgs args)
+    {
+        if (args.CommandId == "document.open")
+            _ = PickAndOpenAsync();
     }
 
     private async Task ConsumeActivationsAsync(CancellationToken cancellationToken)
@@ -424,6 +380,7 @@ public sealed class MainPage : ContentPage
     {
         _documentName.Text = document.Name.Value;
         _documentMeta.Text = "Markdown document • local file";
+        _navigationShell.Title = $"Merglyph · {document.Name.Value}";
         _bodyHost.Content = _viewerCard;
         ApplyChromeTheme();
         _viewer.SourceDirectory = document.SourceDirectory;
@@ -447,6 +404,7 @@ public sealed class MainPage : ContentPage
     {
         _documentName.Text = "No document open";
         _documentMeta.Text = "Choose a local Markdown file to begin";
+        _navigationShell.Title = "Merglyph";
         _bodyHost.Content = _welcomeScroll;
         ApplyChromeTheme();
         _viewer.SourceDirectory = null;
@@ -465,8 +423,6 @@ public sealed class MainPage : ContentPage
         var muted = GraphicalProfile.Muted;
 
         BackgroundColor = background;
-        _brandName.TextColor = text;
-        _brandTagline.TextColor = muted;
         _documentName.TextColor = text;
         _welcomeEyebrow.TextColor = GraphicalProfile.Accent;
         _welcomeTitle.TextColor = text;
@@ -476,12 +432,8 @@ public sealed class MainPage : ContentPage
         _documentMeta.TextColor = muted;
         _recentDocumentsTitle.TextColor = GraphicalProfile.Accent;
         _recentDocumentsEmpty.TextColor = muted;
-        _openButton.BackgroundColor = GraphicalProfile.AccentFill;
-        _openButton.TextColor = GraphicalProfile.OnAccentFill;
         _heroOpenButton.BackgroundColor = GraphicalProfile.Action;
         _heroOpenButton.TextColor = GraphicalProfile.OnAction;
-        _brandMarkFrame.Background = new SolidColorBrush(GraphicalProfile.Raised);
-        _brandMarkFrame.Stroke = new SolidColorBrush(border);
         _welcomeCard.Background = new SolidColorBrush(surface);
         _welcomeCard.Stroke = new SolidColorBrush(border);
         _viewerCard.Background = new SolidColorBrush(surface);

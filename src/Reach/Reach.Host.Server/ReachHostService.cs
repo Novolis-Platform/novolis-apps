@@ -101,6 +101,11 @@ public sealed class ReachHostService : BackgroundService
             _runtime.Session.RunAsync(cancellationToken),
             RunDiscoveryAsync(cancellationToken),
         };
+        if (CreateRegistryAdvertisementTask(cancellationToken)
+            is { } registryAdvertisement)
+        {
+            tasks.Add(registryAdvertisement);
+        }
         if (datagramChannel is not null)
         {
             tasks.Add(
@@ -178,6 +183,96 @@ public sealed class ReachHostService : BackgroundService
     {
         _runtime.Lifetime.Cancel();
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private Task? CreateRegistryAdvertisementTask(
+        CancellationToken cancellationToken)
+    {
+        var addressText =
+            Environment.GetEnvironmentVariable(
+                "NOVOLIS_REACH_DISCOVERY_REGISTRY")
+            ?? Environment.GetEnvironmentVariable(
+                "NOVOLIS_REACH_DISCOVERY_REGISTRIES")
+                ?.Split(
+                    ';',
+                    StringSplitOptions.RemoveEmptyEntries
+                    | StringSplitOptions.TrimEntries)
+                .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(addressText))
+            return null;
+        if (!Uri.TryCreate(
+                addressText,
+                UriKind.Absolute,
+                out var address)
+            || address.Scheme is not ("http" or "https"))
+        {
+            _runtime.WriteLog(
+                $"Ignoring invalid Reach discovery registry URI '{addressText}'.");
+            return null;
+        }
+
+        return RunRegistryAdvertisementAsync(
+            address,
+            cancellationToken);
+    }
+
+    private async Task RunRegistryAdvertisementAsync(
+        Uri address,
+        CancellationToken cancellationToken)
+    {
+        var registration = new ServiceRegistration(
+            ReachProtocol.DiscoveryCohort,
+            ReachProtocol.DiscoveryServiceName,
+            $"{Environment.MachineName}-{Guid.NewGuid():N}",
+            _runtime.Endpoints.Select(static endpoint =>
+                new ServiceEndpoint(new Uri(endpoint))),
+            new Dictionary<string, string>
+            {
+                ["hostName"] = Environment.MachineName,
+                ["protocolVersion"] = ReachProtocol.Version,
+            });
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                using var http = new HttpClient
+                {
+                    Timeout = TimeSpan.FromSeconds(5),
+                };
+                var registry = new HttpServiceRegistry(http, address);
+                var session = new ServiceRegistrationSession(
+                    registry,
+                    registration,
+                    leaseDuration: TimeSpan.FromSeconds(30),
+                    renewalPeriod: TimeSpan.FromSeconds(10));
+                await session.RunAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                return;
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                _runtime.WriteLog(
+                    $"Reach discovery registry unavailable: {exception.Message}");
+                try
+                {
+                    await Task.Delay(
+                            TimeSpan.FromSeconds(10),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                    when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+        }
     }
 
     private async Task RunDiscoveryAsync(CancellationToken cancellationToken)

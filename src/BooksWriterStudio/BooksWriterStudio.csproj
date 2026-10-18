@@ -19,7 +19,7 @@
     <LibraryReference Include="Novolis.Avalonia.Markdown" />
     <LibraryReference Include="Novolis.Avalonia.Manuscript" />
     <LibraryReference Include="Novolis.MSBuild.BuildReference" />
-    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
     <LibraryReference Include="Novolis.Avalonia.Studio" />
     <LibraryReference Include="Novolis.Audio.Voice.Abstractions" />
     <LibraryReference Include="Novolis.Audio.Voice.AzureSpeech" />

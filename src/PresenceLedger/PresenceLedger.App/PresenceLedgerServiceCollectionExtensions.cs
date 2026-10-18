@@ -62,6 +62,7 @@ public static class PresenceLedgerServiceCollectionExtensions
         services.AddSingleton<PresenceHistoryRebuild>();
         services.AddSingleton<PresenceObservationCoordinator>();
         services.AddSingleton<LedgerExportService>();
+        services.AddSingleton<LedgerBundleService>();
         services.AddSingleton<ILedgerFilePublisher>(sp =>
             DirectoryLedgerFilePublisher.ForDownloads(
                 sp.GetRequiredService<IAppDataPaths>().RootDirectory));

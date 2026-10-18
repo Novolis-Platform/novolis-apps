@@ -1,4 +1,5 @@
 using Novolis.Avalonia.GraphicalProfile;
+using Novolis.Avalonia.Navigation;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Map;
 using Novolis.Avalonia.Mobile;
 using Novolis.Avalonia.Ndjson;
+using Novolis.Commands.Navigation;
 using Novolis.IO.Ndjson;
 using Novolis.IO.Maps;
 using Novolis.Math.Geometry;
@@ -33,8 +35,10 @@ public sealed class MainView : UserControl
     readonly IServiceProvider _services;
     readonly PresenceHistoryRebuild _history;
     readonly LedgerExportService _exports;
+    readonly LedgerBundleService _bundles;
     readonly ContentControl _content = new();
     readonly TextBlock _status = new();
+    MobileNavigationShell _navigationShell = null!;
 
     DateOnly _displayDate = DateOnly.FromDateTime(DateTime.Now);
     GeoCoordinate? _selectedCoordinate;
@@ -49,7 +53,6 @@ public sealed class MainView : UserControl
     NdjsonSliceView? _ledgerViewer;
     INdjsonDocument? _ledgerDocument;
     ShellSection _section = ShellSection.Today;
-    readonly List<(Button Button, ShellSection Section)> _nav = [];
 
     /// <summary>Creates the shared product view.</summary>
     public MainView(
@@ -63,7 +66,8 @@ public sealed class MainView : UserControl
         IMapPlaceSearch searchProvider,
         IServiceProvider services,
         PresenceHistoryRebuild history,
-        LedgerExportService exports)
+        LedgerExportService exports,
+        LedgerBundleService bundles)
     {
         _locations = locations ?? throw new ArgumentNullException(nameof(locations));
         _events = events ?? throw new ArgumentNullException(nameof(events));
@@ -76,6 +80,7 @@ public sealed class MainView : UserControl
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _history = history ?? throw new ArgumentNullException(nameof(history));
         _exports = exports ?? throw new ArgumentNullException(nameof(exports));
+        _bundles = bundles ?? throw new ArgumentNullException(nameof(bundles));
 
         Background = GraphicalProfile.BackgroundBrush;
         BuildShell();
@@ -90,151 +95,116 @@ public sealed class MainView : UserControl
 
     void BuildShell()
     {
-        var header = new StackPanel
-        {
-            Margin = new Thickness(16, 14, 16, 10),
-            Spacing = 10,
-        };
-
-        var brandMark = new Border
-        {
-            Width = 48,
-            Height = 48,
-            Background = GraphicalProfile.AccentFillBrush,
-            BorderBrush = GraphicalProfile.AccentBrush,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(16),
-            Child = new TextBlock
-            {
-                Text = "P",
-                FontSize = 25,
-                FontWeight = FontWeight.Bold,
-                Foreground = GraphicalProfile.TextBrush,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            },
-        };
-        var brandCopy = new StackPanel
-        {
-            Spacing = 1,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = "PRESENCE LEDGER",
-                    FontSize = 17,
-                    FontWeight = FontWeight.Bold,
-                    Foreground = GraphicalProfile.TextBrush,
-                },
-                new TextBlock
-                {
-                    Text = "A quiet record of your places",
-                    FontSize = 11,
-                    Foreground = GraphicalProfile.MutedBrush,
-                },
-            },
-        };
-        var localBadge = new Border
-        {
-            Padding = new Thickness(10, 6),
-            Background = GraphicalProfile.SurfaceBrush,
-            BorderBrush = GraphicalProfile.BorderBrush,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock
-            {
-                Text = "LOCAL",
-                Classes = { "eyebrow" },
-                Foreground = GraphicalProfile.AccentBrush,
-            },
-        };
-        var brandRow = new Grid
-        {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
-            ColumnSpacing = 12,
-        };
-        brandRow.Children.Add(brandMark);
-        Grid.SetColumn(brandMark, 0);
-        brandRow.Children.Add(brandCopy);
-        Grid.SetColumn(brandCopy, 1);
-        brandRow.Children.Add(localBadge);
-        Grid.SetColumn(localBadge, 2);
-        header.Children.Add(brandRow);
-
         _status.Text = "Local storage · Kartverket maps · Geonorge address search";
         _status.Foreground = GraphicalProfile.MutedBrush;
         _status.FontSize = 11;
         _status.Margin = new Thickness(16, 6, 16, 4);
 
-        var bar = new Grid
+        var content = new DockPanel
         {
-            MinHeight = 58,
-            Background = GraphicalProfile.SurfaceBrush,
+            LastChildFill = true,
         };
-        var sections = new (string Label, ShellSection Section, Func<Task> Open)[]
-        {
-            ("Today", ShellSection.Today, ShowTodayAsync),
-            ("Map", ShellSection.Map, ShowMapAsync),
-            ("Places", ShellSection.Places, ShowLocationsAsync),
-            ("Report", ShellSection.Report, ShowReportAsync),
-            ("More", ShellSection.More, ShowDiagnosticsAsync),
-        };
-        for (var index = 0; index < sections.Length; index++)
-        {
-            var item = sections[index];
-            bar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-            var button = new Button
-            {
-                Content = item.Label,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Stretch,
-                MinHeight = 58,
-                Padding = new Thickness(0, 8),
-                Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0, 2, 0, 0),
-                CornerRadius = new CornerRadius(0),
-                FontSize = 13,
-            };
-            button.Click += async (_, _) => await item.Open();
-            _nav.Add((button, item.Section));
-            Grid.SetColumn(button, index);
-            bar.Children.Add(button);
-        }
-
-        ShowSection(ShellSection.Today);
-        var shell = new DockPanel();
-        DockPanel.SetDock(header, Dock.Top);
-        DockPanel.SetDock(bar, Dock.Bottom);
         DockPanel.SetDock(_status, Dock.Bottom);
-        shell.Children.Add(header);
-        shell.Children.Add(bar);
-        shell.Children.Add(_status);
-        shell.Children.Add(_content);
-        Content = shell;
+        content.Children.Add(_status);
+        content.Children.Add(_content);
+
+        var menuTree = new MobileMenuTree(
+        [
+            new MobileMenuNode("today", "Today", MobileMenuNodeKind.Destination)
+            {
+                Placement = MobileMenuPlacement.Primary,
+                RouteId = "today",
+            },
+            new MobileMenuNode("map", "Map", MobileMenuNodeKind.Destination)
+            {
+                Placement = MobileMenuPlacement.Primary,
+                RouteId = "map",
+            },
+            new MobileMenuNode("places", "Places", MobileMenuNodeKind.Destination)
+            {
+                Placement = MobileMenuPlacement.Primary,
+                RouteId = "places",
+            },
+            new MobileMenuNode("report", "Report", MobileMenuNodeKind.Destination)
+            {
+                Placement = MobileMenuPlacement.Primary,
+                RouteId = "report",
+            },
+            new MobileMenuNode("more", "More", MobileMenuNodeKind.Group)
+            {
+                Children =
+                [
+                    new MobileMenuNode("history", "History", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "history",
+                    },
+                    new MobileMenuNode("diagnostics", "Diagnostics", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "diagnostics",
+                    },
+                    new MobileMenuNode("ledger.export", "Export full ledger backup", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "ledger.export",
+                    },
+                    new MobileMenuNode("ledger.import", "Import full ledger backup", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "ledger.import",
+                    },
+                ],
+            },
+            ]);
+        _navigationShell = new MobileNavigationShell(new MobileNavigationController(menuTree))
+        {
+            Title = "Presence Ledger",
+            Body = content,
+        };
+        _navigationShell.ActivationRequested += OnNavigationActivationRequested;
+        Content = _navigationShell;
     }
+
+    /// <summary>Closes the mobile menu before the Android activity navigates back.</summary>
+    public bool TryHandleBack() => _navigationShell.TryHandleBack();
 
     void ShowSection(ShellSection section)
     {
         _section = section;
-        foreach (var (button, item) in _nav)
+    }
+
+    void OnNavigationActivationRequested(
+        object? sender,
+        MobileMenuActivationEventArgs args)
+    {
+        _ = HandleNavigationActivationAsync(args);
+    }
+
+    async Task HandleNavigationActivationAsync(MobileMenuActivationEventArgs args)
+    {
+        switch (args.RouteId ?? args.CommandId)
         {
-            var selected = item == section;
-            button.Foreground = selected
-                ? GraphicalProfile.AccentBrush
-                : GraphicalProfile.MutedBrush;
-            button.BorderBrush = selected
-                ? GraphicalProfile.AccentBrush
-                : Brushes.Transparent;
-            button.FontWeight = selected ? FontWeight.SemiBold : FontWeight.Normal;
+            case "today":
+                await ShowTodayAsync();
+                break;
+            case "map":
+                await ShowMapAsync();
+                break;
+            case "places":
+                await ShowLocationsAsync();
+                break;
+            case "report":
+                await ShowReportAsync();
+                break;
+            case "history":
+                await ShowHistoryAsync();
+                break;
+            case "diagnostics":
+                await ShowDiagnosticsAsync();
+                break;
+            case "ledger.export":
+                await ExportLedgerBundleAsync();
+                break;
+            case "ledger.import":
+                await ImportLedgerBundleAsync();
+                break;
         }
     }
 
@@ -1417,6 +1387,32 @@ public sealed class MainView : UserControl
         };
         stack.Children.Add(_ledgerViewer);
 
+        var exportBundle = new Button
+        {
+            Content = "Export full ledger backup…",
+            Classes = { "primary-button" },
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+            Background = GraphicalProfile.AccentFillBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        exportBundle.Click += async (_, _) => await ExportLedgerBundleAsync();
+        stack.Children.Add(exportBundle);
+
+        var importBundle = new Button
+        {
+            Content = "Import full ledger backup…",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+            Background = GraphicalProfile.SurfaceBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        importBundle.Click += async (_, _) => await ImportLedgerBundleAsync();
+        stack.Children.Add(importBundle);
+        stack.Children.Add(Hint(
+            "A backup includes places, history, raw observations, state, and diagnostics. " +
+            "Import replaces this local ledger after validation."));
+
         var recovery = _services.GetService<ILedgerStorageRecovery>();
         if (recovery is not null)
         {
@@ -1486,6 +1482,166 @@ public sealed class MainView : UserControl
         };
         stack.Children.Add(save);
         stack.Children.Add(share);
+    }
+
+    async Task ExportLedgerBundleAsync()
+    {
+        SetStatus("Preparing a complete ledger backup…");
+        try
+        {
+            Stream? output;
+            string destinationName;
+            var transfer = _services.GetService<ILedgerBundleTransfer>();
+            if (transfer is not null)
+            {
+                output = await transfer.CreateExportAsync("presence-ledger-backup.zip");
+                destinationName = "the selected Android destination";
+            }
+            else
+            {
+                var top = TopLevel.GetTopLevel(this);
+                if (top?.StorageProvider is not { CanSave: true } storage)
+                {
+                    SetStatus("This host cannot choose a backup destination.");
+                    return;
+                }
+
+                var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+                {
+                    Title = "Export full Presence Ledger backup",
+                    SuggestedFileName = "presence-ledger-backup.zip",
+                    DefaultExtension = "zip",
+                    FileTypeChoices =
+                    [
+                        new FilePickerFileType("Presence Ledger backup")
+                        {
+                            Patterns = ["*.zip"],
+                            MimeTypes = ["application/zip"],
+                        },
+                    ],
+                });
+                if (file is null)
+                {
+                    SetStatus("Ledger backup export cancelled.");
+                    return;
+                }
+
+                output = await file.OpenWriteAsync();
+                destinationName = file.Name;
+            }
+
+            if (output is null)
+            {
+                SetStatus("Ledger backup export cancelled.");
+                return;
+            }
+
+            await using (output)
+            {
+                var result = await _bundles.CreateAsync(output);
+                await RecordDiagnosticAsync(
+                    "info",
+                    "ledger-bundle-exported",
+                    $"Exported {result.FileCount} ledger file(s) to a validated backup.",
+                    destinationName);
+                SetStatus(
+                    $"Full ledger backup exported ({result.FileCount} file{(result.FileCount == 1 ? string.Empty : "s")}).");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Ledger backup export cancelled.");
+        }
+        catch (Exception exception)
+        {
+            await RecordDiagnosticAsync(
+                "error",
+                "ledger-bundle-export-failed",
+                "Could not export the full ledger backup.",
+                exception.ToString());
+            SetStatus($"Could not export ledger backup: {exception.Message}");
+        }
+    }
+
+    async Task ImportLedgerBundleAsync()
+    {
+        SetStatus("Choose a Presence Ledger backup to restore…");
+        try
+        {
+            Stream? input;
+            string sourceName;
+            var transfer = _services.GetService<ILedgerBundleTransfer>();
+            if (transfer is not null)
+            {
+                input = await transfer.OpenImportAsync();
+                sourceName = "the selected Android backup";
+            }
+            else
+            {
+                var top = TopLevel.GetTopLevel(this);
+                if (top?.StorageProvider is not { CanOpen: true } storage)
+                {
+                    SetStatus("This host cannot choose a ledger backup.");
+                    return;
+                }
+
+                var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
+                {
+                    Title = "Import full Presence Ledger backup",
+                    AllowMultiple = false,
+                    FileTypeFilter =
+                    [
+                        new FilePickerFileType("Presence Ledger backup")
+                        {
+                            Patterns = ["*.zip"],
+                            MimeTypes = ["application/zip"],
+                        },
+                    ],
+                });
+                if (files.Count == 0)
+                {
+                    SetStatus("Ledger backup import cancelled.");
+                    return;
+                }
+
+                input = await files[0].OpenReadAsync();
+                sourceName = files[0].Name;
+            }
+
+            if (input is null)
+            {
+                SetStatus("Ledger backup import cancelled.");
+                return;
+            }
+
+            await using (input)
+            {
+                var result = await _bundles.ImportAsync(input);
+                await _history.RebuildAsync();
+                await RecordDiagnosticAsync(
+                    "info",
+                    "ledger-bundle-imported",
+                    $"Imported and replaced the local ledger with {result.FileCount} validated file(s).",
+                    sourceName);
+                SetStatus(
+                    $"Full ledger restored ({result.FileCount} file{(result.FileCount == 1 ? string.Empty : "s")}).");
+            }
+
+            await ShowDiagnosticsAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Ledger backup import cancelled.");
+        }
+        catch (Exception exception)
+        {
+            await RecordDiagnosticAsync(
+                "error",
+                "ledger-bundle-import-failed",
+                "Could not validate or restore the full ledger backup.",
+                exception.ToString());
+            SetStatus($"Could not import ledger backup: {exception.Message}");
+        }
     }
 
     async Task ImportLegacyLedgerAsync(ILedgerStorageRecovery recovery)

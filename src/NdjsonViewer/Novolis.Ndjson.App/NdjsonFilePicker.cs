@@ -16,7 +16,7 @@ public sealed class NdjsonFilePicker
                 "text/plain",
                 "application/octet-stream",
             ],
-            [DevicePlatform.WinUI] = [".ndjson"],
+            [DevicePlatform.WinUI] = [".ndjson", ".jsonl"],
         });
 
     public async ValueTask<NdjsonOpenRequest?> PickAsync(
@@ -33,8 +33,13 @@ public sealed class NdjsonFilePicker
         if (result is null)
             return null;
 
-        if (!Path.GetExtension(result.FileName).Equals(".ndjson", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Novolis NDJSON Viewer opens .ndjson files only.");
+        var extension = Path.GetExtension(result.FileName);
+        if (!extension.Equals(".ndjson", StringComparison.OrdinalIgnoreCase)
+            && !extension.Equals(".jsonl", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Novolis NDJSON Viewer opens .ndjson and .jsonl files only.");
+        }
 
         if (!OperatingSystem.IsAndroid()
             && !string.IsNullOrWhiteSpace(result.FullPath)

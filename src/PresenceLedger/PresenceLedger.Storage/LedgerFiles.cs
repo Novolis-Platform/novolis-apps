@@ -28,9 +28,7 @@ public static class LedgerFiles
             .ToArray();
     }
 
-    /// <summary>
-    /// Copies the current ledger tree, overwriting previous copies of the same files.
-    /// </summary>
+    /// <summary>Copies the current ledger tree as an exact NDJSON snapshot.</summary>
     public static int CopyTo(string rootDirectory, string destinationDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
@@ -38,6 +36,18 @@ public static class LedgerFiles
         Directory.CreateDirectory(destinationDirectory);
 
         var files = List(rootDirectory);
+        var expected = files
+            .Select(file => file.RelativePath)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var stale in List(destinationDirectory))
+        {
+            if (!expected.Contains(stale.RelativePath)
+                && File.Exists(stale.FullPath))
+            {
+                File.Delete(stale.FullPath);
+            }
+        }
+
         foreach (var file in files)
         {
             var destination = Path.Combine(

@@ -4,25 +4,19 @@ using Microsoft.Identity.Client;
 
 namespace ReadAloud.Android;
 
-/// <summary>
-/// Signs in the personal Microsoft account that is a guest in the app's
-/// directory. The device broker is left unused so a work account signed in
-/// on the phone is not offered. The prompt stays in MSAL's embedded WebView.
-/// </summary>
+/// <summary>Signs in the Microsoft account selected by the user.</summary>
 public sealed class AndroidEntraAuthentication
 {
     public const string ManagementScope = "https://management.azure.com/.default";
     public const string SpeechScope = "https://cognitiveservices.azure.com/.default";
 
     readonly SemaphoreSlim _gate = new(1, 1);
-    readonly string _loginHint;
     IPublicClientApplication? _application;
     string? _homeAccountId;
 
     public AndroidEntraAuthentication(
         string clientId,
-        string tenantId,
-        string loginHint)
+        string tenantId)
     {
         ClientId = string.IsNullOrWhiteSpace(clientId)
             ? throw new ArgumentException("Client id is required.", nameof(clientId))
@@ -30,16 +24,13 @@ public sealed class AndroidEntraAuthentication
         TenantId = string.IsNullOrWhiteSpace(tenantId)
             ? throw new ArgumentException("Tenant id is required.", nameof(tenantId))
             : tenantId;
-        _loginHint = string.IsNullOrWhiteSpace(loginHint)
-            ? throw new ArgumentException("Login hint is required.", nameof(loginHint))
-            : loginHint.Trim();
     }
 
     public string ClientId { get; }
 
     public string TenantId { get; }
 
-    /// <summary>Signs in the personal Microsoft account named by the login hint.</summary>
+    /// <summary>Signs in the account selected by the user.</summary>
     public Task SignInAsync(CancellationToken cancellationToken = default) =>
         AcquireTokenAsync([ManagementScope], interactive: true, cancellationToken);
 
@@ -84,7 +75,7 @@ public sealed class AndroidEntraAuthentication
             AuthenticationResult? result = null;
             if (!interactive)
             {
-                var account = await FindPersonalAccountAsync(application, cancellationToken)
+                var account = await FindAccountAsync(application, cancellationToken)
                     .ConfigureAwait(false);
                 if (account is not null)
                 {
@@ -116,7 +107,7 @@ public sealed class AndroidEntraAuthentication
         }
     }
 
-    async Task<IAccount?> FindPersonalAccountAsync(
+    async Task<IAccount?> FindAccountAsync(
         IPublicClientApplication application,
         CancellationToken cancellationToken)
     {
@@ -128,17 +119,13 @@ public sealed class AndroidEntraAuthentication
                 string.Equals(
                     account.HomeAccountId?.Identifier,
                     _homeAccountId,
-                    StringComparison.Ordinal) &&
-                IsPersonalAccount(account));
+                    StringComparison.Ordinal));
             if (selected is not null)
                 return selected;
         }
 
-        return accounts.FirstOrDefault(IsPersonalAccount);
+        return accounts.FirstOrDefault();
     }
-
-    bool IsPersonalAccount(IAccount account) =>
-        account.Username?.Contains(_loginHint, StringComparison.OrdinalIgnoreCase) == true;
 
     IPublicClientApplication GetApplication(CancellationToken cancellationToken)
     {
@@ -204,12 +191,7 @@ public sealed class AndroidEntraAuthentication
         application
             .AcquireTokenInteractive(scopes)
             .WithParentActivityOrWindow(activity)
-            .WithLoginHint(_loginHint)
-            .WithPrompt(Prompt.ForceLogin)
-            .WithExtraQueryParameters(new Dictionary<string, (string, bool)>
-            {
-                ["domain_hint"] = ("consumers", false),
-            })
+            .WithPrompt(Prompt.SelectAccount)
             .WithUseEmbeddedWebView(true)
             .ExecuteAsync(cancellationToken);
 

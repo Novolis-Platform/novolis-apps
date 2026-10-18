@@ -20,7 +20,7 @@
     <LibraryReference Include="Novolis.Avalonia.Agent.Protocol" />
     <LibraryReference Include="Novolis.Transports.LocalIpc" />
     <LibraryReference Include="Novolis.MSBuild.BuildReference" />
-    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
     <PackageReference Include="Optris.Icons.Avalonia" />
     <PackageReference Include="Optris.Icons.Avalonia.FontAwesome" />
   </ItemGroup>

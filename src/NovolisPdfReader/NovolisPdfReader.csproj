@@ -37,12 +37,14 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
+    <LibraryReference Include="Novolis.Commands.Navigation" />
     <!-- SkiaSharp 4 keeps Android natives in a separate package. Without it, opening a PDF
          crashes while loading libSkiaSharp.so. -->
     <PackageReference Include="SkiaSharp.NativeAssets.Android"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
     <LibraryReference Include="Novolis.IO.Ndjson" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
+    <LibraryReference Include="Novolis.Maui.Navigation" />
     <LibraryReference Include="Novolis.Maui.Ndjson" />
     <LibraryReference Include="Novolis.Maui.PdfViewer" />
     <LibraryReference Include="Novolis.Maui.Agent" />
@@ -53,6 +55,6 @@
     <LibraryReference Include="Novolis.Windows.Pdf"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
     <LibraryReference Include="Novolis.MSBuild.BuildReference" />
-    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
   </ItemGroup>
 </Project>

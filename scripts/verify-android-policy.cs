@@ -24,7 +24,8 @@ const string ToolsNs = "http://schemas.android.com/tools";
 
 foreach (var app in doc.RootElement.GetProperty("apps").EnumerateArray())
 {
-    if (!app.TryGetProperty("android", out var android))
+    if (!app.TryGetProperty("android", out var android)
+        || android.ValueKind != JsonValueKind.Object)
         continue;
     androidCount++;
     var key = app.GetProperty("key").GetString() ?? "";

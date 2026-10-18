@@ -47,6 +47,11 @@ namespace Novolis.Ndjson.App;
     Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
     DataSchemes = new[] { "content", "file" },
     DataMimeType = "application/octet-stream")]
+[IntentFilter(
+    new[] { Intent.ActionView },
+    Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
+    DataSchemes = new[] { "content", "file" },
+    DataMimeType = "text/plain")]
 public sealed class MainActivity : MauiAppCompatActivity
 {
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -69,12 +74,12 @@ public sealed class MainActivity : MauiAppCompatActivity
 
         TryPersistReadPermission(intent, uri);
         var name = ResolveName(uri);
-        var hasNdjsonExtension = Path.GetExtension(name)
-            .Equals(".ndjson", StringComparison.OrdinalIgnoreCase);
-        if (!hasNdjsonExtension && !IsNdjsonMimeType(intent.Type))
+        var hasNdjsonExtension = HasNdjsonExtension(name);
+        var hasSpecificNdjsonMime = IsSpecificNdjsonMimeType(intent.Type);
+        if (!hasNdjsonExtension && !hasSpecificNdjsonMime)
             return;
 
-        if (!hasNdjsonExtension && IsNdjsonMimeType(intent.Type)
+        if (!hasNdjsonExtension && hasSpecificNdjsonMime
             && Path.GetFileName(name).IndexOf('.') < 0)
         {
             name += ".ndjson";
@@ -98,7 +103,11 @@ public sealed class MainActivity : MauiAppCompatActivity
             }));
     }
 
-    private static bool IsNdjsonMimeType(string? mimeType) =>
+    private static bool HasNdjsonExtension(string name) =>
+        Path.GetExtension(name).Equals(".ndjson", StringComparison.OrdinalIgnoreCase)
+        || Path.GetExtension(name).Equals(".jsonl", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSpecificNdjsonMimeType(string? mimeType) =>
         string.Equals(mimeType, "application/x-ndjson", StringComparison.OrdinalIgnoreCase)
         || string.Equals(mimeType, "application/ndjson", StringComparison.OrdinalIgnoreCase)
         || string.Equals(mimeType, "text/x-ndjson", StringComparison.OrdinalIgnoreCase);

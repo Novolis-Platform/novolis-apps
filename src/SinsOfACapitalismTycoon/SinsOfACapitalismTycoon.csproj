@@ -18,7 +18,7 @@
     <PackageReference Include="Spectre.Console" />
     <LibraryReference Include="Novolis.Avalonia.Briefing" />
     <LibraryReference Include="Novolis.MSBuild.BuildReference" />
-    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
     <LibraryReference Include="Novolis.Avalonia.StarMap" />
     <LibraryReference Include="Novolis.Avalonia.Studio" />
     <PackageReference Include="MessagePack" />

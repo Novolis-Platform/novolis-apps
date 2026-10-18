@@ -1,5 +1,6 @@
 using System.Collections;
 using Novolis.Avalonia.GraphicalProfile;
+using Novolis.Avalonia.Navigation;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -13,6 +14,7 @@ using Novolis.Avalonia.Ndjson;
 using Novolis.Avalonia.Mobile;
 using Novolis.Avalonia.Speech;
 using Novolis.Avalonia.Diagnostics;
+using Novolis.Commands.Navigation;
 using Novolis.IO.Ndjson;
 using Novolis.Logging.Diagnostics;
 using ReadAloud.Reading;
@@ -46,6 +48,8 @@ public sealed class MainView : DockPanel
     readonly StackPanel _manualCredentialsPanel;
     readonly Button _signInButton;
     readonly Button _importButton;
+    readonly Button _importEncryptedButton;
+    readonly Button _exportCredentialsButton;
     readonly Button _signOutButton;
     readonly TextBlock _credentialStatus;
     readonly TextBlock _resourceStatus;
@@ -60,6 +64,7 @@ public sealed class MainView : DockPanel
     readonly ComboBox _voicePicker;
     readonly TextBox _endpointBox;
     readonly TextBox _keyBox;
+    readonly TextBox _credentialPassphraseBox;
     readonly Button _saveCredentialsButton;
     readonly ComboBox _subscriptionPicker;
     readonly ComboBox _resourceGroupPicker;
@@ -68,6 +73,7 @@ public sealed class MainView : DockPanel
     IReadOnlyList<AzureSpeechResourceGroupChoice> _resourceGroups = [];
     IReadOnlyList<AzureSpeechResourceChoice> _speechResources = [];
     IReadOnlyList<VoiceListItem> _voices = [];
+    readonly MobileNavigationShell _navigationShell;
     bool _resourceRefresh;
     bool _voiceRefresh;
     bool _usageRefresh;
@@ -164,6 +170,17 @@ public sealed class MainView : DockPanel
             "Import credentials file…",
             ReadAloudButtonKind.Secondary);
         _importButton.Click += async (_, _) => await ImportAzureCredentialsAsync();
+        _importEncryptedButton = ReadAloudTheme.Button(
+            "Import encrypted backup…",
+            ReadAloudButtonKind.Secondary);
+        _importEncryptedButton.Click += async (_, _) => await ImportEncryptedAzureCredentialsAsync();
+        _exportCredentialsButton = ReadAloudTheme.Button(
+            "Export encrypted backup…",
+            ReadAloudButtonKind.Secondary);
+        _exportCredentialsButton.Click += async (_, _) => await ExportAzureCredentialsAsync();
+        _credentialPassphraseBox = ReadAloudTheme.Field(
+            "Backup passphrase (8+ characters)",
+            secret: true);
         _signOutButton = ReadAloudTheme.Button("Sign out", ReadAloudButtonKind.Quiet);
         _signOutButton.Click += async (_, _) => await SignOutAzureAsync();
         _signOutButton.IsVisible = false;
@@ -282,7 +299,6 @@ public sealed class MainView : DockPanel
             Margin = new Thickness(16, 12, 16, 0),
             Children =
             {
-                ReadAloudTheme.BrandTitle("Read Aloud", 26),
                 _credentialLine,
                 ReadAloudTheme.Muted("Voice", 12),
                 _voicePicker,
@@ -308,11 +324,87 @@ public sealed class MainView : DockPanel
             },
         };
 
+        var body = new DockPanel
+        {
+            LastChildFill = true,
+        };
         SetDock(header, Dock.Top);
         SetDock(footer, Dock.Bottom);
-        Children.Add(header);
-        Children.Add(footer);
-        Children.Add(passageScroll);
+        body.Children.Add(header);
+        body.Children.Add(footer);
+        body.Children.Add(passageScroll);
+
+        var menuTree = new MobileMenuTree(
+        [
+            new MobileMenuNode("actions", "Actions", MobileMenuNodeKind.Group)
+            {
+                Children =
+                [
+                    new MobileMenuNode("text.open", "Open text file", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "text.open",
+                    },
+                    new MobileMenuNode("text.paste", "Paste from clipboard", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "text.paste",
+                    },
+                    new MobileMenuNode("audio.save", "Save MP3", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "audio.save",
+                    },
+                    new MobileMenuNode("text.clear", "Clear passage", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "text.clear",
+                    },
+                    new MobileMenuNode("azure.settings", "Azure Speech settings", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "azure.settings",
+                    },
+                    new MobileMenuNode("credentials", "Credentials", MobileMenuNodeKind.Group)
+                    {
+                        Children =
+                        [
+                            new MobileMenuNode(
+                                "credentials.import-json",
+                                "Import JSON credentials",
+                                MobileMenuNodeKind.Action)
+                            {
+                                CommandId = "credentials.import-json",
+                            },
+                            new MobileMenuNode(
+                                "credentials.import-encrypted",
+                                "Import encrypted backup",
+                                MobileMenuNodeKind.Action)
+                            {
+                                CommandId = "credentials.import-encrypted",
+                            },
+                            new MobileMenuNode(
+                                "credentials.export-encrypted",
+                                "Export encrypted backup",
+                                MobileMenuNodeKind.Action)
+                            {
+                                CommandId = "credentials.export-encrypted",
+                            },
+                        ],
+                    },
+                    new MobileMenuNode("diagnostics.share", "Share diagnostics", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "diagnostics.share",
+                    },
+                    new MobileMenuNode("diagnostics.open", "Browse diagnostics", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "diagnostics.open",
+                    },
+                ],
+            },
+        ]);
+        _navigationShell = new MobileNavigationShell(new MobileNavigationController(menuTree))
+        {
+            Title = "Read Aloud",
+            Body = body,
+        };
+        _navigationShell.ActivationRequested += OnNavigationActivationRequested;
+        Children.Add(_navigationShell);
 
         _speech.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshListen);
         SharedTextInbox.Received += text =>
@@ -332,6 +424,53 @@ public sealed class MainView : DockPanel
         RefreshProviderUi();
         RefreshListen();
         _ = InitializeSpeechAsync();
+    }
+
+    /// <summary>Closes the mobile menu before the Android activity navigates back.</summary>
+    public bool TryHandleBack() => _navigationShell.TryHandleBack();
+
+    void OnNavigationActivationRequested(
+        object? sender,
+        MobileMenuActivationEventArgs args)
+    {
+        _ = HandleNavigationActivationAsync(args.CommandId);
+    }
+
+    async Task HandleNavigationActivationAsync(string? commandId)
+    {
+        switch (commandId)
+        {
+            case "text.open":
+                await OpenFileAsync();
+                break;
+            case "text.paste":
+                await PasteClipboardAsync();
+                break;
+            case "audio.save":
+                await SaveMp3Async();
+                break;
+            case "text.clear":
+                ClearPassage();
+                break;
+            case "azure.settings":
+                ToggleAzureSetup();
+                break;
+            case "credentials.import-json":
+                await ImportAzureCredentialsAsync();
+                break;
+            case "credentials.import-encrypted":
+                await ImportEncryptedAzureCredentialsAsync();
+                break;
+            case "credentials.export-encrypted":
+                await ExportAzureCredentialsAsync();
+                break;
+            case "diagnostics.share":
+                await ShareDiagnosticsAsync();
+                break;
+            case "diagnostics.open":
+                await OpenDiagnosticsAsync();
+                break;
+        }
     }
 
     string DocumentText => _passage.Text;
@@ -451,7 +590,15 @@ public sealed class MainView : DockPanel
         var remove = ReadAloudTheme.Button("Remove Azure setup", ReadAloudButtonKind.Danger);
         remove.Click += async (_, _) => await RemoveAzureSetupAsync();
         var actions = new WrapPanel();
-        foreach (var button in new[] { _saveCredentialsButton, _importButton, test, remove })
+        foreach (var button in new[]
+                 {
+                     _saveCredentialsButton,
+                     _importButton,
+                     _importEncryptedButton,
+                     _exportCredentialsButton,
+                     test,
+                     remove,
+                 })
         {
             button.Margin = new Thickness(0, 0, 8, 8);
             actions.Children.Add(button);
@@ -467,6 +614,10 @@ public sealed class MainView : DockPanel
                     "Enter the Speech endpoint and subscription key, or import a versioned JSON file. The key is stored only in platform secure storage.",
                     13),
                 ReadAloudTheme.Muted(
+                    "Encrypted backup export includes the manual key and requires this passphrase on the importing device. " +
+                    "Automatic Microsoft sign-in is never exported.",
+                    13),
+                ReadAloudTheme.Muted(
                     "JSON layout: schema, version, authentication, endpoint, subscriptionKey. Optional: voiceName and locale.",
                     13),
                 ReadAloudTheme.Muted(
@@ -477,6 +628,8 @@ public sealed class MainView : DockPanel
                 _savedCredential,
                 ReadAloudTheme.Muted("Subscription key", 12),
                 _keyBox,
+                ReadAloudTheme.Muted("Encrypted backup passphrase", 12),
+                _credentialPassphraseBox,
                 actions,
             },
         };
@@ -514,6 +667,14 @@ public sealed class MainView : DockPanel
         _credentialStatus.Text = setup is null
             ? "Current credentials: not configured."
             : $"Current credentials: {DescribeCredentialSource(setup)}.";
+        _signOutButton.IsVisible = _resourcePicker is not null
+            && setup is { EffectiveCredentialSource: AzureSpeechCredentialSource.Automatic };
+        _exportCredentialsButton.IsEnabled = setup is
+        {
+            EffectiveCredentialSource: AzureSpeechCredentialSource.Manual,
+            AuthenticationMode: AzureSpeechAuthenticationMode.ApiKey,
+        };
+        _importEncryptedButton.IsEnabled = true;
 
         var usageReady = CanRefreshAzureUsage();
         _usageRefreshButton.IsEnabled = usageReady && !_usageRefresh;
@@ -722,6 +883,7 @@ public sealed class MainView : DockPanel
                 stream,
                 _speech.Voice.Voice,
                 LocaleFromVoice(_speech.Voice.Voice));
+            var voices = await _speech.TestAzureSetupAsync(setup);
             await _speech.ConfigureAzureAsync(setup);
             _endpointBox.Text = setup.Endpoint.AbsoluteUri;
             _keyBox.Text = string.Empty;
@@ -729,7 +891,7 @@ public sealed class MainView : DockPanel
                 _credentialVariantPicker.SelectedIndex = 1;
             RefreshCredentialVariant();
             await RefreshVoiceListAsync();
-            SetStatus($"Manual Azure Speech credentials imported ({_voices.Count:N0} voices available).");
+            SetStatus($"Manual Azure Speech credentials imported ({voices.Count:N0} voices available).");
             RefreshProviderUi();
             RefreshListen();
         }
@@ -741,6 +903,129 @@ public sealed class MainView : DockPanel
         finally
         {
             _importButton.IsEnabled = true;
+        }
+    }
+
+    async Task ImportEncryptedAzureCredentialsAsync()
+    {
+        var passphrase = _credentialPassphraseBox.Text;
+        if (string.IsNullOrWhiteSpace(passphrase)
+            || passphrase.Length < AzureSpeechCredentialBundle.MinimumPassphraseLength)
+        {
+            SetStatus(
+                $"Enter the encrypted backup passphrase ({AzureSpeechCredentialBundle.MinimumPassphraseLength}+ characters).");
+            return;
+        }
+
+        var top = TopLevel.GetTopLevel(this);
+        if (top?.StorageProvider is null)
+            return;
+
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import encrypted Azure Speech backup",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Encrypted Azure Speech backup")
+                {
+                    Patterns = ["*.json", "*.credentials"],
+                    MimeTypes = ["application/json"],
+                },
+            ],
+        });
+        if (files.Count == 0)
+            return;
+
+        _importEncryptedButton.IsEnabled = false;
+        SetStatus("Decrypting and testing Azure Speech credentials…");
+        try
+        {
+            await using var stream = await files[0].OpenReadAsync();
+            var setup = await _speech.ReadAzureCredentialsAsync(stream, passphrase);
+            var voices = await _speech.TestAzureSetupAsync(setup);
+            await _speech.ConfigureAzureAsync(setup);
+            _endpointBox.Text = setup.Endpoint.AbsoluteUri;
+            _keyBox.Text = string.Empty;
+            _credentialPassphraseBox.Text = string.Empty;
+            if (_resourcePicker is not null)
+                _credentialVariantPicker.SelectedIndex = 1;
+            RefreshCredentialVariant();
+            await RefreshVoiceListAsync();
+            SetStatus($"Encrypted Azure Speech backup imported ({voices.Count:N0} voices available).");
+            RefreshProviderUi();
+            RefreshListen();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud encrypted Azure Speech credential import failed.");
+            SetStatus($"Encrypted credential import failed: {ex.Message}");
+        }
+        finally
+        {
+            _importEncryptedButton.IsEnabled = true;
+        }
+    }
+
+    async Task ExportAzureCredentialsAsync()
+    {
+        var setup = _speech.AzureConfiguration;
+        if (setup is null
+            || setup.EffectiveCredentialSource != AzureSpeechCredentialSource.Manual
+            || setup.AuthenticationMode != AzureSpeechAuthenticationMode.ApiKey)
+        {
+            SetStatus("Encrypted credential export is available for a manual Azure setup.");
+            return;
+        }
+
+        var passphrase = _credentialPassphraseBox.Text;
+        if (string.IsNullOrWhiteSpace(passphrase)
+            || passphrase.Length < AzureSpeechCredentialBundle.MinimumPassphraseLength)
+        {
+            SetStatus(
+                $"Enter an export passphrase ({AzureSpeechCredentialBundle.MinimumPassphraseLength}+ characters).");
+            return;
+        }
+
+        var top = TopLevel.GetTopLevel(this);
+        if (top?.StorageProvider is null)
+            return;
+
+        var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export encrypted Azure Speech credentials",
+            SuggestedFileName = "readaloud-azure-credentials.json",
+            DefaultExtension = "json",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("Encrypted Azure Speech credentials")
+                {
+                    Patterns = ["*.json"],
+                    MimeTypes = ["application/json"],
+                },
+            ],
+        });
+        if (file is null)
+            return;
+
+        _exportCredentialsButton.IsEnabled = false;
+        SetStatus("Encrypting Azure Speech credentials…");
+        try
+        {
+            await using var stream = await file.OpenWriteAsync();
+            await _speech.ExportAzureCredentialsAsync(stream, passphrase);
+            _credentialPassphraseBox.Text = string.Empty;
+            SetStatus($"Encrypted Azure Speech credentials exported to {file.Name}.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Read Aloud encrypted Azure Speech credential export failed.");
+            SetStatus($"Credential export failed: {ex.Message}");
+        }
+        finally
+        {
+            _exportCredentialsButton.IsEnabled = true;
+            RefreshCredentialVariant();
         }
     }
 
@@ -986,6 +1271,7 @@ public sealed class MainView : DockPanel
                 _keyBox.Text,
                 _speech.Voice.Voice,
                 LocaleFromVoice(_speech.Voice.Voice));
+            var voices = await _speech.TestAzureSetupAsync(setup);
             await _speech.ConfigureAzureAsync(setup);
             _endpointBox.Text = setup.Endpoint.AbsoluteUri;
             _keyBox.Text = string.Empty;
@@ -993,7 +1279,7 @@ public sealed class MainView : DockPanel
                 _credentialVariantPicker.SelectedIndex = 1;
             RefreshCredentialVariant();
             await RefreshVoiceListAsync();
-            SetStatus($"Manual Azure Speech credentials saved ({_voices.Count:N0} voices available).");
+            SetStatus($"Manual Azure Speech credentials saved ({voices.Count:N0} voices available).");
             RefreshProviderUi();
             RefreshListen();
         }

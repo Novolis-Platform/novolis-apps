@@ -1,10 +1,12 @@
 using Microsoft.Maui.Controls.Shapes;
+using Novolis.Commands.Navigation;
 using Microsoft.Maui.Devices;
 using Novolis.IO.Ndjson;
 using Novolis.Maui.GraphicalProfile;
 using Novolis.Maui.Ndjson;
 using Profile = Novolis.Maui.GraphicalProfile.GraphicalProfile;
 using Novolis.Maui.PdfViewer;
+using Novolis.Maui.Navigation;
 using Novolis.Pdf.Abstractions;
 using Novolis.Pdf.Platform;
 
@@ -26,14 +28,10 @@ public sealed class MainPage : ContentPage
     private readonly Label _documentName;
     private readonly Label _documentMeta;
     private readonly Label _privacyNote;
-    private readonly Label _brandTitle;
-    private readonly Label _tagline;
-    private readonly Border _brandMark;
-    private readonly Grid _header;
     private readonly Grid _body;
-    private readonly Button _openButton;
     private readonly Button _heroOpenButton;
     private readonly Button _registerButton;
+    private readonly MobileNavigationShell _navigationShell;
     private CancellationTokenSource? _activationCancellation;
     private Task? _activationTask;
     private bool _themeSubscribed;
@@ -91,7 +89,6 @@ public sealed class MainPage : ContentPage
             HorizontalTextAlignment = TextAlignment.Center,
         };
 
-        _openButton = CreateButton("Open", "PdfReaderOpen", PickAndOpenAsync);
         _heroOpenButton = CreateButton(
             "Open a PDF document",
             "PdfReaderHeroOpen",
@@ -101,57 +98,6 @@ public sealed class MainPage : ContentPage
             "PdfReaderRegisterAssociation",
             RegisterAssociationAsync);
         _registerButton.IsVisible = OperatingSystem.IsWindows();
-
-        _brandMark = new Border
-        {
-            WidthRequest = 52,
-            HeightRequest = 52,
-            Padding = 7,
-            StrokeThickness = GraphicalProfileColors.Stroke,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(GraphicalProfileColors.MarkRadius) },
-            Content = new Image
-            {
-                Source = "appiconfg.png",
-                Aspect = Aspect.AspectFit,
-            },
-        };
-        _brandTitle = new Label
-        {
-            Text = "Novolis PDF Reader",
-            FontAttributes = FontAttributes.Bold,
-            FontFamily = Profile.FontFamily,
-            FontSize = 18,
-        };
-        _tagline = new Label
-        {
-            Text = "A quiet home for your documents",
-            FontSize = GraphicalProfileColors.CaptionSize,
-        };
-        var brand = new VerticalStackLayout
-        {
-            Spacing = 1,
-            VerticalOptions = LayoutOptions.Center,
-            Children =
-            {
-                _brandTitle,
-                _documentName,
-                _tagline,
-            },
-        };
-        _header = new Grid
-        {
-            Padding = new Thickness(18, 16, 18, 12),
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
-            ColumnSpacing = 12,
-        };
-        _header.Add(_brandMark, 0, 0);
-        _header.Add(brand, 1, 0);
-        _header.Add(_openButton, 2, 0);
 
         _welcomeCard = CreateCard(
             new VerticalStackLayout
@@ -211,23 +157,65 @@ public sealed class MainPage : ContentPage
         _body = new Grid
         {
             Padding = new Thickness(16, 0, 16, 16),
-        };
-        _body.Add(_welcomeScroll);
-        _body.Add(_viewerCard);
-
-        var layout = new Grid
-        {
             RowDefinitions =
             {
                 new RowDefinition(GridLength.Auto),
                 new RowDefinition(GridLength.Star),
             },
         };
-        layout.Add(_header, 0, 0);
-        layout.Add(_body, 0, 1);
-        Content = layout;
+        var documentInfo = new VerticalStackLayout
+        {
+            Spacing = 2,
+            Padding = new Thickness(0, 8, 0, 8),
+            Children =
+            {
+                _documentName,
+                _documentMeta,
+            },
+        };
+        _body.Add(documentInfo, 0, 0);
+        _body.Add(_welcomeScroll, 0, 1);
+        _body.Add(_viewerCard, 0, 1);
+
+        var menuTree = new MobileMenuTree(
+        [
+            new MobileMenuNode(
+                "pdf.open",
+                "Open PDF document",
+                MobileMenuNodeKind.Action)
+            {
+                CommandId = "pdf.open",
+            },
+            new MobileMenuNode(
+                "pdf.register",
+                "Add to Open With",
+                MobileMenuNodeKind.Action)
+            {
+                CommandId = "pdf.register",
+                IsVisible = OperatingSystem.IsWindows(),
+            },
+        ]);
+        _navigationShell = new MobileNavigationShell(new MobileNavigationController(menuTree))
+        {
+            Title = "PDF Reader",
+            Body = _body,
+        };
+        _navigationShell.ActivationRequested += OnNavigationActivationRequested;
+        Content = _navigationShell;
         SizeChanged += (_, _) => ApplyShellLayout();
         ShowWelcome();
+    }
+
+    private void OnNavigationActivationRequested(
+        object? sender,
+        MobileMenuActivationEventArgs args)
+    {
+        _ = args.CommandId switch
+        {
+            "pdf.open" => PickAndOpenAsync(),
+            "pdf.register" => RegisterAssociationAsync(),
+            _ => Task.CompletedTask,
+        };
     }
 
     /// <summary>Forwards hardware keys from Windows or Android into the viewer.</summary>
@@ -286,6 +274,10 @@ public sealed class MainPage : ContentPage
         _activationCancellation = null;
         base.OnDisappearing();
     }
+
+    /// <summary>Closes the menu before allowing the platform page stack to navigate back.</summary>
+    protected override bool OnBackButtonPressed() =>
+        _navigationShell.TryHandleBack() || base.OnBackButtonPressed();
 
 #if WINDOWS
     private void OnWindowsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs args)
@@ -364,6 +356,7 @@ public sealed class MainPage : ContentPage
                 _documentName.Text = _viewer.Session?.Document.Info.Title
                     ?? request.Descriptor.DisplayName;
                 _documentMeta.Text = $"{_viewer.PageCount} pages · local document";
+                _navigationShell.Title = $"PDF Reader · {_documentName.Text}";
                 _welcomeScroll.IsVisible = false;
                 _viewerCard.IsVisible = true;
                 _diagnosticsEditor.IsVisible = false;
@@ -461,6 +454,7 @@ public sealed class MainPage : ContentPage
     private void ShowWelcome()
     {
         var compact = PdfViewerLayout.IsCompact(Width);
+        _navigationShell.Title = "PDF Reader";
         _welcomeScroll.IsVisible = !compact;
         _viewerCard.IsVisible = compact;
         ApplyShellLayout();
@@ -471,30 +465,12 @@ public sealed class MainPage : ContentPage
     private void ApplyShellLayout()
     {
         var compact = IsCompact;
-        var reading = _viewerCard.IsVisible;
-        _header.IsVisible = !compact;
-        _brandMark.IsVisible = !compact;
-        _brandTitle.IsVisible = !compact;
-        _documentName.IsVisible = !compact;
-        _tagline.IsVisible = !compact && !reading;
-        _brandTitle.FontSize = compact ? GraphicalProfileColors.IntervalTitleSize : 18;
+        _documentName.IsVisible = true;
         _documentName.FontSize = compact ? GraphicalProfileColors.CaptionSize : 13;
-        var mark = compact ? 40 : 52;
-        _brandMark.WidthRequest = mark;
-        _brandMark.HeightRequest = mark;
-        _header.Padding = compact
-            ? new Thickness(12, 8, 12, 6)
-            : new Thickness(18, 16, 18, 12);
         _body.Padding = compact
             ? new Thickness(0)
             : new Thickness(16, 0, 16, 16);
         _viewerCard.StrokeThickness = compact ? 0 : GraphicalProfileColors.Stroke;
-        _openButton.Padding = compact
-            ? new Thickness(12, 8)
-            : new Thickness(16, 9);
-        _openButton.CornerRadius = compact
-            ? (int)GraphicalProfileColors.ControlRadius
-            : (int)GraphicalProfileColors.PrimaryRadius;
         _viewer.RefreshChrome();
     }
 
@@ -505,15 +481,11 @@ public sealed class MainPage : ContentPage
     {
         BackgroundColor = Profile.Background;
         _documentName.TextColor = Profile.Text;
-        _brandTitle.TextColor = Profile.Text;
-        _tagline.TextColor = Profile.Muted;
         _documentMeta.TextColor = Profile.Muted;
         _privacyNote.TextColor = Profile.Muted;
         _diagnosticsEditor.TextColor = Profile.Text;
         _diagnosticsEditor.BackgroundColor = Profile.Raised;
         _diagnosticsViewer.ApplyTheme();
-        _openButton.BackgroundColor = Profile.AccentFill;
-        _openButton.TextColor = Profile.OnAccentFill;
         _heroOpenButton.BackgroundColor = Profile.Action;
         _heroOpenButton.TextColor = Profile.OnAction;
         _registerButton.BackgroundColor = Profile.ActionSoft;
@@ -522,8 +494,6 @@ public sealed class MainPage : ContentPage
         _welcomeCard.Stroke = new SolidColorBrush(Profile.Border);
         _viewerCard.Background = new SolidColorBrush(Profile.Surface);
         _viewerCard.Stroke = new SolidColorBrush(Profile.Border);
-        _brandMark.Stroke = new SolidColorBrush(Profile.Border);
-        _brandMark.Background = new SolidColorBrush(Profile.Raised);
     }
 
     private static Label CreateEyebrow(string text) =>

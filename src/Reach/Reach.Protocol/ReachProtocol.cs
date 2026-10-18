@@ -33,6 +33,12 @@ public static class ReachProtocol
     /// <summary>UDP discovery probe token.</summary>
     public const string DiscoveryProbe = "NOVOLIS-REACH-WHO";
 
+    /// <summary>Shared service-discovery cohort for Reach hosts and clients.</summary>
+    public const string DiscoveryCohort = "reach";
+
+    /// <summary>Service-discovery name for a Reach host.</summary>
+    public const string DiscoveryServiceName = "host";
+
     /// <summary>Serializer options shared by protocol messages.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = CreateOptions();
 

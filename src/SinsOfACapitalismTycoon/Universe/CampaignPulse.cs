@@ -103,6 +103,11 @@ internal sealed class CampaignPulse
         }
       }
 
+      // The bounded Core period model may update monetary positions without
+      // emitting operational FirmLedger entries. Re-project the operational
+      // ledger before the campaign's day-end cash operations use the bridge.
+      CoreCashBridge.ReconcileAll(sim.State.World);
+
       var dayCtx = new CampaignPulseContext
       {
         Sim = sim,

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="'$(NovolisMauiTargetFrameworks)' != ''">$(NovolisMauiTargetFrameworks)</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Novolis.NMule</RootNamespace>
+    <AssemblyName>Novolis.nMule</AssemblyName>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ApplicationTitle>nMule</ApplicationTitle>
+    <ApplicationId>com.novolis.nmule</ApplicationId>
+    <ApplicationDisplayVersion>$(NovolisPlatformVersion)</ApplicationDisplayVersion>
+    <ApplicationVersion Condition="'$(NovolisAndroidVersionCode)' != ''">$(NovolisAndroidVersionCode)</ApplicationVersion>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
+    <RuntimeIdentifiers Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">android-arm64;android-x64</RuntimeIdentifiers>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">26.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg"
+                      BaseSize="256,256" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
+    <LibraryReference Include="Novolis.Commands.Navigation" />
+    <LibraryReference Include="Novolis.Maui.Navigation" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="nMule.Core\nMule.Core.csproj" />
+  </ItemGroup>
+</Project>

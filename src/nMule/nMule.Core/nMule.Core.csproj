@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Novolis.NMule.Core</RootNamespace>
+    <AssemblyName>Novolis.nMule.Core</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <LibraryReference Include="Novolis.Transports.Ed2k" />
+    <LibraryReference Include="Novolis.Transports.Kad" />
+  </ItemGroup>
+</Project>

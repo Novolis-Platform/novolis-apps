@@ -86,6 +86,13 @@ public sealed class MainActivity : AvaloniaMainActivity
                 .GetService<AndroidLegacyLedgerImport>()
                 ?.Complete(resultCode, data);
         }
+        else if (requestCode is AndroidLedgerBundleTransfer.ImportRequestCode
+            or AndroidLedgerBundleTransfer.ExportRequestCode)
+        {
+            PresenceLedgerApp.Services
+                .GetService<AndroidLedgerBundleTransfer>()
+                ?.Complete(requestCode, resultCode, data);
+        }
     }
 
     void RequestObservationPermissions()

@@ -2,8 +2,10 @@ using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.ApplicationModel.DataTransfer;
 using Microsoft.Maui.Controls.Shapes;
 using Novolis.Maui.Activation;
+using Novolis.Commands.Navigation;
 using Novolis.Maui.GraphicalProfile;
 using Novolis.Maui.Ndjson;
+using Novolis.Maui.Navigation;
 using Profile = Novolis.Maui.GraphicalProfile.GraphicalProfile;
 #if WINDOWS
 using Windows.Storage;
@@ -22,10 +24,10 @@ public sealed class MainPage : ContentPage
     private readonly NdjsonSliceView _sliceView;
     private readonly Label _documentName;
     private readonly Label _documentMeta;
-    private readonly Button _openButton;
     private readonly Border _welcomeCard;
     private readonly ScrollView _welcomeScroll;
     private readonly Grid _body;
+    private readonly MobileNavigationShell _navigationShell;
     private CancellationTokenSource? _activationCancellation;
     private bool _themeSubscribed;
 
@@ -54,64 +56,16 @@ public sealed class MainPage : ContentPage
         _documentMeta = new Label
         {
             AutomationId = "NdjsonDocumentHostMeta",
-            Text = "Choose a local .ndjson file to begin",
+            Text = "Choose a local .ndjson or .jsonl file to begin",
             FontFamily = Profile.FontFamily,
             FontSize = 12,
         };
-        _openButton = CreateButton("Open", "NdjsonOpen", PickAndOpenAsync);
-
         _sliceView = new NdjsonSliceView
         {
             IsVisible = false,
             RefreshDocumentAsync = RefreshDocumentAsync,
             ErrorHandler = ShowErrorAsync,
         };
-
-        var brandMark = new Border
-        {
-            WidthRequest = 52,
-            HeightRequest = 52,
-            Padding = 8,
-            StrokeThickness = GraphicalProfileColors.Stroke,
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(GraphicalProfileColors.MarkRadius) },
-            Content = new Image
-            {
-                Source = "ndjsonmarkimage.svg",
-                Aspect = Aspect.AspectFit,
-            },
-        };
-        var brand = new VerticalStackLayout
-        {
-            Spacing = 1,
-            VerticalOptions = LayoutOptions.Center,
-            Children =
-            {
-                new Label
-                {
-                    Text = "NOVOLIS NDJSON VIEWER",
-                    FontAttributes = FontAttributes.Bold,
-                    FontFamily = Profile.FontFamily,
-                    FontSize = 13,
-                    CharacterSpacing = 1.1,
-                },
-                _documentName,
-                _documentMeta,
-            },
-        };
-        var header = new Grid
-        {
-            Padding = new Thickness(18, 16, 18, 12),
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
-            ColumnSpacing = 12,
-        };
-        header.Add(brandMark, 0, 0);
-        header.Add(brand, 1, 0);
-        header.Add(_openButton, 2, 0);
 
         var heroOpen = CreateButton("Open an NDJSON file", "NdjsonHeroOpen", PickAndOpenAsync);
         heroOpen.HorizontalOptions = LayoutOptions.Fill;
@@ -155,23 +109,53 @@ public sealed class MainPage : ContentPage
         _body = new Grid
         {
             Padding = new Thickness(16, 0, 16, 16),
-        };
-        _body.Add(_welcomeScroll);
-        _body.Add(_sliceView);
-
-        var layout = new Grid
-        {
             RowDefinitions =
             {
                 new RowDefinition(GridLength.Auto),
                 new RowDefinition(GridLength.Star),
             },
         };
-        layout.Add(header, 0, 0);
-        layout.Add(_body, 0, 1);
-        Content = layout;
+        var documentInfo = new VerticalStackLayout
+        {
+            Spacing = 2,
+            Padding = new Thickness(0, 8, 0, 8),
+            Children =
+            {
+                _documentName,
+                _documentMeta,
+            },
+        };
+        _body.Add(documentInfo, 0, 0);
+        _body.Add(_welcomeScroll, 0, 1);
+        _body.Add(_sliceView, 0, 1);
+
+        var menuTree = new MobileMenuTree(
+        [
+            new MobileMenuNode(
+                "ndjson.open",
+                "Open NDJSON or JSONL file",
+                MobileMenuNodeKind.Action)
+            {
+                CommandId = "ndjson.open",
+            },
+        ]);
+        _navigationShell = new MobileNavigationShell(new MobileNavigationController(menuTree))
+        {
+            Title = "NDJSON Viewer",
+            Body = _body,
+        };
+        _navigationShell.ActivationRequested += OnNavigationActivationRequested;
+        Content = _navigationShell;
         SizeChanged += (_, _) => ApplyShellLayout();
         ApplyTheme();
+    }
+
+    private void OnNavigationActivationRequested(
+        object? sender,
+        MobileMenuActivationEventArgs args)
+    {
+        if (args.CommandId == "ndjson.open")
+            _ = PickAndOpenAsync();
     }
 
     /// <inheritdoc />
@@ -217,6 +201,10 @@ public sealed class MainPage : ContentPage
         base.OnDisappearing();
     }
 
+    /// <summary>Closes the menu before allowing the platform page stack to navigate back.</summary>
+    protected override bool OnBackButtonPressed() =>
+        _navigationShell.TryHandleBack() || base.OnBackButtonPressed();
+
 #if WINDOWS
     private static void OnWindowsDragOver(object sender, Microsoft.UI.Xaml.DragEventArgs args) =>
         args.AcceptedOperation = WindowsDataPackageOperation.Copy;
@@ -230,7 +218,7 @@ public sealed class MainPage : ContentPage
 
             var items = await args.DataView.GetStorageItemsAsync();
             if (items.OfType<StorageFile>().FirstOrDefault() is not { } file
-                || !System.IO.Path.GetExtension(file.Name).Equals(".ndjson", StringComparison.OrdinalIgnoreCase))
+                || !IsSupportedExtension(file.Name))
             {
                 return;
             }
@@ -295,7 +283,8 @@ public sealed class MainPage : ContentPage
 
             await _sliceView.OpenAsync(_session.Document, request.DisplayName, cancellationToken);
             _documentName.Text = _session.DisplayName ?? request.DisplayName;
-            _documentMeta.Text = "Local file · bounded slices";
+            _documentMeta.Text = "NDJSON / JSONL · local file · bounded slices";
+            _navigationShell.Title = $"NDJSON Viewer · {_documentName.Text}";
             _sliceView.IsVisible = true;
             _welcomeScroll.IsVisible = false;
             ApplyShellLayout();
@@ -324,7 +313,14 @@ public sealed class MainPage : ContentPage
         DisplayAlertAsync(title, error.Message, "OK");
 
     private void SetBusy(bool isBusy) =>
-        _openButton.IsEnabled = !isBusy;
+        _navigationShell.IsEnabled = !isBusy;
+
+    private static bool IsSupportedExtension(string name)
+    {
+        var extension = System.IO.Path.GetExtension(name);
+        return extension.Equals(".ndjson", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jsonl", StringComparison.OrdinalIgnoreCase);
+    }
 
     private void ApplyShellLayout()
     {
@@ -344,8 +340,6 @@ public sealed class MainPage : ContentPage
         _documentMeta.TextColor = Profile.Muted;
         _welcomeCard.Background = new SolidColorBrush(Profile.Surface);
         _welcomeCard.Stroke = new SolidColorBrush(Profile.Border);
-        _openButton.BackgroundColor = Profile.AccentFill;
-        _openButton.TextColor = Profile.OnAccentFill;
         _sliceView.ApplyTheme();
     }
 

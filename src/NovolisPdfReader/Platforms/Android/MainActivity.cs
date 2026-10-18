@@ -161,6 +161,15 @@ public sealed class MainActivity : MauiAppCompatActivity
 
         TryPersistReadPermission(intent, uri);
         var name = ResolveDisplayName(uri);
+        if (string.Equals(
+                intent.Type,
+                "application/octet-stream",
+                StringComparison.OrdinalIgnoreCase)
+            && !Path.GetExtension(name).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         PdfActivationBridge.Publish(new PdfOpenRequest(
             new PdfSourceDescriptor(name, uri.ToString()),
             cancellationToken =>

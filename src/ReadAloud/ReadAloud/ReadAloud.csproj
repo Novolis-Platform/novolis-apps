@@ -12,7 +12,9 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+    <LibraryReference Include="Novolis.Commands.Navigation" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
+    <LibraryReference Include="Novolis.Avalonia.Navigation" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <LibraryReference Include="Novolis.Audio.Voice.AzureSpeech" />
     <LibraryReference Include="Novolis.Avalonia.Speech" />

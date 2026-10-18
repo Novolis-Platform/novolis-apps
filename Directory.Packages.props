@@ -66,6 +66,8 @@
     <PackageVersion Include="Novolis.Transports.Udp" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Quic" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Discovery" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Ed2k" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Kad" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Tailscale" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Http.Client" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Http.Documents" Version="2026.1.*" />

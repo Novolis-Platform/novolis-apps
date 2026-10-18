@@ -18,7 +18,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="MessagePack" />
     <LibraryReference Include="Novolis.MSBuild.BuildReference" />
-    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
     <LibraryReference Include="Novolis.Avalonia.Cad" />
     <LibraryReference Include="Novolis.Avalonia.Cad.Ship" />
     <LibraryReference Include="Novolis.Avalonia.Ship.Design" />

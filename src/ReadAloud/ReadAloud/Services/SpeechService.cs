@@ -16,7 +16,6 @@ public sealed class SpeechService : IDisposable
     public const string DefaultLocale = "en-US";
     public const string DefaultAzureClientId = "c8b938aa-2e5d-48b4-89c6-fc139733c44d";
     public const string DefaultAzureTenantId = "25427e56-8e11-4e5a-b8e6-d7645bdc27b1";
-    public const string DefaultAzureLoginHint = "frank.haugen@gmail.com";
 
     readonly SpeechFront _front;
     readonly IAudioPlayer _player;
@@ -136,6 +135,26 @@ public sealed class SpeechService : IDisposable
         if (!string.IsNullOrWhiteSpace(setup.VoiceName))
             SetVoice(setup.VoiceName, setup.Locale);
     }
+
+    /// <summary>Exports the configured manual key as an encrypted credential bundle.</summary>
+    public Task ExportAzureCredentialsAsync(
+        Stream destination,
+        string passphrase,
+        CancellationToken cancellationToken = default) =>
+        _front.ExportAzureCredentialsAsync(destination, passphrase, cancellationToken);
+
+    /// <summary>Reads an encrypted credential bundle without storing it.</summary>
+    public Task<AzureSpeechSetup> ReadAzureCredentialsAsync(
+        Stream source,
+        string passphrase,
+        CancellationToken cancellationToken = default) =>
+        _front.ReadAzureCredentialsAsync(source, passphrase, cancellationToken);
+
+    /// <summary>Tests a candidate setup before it is stored.</summary>
+    public Task<IReadOnlyList<AzureSpeechVoice>> TestAzureSetupAsync(
+        AzureSpeechSetup setup,
+        CancellationToken cancellationToken = default) =>
+        _front.TestAzureSetupAsync(setup, cancellationToken);
 
     public Task<IReadOnlyList<AzureSpeechVoice>> TestAzureAsync(
         CancellationToken cancellationToken = default) =>

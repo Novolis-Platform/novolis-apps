@@ -17,8 +17,9 @@
     <PackageReference Include="Avalonia.Desktop" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
     <LibraryReference Include="Novolis.Avalonia.Mobile.Desktop" />
-    <LibraryReference Include="Novolis.MSBuild.BuildReference" />
-    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno"
+                      PrivateAssets="all"
+                      IncludeAssets="build;buildTransitive" />
     <LibraryReference Include="Novolis.Video.Abstractions" />
     <LibraryReference Include="Novolis.Video.Codecs.H264" />
     <PackageReference Include="NAudio" />

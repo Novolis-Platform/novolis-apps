@@ -108,6 +108,7 @@ pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App CadStudio
 | Presence Ledger | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Merglyph | maui | windows-inno, android-apk | windows, android |
 | Novolis PDF Reader | maui | windows-inno, android-apk | windows, android |
+| Novolis Quiet Video | android | android-apk | android |
 
 List programmatically: `dotnet run --project d:\novolis\novolis-apps\tools\AppsManifest\AppsManifest.csproj -- list`
 

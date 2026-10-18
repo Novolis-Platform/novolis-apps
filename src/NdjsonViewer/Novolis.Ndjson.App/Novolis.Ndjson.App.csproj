@@ -37,11 +37,13 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
+    <LibraryReference Include="Novolis.Commands.Navigation" />
     <LibraryReference Include="Novolis.IO.Ndjson" />
     <LibraryReference Include="Novolis.Maui.GraphicalProfile" />
     <LibraryReference Include="Novolis.Maui.Activation" />
+    <LibraryReference Include="Novolis.Maui.Navigation" />
     <LibraryReference Include="Novolis.Maui.Ndjson" />
     <LibraryReference Include="Novolis.MSBuild.BuildReference" />
-    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
   </ItemGroup>
 </Project>

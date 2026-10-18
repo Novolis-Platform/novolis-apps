@@ -52,6 +52,13 @@ public class MainApplication : AvaloniaAndroidApplication<PresenceLedgerApp>
                 () => MainActivity.Current));
         services.AddSingleton<ILedgerStorageRecovery>(sp =>
             sp.GetRequiredService<AndroidLegacyLedgerImport>());
+        services.AddSingleton<AndroidLedgerBundleTransfer>(sp =>
+            new AndroidLedgerBundleTransfer(
+                global::Android.App.Application.Context
+                    ?? throw new InvalidOperationException("Android application context is unavailable."),
+                () => MainActivity.Current));
+        services.AddSingleton<ILedgerBundleTransfer>(sp =>
+            sp.GetRequiredService<AndroidLedgerBundleTransfer>());
         services.AddSingleton<ILedgerFilePublisher>(sp =>
             new AndroidDownloadsLedgerPublisher(
                 sp.GetRequiredService<Novolis.Avalonia.Mobile.IAppDataPaths>().RootDirectory));

@@ -58,13 +58,10 @@ key and service-account setup.
 
 ## Android Azure sign-in
 
-Open **Azure setup**, choose **Automatic — Microsoft sign-in**. The signed-in
-directory user is the personal Microsoft account `frank.haugen@gmail.com`,
-present in the tenant as a guest (`#EXT#`), not a work account. Sign-in
-therefore does not call the Android broker and does not show the work-account
-picker. The embedded WebView opens with `domain_hint=consumers` and that
-login hint, so a corporate account already on the device is left unused.
-Later token requests reuse that personal account. The redirect remains
+Open **Azure setup**, choose **Automatic — Microsoft sign-in**, and select the
+Microsoft account you want to use. The sign-in prompt is account-neutral, so a
+personal or work account already on the device can be selected. Later token
+requests reuse that account. The redirect remains
 `msalc8b938aa-2e5d-48b4-89c6-fc139733c44d://auth`.
 
 Then choose a subscription only when more than one is available. Read Aloud
@@ -118,6 +115,13 @@ empty after a successful save or import.
 required. `voiceName` and `locale` are optional. The selected file is read
 once; it is not copied into or packaged with the app. The imported key is
 stored only in platform secure storage.
+
+For moving a saved manual setup between devices, enter a passphrase and use
+**Export encrypted backup…**. The encrypted JSON contains the subscription key
+inside an authenticated AES-GCM envelope; the key is never shown to the UI or
+written to diagnostics. On the destination, use **Import encrypted backup…**
+and the same passphrase. Automatic Microsoft sign-in is intentionally not
+exported: the destination signs in again instead of copying platform tokens.
 
 ## Packages
 

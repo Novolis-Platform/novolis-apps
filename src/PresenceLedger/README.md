@@ -66,6 +66,17 @@ map content is visible. Map tiles and Geonorge address search are the only
 network-backed features; the ledger itself has no account, cloud, telemetry,
 or backend.
 
+## Portable backups
+
+Use **More → Export full ledger backup…** to create a versioned ZIP containing
+all places, place revisions, confirmed history, inference state, raw daily
+observations, cumulative observations, and diagnostics. The archive includes a
+manifest and SHA-256 checksums. **Import full ledger backup…** validates every
+entry before replacing the local ledger and then rebuilds derived history.
+Android uses the system document picker; the Windows host uses its normal file
+picker. The older shared-folder action remains available only for recovering
+legacy Android files.
+
 ## Local validation
 
 From the repository workspace, local cross-repository package builds use
