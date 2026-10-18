@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/nMule.Core/">
+    <Project Path="nMule.Core/nMule.Core.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="nMule.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/nMule.Unit/nMule.Unit.csproj" />
+  </Folder>
+</Solution>
