@@ -5,10 +5,10 @@ using Novolis.NMule.Core;
 
 namespace Novolis.NMule;
 
-/// <summary>Composes the nMule Android host.</summary>
+/// <summary>Composes the nMule Android and Windows hosts.</summary>
 public static class MauiProgram
 {
-    /// <summary>Builds the nMule MAUI application.</summary>
+    /// <summary>Builds the nMule application.</summary>
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
@@ -19,6 +19,10 @@ public static class MauiProgram
         builder.Services.AddSingleton<AndroidNmuleNetworkGate>();
         builder.Services.AddSingleton<INmuleNetworkGate>(
             services => services.GetRequiredService<AndroidNmuleNetworkGate>());
+#elif WINDOWS
+        builder.Services.AddSingleton<WindowsNmuleNetworkGate>();
+        builder.Services.AddSingleton<INmuleNetworkGate>(
+            services => services.GetRequiredService<WindowsNmuleNetworkGate>());
 #endif
 
         builder.Services

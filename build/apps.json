@@ -1160,7 +1160,7 @@
       "stack": "maui",
       "status": "internal",
       "projects": {
-        "publishWindows": null,
+        "publishWindows": "src/nMule/nMule.csproj",
         "linuxCi": [
           "src/nMule/nMule.Core/nMule.Core.csproj",
           "tests/nMule.Unit/nMule.Unit.csproj"
@@ -1174,18 +1174,27 @@
           "tests/nMule.Unit/nMule.Unit.csproj"
         ]
       },
-      "local": ["android"],
-      "ship": ["android-apk"],
+      "local": ["windows", "android"],
+      "ship": ["windows-inno", "android-apk"],
       "validation": {
         "changedPathGlobs": ["src/nMule/**", "tests/nMule.Unit/**"],
         "runTests": true,
         "androidCompile": true,
-        "windowsCi": false,
+        "windowsCi": true,
         "windowsWorkload": false,
         "linuxCi": true,
         "fanOutStacks": ["maui", "android"]
       },
-      "windows": null,
+      "windows": {
+        "exeName": "Novolis.nMule.exe",
+        "appId": "Novolis.nMule",
+        "installDir": "Novolis\\nMule",
+        "groupName": "nMule",
+        "setupBase": "nMuleSetup",
+        "scriptFile": "nmule.iss",
+        "closeApplicationsFilter": "Novolis.nMule.exe",
+        "fileAssociationsAllowed": false
+      },
       "android": {
         "project": "src/nMule/nMule.csproj",
         "applicationId": "com.novolis.nmule",
