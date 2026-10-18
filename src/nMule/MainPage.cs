@@ -19,14 +19,17 @@ public sealed class MainPage : ContentPage
     private readonly Entry _query;
     private readonly Label _status;
     private readonly Label _networkStatus;
+    private readonly Label _searchNetworkStatus;
     private readonly Label _serverStatus;
     private readonly Label _kadStatus;
     private readonly Label _downloadStatus;
+    private readonly CollectionView _serverList;
     private readonly CollectionView _results;
     private readonly CollectionView _downloads;
     private readonly Switch _allowTailscale;
     private readonly Switch _allowUnrestrictedNetwork;
     private readonly ObservableCollection<NmuleSearchHit> _searchResults = [];
+    private readonly ObservableCollection<string> _serverRows = [];
     private readonly ObservableCollection<NmuleDownloadResult> _downloadResults = [];
     private readonly View _searchView;
     private readonly View _downloadsView;
@@ -50,6 +53,12 @@ public sealed class MainPage : ContentPage
         _networkStatus = new Label
         {
             AutomationId = "NmuleNetworkStatus",
+            Text = "Checking VPN policy...",
+            LineBreakMode = LineBreakMode.WordWrap,
+        };
+        _searchNetworkStatus = new Label
+        {
+            AutomationId = "NmuleSearchNetworkStatus",
             Text = "Checking VPN policy...",
             LineBreakMode = LineBreakMode.WordWrap,
         };
@@ -136,6 +145,15 @@ public sealed class MainPage : ContentPage
             SelectionMode = SelectionMode.None,
             ItemTemplate = CreateDownloadTemplate(),
         };
+        _serverList = new CollectionView
+        {
+            AutomationId = "NmuleServerList",
+            ItemsSource = _serverRows,
+            SelectionMode = SelectionMode.None,
+            IsVisible = false,
+            HeightRequest = 260,
+            ItemTemplate = CreateServerTemplate(),
+        };
 
         _searchView = BuildSearchView();
         _downloadsView = BuildDownloadsView();
@@ -214,6 +232,8 @@ public sealed class MainPage : ContentPage
                 Children =
                 {
                     CreateSectionTitle("eD2K server"),
+                    _status,
+                    _searchNetworkStatus,
                     _serverSource,
                     new HorizontalStackLayout
                     {
@@ -225,6 +245,7 @@ public sealed class MainPage : ContentPage
                         },
                     },
                     _serverStatus,
+                    _serverList,
                 },
             });
 
@@ -281,7 +302,6 @@ public sealed class MainPage : ContentPage
                 Spacing = 12,
                 Children =
                 {
-                    BuildNetworkPolicyCard(),
                     CreateCard(
                         new VerticalStackLayout
                         {
@@ -369,6 +389,7 @@ public sealed class MainPage : ContentPage
                 Spacing = 12,
                 Children =
                 {
+                    BuildNetworkPolicyCard(),
                     CreateCard(
                         new VerticalStackLayout
                         {
@@ -378,7 +399,7 @@ public sealed class MainPage : ContentPage
                                 CreateSectionTitle("About nMule"),
                                 new Label
                                 {
-                                    Text = "nMule is a foreground Android eD2K/Kad client. It uses the clean-room Novolis transport packages and does not start background transfers.",
+                                    Text = "nMule is a foreground Android and Windows eD2K/Kad client. It uses the clean-room Novolis transport packages and does not start background transfers.",
                                     LineBreakMode = LineBreakMode.WordWrap,
                                 },
                                 new Label
@@ -445,6 +466,19 @@ public sealed class MainPage : ContentPage
                 });
         });
 
+    private DataTemplate CreateServerTemplate() =>
+        new(() =>
+        {
+            var server = new Label
+            {
+                FontSize = GraphicalProfileColors.CaptionSize,
+                TextColor = Profile.Text,
+                LineBreakMode = LineBreakMode.WordWrap,
+            };
+            server.SetBinding(Label.TextProperty, new Binding("."));
+            return CreateCard(server);
+        });
+
     private DataTemplate CreateDownloadTemplate() =>
         new(() =>
         {
@@ -496,6 +530,7 @@ public sealed class MainPage : ContentPage
                 var list = await _session.LoadServerListAsync(
                         source,
                         cancellationToken);
+                UpdateServerRows();
                 _serverStatus.Text =
                     $"{list.Servers.Count} server endpoint(s) loaded.";
             });
@@ -517,6 +552,7 @@ public sealed class MainPage : ContentPage
                     var list = await _session.LoadServerListAsync(
                             source,
                             cancellationToken);
+                    UpdateServerRows();
                     _serverStatus.Text =
                         $"{list.Servers.Count} server endpoint(s) loaded.";
                 }
@@ -527,6 +563,31 @@ public sealed class MainPage : ContentPage
                     $"Connected: {connection.Server} · "
                     + $"{(connection.IsHighId ? "HighID" : "LowID")}.";
             });
+
+    private void UpdateServerRows()
+    {
+        var list = _session.ServerList;
+        if (list is null)
+            return;
+
+        _serverRows.Clear();
+        foreach (var server in list.Servers)
+        {
+            var name = string.IsNullOrWhiteSpace(server.Name)
+                ? "Unnamed server"
+                : server.Name;
+            var users = server.UserCount is { } userCount
+                ? $" · {userCount:N0} users"
+                : string.Empty;
+            var files = server.FileCount is { } fileCount
+                ? $" · {fileCount:N0} files"
+                : string.Empty;
+            _serverRows.Add(
+                $"{name}\n{server.Endpoint}{users}{files}");
+        }
+
+        _serverList.IsVisible = _serverRows.Count > 0;
+    }
 
     private async Task BootstrapKadAsync() =>
         await RunActionAsync(
@@ -610,7 +671,7 @@ public sealed class MainPage : ContentPage
             await MainThread.InvokeOnMainThreadAsync(
                 () =>
                 {
-                    _networkStatus.Text = decision.IsAllowed
+                    var status = decision.IsAllowed
                         ? _session.NetworkGate.AllowUnrestrictedNetwork
                             ? "VPN requirement bypassed for this session. This is not recommended."
                             : _session.NetworkGate.AllowTailscale
@@ -618,11 +679,15 @@ public sealed class MainPage : ContentPage
                             : "VPN gate ready; Tailscale remains blocked."
                         : decision.DenialReason
                           ?? "VPN gate is blocking network access.";
+                    _networkStatus.Text = status;
+                    _searchNetworkStatus.Text = status;
                 });
         }
         catch (Exception exception)
         {
-            _networkStatus.Text = $"VPN policy check failed: {exception.Message}";
+            var status = $"VPN policy check failed: {exception.Message}";
+            _networkStatus.Text = status;
+            _searchNetworkStatus.Text = status;
         }
     }
 
@@ -662,6 +727,7 @@ public sealed class MainPage : ContentPage
         BackgroundColor = Profile.Background;
         _status.TextColor = Profile.Text;
         _networkStatus.TextColor = Profile.Text;
+        _searchNetworkStatus.TextColor = Profile.Text;
         _serverStatus.TextColor = Profile.Muted;
         _kadStatus.TextColor = Profile.Muted;
         _downloadStatus.TextColor = Profile.Muted;
