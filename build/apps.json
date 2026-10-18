@@ -1139,6 +1139,65 @@
       },
       "update": { "enabled": false, "appId": "Novolis.QuietVideo", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "preview", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "nmule",
+      "choice": "NMule",
+      "displayName": "nMule",
+      "sourceRoot": "src/nMule",
+      "solution": "src/nMule/nMule.slnx",
+      "artifactPrefix": "nMule",
+      "stack": "maui",
+      "status": "internal",
+      "projects": {
+        "publishWindows": null,
+        "linuxCi": [
+          "src/nMule/nMule.Core/nMule.Core.csproj",
+          "tests/nMule.Unit/nMule.Unit.csproj"
+        ],
+        "android": "src/nMule/nMule.csproj",
+        "maui": "src/nMule/nMule.csproj",
+        "tests": ["tests/nMule.Unit/nMule.Unit.csproj"],
+        "all": [
+          "src/nMule/nMule.Core/nMule.Core.csproj",
+          "src/nMule/nMule.csproj",
+          "tests/nMule.Unit/nMule.Unit.csproj"
+        ]
+      },
+      "local": ["android"],
+      "ship": ["android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/nMule/**", "tests/nMule.Unit/**"],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsCi": false,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["maui", "android"]
+      },
+      "windows": null,
+      "android": {
+        "project": "src/nMule/nMule.csproj",
+        "applicationId": "com.novolis.nmule",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "NMULE_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [
+          "android.permission.INTERNET",
+          "android.permission.ACCESS_NETWORK_STATE"
+        ],
+        "networkPolicy": "vpn-required-tailscale-opt-in"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\nmule",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\nmule\\cache",
+        "credentialsNamespace": "Novolis.nMule",
+        "networkDestinations": ["upd.emule-security.org"],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": false, "appId": "Novolis.nMule", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "preview", "distribution": "direct-github" },
+      "release": { "githubRelease": true, "checksums": true }
     }
   ]
 }
