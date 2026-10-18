@@ -59,6 +59,7 @@ public sealed class MainActivity : Activity
     private float _volumeBeforeMute = 1f;
     private float _zoom = MinimumZoom;
     private bool _muted;
+    private bool _shouldPlay = true;
     private bool _prepared;
     private bool _destroyed;
 
@@ -335,6 +336,7 @@ public sealed class MainActivity : Activity
 
         ReleasePlayback();
         _sessionUri = uri;
+        _shouldPlay = true;
         _prepared = false;
         _durationMilliseconds = 0;
         UpdateSeekBar(0);
@@ -383,6 +385,8 @@ public sealed class MainActivity : Activity
             _surface?.Release();
             _surface = new Surface(args.Surface);
             ApplyZoom();
+            if (_sessionUri is not null)
+                SetStatus("Loading video", visible: true);
             TryStartPlayback();
         }
         catch
@@ -395,7 +399,16 @@ public sealed class MainActivity : Activity
         object? sender,
         TextureView.SurfaceTextureDestroyedEventArgs args)
     {
-        ReleasePlayback();
+        try
+        {
+            _shouldPlay = _player?.IsPlaying == true;
+        }
+        catch
+        {
+            _shouldPlay = false;
+        }
+
+        ReleasePlayback(clearSession: false);
         _surface?.Release();
         _surface = null;
     }
@@ -418,10 +431,18 @@ public sealed class MainActivity : Activity
             _prepared = true;
             SetControls(enabled: true);
             ApplyAudioVolume();
-            _player.Start();
-            _playPauseButton!.Text = "Pause";
-            SetStatus(string.Empty, visible: false);
-            StartProgressUpdates();
+            if (_shouldPlay)
+            {
+                _player.Start();
+                _playPauseButton!.Text = "Pause";
+                SetStatus(string.Empty, visible: false);
+                StartProgressUpdates();
+            }
+            else
+            {
+                _playPauseButton!.Text = "Play";
+                SetStatus("Paused", visible: true);
+            }
         }
         catch
         {
@@ -434,6 +455,7 @@ public sealed class MainActivity : Activity
         if (_destroyed)
             return;
 
+        _shouldPlay = false;
         StopProgressUpdates();
         UpdateSeekBar(SeekBarMaximum);
         if (_playPauseButton is not null)
@@ -470,6 +492,7 @@ public sealed class MainActivity : Activity
             if (_durationMilliseconds > 0 && _player.CurrentPosition >= _durationMilliseconds)
                 _player.SeekTo(0);
 
+            _shouldPlay = true;
             _player.Start();
             _playPauseButton!.Text = "Pause";
             SetStatus(string.Empty, visible: false);
@@ -497,12 +520,13 @@ public sealed class MainActivity : Activity
         }
 
         StopProgressUpdates();
+        _shouldPlay = false;
         if (_playPauseButton is not null)
             _playPauseButton.Text = "Play";
         SetStatus("Paused", visible: true);
     }
 
-    private void ReleasePlayback()
+    private void ReleasePlayback(bool clearSession = true)
     {
         StopProgressUpdates();
         if (_player is not null)
@@ -527,7 +551,8 @@ public sealed class MainActivity : Activity
             _player = null;
         }
 
-        _sessionUri = null;
+        if (clearSession)
+            _sessionUri = null;
         _durationMilliseconds = 0;
         _prepared = false;
         UpdateSeekBar(0);
