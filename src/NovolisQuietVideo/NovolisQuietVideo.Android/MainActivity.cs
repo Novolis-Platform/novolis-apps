@@ -33,6 +33,7 @@ public sealed class MainActivity : Activity
 {
     private const int OpenVideoRequestCode = 4101;
     private const int SeekBarMaximum = 1000;
+    private const int VolumeMaximum = 100;
 
     private readonly Handler _main = new(Looper.MainLooper!);
     private TextureView? _video;
@@ -42,9 +43,14 @@ public sealed class MainActivity : Activity
     private Button? _openButton;
     private Button? _playPauseButton;
     private SeekBar? _seekBar;
+    private SeekBar? _volumeBar;
+    private Button? _muteButton;
     private Action? _progressTick;
     private AndroidUri? _sessionUri;
     private int _durationMilliseconds;
+    private float _volume = 1f;
+    private float _volumeBeforeMute = 1f;
+    private bool _muted;
     private bool _prepared;
     private bool _destroyed;
 
@@ -145,6 +151,55 @@ public sealed class MainActivity : Activity
         _seekBar.ProgressChanged += OnSeekProgressChanged;
         root.AddView(
             _seekBar,
+            new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent,
+                ViewGroup.LayoutParams.WrapContent));
+
+        var audioControls = new LinearLayout(this)
+        {
+            Orientation = WidgetOrientation.Horizontal,
+        };
+        audioControls.SetGravity(GravityFlags.CenterVertical);
+        audioControls.SetPadding(12, 0, 12, 0);
+
+        var volumeLabel = new TextView(this)
+        {
+            Text = "Volume",
+        };
+        volumeLabel.SetTextColor(Color.White);
+        volumeLabel.SetTextSize(ComplexUnitType.Sp, 13);
+        audioControls.AddView(
+            volumeLabel,
+            new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WrapContent,
+                ViewGroup.LayoutParams.WrapContent));
+
+        _volumeBar = new SeekBar(this)
+        {
+            Max = VolumeMaximum,
+            Progress = VolumeMaximum,
+            Enabled = false,
+        };
+        _volumeBar.ContentDescription = "Video volume";
+        _volumeBar.ProgressChanged += OnVolumeProgressChanged;
+        var volumeParameters = new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WrapContent,
+            1f);
+        volumeParameters.LeftMargin = 8;
+        audioControls.AddView(_volumeBar, volumeParameters);
+
+        _muteButton = CreateButton("Mute", "Mute or unmute video audio");
+        _muteButton.Enabled = false;
+        _muteButton.Click += (_, _) => ToggleMute();
+        var muteParameters = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WrapContent,
+            ViewGroup.LayoutParams.WrapContent);
+        muteParameters.LeftMargin = 8;
+        audioControls.AddView(_muteButton, muteParameters);
+
+        root.AddView(
+            audioControls,
             new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent,
                 ViewGroup.LayoutParams.WrapContent));
@@ -281,6 +336,7 @@ public sealed class MainActivity : Activity
             player.SetSurface(_surface);
             player.SetDataSource(this, _sessionUri);
             _player = player;
+            ApplyAudioVolume();
             player.PrepareAsync();
         }
         catch
@@ -326,8 +382,8 @@ public sealed class MainActivity : Activity
         {
             _durationMilliseconds = Math.Max(0, _player.Duration);
             _prepared = true;
-            _seekBar!.Enabled = _durationMilliseconds > 0;
-            _playPauseButton!.Enabled = true;
+            SetControls(enabled: true);
+            ApplyAudioVolume();
             _player.Start();
             _playPauseButton.Text = "Pause";
             SetStatus(string.Empty, visible: false);
@@ -464,6 +520,56 @@ public sealed class MainActivity : Activity
         }
     }
 
+    private void OnVolumeProgressChanged(
+        object? sender,
+        SeekBar.ProgressChangedEventArgs args)
+    {
+        if (!args.FromUser)
+            return;
+
+        _volume = Math.Clamp((float)args.Progress / VolumeMaximum, 0f, 1f);
+        if (_volume > 0f)
+            _volumeBeforeMute = _volume;
+        ApplyAudioVolume();
+    }
+
+    private void ToggleMute()
+    {
+        if (_muted)
+        {
+            _muted = false;
+            if (_volume <= 0f)
+            {
+                _volume = _volumeBeforeMute > 0f ? _volumeBeforeMute : 1f;
+                _volumeBar!.Progress = (int)Math.Round(_volume * VolumeMaximum);
+            }
+
+            _muteButton!.Text = "Mute";
+        }
+        else
+        {
+            if (_volume > 0f)
+                _volumeBeforeMute = _volume;
+
+            _muted = true;
+            _muteButton!.Text = "Unmute";
+        }
+
+        ApplyAudioVolume();
+    }
+
+    private void ApplyAudioVolume()
+    {
+        try
+        {
+            var volume = _muted ? 0f : _volume;
+            _player?.SetVolume(volume, volume);
+        }
+        catch
+        {
+        }
+    }
+
     private void StartProgressUpdates()
     {
         if (_progressTick is null)
@@ -511,6 +617,10 @@ public sealed class MainActivity : Activity
             _playPauseButton.Enabled = enabled;
         if (_seekBar is not null)
             _seekBar.Enabled = enabled && _durationMilliseconds > 0;
+        if (_volumeBar is not null)
+            _volumeBar.Enabled = enabled;
+        if (_muteButton is not null)
+            _muteButton.Enabled = enabled;
     }
 
     private void SetStatus(string text, bool visible)
