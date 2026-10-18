@@ -29,13 +29,14 @@ public sealed class MainPage : ContentPage
     private readonly Switch _allowTailscale;
     private readonly Switch _allowUnrestrictedNetwork;
     private readonly ObservableCollection<NmuleSearchHit> _searchResults = [];
-    private readonly ObservableCollection<string> _serverRows = [];
+    private readonly ObservableCollection<NmuleServerRow> _serverRows = [];
     private readonly ObservableCollection<NmuleDownloadResult> _downloadResults = [];
     private readonly View _searchView;
     private readonly View _downloadsView;
     private readonly View _settingsView;
     private bool _busy;
     private bool _themeSubscribed;
+    private NmuleServerRow? _selectedServer;
 
     /// <summary>Creates the nMule page.</summary>
     public MainPage(NmuleSession session)
@@ -149,11 +150,12 @@ public sealed class MainPage : ContentPage
         {
             AutomationId = "NmuleServerList",
             ItemsSource = _serverRows,
-            SelectionMode = SelectionMode.None,
+            SelectionMode = SelectionMode.Single,
             IsVisible = false,
             HeightRequest = 260,
             ItemTemplate = CreateServerTemplate(),
         };
+        _serverList.SelectionChanged += OnServerSelectionChanged;
 
         _searchView = BuildSearchView();
         _downloadsView = BuildDownloadsView();
@@ -432,9 +434,7 @@ public sealed class MainPage : ContentPage
             };
             details.SetBinding(
                 Label.TextProperty,
-                new Binding(
-                    nameof(NmuleSearchHit.Size),
-                    stringFormat: "{0:N0} bytes"));
+                nameof(NmuleSearchHit.Summary));
             var eligibility = new Label
             {
                 FontSize = GraphicalProfileColors.CaptionSize,
@@ -443,6 +443,16 @@ public sealed class MainPage : ContentPage
             eligibility.SetBinding(
                 Label.TextProperty,
                 nameof(NmuleSearchHit.EligibilityLabel));
+            var metadata = new Label
+            {
+                FontSize = GraphicalProfileColors.CaptionSize,
+                TextColor = Profile.Muted,
+                IsVisible = false,
+                LineBreakMode = LineBreakMode.WordWrap,
+            };
+            metadata.SetBinding(
+                Label.TextProperty,
+                nameof(NmuleSearchHit.DetailsText));
             var download = CreateButton(
                 "Download",
                 "NmuleDownloadResult",
@@ -452,6 +462,22 @@ public sealed class MainPage : ContentPage
                 if ((sender as Button)?.BindingContext is NmuleSearchHit hit)
                     await DownloadAsync(hit);
             };
+            Button? toggleDetails = null;
+            toggleDetails = CreateButton(
+                "More details",
+                "NmuleResultDetails",
+                () =>
+                {
+                    metadata.IsVisible = !metadata.IsVisible;
+                    if (toggleDetails is not null)
+                    {
+                        toggleDetails.Text = metadata.IsVisible
+                            ? "Hide details"
+                            : "More details";
+                    }
+
+                    return Task.CompletedTask;
+                });
             return CreateCard(
                 new VerticalStackLayout
                 {
@@ -462,6 +488,8 @@ public sealed class MainPage : ContentPage
                         details,
                         eligibility,
                         download,
+                        toggleDetails,
+                        metadata,
                     },
                 });
         });
@@ -475,7 +503,7 @@ public sealed class MainPage : ContentPage
                 TextColor = Profile.Text,
                 LineBreakMode = LineBreakMode.WordWrap,
             };
-            server.SetBinding(Label.TextProperty, new Binding("."));
+            server.SetBinding(Label.TextProperty, nameof(NmuleServerRow.Summary));
             return CreateCard(server);
         });
 
@@ -557,11 +585,18 @@ public sealed class MainPage : ContentPage
                         $"{list.Servers.Count} server endpoint(s) loaded.";
                 }
 
-                var connection = await _session.ConnectServerAsync(
+                var connection = _selectedServer is { } selected
+                    ? await _session.ConnectServerAsync(
+                        selected.Host,
+                        selected.Port,
+                        cancellationToken)
+                    : await _session.ConnectServerAsync(
                         cancellationToken: cancellationToken);
                 _serverStatus.Text =
                     $"Connected: {connection.Server} · "
-                    + $"{(connection.IsHighId ? "HighID" : "LowID")}.";
+                    + FormatConnectionLevel(
+                        connection.IsHighId,
+                        connection.AssignedPort);
             });
 
     private void UpdateServerRows()
@@ -570,6 +605,7 @@ public sealed class MainPage : ContentPage
         if (list is null)
             return;
 
+        _selectedServer = null;
         _serverRows.Clear();
         foreach (var server in list.Servers)
         {
@@ -583,11 +619,40 @@ public sealed class MainPage : ContentPage
                 ? $" · {fileCount:N0} files"
                 : string.Empty;
             _serverRows.Add(
-                $"{name}\n{server.Endpoint}{users}{files}");
+                new NmuleServerRow(
+                    name,
+                    server.Endpoint.ToString(),
+                    $"{name}\n{server.Endpoint}{users}{files}",
+                    server.Endpoint.Host,
+                    server.Endpoint.Port));
         }
 
         _serverList.IsVisible = _serverRows.Count > 0;
     }
+
+    private void OnServerSelectionChanged(
+        object? sender,
+        SelectionChangedEventArgs args)
+    {
+        _selectedServer = args.CurrentSelection.FirstOrDefault()
+            as NmuleServerRow;
+        if (_selectedServer is not null)
+        {
+            _serverStatus.Text =
+                $"Selected {_selectedServer.Name} · "
+                    + $"{_selectedServer.Endpoint}. Press Connect.";
+        }
+    }
+
+    private static string FormatConnectionLevel(
+        bool isHighId,
+        int assignedPort) =>
+        isHighId
+            ? "HighID."
+            : $"LowID on port {assignedPort}. Improve this by using a VPN "
+              + "with port forwarding, forwarding nMule's TCP and Kad UDP "
+              + "ports, and allowing them through the local firewall. "
+              + "This MVP cannot host LowID callbacks.";
 
     private async Task BootstrapKadAsync() =>
         await RunActionAsync(

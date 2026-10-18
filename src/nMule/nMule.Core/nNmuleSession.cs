@@ -80,6 +80,27 @@ public sealed class NmuleSession : IAsyncDisposable
         return list;
     }
 
+    /// <summary>
+    /// Connects to one explicitly selected eD2K endpoint.
+    /// </summary>
+    public Task<Ed2kConnectionInfo> ConnectServerAsync(
+        string host,
+        int port,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(host);
+        if (port is < 1 or > 65535)
+            throw new ArgumentOutOfRangeException(nameof(port));
+
+        return ConnectServerAsync(
+            new ServerList(
+            [
+                new Ed2kServerInfo(
+                    new Ed2kServerEndpoint(host.Trim(), port)),
+            ]),
+            cancellationToken);
+    }
+
     /// <summary>Connects to the first reachable endpoint in the loaded list.</summary>
     public async Task<Ed2kConnectionInfo> ConnectServerAsync(
         ServerList? serverList = null,
