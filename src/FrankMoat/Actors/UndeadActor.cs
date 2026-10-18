@@ -6,6 +6,8 @@ internal sealed class UndeadActor
 {
     public required EnemyKind Kind { get; init; }
 
+    public string? EncounterId { get; set; }
+
     public Vector3 Position { get; set; }
 
     public Vector3 Facing { get; set; } = new(0f, 0f, -1f);

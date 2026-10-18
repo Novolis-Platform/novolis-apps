@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using FrankMoat.Input;
 using Novolis.Avalonia.GraphicalProfile;
 
@@ -30,7 +31,11 @@ internal sealed class MainWindow : Window
         _view = new FrankMoatView(gamepad);
 
         Content = _view;
+        _view.ExitRequested += OnExitRequested;
         Closed += (_, _) => _view.Dispose();
         Opened += (_, _) => _view.FocusViewport();
     }
+
+    private void OnExitRequested(object? sender, EventArgs e) =>
+        Dispatcher.UIThread.Post(Close);
 }

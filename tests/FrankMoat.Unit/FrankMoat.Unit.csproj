@@ -14,5 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FrankMoat\FrankMoat.csproj" />
+    <LibraryReference Include="Novolis.Agent.Surface" />
   </ItemGroup>
 </Project>

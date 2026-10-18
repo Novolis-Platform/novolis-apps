@@ -66,10 +66,15 @@ internal sealed class FrankInputBuffer
         int pixelHeight,
         Vector3 playerPosition,
         Vector3 playerFacing,
-        WindowsGamepadSnapshot gamepad)
+        WindowsGamepadSnapshot gamepad,
+        FrankAgentInput agent = default)
     {
-        var rawMoveX = Axis(IsDown(Key.A), IsDown(Key.D)) + gamepad.MoveX;
-        var rawMoveZ = Axis(IsDown(Key.S), IsDown(Key.W)) + gamepad.MoveZ;
+        var rawMoveX = agent.HasMove
+            ? agent.MoveX
+            : Axis(IsDown(Key.A), IsDown(Key.D)) + gamepad.MoveX;
+        var rawMoveZ = agent.HasMove
+            ? agent.MoveZ
+            : Axis(IsDown(Key.S), IsDown(Key.W)) + gamepad.MoveZ;
         var moveX = rawMoveX;
         var moveZ = rawMoveZ;
         var forward = playerFacing.LengthSquaredXz() > 0.01f
@@ -91,7 +96,11 @@ internal sealed class FrankInputBuffer
         }
 
         var aim = scene.Camera.ScreenToWorld(mousePixels.X, mousePixels.Y) - playerPosition;
-        if (gamepad.AimX != 0f || gamepad.AimZ != 0f)
+        if (agent.HasAim)
+        {
+            aim = new Vector3(agent.AimX, 0f, agent.AimZ);
+        }
+        else if (gamepad.AimX != 0f || gamepad.AimZ != 0f)
         {
             aim = new Vector3(gamepad.AimX, 0f, gamepad.AimZ);
         }
@@ -105,46 +114,68 @@ internal sealed class FrankInputBuffer
             aim = aim.NormalizeXz();
         }
 
-        var slot = SlotFromKeyboard();
+        var slot = agent.WeaponSlot;
+        if (slot == 0)
+        {
+            slot = SlotFromKeyboard();
+        }
+
         if (slot == 0)
         {
             slot = SlotFromGamepad(gamepad);
         }
 
-        var shootPressed = _edges.Contains(FrankAction.Shoot)
+        var shootPressed = agent.ShootPressed
+            || _edges.Contains(FrankAction.Shoot)
             || gamepad.RightTrigger > 0.35f && gamepad.RightTriggerWasPressed;
-        var pausePressed = _edges.Contains(FrankAction.Pause)
+        var pausePressed = agent.PausePressed
+            || _edges.Contains(FrankAction.Pause)
             || WindowsGamepadReader.IsStartDown(gamepad);
         var inspectPressed = _edges.Contains(FrankAction.Inspect)
+            || agent.InspectPressed
             || WindowsGamepadReader.IsLeftThumbPressed(gamepad)
                 && WindowsGamepadReader.IsRightThumbDown(gamepad)
             || WindowsGamepadReader.IsRightThumbPressed(gamepad)
                 && WindowsGamepadReader.IsLeftThumbDown(gamepad);
         var controlModePressed = _edges.Contains(FrankAction.ToggleControlMode)
+            || agent.ControlModePressed
             || WindowsGamepadReader.IsRightThumbPressed(gamepad) && !inspectPressed;
 
         return new FrankInputFrame(
             moveX,
             moveZ,
             aim,
-            IsDown(Key.LeftShift) || IsDown(Key.RightShift)
+            agent.RunHeld || IsDown(Key.LeftShift) || IsDown(Key.RightShift)
                 || WindowsGamepadReader.IsLeftShoulderDown(gamepad),
-            _leftMouseDown || gamepad.RightTrigger > 0.35f,
+            agent.FireHeld || _leftMouseDown || gamepad.RightTrigger > 0.35f,
             shootPressed,
-            _rightMouseDown || gamepad.LeftTrigger > 0.35f,
-            _edges.Contains(FrankAction.Reload) || WindowsGamepadReader.IsXSelected(gamepad),
-            _edges.Contains(FrankAction.Interact) || WindowsGamepadReader.IsASelected(gamepad),
-            _edges.Contains(FrankAction.Melee) || WindowsGamepadReader.IsBSelected(gamepad),
-            _edges.Contains(FrankAction.PreviousWeapon) || WindowsGamepadReader.IsYSelected(gamepad),
-            _edges.Contains(FrankAction.Map) || WindowsGamepadReader.IsBackDown(gamepad),
+            agent.SecondaryHeld || _rightMouseDown || gamepad.LeftTrigger > 0.35f,
+            agent.ReloadPressed
+                || _edges.Contains(FrankAction.Reload)
+                || WindowsGamepadReader.IsXSelected(gamepad),
+            agent.InteractPressed
+                || _edges.Contains(FrankAction.Interact)
+                || WindowsGamepadReader.IsASelected(gamepad),
+            agent.MeleePressed
+                || _edges.Contains(FrankAction.Melee)
+                || WindowsGamepadReader.IsBSelected(gamepad),
+            agent.PreviousWeaponPressed
+                || _edges.Contains(FrankAction.PreviousWeapon)
+                || WindowsGamepadReader.IsYSelected(gamepad),
+            agent.MapPressed
+                || _edges.Contains(FrankAction.Map)
+                || WindowsGamepadReader.IsBackDown(gamepad),
             inspectPressed,
             pausePressed,
-            _edges.Contains(FrankAction.Save),
-            _edges.Contains(FrankAction.Load),
+            agent.SavePressed || _edges.Contains(FrankAction.Save),
+            agent.LoadPressed || _edges.Contains(FrankAction.Load),
             slot,
             ZoomTicks())
         {
             ControlModePressed = controlModePressed,
+            AgentFireHeld = agent.FireHeld,
+            SaveName = agent.SaveName,
+            LoadName = agent.LoadName,
         };
     }
 

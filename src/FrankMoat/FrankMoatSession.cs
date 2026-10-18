@@ -1,9 +1,11 @@
+using System.Globalization;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Novolis.Agent.Core;
 using FrankMoat.Game;
 using FrankMoat.Input;
 using FrankMoat.Levels;
@@ -33,11 +35,17 @@ internal sealed class FrankMoatSession : IDisposable
     private readonly FixedStepClock _clock = new();
     private readonly ElevatorSystem _elevator = new();
     private readonly CampaignSaveStore _saveStore = new();
+    private readonly object _simulationGate = new();
     private CampaignState _campaign = new();
+    private FrankAgentInput _agentInput;
+    private long _agentSequence;
     private FounderRecording? _recording;
+    private bool _sessionPaused;
     private string _status = "Morning round in progress.";
     private float _targetWorldUnitsPerPixel = 0.021f;
     private bool _disposed;
+
+    internal event EventHandler? ExitRequested;
 
     public FrankMoatSession(
         PlanarSceneControl viewport,
@@ -83,6 +91,14 @@ internal sealed class FrankMoatSession : IDisposable
 
     private void OnFrameUpdating(object? sender, PlanarFrameEventArgs e)
     {
+        lock (_simulationGate)
+        {
+            OnFrameUpdatingCore(e);
+        }
+    }
+
+    private void OnFrameUpdatingCore(PlanarFrameEventArgs e)
+    {
         if (_disposed)
         {
             return;
@@ -98,7 +114,8 @@ internal sealed class FrankMoatSession : IDisposable
             _viewport.PixelHeight,
             _world.Frank.Position,
             _world.Frank.Facing,
-            gamepad);
+            gamepad,
+            ReadAgentInput());
 
         if (frame.ControlModePressed)
         {
@@ -122,11 +139,11 @@ internal sealed class FrankMoatSession : IDisposable
 
         if (frame.SavePressed)
         {
-            SaveCampaign();
+            SaveCampaign(frame.SaveName);
         }
         else if (frame.LoadPressed)
         {
-            LoadCampaign();
+            LoadCampaign(frame.LoadName);
             _input.ConsumeEdges();
             RefreshPresentation();
             return;
@@ -285,6 +302,15 @@ internal sealed class FrankMoatSession : IDisposable
             _campaign.PlayerPosition = floor.StartPosition;
         }
 
+        if (floorId == FloorId.Level69 && !_campaign.Level69LoadoutChosen)
+        {
+            _campaign.CurrentObjectiveId = "choose-loadout";
+        }
+        else if (floorId == FloorId.Level68 && !_campaign.Level68IncidentResolved)
+        {
+            _campaign.CurrentObjectiveId = "containment-clearance";
+        }
+
         _world.LoadFloor(floor, _campaign);
         _world.ApplyCollision(_scene);
         _presenter.BuildStatic(_scene, _world);
@@ -326,26 +352,32 @@ internal sealed class FrankMoatSession : IDisposable
         RefreshPresentation();
     }
 
-    private void SaveCampaign()
+    private void SaveCampaign(string? name = null)
     {
         _world.CaptureTo(_campaign);
-        _saveStore.Save(_campaign);
-        _status = $"Checkpoint saved to {_saveStore.Path}.";
+        _saveStore.Save(_campaign, name);
+        _status = string.IsNullOrWhiteSpace(name)
+            ? $"Quick checkpoint saved to {_saveStore.Path}."
+            : $"Named checkpoint '{name.Trim()}' saved.";
     }
 
-    private void LoadCampaign()
+    private void LoadCampaign(string? name = null)
     {
-        var loaded = _saveStore.TryLoad();
+        var loaded = _saveStore.TryLoad(name);
         if (loaded is null)
         {
-            _status = "No checkpoint exists yet. F5 saves the current facility state.";
+            _status = string.IsNullOrWhiteSpace(name)
+                ? "No quick checkpoint exists yet. F5 saves the current facility state."
+                : $"Named checkpoint '{name.Trim()}' was not found.";
             return;
         }
 
         _campaign = loaded;
         _world.Reset(_campaign);
         StartFloor(_campaign.CurrentFloor, preservePosition: true);
-        _status = $"Checkpoint restored: {ElevatorSystem.DisplayFloor(_campaign.CurrentFloor)}.";
+        _status = string.IsNullOrWhiteSpace(name)
+            ? $"Quick checkpoint restored: {ElevatorSystem.DisplayFloor(_campaign.CurrentFloor)}."
+            : $"Named checkpoint '{name.Trim()}' restored: {ElevatorSystem.DisplayFloor(_campaign.CurrentFloor)}.";
     }
 
     private void TogglePause()
@@ -353,12 +385,81 @@ internal sealed class FrankMoatSession : IDisposable
         if (_shell.IsPaused || _shell.IsModalOpen)
         {
             _shell.IsPaused = false;
+            _sessionPaused = false;
             _shell.DismissModal();
             _status = "Session resumed.";
             return;
         }
 
         _shell.IsPaused = true;
+        _sessionPaused = true;
+        var nameBox = new TextBox
+        {
+            PlaceholderText = "checkpoint name",
+            Width = 300,
+        };
+        var saveQuick = new Button
+        {
+            Content = "SAVE CHECKPOINT",
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var loadQuick = new Button
+        {
+            Content = "RESTORE CHECKPOINT",
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var saveNamed = new Button
+        {
+            Content = "SAVE NAMED CHECKPOINT",
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var loadNamed = new Button
+        {
+            Content = "RESTORE NAMED CHECKPOINT",
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        var exit = new Button
+        {
+            Content = "EXIT GAME",
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+
+        void CloseMenu()
+        {
+            _shell.DismissModal();
+            RefreshPresentation();
+        }
+
+        saveQuick.Click += (_, _) =>
+        {
+            CloseMenu();
+            SaveCampaign();
+            RefreshPresentation();
+        };
+        loadQuick.Click += (_, _) =>
+        {
+            CloseMenu();
+            LoadCampaign();
+            RefreshPresentation();
+        };
+        saveNamed.Click += (_, _) =>
+        {
+            CloseMenu();
+            SaveCampaign(nameBox.Text);
+            RefreshPresentation();
+        };
+        loadNamed.Click += (_, _) =>
+        {
+            CloseMenu();
+            LoadCampaign(nameBox.Text);
+            RefreshPresentation();
+        };
+        exit.Click += (_, _) =>
+        {
+            _shell.DismissModal();
+            ExitRequested?.Invoke(this, EventArgs.Empty);
+        };
+
         _shell.ShowModal(
             new Border
             {
@@ -366,6 +467,7 @@ internal sealed class FrankMoatSession : IDisposable
                 BorderBrush = GraphicalProfile.BorderBrush,
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(28),
+                Width = 440,
                 Child = new StackPanel
                 {
                     Spacing = 10,
@@ -380,10 +482,24 @@ internal sealed class FrankMoatSession : IDisposable
                         },
                         new TextBlock
                         {
-                            Text = "Escape resumes. F5 saves. F9 restores the last checkpoint.",
+                            Text = "Escape resumes. F5/F9 use the quick checkpoint.",
                             FontSize = 14,
                             Foreground = GraphicalProfile.MutedBrush,
                         },
+                        saveQuick,
+                        loadQuick,
+                        new Separator(),
+                        new TextBlock
+                        {
+                            Text = "Named checkpoint",
+                            FontSize = 13,
+                            Foreground = GraphicalProfile.MutedBrush,
+                        },
+                        nameBox,
+                        saveNamed,
+                        loadNamed,
+                        new Separator(),
+                        exit,
                     },
                 },
             });
@@ -392,6 +508,7 @@ internal sealed class FrankMoatSession : IDisposable
     private void OnModalDismissed(object? sender, EventArgs e)
     {
         _shell.IsPaused = false;
+        _sessionPaused = false;
         _input.ConsumeEdges();
         _status = "Session resumed.";
     }
@@ -436,4 +553,298 @@ internal sealed class FrankMoatSession : IDisposable
             _viewport.PixelHeight);
         _hud.Refresh(_world, _campaign, _status, _recording, _input.ControlMode);
     }
+
+    internal void QueueAgentInput(FrankAgentInput input)
+    {
+        lock (_simulationGate)
+        {
+            _agentInput = input;
+        }
+    }
+
+    internal void ReleaseAgentInput()
+    {
+        lock (_simulationGate)
+        {
+            _agentInput = FrankAgentInput.Empty;
+        }
+    }
+
+    internal AgentSnapshot CreateAgentSnapshot()
+    {
+        lock (_simulationGate)
+        {
+            var hints = _world.GetInteractionHints(_campaign);
+            var status = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["floor"] = _world.Floor.Id.ToString(),
+                ["floorName"] = _world.Floor.Name,
+                ["objective"] = _world.ObjectiveText(_campaign),
+                ["position"] = FormatVector(_world.Frank.Position),
+                ["facing"] = FormatVector(_world.Frank.Facing),
+                ["health"] = _world.Frank.Health.ToString(),
+                ["armor"] = _world.Frank.Armor.ToString(),
+                ["weapon"] = _world.Weapon.Spec.Id.ToString(),
+                ["ammo"] = $"{_world.Weapon.RoundsInGun}/{_world.Weapon.Reserve}",
+                ["kills"] = _world.Kills.ToString(),
+                ["enemies"] = _world.Undead.Count.ToString(),
+                ["noiseRadius"] = _world.NoiseRadius.ToString("0.##", CultureInfo.InvariantCulture),
+                ["controlMode"] = _input.ControlMode.ToString(),
+                ["faith"] = _world.Faith.Text,
+                ["status"] = _status,
+                ["map"] = _world.MapText(),
+                ["recording"] = _recording?.Title ?? string.Empty,
+                ["nearestInteraction"] = _world.NearestInteraction(_campaign)?.Id ?? string.Empty,
+            };
+
+            foreach (var hint in hints)
+            {
+                status[$"hint.{hint.Id}"] =
+                    $"{FormatVector(hint.Position)}|{hint.Label}|{hint.IsAvailable}|{hint.LockReason}";
+            }
+
+            for (var index = 0; index < _world.Undead.Count; index++)
+            {
+                var enemy = _world.Undead[index];
+                status[$"enemy.{index}"] =
+                    $"{enemy.Kind}|{FormatVector(enemy.Position)}|{enemy.Health}|{enemy.Alerted}";
+            }
+
+            var underway = _elevator.State != ElevatorState.Idle;
+            return new AgentSnapshot
+            {
+                Sequence = ++_agentSequence,
+                SeedHash = _campaign.WorldSeed.ToString(),
+                HubId = _world.Floor.Id.ToString(),
+                HubName = _world.Floor.Name,
+                PauseReason = _sessionPaused
+                    ? "Paused"
+                    : "Running",
+                StatusLines = status,
+                Underway = underway,
+                TravelTargetSystemId = _elevator.Destination?.ToString(),
+                Complete = _world.IsCleared,
+                SoftFail = _world.Frank.Health <= 0,
+                MapVisible = _world.MapVisible,
+                Actions = [],
+            };
+        }
+    }
+
+    internal AgentCommandResult ExecuteAgentAction(AgentCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        var actionId = command.ActionId?.Trim() ?? string.Empty;
+        var action = actionId.ToLowerInvariant();
+
+        return action switch
+        {
+            Agent.FrankMoatAgentActions.Control => QueueAgentControl(command),
+            Agent.FrankMoatAgentActions.Release => ReleaseAgentControl(command),
+            Agent.FrankMoatAgentActions.Interact => QueueAgentEdge(command, interact: true),
+            Agent.FrankMoatAgentActions.Fire => QueueAgentEdge(command, shoot: true),
+            Agent.FrankMoatAgentActions.Reload => QueueAgentEdge(command, reload: true),
+            Agent.FrankMoatAgentActions.Melee => QueueAgentEdge(command, melee: true),
+            Agent.FrankMoatAgentActions.Weapon => QueueAgentWeapon(command),
+            Agent.FrankMoatAgentActions.Map => QueueAgentEdge(command, map: true),
+            Agent.FrankMoatAgentActions.Inspect => QueueAgentEdge(command, inspect: true),
+            Agent.FrankMoatAgentActions.Pause => QueueAgentEdge(command, pause: true),
+            Agent.FrankMoatAgentActions.Save => QueueAgentEdge(
+                command,
+                save: true,
+                saveName: command.Get("name")),
+            Agent.FrankMoatAgentActions.Load => QueueAgentEdge(
+                command,
+                load: true,
+                loadName: command.Get("name")),
+            Agent.FrankMoatAgentActions.ControlMode => QueueAgentEdge(command, controlMode: true),
+            Agent.FrankMoatAgentActions.Exit => RequestExit(command),
+            _ => new AgentCommandResult
+            {
+                Ok = false,
+                ActionId = actionId,
+                ErrorCode = "unknown_action",
+                Message = $"Unknown Frank Moat action '{actionId}'.",
+                Snapshot = CreateAgentSnapshot(),
+            },
+        };
+    }
+
+    private AgentCommandResult RequestExit(AgentCommand command)
+    {
+        ExitRequested?.Invoke(this, EventArgs.Empty);
+        return AgentResult(command.ActionId, "Exit requested.");
+    }
+
+    private AgentCommandResult QueueAgentControl(AgentCommand command)
+    {
+        var moveX = ReadFloat(command, "moveX", 0f);
+        var moveZ = ReadFloat(command, "moveZ", 0f);
+        var aimX = ReadFloat(command, "aimX", 0f);
+        var aimZ = ReadFloat(command, "aimZ", 0f);
+        var hasAim = command.Params.ContainsKey("aimX") || command.Params.ContainsKey("aimZ");
+        var duration = Math.Clamp(ReadFloat(command, "duration", 0.25f), 0.05f, 10f);
+        var input = new FrankAgentInput(
+            Math.Clamp(moveX, -1f, 1f),
+            Math.Clamp(moveZ, -1f, 1f),
+            command.Params.ContainsKey("moveX") || command.Params.ContainsKey("moveZ"),
+            aimX,
+            aimZ,
+            hasAim,
+            ReadBool(command, "run"),
+            ReadBool(command, "fire"),
+            ReadBool(command, "secondary"),
+            false,
+            ReadBool(command, "reload"),
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            0,
+            DateTime.UtcNow).WithDuration(duration);
+
+        QueueAgentInput(input);
+        return AgentResult(Agent.FrankMoatAgentActions.Control, $"Control queued for {duration:0.##} seconds.");
+    }
+
+    private AgentCommandResult ReleaseAgentControl(AgentCommand command)
+    {
+        ReleaseAgentInput();
+        return AgentResult(Agent.FrankMoatAgentActions.Release, "Agent control released.");
+    }
+
+    private AgentCommandResult QueueAgentEdge(
+        AgentCommand command,
+        bool shoot = false,
+        bool reload = false,
+        bool interact = false,
+        bool melee = false,
+        bool map = false,
+        bool inspect = false,
+        bool pause = false,
+        bool save = false,
+        bool load = false,
+        bool controlMode = false,
+        string? saveName = null,
+        string? loadName = null)
+    {
+        var hasMove = command.Params.ContainsKey("moveX")
+            || command.Params.ContainsKey("moveZ");
+        var hasAim = shoot
+            && (command.Params.ContainsKey("aimX") || command.Params.ContainsKey("aimZ"));
+        var duration = Math.Clamp(ReadFloat(command, "duration", 0.2f), 0.05f, 10f);
+        QueueAgentInput(
+            new FrankAgentInput(
+                Math.Clamp(ReadFloat(command, "moveX", 0f), -1f, 1f),
+                Math.Clamp(ReadFloat(command, "moveZ", 0f), -1f, 1f),
+                hasMove,
+                ReadFloat(command, "aimX", 0f),
+                ReadFloat(command, "aimZ", 0f),
+                hasAim,
+                ReadBool(command, "run"),
+                false,
+                false,
+                shoot,
+                reload,
+                interact,
+                melee,
+                false,
+                map,
+                inspect,
+                pause,
+                save,
+                load,
+                controlMode,
+                0,
+                DateTime.UtcNow)
+            {
+                SaveName = saveName,
+                LoadName = loadName,
+            }.WithDuration(duration));
+
+        return AgentResult(command.ActionId, $"Agent action '{command.ActionId}' queued.");
+    }
+
+    private AgentCommandResult QueueAgentWeapon(AgentCommand command)
+    {
+        if (!command.TryGetInt("slot", out var slot) || slot is < 1 or > 5)
+        {
+            return new AgentCommandResult
+            {
+                Ok = false,
+                ActionId = command.ActionId,
+                ErrorCode = "invalid_slot",
+                Message = "Weapon slot must be between 1 and 5.",
+                Snapshot = CreateAgentSnapshot(),
+            };
+        }
+
+        QueueAgentInput(
+            new FrankAgentInput(
+                0f,
+                0f,
+                false,
+                0f,
+                0f,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                slot,
+                DateTime.UtcNow).WithDuration(0.2f));
+        return AgentResult(Agent.FrankMoatAgentActions.Weapon, $"Weapon slot {slot} queued.");
+    }
+
+    private AgentCommandResult AgentResult(string actionId, string message) =>
+        new()
+        {
+            Ok = true,
+            ActionId = actionId,
+            Message = message,
+            Snapshot = CreateAgentSnapshot(),
+        };
+
+    private FrankAgentInput ReadAgentInput()
+    {
+        var input = _agentInput;
+        if (!input.IsActive)
+        {
+            _agentInput = FrankAgentInput.Empty;
+            return FrankAgentInput.Empty;
+        }
+
+        _agentInput = input.WithoutEdges();
+        return input;
+    }
+
+    private static float ReadFloat(AgentCommand command, string key, float fallback)
+    {
+        return command.TryGetDouble(key, out var value)
+            ? (float)value
+            : fallback;
+    }
+
+    private static bool ReadBool(AgentCommand command, string key) =>
+        command.TryGetBool(key, out var value) && value;
+
+    private static string FormatVector(Vector3 value) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{value.X:0.##},{value.Z:0.##}");
 }

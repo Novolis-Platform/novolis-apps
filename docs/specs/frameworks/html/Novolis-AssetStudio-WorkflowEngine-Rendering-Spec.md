@@ -118,7 +118,7 @@ Reuse existing `Novolis.Rendering.Materials`, `Novolis.Rendering.Scene`, `.Compi
 
 ### 2.3 Asset Studio
 
-- `Novolis.AssetStudio.Core`: document/session state, edits/commands, workspace snapshots, file save/load, preview requests, services and plugin contracts. No Avalonia references.
+- `Novolis.AssetStudio.Authoring`: document/session state, edits/commands, workspace snapshots, file save/load, preview requests, services and plugin contracts. No Avalonia references.
 - `Novolis.AssetStudio.Avalonia`: editor shell, graph canvas, stack editor, property inspector, source editor integration, preview pane, diagnostics and timeline.
 - `Novolis.AssetStudio.Import`: PNG/JPEG/WebP source import (only as user input), sprite cropping/slicing, sprite-sheet packing and mapping, imported mesh/scene adapters.
 - `Novolis.AssetStudio.Export`: export orchestration and target configuration for data, code, packed assets, atlases and textures. Source-compatible outputs via Visual.CodeGen.

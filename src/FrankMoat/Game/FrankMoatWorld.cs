@@ -667,7 +667,7 @@ internal sealed class FrankMoatWorld
 
         var wantsShot = Weapon.Spec.Mode == WeaponFireMode.Automatic
             ? input.ShootHeld
-            : input.ShootPressed;
+            : input.ShootPressed || input.AgentFireHeld;
         if (!wantsShot)
         {
             return;
@@ -993,6 +993,7 @@ internal sealed class FrankMoatWorld
                 foreach (var spawn in encounter.Spawns)
                 {
                     var enemy = UndeadActor.Create(spawn.Kind, spawn.Position);
+                    enemy.EncounterId = encounter.Id;
                     enemy.Alerted = true;
                     Undead.Add(enemy);
                 }
@@ -1008,7 +1009,8 @@ internal sealed class FrankMoatWorld
 
             if (encounter.HasTriggered
                 && !encounter.IsComplete
-                && Undead.Count == 0)
+                && !Undead.Any(enemy =>
+                    string.Equals(enemy.EncounterId, encounter.Id, StringComparison.Ordinal)))
             {
                 encounter.IsComplete = true;
                 campaign.SetFlag($"{encounter.Id}:complete");

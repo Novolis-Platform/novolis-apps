@@ -119,6 +119,39 @@ public sealed class AlphaFlowTests
     }
 
     [Test]
+    public async Task Named_save_round_trip_normalizes_and_lists_the_checkpoint()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            "frank-moat-" + Guid.NewGuid().ToString("N"),
+            "save.json");
+        try
+        {
+            var store = new CampaignSaveStore(path);
+            var campaign = new CampaignState
+            {
+                CurrentFloor = FloorId.Level69,
+                CurrentObjectiveId = "choose-loadout",
+            };
+
+            store.Save(campaign, "reactor room");
+
+            var loaded = store.TryLoad("reactor room");
+            await Assert.That(loaded).IsNotNull();
+            await Assert.That(loaded!.CurrentFloor).IsEqualTo(FloorId.Level69);
+            await Assert.That(store.ListNames()).Contains("reactor-room");
+        }
+        finally
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (directory is not null && Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Test]
     public async Task Input_edges_survive_until_the_simulation_consumes_them()
     {
         var scene = new PlanarScene();

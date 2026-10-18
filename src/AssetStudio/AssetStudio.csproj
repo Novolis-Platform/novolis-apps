@@ -14,7 +14,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <LibraryReference Include="Novolis.Avalonia.AssetStudio" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
-    <LibraryReference Include="Novolis.AssetStudio.Core" />
+    <LibraryReference Include="Novolis.AssetStudio.Authoring" />
+    <LibraryReference Include="Novolis.AssetStudio.Export" />
     <LibraryReference Include="Novolis.Visual.Definitions" />
     <LibraryReference Include="Novolis.Visual.Materials" />
     <LibraryReference Include="Novolis.Visual.Assets" />

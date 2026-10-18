@@ -471,27 +471,39 @@ internal sealed class FrankMoatPresenter
         Add(
             scene,
             _art.Shadow,
-            PlanarElevation.Elevate(world.Frank.Position, 0.035f),
-            new Vector3(0.92f, 1f, 0.92f),
+            PlanarElevation.Elevate(world.Frank.Position, 0.02f),
+            new Vector3(1.16f, 1f, 1.16f),
             Rgba32.White,
             65,
             -world.Frank.Facing.Atan2Xz());
         Add(
             scene,
             _art.Frank,
-            PlanarElevation.Elevate(world.Frank.Position, 0.16f),
-            new Vector3(1.32f, 1f, 1.32f),
+            PlanarElevation.Elevate(world.Frank.Position, 0.06f),
+            new Vector3(1.08f, 1f, 1.08f),
             tint,
             DepthSort(world.Frank.Position.Z) + 4,
             -world.Frank.Facing.Atan2Xz(),
             PlanarDrawLayer.World);
         Add(
             scene,
+            _art.FrankFacing,
+            PlanarElevation.Elevate(
+                world.Frank.Position + world.Frank.Facing * 0.36f,
+                0.12f),
+            new Vector3(0.34f, 1f, 0.34f),
+            new Rgba32(238, 211, 116, 235),
+            DepthSort(world.Frank.Position.Z) + 5,
+            -world.Frank.Facing.Atan2Xz(),
+            PlanarDrawLayer.Foreground,
+            receivesLighting: false);
+        Add(
+            scene,
             _art.Weapon(world.Weapon.Spec.Id),
             PlanarElevation.Elevate(
                 world.Frank.Position
                 + world.Frank.Facing * (0.34f + WeaponVisualCatalog.For(world.Weapon.Spec.Id).Length * 0.22f),
-                0.22f),
+                0.13f),
             new Vector3(
                 WeaponVisualCatalog.For(world.Weapon.Spec.Id).Width,
                 1f,

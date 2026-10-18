@@ -25,6 +25,7 @@ internal sealed class FrankMoatHud : UserControl
     private readonly TextBlock _recordingTitle = Text(string.Empty, 21, FontWeight.Bold);
     private readonly TextBlock _recordingBody = Text(string.Empty, 16, FontWeight.Normal);
     private readonly Border _recordingPanel;
+    private readonly Border _deathPanel;
 
     public FrankMoatHud()
     {
@@ -127,6 +128,36 @@ internal sealed class FrankMoatHud : UserControl
             },
         };
 
+        _deathPanel = new Border
+        {
+            Background = GraphicalProfile.BackgroundBrush,
+            BorderBrush = GraphicalProfile.DangerBrush,
+            BorderThickness = new Thickness(2),
+            Padding = new Thickness(30),
+            Width = 640,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsVisible = false,
+            Child = new StackPanel
+            {
+                Spacing = 12,
+                Children =
+                {
+                    Text("FRANK IS DOWN", 30, FontWeight.Bold, GraphicalProfile.DangerBrush),
+                    Text(
+                        "The containment event continues without him.",
+                        16,
+                        FontWeight.Normal,
+                        GraphicalProfile.TextBrush),
+                    Text(
+                        "F9 restores the last checkpoint · F5 saves a checkpoint · Esc opens the pause menu.",
+                        13,
+                        FontWeight.Normal,
+                        GraphicalProfile.MutedBrush),
+                },
+            },
+        };
+
         Content = new Grid
         {
             Children =
@@ -136,6 +167,7 @@ internal sealed class FrankMoatHud : UserControl
                 bottom,
                 _mapPanel,
                 _recordingPanel,
+                _deathPanel,
             },
         };
     }
@@ -166,8 +198,10 @@ internal sealed class FrankMoatHud : UserControl
                 _ => "WASD / left stick character-relative movement · mouse / right stick aim",
             }} · fire · reload · interact · C / R3 switch movement · Tab map · Esc pause";
         _map.Text = world.MapText();
-        _mapPanel.IsVisible = world.MapVisible && recording is null;
+        var isDead = world.Frank.Health <= 0;
+        _mapPanel.IsVisible = !isDead && world.MapVisible && recording is null;
         _recordingPanel.IsVisible = recording is not null;
+        _deathPanel.IsVisible = isDead && recording is null;
         if (recording is not null)
         {
             _recordingTitle.Text = recording.Title;
@@ -175,12 +209,16 @@ internal sealed class FrankMoatHud : UserControl
         }
     }
 
-    private static TextBlock Text(string content, double size, FontWeight weight) => new()
+    private static TextBlock Text(
+        string content,
+        double size,
+        FontWeight weight,
+        IBrush? foreground = null) => new()
     {
         Text = content,
         FontSize = size,
         FontWeight = weight,
-        Foreground = GraphicalProfile.TextBrush,
+        Foreground = foreground ?? GraphicalProfile.TextBrush,
         TextWrapping = TextWrapping.Wrap,
     };
 }

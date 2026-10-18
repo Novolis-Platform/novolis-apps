@@ -22,6 +22,8 @@ internal sealed class FrankMoatArt
 
     public required PlanarTextureId Frank { get; init; }
 
+    public required PlanarTextureId FrankFacing { get; init; }
+
     public required PlanarTextureId PlayerWeapon { get; init; }
 
     public required IReadOnlyDictionary<WeaponId, PlanarTextureId> WeaponTextures { get; init; }
@@ -171,7 +173,8 @@ internal sealed class FrankMoatArt
             Spark = registry.Cross(16, new Rgba32(255, 236, 170, 230), "spark"),
             Smoke = registry.Disc(16, new Rgba32(90, 90, 96, 170), 1.4f, "smoke"),
             Blood = registry.Disc(16, new Rgba32(170, 16, 20, 230), 1.8f, "blood"),
-            Frank = Actor(registry, 72, 88, 52, 36, 44, 28, "frank"),
+            Frank = TopDownFrank(registry),
+            FrankFacing = FacingMarker(registry),
             PlayerWeapon = registry.Capsule(40, new Rgba32(38, 43, 50, 255), "frank-weapon"),
             WeaponTextures = WeaponCatalog.All.ToDictionary(
                 weapon => weapon.Id,
@@ -239,6 +242,105 @@ internal sealed class FrankMoatArt
             Vent = Furniture(registry, PropKind.Vent),
             HazardStripe = Furniture(registry, PropKind.HazardStripe),
         };
+    }
+
+    private static PlanarTextureId TopDownFrank(PlanarTextureRegistry registry)
+    {
+        const int size = 64;
+        var pixels = new Rgba32[size * size];
+        var center = (size - 1) * 0.5f;
+
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var dx = x - center;
+                var dy = y - center;
+                var torso = (dx * dx) / (17f * 17f) + (dy * dy) / (19f * 19f) <= 1f;
+                var shoulders = (dx * dx) / (21f * 21f) + ((dy + 1f) * (dy + 1f)) / (11f * 11f) <= 1f;
+                var armBand = MathF.Abs(dy - 5f) <= 5f && MathF.Abs(dx) <= 21f;
+                var headDx = dx;
+                var headDy = dy + 16f;
+                var head = headDx * headDx + headDy * headDy <= 8.5f * 8.5f;
+                var rearLeg = MathF.Abs(dy - 15f) <= 5f && MathF.Abs(dx) <= 12f;
+                var inside = torso || shoulders || armBand || head || rearLeg;
+                if (!inside)
+                {
+                    continue;
+                }
+
+                var edge =
+                    !IsTopDownFrankPixel(dx - 1f, dy)
+                    || !IsTopDownFrankPixel(dx + 1f, dy)
+                    || !IsTopDownFrankPixel(dx, dy - 1f)
+                    || !IsTopDownFrankPixel(dx, dy + 1f);
+                var pixel = edge
+                    ? new Rgba32(14, 19, 24)
+                    : head
+                        ? new Rgba32(186, 158, 116)
+                        : rearLeg
+                            ? new Rgba32(32, 42, 48)
+                            : new Rgba32(48, 78, 78);
+
+                if (!edge && torso && MathF.Abs(dx) <= 10f && dy is >= -5f and <= 11f)
+                {
+                    pixel = new Rgba32(42, 116, 108);
+                }
+
+                if (!edge && head && dy <= -15f)
+                {
+                    pixel = new Rgba32(100, 132, 112);
+                }
+
+                if (!edge && head && dy is >= -16f and <= -14f && MathF.Abs(dx) <= 4f)
+                {
+                    pixel = new Rgba32(232, 218, 152);
+                }
+
+                if (!edge && armBand && MathF.Abs(dx) >= 14f)
+                {
+                    pixel = new Rgba32(88, 112, 112);
+                }
+
+                pixels[y * size + x] = pixel;
+            }
+        }
+
+        return registry.Register(pixels, size, size, "frank-top-down");
+    }
+
+    private static bool IsTopDownFrankPixel(float dx, float dy)
+    {
+        var torso = (dx * dx) / (17f * 17f) + (dy * dy) / (19f * 19f) <= 1f;
+        var shoulders = (dx * dx) / (21f * 21f) + ((dy + 1f) * (dy + 1f)) / (11f * 11f) <= 1f;
+        var armBand = MathF.Abs(dy - 5f) <= 5f && MathF.Abs(dx) <= 21f;
+        var headDx = dx;
+        var headDy = dy + 16f;
+        var head = headDx * headDx + headDy * headDy <= 8.5f * 8.5f;
+        var rearLeg = MathF.Abs(dy - 15f) <= 5f && MathF.Abs(dx) <= 12f;
+        return torso || shoulders || armBand || head || rearLeg;
+    }
+
+    private static PlanarTextureId FacingMarker(PlanarTextureRegistry registry)
+    {
+        const int size = 32;
+        var pixels = new Rgba32[size * size];
+        var center = (size - 1) * 0.5f;
+        for (var y = 3; y < 20; y++)
+        {
+            var width = y < 10
+                ? (y - 2) * 1.3f
+                : MathF.Max(2f, 11f - (y - 10) * 0.9f);
+            for (var x = 0; x < size; x++)
+            {
+                if (MathF.Abs(x - center) <= width)
+                {
+                    pixels[y * size + x] = new Rgba32(238, 211, 116, 230);
+                }
+            }
+        }
+
+        return registry.Register(pixels, size, size, "frank-facing-marker");
     }
 
     private static PlanarTextureId Actor(

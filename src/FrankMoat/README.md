@@ -7,14 +7,26 @@ first connected Level 68 containment floor.
 ## Local run
 
 ```powershell
-dotnet run --project d:\novolis\novolis-apps\src\FrankMoat.Desktop\FrankMoat.Desktop.csproj -p:NovolisUseProjectReferences=true
+dotnet run --project d:\novolis\novolis-apps\src\FrankMoat\FrankMoat.Desktop\FrankMoat.Desktop.csproj -p:NovolisUseProjectReferences=true
 ```
+
+To enable the local gameplay surface for agent control and snapshots:
+
+```powershell
+$env:NOVOLIS_FRANK_MOAT_AGENT = "1"
+dotnet run --project d:\novolis\novolis-apps\src\FrankMoat\FrankMoat.Desktop\FrankMoat.Desktop.csproj -p:NovolisUseProjectReferences=true
+```
+
+The HTTP surface is available at `http://127.0.0.1:18885/agent/`; inspect
+`/agent/actions` and `/agent/snapshot` before sending `/agent/command` requests.
+The surface owns only agent input; keyboard, mouse, and controller input remain
+available. Clear the environment variable to run without the surface.
 
 Android builds use the Avalonia Android host and accept Bluetooth gamepads
 through the native Android key and joystick motion events:
 
 ```powershell
-dotnet build d:\novolis\novolis-apps\src\FrankMoat.Android\FrankMoat.Android.csproj -p:NovolisUseProjectReferences=true
+dotnet build d:\novolis\novolis-apps\src\FrankMoat\FrankMoat.Android\FrankMoat.Android.csproj -p:NovolisUseProjectReferences=true
 ```
 
 ## Controls
@@ -35,6 +47,11 @@ dotnet build d:\novolis\novolis-apps\src\FrankMoat.Android\FrankMoat.Android.csp
 - `Escape` / Start: pause
 - `F5`: save checkpoint
 - `F9`: restore checkpoint
+
+The pause menu also provides named checkpoint save/restore and `EXIT GAME`.
+Named saves are stored beside the quick checkpoint under the local Frank Moat
+save directory. The agent surface exposes `save` and `load` with an optional
+`name` parameter, plus `exit`.
 
 The lab prototype remains under
 `d:\novolis\novolis-lab\labs\gaming\FrankMoat`; this product owns its game

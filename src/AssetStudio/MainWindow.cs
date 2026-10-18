@@ -1,10 +1,15 @@
 using Avalonia;
 using Avalonia.Controls;
-using Novolis.AssetStudio.Core;
+using Avalonia.Platform.Storage;
+using System.Text;
+using Novolis.AssetStudio.Authoring;
+using Novolis.AssetStudio.Export;
 using Novolis.Avalonia.AssetStudio;
 using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Visual.Compile;
 using Novolis.Visual.Definitions;
+using Novolis.Visual.Assets;
+using Novolis.Visual.Materials;
 using Novolis.Visual.Presets;
 
 namespace AssetStudio;
@@ -12,6 +17,7 @@ namespace AssetStudio;
 internal sealed class MainWindow : Window
 {
     private readonly AssetStudioEditorSurface _surface;
+    private string? _currentFilePath;
 
     public MainWindow()
     {
@@ -32,13 +38,12 @@ internal sealed class MainWindow : Window
 
         _surface = new AssetStudioEditorSurface();
         _surface.CommandSubmitted += OnCommandSubmitted;
-        _surface.SetAssetTemplate(
-            VisualPresetCatalog.CreateDefault()
-                .Find("lightsaber-blade")!);
+        _surface.SetMaterial(
+            AssetStudioBlankDocumentFactory.CreateBlankMaterial());
         Content = _surface;
     }
 
-    private void OnCommandSubmitted(
+    private async void OnCommandSubmitted(
         object? sender,
         Novolis.Avalonia.Studio.StudioCommandSubmittedEventArgs args)
     {
@@ -72,23 +77,21 @@ internal sealed class MainWindow : Window
 
         if (string.Equals(command, "new material", StringComparison.OrdinalIgnoreCase))
         {
-            var material = VisualPresetCatalog.CreateDefault()
-                .Find("glass")!
-                .Materials
-                .Single();
-            _surface.SetMaterial(material);
+            _surface.SetMaterial(
+                AssetStudioBlankDocumentFactory.CreateBlankMaterial());
+            _currentFilePath = null;
             _surface.Feedback.SetStatus(
-                "New Glass material instance created.");
+                "New blank material created.");
             return;
         }
 
         if (string.Equals(command, "new asset", StringComparison.OrdinalIgnoreCase))
         {
-            _surface.SetAssetTemplate(
-                VisualPresetCatalog.CreateDefault()
-                    .Find("orbital-reusable-rocket")!);
+            _surface.SetAsset(
+                AssetStudioBlankDocumentFactory.CreateBlankAsset());
+            _currentFilePath = null;
             _surface.Feedback.SetStatus(
-                "New Orbital Reusable Rocket asset created.");
+                "New blank asset assembly created.");
             return;
         }
 
@@ -108,33 +111,65 @@ internal sealed class MainWindow : Window
 
         if (string.Equals(command, "create instance", StringComparison.OrdinalIgnoreCase))
         {
-            _surface.Feedback.SetStatus(
-                "A reusable child instance is active; edit controls to create overrides.");
+            if (_surface.TryCreateInstance())
+            {
+                await SaveInstanceAsync();
+            }
+            else
+            {
+                _surface.Feedback.FlashError(
+                    "Create Instance requires a material or asset document.");
+            }
             return;
         }
 
-        if (string.Equals(command, "save preset", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(command, "open", StringComparison.OrdinalIgnoreCase))
+        {
+            await OpenAsync();
+            return;
+        }
+
+        if (string.Equals(command, "save", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(command, "save preset", StringComparison.OrdinalIgnoreCase))
+        {
+            await SaveAsync();
+            return;
+        }
+
+        if (string.Equals(command, "undo", StringComparison.OrdinalIgnoreCase))
         {
             _surface.Feedback.SetStatus(
-                "Preset state is canonical and ready to export.");
+                _surface.TryUndo() ? "Undo applied." : "Nothing to undo.");
             return;
         }
 
-        if (string.Equals(command, "build", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(command, "export", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(command, "redo", StringComparison.OrdinalIgnoreCase))
+        {
+            _surface.Feedback.SetStatus(
+                _surface.TryRedo() ? "Redo applied." : "Nothing to redo.");
+            return;
+        }
+
+        if (string.Equals(command, "build", StringComparison.OrdinalIgnoreCase))
         {
             CompileCurrentDocument();
             _surface.Feedback.SetStatus(
-                $"{command} completed for the current no-code recipe.");
+                "Build completed for the current generic document.");
+            return;
+        }
+
+        if (string.Equals(command, "export", StringComparison.OrdinalIgnoreCase))
+        {
+            await ExportAsync();
             return;
         }
 
         if (string.Equals(command, "help", StringComparison.OrdinalIgnoreCase))
         {
             _surface.Feedback.SetStatus(
-                "Commands: new material · new asset · open template <id> · " +
-                "create instance · save preset · apply source · validate · " +
-                "preview · build · export · help");
+                "Commands: new material · new asset · open · save · " +
+                "open template <id> · create instance · undo · redo · " +
+                "apply source · validate · preview · build · export · help");
             return;
         }
 
@@ -143,14 +178,205 @@ internal sealed class MainWindow : Window
 
     private void CompileCurrentDocument()
     {
-        if (_surface.Document is { } document)
+        if (_surface.CurrentDocument is { } document)
         {
+            var options = new VisualCompileOptions(
+                registry: VisualCompiler.CreateDefaultRegistry(),
+                strict: true);
+            var compilation = document.DocumentKind switch
+            {
+                AssetStudioDocumentKind.Material when document.Material is { } material =>
+                    VisualMaterialCompiler.CompileMaterial(
+                        material,
+                        document.MaterialInstance,
+                        options),
+                AssetStudioDocumentKind.Asset when document.Asset is { } asset =>
+                    VisualMaterialCompiler.CompileAsset(
+                        asset,
+                        document.AssetInstance,
+                        options),
+                _ => VisualCompiler.Compile(document.Recipe, options),
+            };
             _surface.SetCompilation(
-                VisualCompiler.Compile(
-                    document.Recipe,
-                    new VisualCompileOptions(
-                        registry: VisualCompiler.CreateDefaultRegistry(),
-                        strict: true)));
+                compilation);
+        }
+    }
+
+    private async Task OpenAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions
+            {
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("Asset Studio documents")
+                    {
+                        Patterns = ["*.json", "*.novmaterial.json", "*.novasset.json"],
+                    },
+                ],
+                Title = "Open Asset Studio document",
+            });
+        var file = files.FirstOrDefault();
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var path = file.Path.LocalPath;
+            var document = AssetStudioModulePersistence.DeserializeDocument(
+                await File.ReadAllTextAsync(path, Encoding.UTF8),
+                registry: VisualCompiler.CreateDefaultRegistry());
+            _surface.SetDocument(document);
+            _currentFilePath = path;
+            _surface.Feedback.SetStatus($"Opened · {Path.GetFileName(path)}");
+        }
+        catch (Exception exception)
+        {
+            _surface.Feedback.FlashError($"Open failed · {exception.Message}");
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_surface.CurrentDocument is not { } document)
+        {
+            _surface.Feedback.FlashError("There is no document to save.");
+            return;
+        }
+
+        var path = _currentFilePath;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            var file = await StorageProvider.SaveFilePickerAsync(
+                new FilePickerSaveOptions
+                {
+                    SuggestedFileName = document.DocumentKind switch
+                    {
+                        AssetStudioDocumentKind.Material => "material.novmaterial.json",
+                        AssetStudioDocumentKind.Asset => "asset.novasset.json",
+                        _ => "recipe.novvisual.json",
+                    },
+                    Title = "Save Asset Studio document",
+                });
+            path = file?.Path.LocalPath;
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                path,
+                AssetStudioModulePersistence.SerializeDocument(document),
+                Encoding.UTF8);
+            _currentFilePath = path;
+            _surface.Feedback.SetStatus($"Saved · {Path.GetFileName(path)}");
+        }
+        catch (Exception exception)
+        {
+            _surface.Feedback.FlashError($"Save failed · {exception.Message}");
+        }
+    }
+
+    private async Task SaveInstanceAsync()
+    {
+        if (_surface.CurrentDocument is not { } document ||
+            (document.Material is null && document.Asset is null))
+        {
+            _surface.Feedback.FlashError(
+                "Create Instance requires a material or asset document.");
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(
+            new FilePickerSaveOptions
+            {
+                SuggestedFileName = document.DocumentKind ==
+                                    AssetStudioDocumentKind.Material
+                    ? "material.instance.json"
+                    : "asset.instance.json",
+                Title = "Save reusable instance",
+            });
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var content = document.Material is { } material
+                ? AssetStudioModulePersistence.SerializeMaterialInstance(
+                    document.MaterialInstance ??
+                    new MaterialInstance(material.MaterialId + ".instance", material))
+                : AssetStudioModulePersistence.SerializeAssetInstance(
+                    document.AssetInstance ??
+                    new AssetInstance(
+                        document.Asset!.AssetId + ".instance",
+                        document.Asset));
+            await File.WriteAllTextAsync(
+                file.Path.LocalPath,
+                content,
+                Encoding.UTF8);
+            _surface.Feedback.SetStatus(
+                $"Instance saved · {Path.GetFileName(file.Path.LocalPath)}");
+        }
+        catch (Exception exception)
+        {
+            _surface.Feedback.FlashError(
+                $"Instance save failed · {exception.Message}");
+        }
+    }
+
+    private async Task ExportAsync()
+    {
+        if (_surface.CurrentDocument is not { } document)
+        {
+            _surface.Feedback.FlashError("There is no document to export.");
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(
+            new FilePickerSaveOptions
+            {
+                SuggestedFileName = "assetstudio-definition.json",
+                Title = "Export Asset Studio definition",
+            });
+        if (file is null)
+        {
+            return;
+        }
+
+        var profile = document.DocumentKind ==
+                      AssetStudioDocumentKind.Material
+            ? AssetStudioExportProfile.MaterialModule
+            : document.DocumentKind == AssetStudioDocumentKind.Asset
+                ? AssetStudioExportProfile.AssetPackage
+                : AssetStudioExportProfile.Definition;
+        try
+        {
+            var result = new AssetStudioExporter().Export(
+                new AssetStudioExportRequest(
+                    document,
+                    profile,
+                    material: document.Material,
+                    asset: document.Asset));
+            await File.WriteAllTextAsync(
+                file.Path.LocalPath,
+                result.Manifest.ToCanonicalJson(),
+                Encoding.UTF8);
+            _surface.Feedback.SetStatus(
+                $"Exported {result.Artifacts.Length} artifact(s) · " +
+                Path.GetFileName(file.Path.LocalPath));
+        }
+        catch (Exception exception)
+        {
+            _surface.Feedback.FlashError($"Export failed · {exception.Message}");
         }
     }
 

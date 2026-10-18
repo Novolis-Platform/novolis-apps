@@ -24,6 +24,12 @@ internal readonly record struct FrankInputFrame(
 {
     public bool ControlModePressed { get; init; }
 
+    public bool AgentFireHeld { get; init; }
+
+    public string? SaveName { get; init; }
+
+    public string? LoadName { get; init; }
+
     public FrankInputFrame WithoutEdges() => this with
     {
         ShootPressed = false,
@@ -37,6 +43,8 @@ internal readonly record struct FrankInputFrame(
         SavePressed = false,
         LoadPressed = false,
         ControlModePressed = false,
+        SaveName = null,
+        LoadName = null,
         WeaponSlot = 0,
         ZoomTicks = 0,
     };
