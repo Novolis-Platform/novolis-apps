@@ -23,10 +23,8 @@
     <LibraryReference Include="Novolis.Audio.Patterns" />
     <LibraryReference Include="Novolis.Avalonia.Live" />
     <LibraryReference Include="Novolis.Transports.LocalIpc" />
-    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <LibraryReference Include="Novolis.MSBuild.BuildReference" />
+    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
   </ItemGroup>
   <Target Name="BundleLiveHostOnPublish" AfterTargets="Publish">
     <PropertyGroup>

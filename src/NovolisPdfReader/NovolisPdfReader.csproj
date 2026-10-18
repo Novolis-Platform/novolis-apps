@@ -52,9 +52,7 @@
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
     <LibraryReference Include="Novolis.Windows.Pdf"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
-    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <LibraryReference Include="Novolis.MSBuild.BuildReference" />
+    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
   </ItemGroup>
 </Project>

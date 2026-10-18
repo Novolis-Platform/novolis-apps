@@ -4,10 +4,10 @@
     <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Aspire.Hosting" Version="13.6.0" />
-    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.6.0" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.0" />
-    <PackageVersion Include="Avalonia" Version="12.1.3" />
+    <PackageVersion Include="Aspire.Hosting" Version="13.6.1" />
+    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.6.1" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.1" />
+    <PackageVersion Include="Avalonia" Version="12.1.4" />
     <PackageVersion Include="SkiaSharp" Version="4.153.1" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Android" Version="4.153.1" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.153.1" />
@@ -15,31 +15,31 @@
     <PackageVersion Include="SkiaSharp.NativeAssets.WebAssembly" Version="4.153.1" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="4.153.1" />
     <PackageVersion Include="Svg.Skia" Version="5.2.3" />
-    <PackageVersion Include="Avalonia.Android" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Android" Version="12.1.4" />
     <PackageVersion Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
     <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
-    <PackageVersion Include="Avalonia.Desktop" Version="12.1.3" />
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.3" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.3" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.13" />
     <PackageVersion Include="Azure.Data.Tables" Version="12.13.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.13" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
-    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Identity.Client" Version="4.90.1" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.19.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.19.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.19.0" />
-    <PackageVersion Include="NAudio" Version="3.1.0" />
-    <PackageVersion Include="NAudio.Wasapi" Version="3.1.0" />
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
-    <PackageVersion Include="MessagePack" Version="3.1.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Identity.Client" Version="4.91.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.0" />
+    <PackageVersion Include="NAudio" Version="3.2.0" />
+    <PackageVersion Include="NAudio.Wasapi" Version="3.2.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.402" />
+    <PackageVersion Include="MessagePack" Version="3.1.12" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0.3" />
     <PackageVersion Include="Xamarin.AndroidX.Browser" Version="1.10.0.1" />
@@ -107,6 +107,7 @@
     <PackageVersion Include="Novolis.Avalonia.StarMap" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Map" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Packaging.Inno" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.MSBuild.BuildReference" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Raylib" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Rendering" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Avalonia.Studio" Version="2026.1.*" />
@@ -154,7 +155,7 @@
     <PackageVersion Include="Novolis.Storage.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Storage.AzureTables" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Storage.Json" Version="2026.1.*" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
     <PackageVersion Include="Novolis.Avalonia.Manuscript" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Manuscript" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Manuscript.Export.Audio" Version="2026.1.*" />
@@ -171,11 +172,11 @@
     <PackageVersion Include="Novolis.Astro.Routing" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Blazor.GraphicalProfile" Version="2026.1.*" />
     <PackageVersion Include="Spectre.Console" Version="0.57.2" />
-    <PackageVersion Include="System.CommandLine" Version="2.0.12" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.13" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.63.0" />
-    <PackageVersion Include="TUnit" Version="1.72.16" />
-    <PackageVersion Include="TUnit.Playwright" Version="1.72.16" />
-    <PackageVersion Include="TUnit.Aspire" Version="1.72.16" />
+    <PackageVersion Include="TUnit" Version="1.75.0" />
+    <PackageVersion Include="TUnit.Playwright" Version="1.75.0" />
+    <PackageVersion Include="TUnit.Aspire" Version="1.75.0" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.110" />
     <PackageVersion Include="Novolis.Maui.Markdown" Version="2026.1.*" />

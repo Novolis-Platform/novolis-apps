@@ -42,10 +42,8 @@
     <LibraryReference Include="Novolis.Maui.Markdown" />
     <LibraryReference Include="Novolis.IO.Platform.Android"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
-    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <LibraryReference Include="Novolis.MSBuild.BuildReference" />
+    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Merglyph.Core/Merglyph.Core.csproj" />

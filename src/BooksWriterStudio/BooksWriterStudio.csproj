@@ -18,10 +18,8 @@
     <LibraryReference Include="Novolis.Avalonia.Layout" />
     <LibraryReference Include="Novolis.Avalonia.Markdown" />
     <LibraryReference Include="Novolis.Avalonia.Manuscript" />
-    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <LibraryReference Include="Novolis.MSBuild.BuildReference" />
+    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
     <LibraryReference Include="Novolis.Avalonia.Studio" />
     <LibraryReference Include="Novolis.Audio.Voice.Abstractions" />
     <LibraryReference Include="Novolis.Audio.Voice.AzureSpeech" />

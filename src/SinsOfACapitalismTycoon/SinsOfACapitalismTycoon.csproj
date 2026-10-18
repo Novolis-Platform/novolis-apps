@@ -17,10 +17,8 @@
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
     <PackageReference Include="Spectre.Console" />
     <LibraryReference Include="Novolis.Avalonia.Briefing" />
-    <PackageReference Include="Novolis.Avalonia.Packaging.Inno">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <LibraryReference Include="Novolis.MSBuild.BuildReference" />
+    <BuildReference Include="Novolis.Avalonia.Packaging.Inno" />
     <LibraryReference Include="Novolis.Avalonia.StarMap" />
     <LibraryReference Include="Novolis.Avalonia.Studio" />
     <PackageReference Include="MessagePack" />
