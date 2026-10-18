@@ -57,7 +57,7 @@ public sealed class AndroidNmuleNetworkGate : INmuleNetworkGate
             var capabilities = _connectivity.GetNetworkCapabilities(activeNetwork);
             if (capabilities is null
                 || !capabilities.HasTransport(
-                    NetworkCapabilities.TransportType.Vpn))
+                    TransportType.Vpn))
             {
                 return ValueTask.FromResult(
                     NmuleNetworkPolicy.Evaluate(
