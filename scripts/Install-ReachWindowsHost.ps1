@@ -29,32 +29,41 @@ function Add-OrUpdateFirewallRule {
         [Parameter(Mandatory)][string[]]$LocalPort
     )
 
-    $rule = Get-NetFirewallRule `
-        -DisplayName $DisplayName `
-        -ErrorAction SilentlyContinue
-    if ($rule) {
-        Set-NetFirewallRule `
-            -DisplayName $DisplayName `
-            -Enabled True `
-            -Action Allow `
-            -Profile Any `
-            -RemoteAddress $RemoteAddress
-        Set-NetFirewallPortFilter `
-            -AssociatedNetFirewallRule $rule `
-            -Protocol $Protocol `
-            -LocalPort ($LocalPort -join ',') | Out-Null
-        return
-    }
+    $ports = @($LocalPort | ForEach-Object { [string]$_ })
+    for ($index = 0; $index -lt $ports.Count; $index++) {
+        $port = $ports[$index]
+        $ruleName = if ($index -eq 0) {
+            $DisplayName
+        }
+        else {
+            "$DisplayName $port"
+        }
 
-    New-NetFirewallRule `
-        -DisplayName $DisplayName `
-        -Direction Inbound `
-        -Action Allow `
-        -Enabled True `
-        -Profile Any `
-        -Protocol $Protocol `
-        -LocalPort $LocalPort `
-        -RemoteAddress $RemoteAddress | Out-Null
+        $rule = Get-NetFirewallRule `
+            -DisplayName $ruleName `
+            -ErrorAction SilentlyContinue
+        if ($rule) {
+            Set-NetFirewallRule `
+                -DisplayName $ruleName `
+                -Enabled True `
+                -Action Allow `
+                -Profile Any `
+                -Protocol $Protocol `
+                -LocalPort $port `
+                -RemoteAddress $RemoteAddress | Out-Null
+        }
+        else {
+            New-NetFirewallRule `
+                -DisplayName $ruleName `
+                -Direction Inbound `
+                -Action Allow `
+                -Enabled True `
+                -Profile Any `
+                -Protocol $Protocol `
+                -LocalPort $port `
+                -RemoteAddress $RemoteAddress | Out-Null
+        }
+    }
 }
 
 $root = [IO.Path]::GetFullPath($ApplicationRoot)
