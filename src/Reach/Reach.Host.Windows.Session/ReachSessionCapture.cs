@@ -9,6 +9,30 @@ namespace Novolis.Reach.Host.Windows.Session;
 
 internal sealed class ReachSessionCapture(ReachSessionHost host)
 {
+    internal void SetInitialVideoProfile(string? profile)
+    {
+        if (host._capture is not null
+            || GetSelectedMonitor() is not { } monitor)
+        {
+            return;
+        }
+
+        var kind = profile?.ToLowerInvariant() switch
+        {
+            "routed" => VideoAdaptiveProfileKind.Medium,
+            "constrained" => VideoAdaptiveProfileKind.Low,
+            _ => VideoAdaptiveProfileKind.High,
+        };
+        var initial = VideoAdaptiveProfile.ForSource(
+            monitor.Width,
+            monitor.Height,
+            kind);
+        host._targetWidth = initial.Width;
+        host._targetHeight = initial.Height;
+        host._framesPerSecond = initial.FramesPerSecond;
+        host._targetBitrate = initial.TargetBitrate;
+    }
+
     internal async Task StartAsync(CancellationToken cancellationToken)
     {
         if (host._capture is not null)

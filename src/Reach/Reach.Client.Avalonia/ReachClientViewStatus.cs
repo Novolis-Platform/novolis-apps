@@ -41,7 +41,19 @@ internal sealed class ReachClientViewStatus(ReachClientView view)
 
         internal void OnPhaseChanged(ReachConnectionPhase phase)
         {
-            void Apply() => view._sessionPhase.Text = $"Phase: {phase}";
+            void Apply()
+            {
+                view._sessionPhase.Text = $"Phase: {phase}";
+                view._sessionHeader.Text = phase switch
+                {
+                    ReachConnectionPhase.Disconnected => "Not connected",
+                    ReachConnectionPhase.Streaming => "Connected",
+                    ReachConnectionPhase.Reconnecting => "Reconnecting",
+                    ReachConnectionPhase.Degraded => "Recovering video",
+                    ReachConnectionPhase.Ended => "Session ended",
+                    _ => "Connecting",
+                };
+            }
             if (Dispatcher.UIThread.CheckAccess())
                 Apply();
             else
@@ -70,7 +82,8 @@ internal sealed class ReachClientViewStatus(ReachClientView view)
                     + $"drops: {snapshot.DroppedFrames}; "
                     + $"keyframes: {snapshot.KeyFrameRequests}";
                 view._performanceStatus.IsVisible =
-                    (OperatingSystem.IsAndroid() || OperatingSystem.IsWindows())
+                    view._diagnosticsVisible
+                    && (OperatingSystem.IsAndroid() || OperatingSystem.IsWindows())
                     && snapshot.ReceivedFrames > 0;
             }
 
@@ -102,6 +115,7 @@ internal sealed class ReachClientViewStatus(ReachClientView view)
 
         internal void SetConnectedStatus(bool reconnected = false)
         {
+            view.SetSessionSurface(true);
             if (view._session.State == ReachClientConnectionState.Streaming
                 && view._session.LastVideoFrameAt is not null)
             {
@@ -138,11 +152,16 @@ internal sealed class ReachClientViewStatus(ReachClientView view)
         {
             void Apply()
             {
-                view._connect.Content = state is ReachClientConnectionState.Lost
-                    or ReachClientConnectionState.Connected
+                view._connect.Content = "Connect";
+                view._disconnect.Content = state is
+                    ReachClientConnectionState.Connected
                     or ReachClientConnectionState.Streaming
-                    ? "Reconnect"
-                    : "Connect";
+                    ? "Disconnect"
+                    : state is ReachClientConnectionState.Lost
+                        ? "Reconnect"
+                    : "Cancel";
+                if (state is not ReachClientConnectionState.Disconnected)
+                    view.SetSessionSurface(true);
                 view.UpdateConnectionControls();
             }
 
@@ -157,6 +176,8 @@ internal sealed class ReachClientViewStatus(ReachClientView view)
             view.ReleasePressedKeys();
             view._sessionEnded = true;
             view.ClearVideoFrame();
+            view.SetSessionSurface(true);
+            view._disconnect.Content = "Back";
             view.OnStatusChanged($"Remote session ended: {reason}");
         }
 

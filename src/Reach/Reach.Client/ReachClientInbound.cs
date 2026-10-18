@@ -76,6 +76,7 @@ internal sealed class ReachClientInbound(ReachClientSession session)
                 Interlocked.Exchange(
                     ref session._lastVideoFrameTicks,
                     DateTimeOffset.UtcNow.UtcTicks);
+                Interlocked.Exchange(ref session._mediaStallSignaled, 0);
                 session._performance.RecordReceived(
                     video.AccessUnit.Length,
                     video.Timestamp);

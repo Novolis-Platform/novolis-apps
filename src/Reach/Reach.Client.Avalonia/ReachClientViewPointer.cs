@@ -280,6 +280,23 @@ internal sealed class ReachClientViewPointer(ReachClientView view)
         internal void ApplyVideoTransform(double zoom, double panX, double panY) =>
             ReachClientViewTransform.Apply(view, zoom, panX, panY);
 
+        internal void FitVideoToScreen()
+        {
+            view.ApplyVideoTransform(1, 0, 0);
+            view.OnStatusChanged("Video fitted to screen.");
+        }
+
+        internal void ResetVideoZoom()
+        {
+            view.CancelTouchLongPress();
+            view._touchPoints.Clear();
+            view._touchGestureActive = false;
+            view._touchRemoteButtonDown = false;
+            view._videoZoom = 1;
+            view.ApplyVideoTransform(1, 0, 0);
+            view.OnStatusChanged("Zoom reset.");
+        }
+
         internal void ResetVideoPanIfUnzoomed() =>
             ReachClientViewTransform.ResetPanIfUnzoomed(view);
 

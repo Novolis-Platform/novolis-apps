@@ -23,6 +23,10 @@ public sealed class ReachAndroidTimelineTests
         Skip.Unless(
             apk is not null,
             "Set NOVOLIS_REACH_UI_ANDROID_APK to a built Reach Android APK.");
+        var endpoint = ReachUiTestHarness.TryResolveAndroidEndpoint();
+        Skip.Unless(
+            !string.IsNullOrWhiteSpace(endpoint),
+            $"Set {ReachUiTestHarness.AndroidEndpointEnvironmentVariable} or {ReachUiTestHarness.EndpointEnvironmentVariable} to a reachable Reach host.");
 
         var recorder = ReachTimelineRecorder.Create();
         var logger = new SimpleTestLogger<ReachAndroidTimelineTests>(
@@ -49,91 +53,109 @@ public sealed class ReachAndroidTimelineTests
                     })
                 .ConfigureAwait(false);
 
-            var endpoint = ReachUiTestHarness.TryResolveAndroidEndpoint();
-            if (!string.IsNullOrWhiteSpace(endpoint))
-            {
-                var endpointInput = session.Driver.FindElement(
-                    MobileBy.AccessibilityId("ReachEndpoint"));
-                endpointInput.Click();
-                endpointInput.Clear();
-                endpointInput.SendKeys(endpoint);
-                await recorder.CaptureAsync(
-                        "android-endpoint-entered",
-                        "The Android controller accepts the same trusted private-network endpoint.",
-                        path => SaveScreenshotAsync(session.Driver, path))
-                    .ConfigureAwait(false);
+            var endpointInput = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachEndpoint"));
+            endpointInput.Click();
+            endpointInput.Clear();
+            endpointInput.SendKeys(endpoint!);
+            await recorder.CaptureAsync(
+                    "android-endpoint-entered",
+                    "The Android controller accepts the same trusted private-network endpoint.",
+                    path => SaveScreenshotAsync(session.Driver, path))
+                .ConfigureAwait(false);
 
-                var connect = session.Driver.FindElement(
-                    MobileBy.AccessibilityId("ReachConnect"));
-                await Assert.That(connect.Enabled).IsTrue();
-                var firstFrameStart = Stopwatch.GetTimestamp();
-                connect.Click();
-                await ReachAppiumAssertions.WaitForTextAsync(
-                        session.Driver,
-                        "ReachSessionPhase",
-                        text => text.Contains(
-                            "Streaming",
-                            StringComparison.OrdinalIgnoreCase),
-                        TimeSpan.FromSeconds(60))
-                    .ConfigureAwait(false);
-                var firstFrameElapsed = Stopwatch.GetElapsedTime(firstFrameStart);
-                recorder.Record(
-                    "android-to-windows",
-                    "passed",
-                    "The Android client reached a streaming session on the configured Windows host.");
-                recorder.RecordTelemetry(
-                    "android-to-windows-first-frame",
-                    new
-                    {
-                        elapsedMilliseconds = firstFrameElapsed.TotalMilliseconds,
-                        budgetMilliseconds = 60_000,
-                        endpoint,
-                    });
-                await Assert.That(firstFrameElapsed)
-                    .IsLessThan(TimeSpan.FromSeconds(60));
-                await recorder.CaptureAsync(
-                        "android-streaming-session",
-                        "Android is receiving the Windows host session and exposes the negotiated client surface.",
-                        path => SaveScreenshotAsync(session.Driver, path),
-                        new Dictionary<string, object?>
-                        {
-                            ["platform"] = "Android",
-                            ["phase"] = ReachAppiumAssertions.ReadText(
-                                session.Driver,
-                                "ReachSessionPhase"),
-                            ["capabilities"] = ReachAppiumAssertions.ReadText(
-                                session.Driver,
-                                "ReachCapabilities"),
-                        })
-                    .ConfigureAwait(false);
-
-                var capabilities = ReachAppiumAssertions.ReadText(
+            var connect = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachConnect"));
+            await Assert.That(connect.Enabled).IsTrue();
+            var firstFrameStart = Stopwatch.GetTimestamp();
+            connect.Click();
+            var firstFrameBudget = TimeSpan.FromSeconds(2);
+            await ReachAppiumAssertions.WaitForTextAsync(
                     session.Driver,
-                    "ReachCapabilities");
-                recorder.Record(
-                    "android-capabilities",
-                    capabilities.Contains(
-                        "Clipboard",
-                        StringComparison.OrdinalIgnoreCase)
-                        ? "passed"
-                        : "not-negotiated",
-                    "Android reports the capabilities negotiated with the Windows host.");
-                TestContext.Current?.WriteJson(new
+                    "ReachStatus",
+                    text => text.Contains(
+                        "Streaming remote session",
+                        StringComparison.OrdinalIgnoreCase),
+                    TimeSpan.FromSeconds(15))
+                .ConfigureAwait(false);
+            var firstFrameElapsed = Stopwatch.GetElapsedTime(firstFrameStart);
+            recorder.Record(
+                "android-to-windows",
+                "passed",
+                "The Android client reached a streaming session on the configured Windows host.");
+            recorder.RecordTelemetry(
+                "android-to-windows-first-frame",
+                new
                 {
-                    recorder.ArtifactDirectory,
-                    platform = "Android",
+                    elapsedMilliseconds = firstFrameElapsed.TotalMilliseconds,
+                    budgetMilliseconds = firstFrameBudget.TotalMilliseconds,
                     endpoint,
-                    firstFrameElapsed.TotalMilliseconds,
-                    capabilities,
                 });
-            }
-            else
+            await Assert.That(firstFrameElapsed)
+                .IsLessThan(firstFrameBudget);
+            await recorder.CaptureAsync(
+                    "android-streaming-session",
+                    "Android is receiving the Windows host session and exposes the negotiated client surface.",
+                    path => SaveScreenshotAsync(session.Driver, path),
+                    new Dictionary<string, object?>
+                    {
+                        ["platform"] = "Android",
+                        ["phase"] = ReachAppiumAssertions.ReadText(
+                            session.Driver,
+                            "ReachSessionPhase"),
+                        ["capabilities"] = ReachAppiumAssertions.ReadText(
+                            session.Driver,
+                            "ReachCapabilities"),
+                    })
+                .ConfigureAwait(false);
+
+            var capabilities = ReachAppiumAssertions.ReadText(
+                session.Driver,
+                "ReachCapabilities");
+            recorder.Record(
+                "android-capabilities",
+                capabilities.Contains(
+                    "Clipboard",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "passed"
+                    : "not-negotiated",
+                "Android reports the capabilities negotiated with the Windows host.");
+
+            var keyboard = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachKeyboard"));
+            keyboard.Click();
+            await Assert.That(keyboard.Text).IsEqualTo("Hide keyboard");
+            var keyboardInput = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachRemoteTextInput"));
+            await Assert.That(keyboardInput.Displayed).IsTrue();
+            keyboardInput.SendKeys("Reach Android input");
+            keyboard.Click();
+            var scrollMode = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachScrollMode"));
+            scrollMode.Click();
+            scrollMode.Click();
+            session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachFitToScreen")).Click();
+            session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachResetZoom")).Click();
+            var disconnect = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachDisconnect"));
+            await Assert.That(disconnect.Enabled).IsTrue();
+            disconnect.Click();
+            await Task.Delay(500).ConfigureAwait(false);
+            await Assert.That(
+                    session.Driver.FindElement(
+                        MobileBy.AccessibilityId("ReachLauncher")).Displayed)
+                .IsTrue();
+
+            TestContext.Current?.WriteJson(new
             {
-                recorder.Record(
-                    "android-endpoint",
-                    "skipped",
-                    "Set NOVOLIS_REACH_UI_ENDPOINT to capture Android endpoint-entry evidence.");
-            }
+                recorder.ArtifactDirectory,
+                platform = "Android",
+                endpoint,
+                firstFrameElapsed.TotalMilliseconds,
+                capabilities,
+            });
 
             TestContext.Current?.WriteJson(new
             {

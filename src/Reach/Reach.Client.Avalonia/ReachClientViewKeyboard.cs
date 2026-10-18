@@ -13,33 +13,31 @@ namespace Novolis.Avalonia.Reach;
 
 internal sealed class ReachClientViewKeyboard(ReachClientView view)
 {
-        internal void SendTextClicked(
-            object? sender,
-            RoutedEventArgs args)
-        {
-            SendRemoteText();
-            view._remoteTextInput.Focus();
-        }
-
         internal void KeyboardToggleClicked(
             object? sender,
             RoutedEventArgs args)
         {
             view._keyboardMode = !view._keyboardMode;
-            view._remoteTextInput.IsVisible = view._keyboardMode;
-            view._sendText.IsVisible = view._keyboardMode;
             view._keyboardToggle.Content = view._keyboardMode
                 ? "Hide keyboard"
                 : "Keyboard";
             if (view._keyboardMode)
             {
-                view._remoteTextInput.Focus();
-                view._remoteTextInput.SelectAll();
-                view.OnStatusChanged(
-                    "Keyboard mode active. Type, compose, then press Send.");
+                view._keyboardInput.Text = string.Empty;
+                view._keyboardInput.Focus();
+                Dispatcher.UIThread.Post(
+                    () =>
+                    {
+                        if (view._keyboardMode)
+                            view._keyboardInput.Focus();
+                    },
+                    DispatcherPriority.Input);
+                view.OnStatusChanged("Keyboard active.");
             }
             else
             {
+                ReleasePressedKeys();
+                view._keyboardInput.Text = string.Empty;
                 view._videoSurface.Focus();
                 view.OnStatusChanged("Remote surface focused.");
             }
@@ -59,28 +57,42 @@ internal sealed class ReachClientViewKeyboard(ReachClientView view)
                     : "Two-finger pan and pinch are active.");
         }
 
-        internal void RemoteTextKeyDown(object? sender, KeyEventArgs args)
+        internal void OnKeyboardInputKeyDown(
+            object? sender,
+            KeyEventArgs args) =>
+            OnKeyDown(args);
+
+        internal void OnKeyboardInputKeyUp(
+            object? sender,
+            KeyEventArgs args) =>
+            OnKeyUp(args);
+
+        internal void OnKeyboardInputTextInput(
+            object? sender,
+            TextInputEventArgs args) =>
+            OnTextInput(args);
+
+        internal void OnVideoKeyDown(
+            object? sender,
+            KeyEventArgs args) =>
+            OnKeyDown(args);
+
+        internal void OnVideoKeyUp(
+            object? sender,
+            KeyEventArgs args) =>
+            OnKeyUp(args);
+
+        internal void OnVideoTextInput(
+            object? sender,
+            TextInputEventArgs args) =>
+            OnTextInput(args);
+
+        private void OnKeyDown(KeyEventArgs args)
         {
-            if (args.Key != Key.Return)
-                return;
-
-            SendRemoteText();
-            args.Handled = true;
-        }
-
-        internal void SendRemoteText()
-        {
-            var text = view._remoteTextInput.Text;
-            if (string.IsNullOrEmpty(text))
-                return;
-
-            view.QueueInput(() => view._session.SendTextInputAsync(text));
-            view._remoteTextInput.Clear();
-        }
-
-        internal void OnVideoKeyDown(object? sender, KeyEventArgs args)
-        {
-            var shortcutModifiers = KeyModifiers.Control | KeyModifiers.Alt;
+            var shortcutModifiers =
+                KeyModifiers.Control
+                | KeyModifiers.Alt
+                | KeyModifiers.Meta;
             if (ReachClientKeyMap.IsPrintable(args.Key)
                 && (args.KeyModifiers & shortcutModifiers) == KeyModifiers.None)
                 return;
@@ -96,7 +108,7 @@ internal sealed class ReachClientViewKeyboard(ReachClientView view)
             args.Handled = true;
         }
 
-        internal void OnVideoKeyUp(object? sender, KeyEventArgs args)
+        private void OnKeyUp(KeyEventArgs args)
         {
             if (!view._pressedKeys.TryRelease(args.Key))
                 return;
@@ -110,7 +122,7 @@ internal sealed class ReachClientViewKeyboard(ReachClientView view)
             args.Handled = true;
         }
 
-        internal void OnVideoTextInput(object? sender, TextInputEventArgs args)
+        private void OnTextInput(TextInputEventArgs args)
         {
             if (args.Text is not { Length: > 0 })
                 return;

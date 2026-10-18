@@ -42,4 +42,5 @@ public enum ReachMessageType
     LatencyProbe,
     LatencyResponse,
     SharingState,
+    DatagramFallback,
 }

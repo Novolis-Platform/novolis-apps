@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Novolis.Avalonia.Video;
 using Novolis.Reach.Client;
 using Novolis.Video;
@@ -29,9 +30,15 @@ public sealed class ReachClientView : UserControl
     internal TextBlock _capabilities = null!;
     internal TextBlock _sessionPhase = null!;
     internal TextBlock _performanceStatus = null!;
+    internal TextBlock _sessionHeader = null!;
+    internal Panel _launcherPanel = null!;
+    internal Panel _sessionPanel = null!;
     internal ListBox _discoveredHosts = null!;
     internal Button _discover = null!;
     internal Button _connect = null!;
+    internal Button _disconnect = null!;
+    internal Button _fullscreen = null!;
+    internal Button _diagnosticsToggle = null!;
     internal ComboBox _displaySelector = null!;
     internal Button _keyboardToggle = null!;
     internal Button _fitToScreen = null!;
@@ -40,13 +47,13 @@ public sealed class ReachClientView : UserControl
     internal StackPanel _sessionToolbar = null!;
     internal VideoSurface _videoImage = null!;
     internal Border _videoSurface = null!;
-    internal TextBox _remoteTextInput = null!;
-    internal Button _sendText = null!;
+    internal TextBox _keyboardInput = null!;
     internal Task _inputTail = Task.CompletedTask;
     internal Point? _pendingPointerMove;
     internal bool _pointerMoveQueued;
     internal int _videoWidth;
     internal int _videoHeight;
+    internal int _videoFramesPerSecond;
     internal int _selectedDisplayLeft;
     internal int _selectedDisplayTop;
     internal int _selectedDisplayWidth;
@@ -79,6 +86,9 @@ public sealed class ReachClientView : UserControl
     internal bool _sessionEnded;
     internal bool _displaySelectionUpdating;
     internal string? _selectedDisplayId;
+    internal bool _sessionSurfaceActive;
+    internal bool _diagnosticsVisible;
+    internal DispatcherTimer? _toolbarHideTimer;
 
     /// <summary>Creates the shared client surface.</summary>
     public ReachClientView(
@@ -148,6 +158,70 @@ public sealed class ReachClientView : UserControl
     internal void ConnectClicked(object? sender, RoutedEventArgs args) =>
         Connection.ConnectClicked(sender, args);
 
+    internal void DisconnectClicked(object? sender, RoutedEventArgs args)
+    {
+        if (_sessionEnded)
+        {
+            _sessionEnded = false;
+            ClearVideoFrame();
+            SetSessionSurface(false);
+            OnStatusChanged("Choose a host to connect.");
+            UpdateConnectionControls();
+            return;
+        }
+
+        if (_session.State == ReachClientConnectionState.Lost)
+        {
+            _ = ReconnectToEndpointAsync();
+            return;
+        }
+
+        _ = DisconnectAsync();
+    }
+
+    internal void FullscreenClicked(object? sender, RoutedEventArgs args)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window window)
+            return;
+
+        window.WindowState = window.WindowState == WindowState.FullScreen
+            ? WindowState.Normal
+            : WindowState.FullScreen;
+        _fullscreen.Content = window.WindowState == WindowState.FullScreen
+            ? "Windowed"
+            : "Fullscreen";
+    }
+
+    internal void ToggleDiagnosticsClicked(
+        object? sender,
+        RoutedEventArgs args)
+    {
+        _diagnosticsVisible = !_diagnosticsVisible;
+        _performanceStatus.IsVisible = _diagnosticsVisible
+            && _session.Performance.ReceivedFrames > 0;
+        _diagnosticsToggle.Content = _diagnosticsVisible
+            ? "Hide details"
+            : "Details";
+    }
+
+    internal async Task DisconnectAsync()
+    {
+        CancelReconnect();
+        ReleasePressedKeys();
+        try
+        {
+            await _session.DisconnectAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _sessionEnded = false;
+            ClearVideoFrame();
+            SetSessionSurface(false);
+            OnStatusChanged("Disconnected.");
+            UpdateConnectionControls();
+        }
+    }
+
     internal Task<bool> ConnectToEndpointAsync() => Connection.ConnectToEndpointAsync();
 
     internal Task<bool> ReconnectToEndpointAsync(
@@ -172,6 +246,56 @@ public sealed class ReachClientView : UserControl
 
     internal void OnSessionStateChanged(ReachClientConnectionState state) =>
         Status.OnSessionStateChanged(state);
+
+    internal void SetSessionSurface(bool active)
+    {
+        void Apply()
+        {
+            _sessionSurfaceActive = active;
+            _launcherPanel.IsVisible = !active;
+            _sessionPanel.IsVisible = active;
+            if (active)
+                ShowSessionToolbar();
+            else
+                StopToolbarAutoHide();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            Apply();
+        else
+            Dispatcher.UIThread.Post(Apply);
+    }
+
+    internal void ShowSessionToolbar()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        _sessionToolbar.IsVisible = true;
+        _toolbarHideTimer ??= new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(4),
+        };
+        _toolbarHideTimer.Stop();
+        _toolbarHideTimer.Tick -= HideSessionToolbar;
+        _toolbarHideTimer.Tick += HideSessionToolbar;
+        _toolbarHideTimer.Start();
+    }
+
+    internal void StopToolbarAutoHide()
+    {
+        _toolbarHideTimer?.Stop();
+        _sessionToolbar.IsVisible = true;
+    }
+
+    private void HideSessionToolbar(object? sender, EventArgs args)
+    {
+        if (_sessionToolbar.IsPointerOver)
+            return;
+
+        _sessionToolbar.IsVisible = false;
+        _toolbarHideTimer?.Stop();
+    }
 
     internal void OnSessionEnded(string reason) => Status.OnSessionEnded(reason);
 
@@ -234,6 +358,10 @@ public sealed class ReachClientView : UserControl
     internal void ApplyVideoTransform(double zoom, double panX, double panY) =>
         Pointer.ApplyVideoTransform(zoom, panX, panY);
 
+    internal void FitVideoToScreen() => Pointer.FitVideoToScreen();
+
+    internal void ResetVideoZoom() => Pointer.ResetVideoZoom();
+
     internal void ResetVideoPanIfUnzoomed() => Pointer.ResetVideoPanIfUnzoomed();
 
     internal double Distance(Point first, Point second) =>
@@ -242,17 +370,20 @@ public sealed class ReachClientView : UserControl
     internal Point Midpoint(Point first, Point second) =>
         ReachClientViewPointer.Midpoint(first, second);
 
-    internal void SendTextClicked(object? sender, RoutedEventArgs args) =>
-        Keyboard.SendTextClicked(sender, args);
-
     internal void KeyboardToggleClicked(object? sender, RoutedEventArgs args) =>
         Keyboard.KeyboardToggleClicked(sender, args);
 
     internal void ScrollModeClicked(object? sender, RoutedEventArgs args) =>
         Keyboard.ScrollModeClicked(sender, args);
 
-    internal void RemoteTextKeyDown(object? sender, KeyEventArgs args) =>
-        Keyboard.RemoteTextKeyDown(sender, args);
+    internal void OnKeyboardInputKeyDown(object? sender, KeyEventArgs args) =>
+        Keyboard.OnKeyboardInputKeyDown(sender, args);
+
+    internal void OnKeyboardInputKeyUp(object? sender, KeyEventArgs args) =>
+        Keyboard.OnKeyboardInputKeyUp(sender, args);
+
+    internal void OnKeyboardInputTextInput(object? sender, TextInputEventArgs args) =>
+        Keyboard.OnKeyboardInputTextInput(sender, args);
 
     internal void OnVideoKeyDown(object? sender, KeyEventArgs args) =>
         Keyboard.OnVideoKeyDown(sender, args);

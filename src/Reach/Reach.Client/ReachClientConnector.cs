@@ -19,6 +19,8 @@ internal sealed class ReachClientConnector(ReachClientSession session)
             ?? (transportEndpoint.Address.Port == ReachProtocol.ControlPort
                 ? ReachProtocol.MediaPort
                 : checked(transportEndpoint.Address.Port + 1));
+        var initialVideoProfile = ResolveInitialVideoProfile(
+            transportEndpoint.Address);
         Volatile.Write(ref session._disconnectRequested, 0);
         Volatile.Write(ref session._remoteSessionEnded, 0);
         session.SetState(ReachClientConnectionState.Connecting);
@@ -85,7 +87,11 @@ internal sealed class ReachClientConnector(ReachClientSession session)
 
         try
         {
-            await NegotiateAsync(platform, clientName, cancellationToken)
+            await NegotiateAsync(
+                    platform,
+                    clientName,
+                    initialVideoProfile,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         catch
@@ -129,6 +135,7 @@ internal sealed class ReachClientConnector(ReachClientSession session)
     private async Task NegotiateAsync(
         ReachPlatform platform,
         string clientName,
+        string initialVideoProfile,
         CancellationToken cancellationToken)
     {
         await session.SendAsync(
@@ -174,7 +181,8 @@ internal sealed class ReachClientConnector(ReachClientSession session)
                     new ReachSessionOpen(
                         session._sessionId,
                         string.Empty,
-                        negotiatedCapabilities.Supports(ReachCapability.Audio)),
+                        negotiatedCapabilities.Supports(ReachCapability.Audio),
+                        initialVideoProfile),
                     cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -185,7 +193,8 @@ internal sealed class ReachClientConnector(ReachClientSession session)
                     new ReachSessionResume(
                         session._sessionId,
                         session._lastVideoSequence,
-                        negotiatedCapabilities.Supports(ReachCapability.Audio)),
+                        negotiatedCapabilities.Supports(ReachCapability.Audio),
+                        initialVideoProfile),
                     cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -218,6 +227,14 @@ internal sealed class ReachClientConnector(ReachClientSession session)
         await session.RequestKeyFrameAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    private static string ResolveInitialVideoProfile(
+        System.Net.IPEndPoint endpoint) =>
+        endpoint.Address.ToString().StartsWith(
+            "100.",
+            StringComparison.Ordinal)
+            ? "routed"
+            : "lan";
+
     private async Task ProbeLatencyLoopAsync(CancellationToken cancellationToken)
     {
         try
@@ -228,6 +245,19 @@ internal sealed class ReachClientConnector(ReachClientSession session)
             {
                 if (!session.IsConnected)
                     return;
+
+                if (session.State == ReachClientConnectionState.Streaming
+                    && session.LastVideoFrameAt is { } lastFrame
+                    && DateTimeOffset.UtcNow - lastFrame
+                        > TimeSpan.FromSeconds(3)
+                    && Interlocked.Exchange(
+                        ref session._mediaStallSignaled,
+                        1) == 0)
+                {
+                    session.SetState(ReachClientConnectionState.Connected);
+                    session.SetPhase(ReachConnectionPhase.Degraded);
+                    session.RaiseMediaConnectionLost();
+                }
 
                 var probe = new ReachLatencyProbe(
                     Interlocked.Increment(ref session._sequence),

@@ -19,6 +19,7 @@ internal sealed class ReachSessionControl(ReachSessionHost host)
                 host._selectedDisplayId = "display-0";
                 host.SelectDisplay(open.RequestedDisplayId);
                 host._audioEnabled = open.EnableAudio;
+                host.Capture.SetInitialVideoProfile(open.InitialVideoProfile);
                 if (host._capture is null)
                     await host.Capture.StartAsync(cancellationToken).ConfigureAwait(false);
                 else
@@ -29,6 +30,7 @@ internal sealed class ReachSessionControl(ReachSessionHost host)
             {
                 var resume = ReachMessageCodec.ReadBody<ReachSessionResume>(envelope);
                 host._audioEnabled = resume.EnableAudio;
+                host.Capture.SetInitialVideoProfile(resume.InitialVideoProfile);
                 if (host._capture is null)
                     await host.Capture.StartAsync(cancellationToken).ConfigureAwait(false);
                 else

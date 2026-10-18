@@ -459,7 +459,7 @@
         "allowBackup": false,
         "usesCleartextTraffic": false,
         "permissionAllowlist": ["android.permission.INTERNET"],
-        "networkPolicy": "tailscale-only"
+        "networkPolicy": "trusted-lan-and-tailscale"
       },
       "linux": {
         "project": "src/Reach/Reach.Client.Linux/Reach.Client.Linux.csproj",

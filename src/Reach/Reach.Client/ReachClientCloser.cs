@@ -117,6 +117,8 @@ internal sealed class ReachClientCloser(ReachClientSession session)
             Interlocked.Exchange(ref session._lastVideoSequence, 0);
         Interlocked.Exchange(ref session._lastVideoFrameTicks, 0);
         Interlocked.Exchange(ref session._lastDatagramSequence, -1);
+        Interlocked.Exchange(ref session._datagramFallbackRequested, 0);
+        Interlocked.Exchange(ref session._mediaStallSignaled, 0);
         Volatile.Write(ref session._remoteSessionEnded, 0);
         session.SetState(ReachClientConnectionState.Disconnected);
         session.SetPhase(ReachConnectionPhase.Disconnected);
@@ -171,9 +173,10 @@ internal sealed class ReachClientCloser(ReachClientSession session)
         }
 
         session.NegotiatedCapabilities = null;
-        Interlocked.Exchange(ref session._lastVideoSequence, 0);
         Interlocked.Exchange(ref session._lastVideoFrameTicks, 0);
         Interlocked.Exchange(ref session._lastDatagramSequence, -1);
+        Interlocked.Exchange(ref session._datagramFallbackRequested, 0);
+        Interlocked.Exchange(ref session._mediaStallSignaled, 0);
         owner.Dispose();
         mediaOwner?.Dispose();
         session.SetState(ReachClientConnectionState.Lost);

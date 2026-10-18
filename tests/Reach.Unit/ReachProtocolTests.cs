@@ -167,6 +167,43 @@ public sealed class ReachProtocolTests
     }
 
     [Test]
+    public async Task SessionOpenCarriesInitialVideoProfileWithoutChangingLegacyFields()
+    {
+        var sessionId = Guid.NewGuid();
+        var bytes = ReachMessageCodec.Serialize(
+            ReachMessageType.SessionOpen,
+            sequence: 11,
+            new ReachSessionOpen(
+                sessionId,
+                string.Empty,
+                EnableAudio: false,
+                InitialVideoProfile: "routed"));
+
+        var open = ReachMessageCodec.ReadBody<ReachSessionOpen>(
+            ReachMessageCodec.Deserialize(bytes));
+
+        await Assert.That(open.SessionId).IsEqualTo(sessionId);
+        await Assert.That(open.EnableAudio).IsFalse();
+        await Assert.That(open.InitialVideoProfile).IsEqualTo("routed");
+        await Assert.That(new ReachSessionOpen(sessionId, string.Empty).InitialVideoProfile)
+            .IsEqualTo("lan");
+    }
+
+    [Test]
+    public async Task DatagramFallbackCarriesReliablePathReason()
+    {
+        var bytes = ReachMessageCodec.Serialize(
+            ReachMessageType.DatagramFallback,
+            sequence: 12,
+            new ReachDatagramFallback("UDP media liveness timeout."));
+
+        var fallback = ReachMessageCodec.ReadBody<ReachDatagramFallback>(
+            ReachMessageCodec.Deserialize(bytes));
+
+        await Assert.That(fallback.Reason).IsEqualTo("UDP media liveness timeout.");
+    }
+
+    [Test]
     public async Task SessionStateMachineAcceptsOpenAndResume()
     {
         var machine = new ReachSessionStateMachine();

@@ -40,6 +40,9 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
                 view._videoScale.ScaleY = 1;
                 view._videoTranslation.X = 0;
                 view._videoTranslation.Y = 0;
+                view._keyboardMode = false;
+                view._keyboardToggle.Content = "Keyboard";
+                view._keyboardInput.Text = string.Empty;
                 if (view._presenter is IReachVideoStreamResetter streamResetter)
                     streamResetter.ResetStream();
             }
@@ -58,12 +61,18 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
                 {
                     view._connect.Content = "Cancel";
                     view._connect.IsEnabled = true;
+                    view._disconnect.Content = "Cancel";
+                    view._disconnect.IsEnabled = true;
                     return;
                 }
 
                 view._connect.IsEnabled = !view._discoveryActive
                     && !string.IsNullOrWhiteSpace(view._endpoint.Text)
                     && view._session.State is not ReachClientConnectionState.Connecting;
+                view._disconnect.IsEnabled =
+                    view._session.State is ReachClientConnectionState.Connected
+                    or ReachClientConnectionState.Streaming
+                    or ReachClientConnectionState.Lost;
             }
 
             if (Dispatcher.UIThread.CheckAccess())
@@ -150,6 +159,7 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
                 view._videoImage.Clear();
                 view._videoWidth = 0;
                 view._videoHeight = 0;
+                view._videoFramesPerSecond = 0;
                 view._platformVideoConfigured = false;
                 view._videoProfileController = null;
                 view._activeVideoProfile = null;
@@ -230,18 +240,13 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
             if ((OperatingSystem.IsAndroid() || OperatingSystem.IsWindows())
                 && !view._platformVideoConfigured)
             {
-                view._platformVideoConfigured = true;
                 view._videoProfileController = new ReachVideoProfileController(
                     display,
                     ResolveInitialVideoProfileKind(
                         Volatile.Read(ref view._endpointValue)));
                 var profile = view._videoProfileController.Current;
                 view._activeVideoProfile = profile;
-                view.QueueInput(() => view._session.ConfigureVideoAsync(
-                    profile.Width,
-                    profile.Height,
-                    profile.FramesPerSecond,
-                    profile.TargetBitrate));
+                ApplyInitialVideoProfileIfNeeded(view);
             }
         }
 
@@ -296,6 +301,36 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
                 view._videoWidth = stream.Width;
             if (stream.Height > 0)
                 view._videoHeight = stream.Height;
+            if (stream.FramesPerSecond > 0)
+                view._videoFramesPerSecond = stream.FramesPerSecond;
+            ApplyInitialVideoProfileIfNeeded(view);
+        }
+
+        private static void ApplyInitialVideoProfileIfNeeded(ReachClientView view)
+        {
+            if (view._platformVideoConfigured
+                || view._videoProfileController is not { } controller
+                || view._videoWidth <= 0
+                || view._videoHeight <= 0
+                || view._videoFramesPerSecond <= 0)
+            {
+                return;
+            }
+
+            var profile = controller.Current;
+            view._platformVideoConfigured = true;
+            if (profile.Width == view._videoWidth
+                && profile.Height == view._videoHeight
+                && profile.FramesPerSecond == view._videoFramesPerSecond)
+            {
+                return;
+            }
+
+            view.QueueInput(() => view._session.ConfigureVideoAsync(
+                profile.Width,
+                profile.Height,
+                profile.FramesPerSecond,
+                profile.TargetBitrate));
         }
 
         internal static ReachVideoProfileKind ResolveInitialVideoProfileKind(

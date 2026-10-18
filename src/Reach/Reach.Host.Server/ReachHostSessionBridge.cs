@@ -47,7 +47,8 @@ internal sealed class ReachHostSessionBridge(ReachHostRuntime runtime)
                             new ReachSessionOpen(
                                 pendingClient.SessionId,
                                 pendingClient.RequestedDisplayId,
-                                pendingClient.EnableAudio),
+                                pendingClient.EnableAudio,
+                                pendingClient.InitialVideoProfile),
                             cancellationToken)
                         .ConfigureAwait(false);
                 }

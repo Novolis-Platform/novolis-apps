@@ -10,6 +10,9 @@
     <RootNamespace>Novolis.Reach.Client.Android</RootNamespace>
     <AssemblyName>Novolis.Reach.Client.Android</AssemblyName>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidFastDeployment Condition="'$(Configuration)' == 'Release'">false</AndroidFastDeployment>
+    <EmbedAssembliesIntoApk Condition="'$(Configuration)' == 'Release'">true</EmbedAssembliesIntoApk>
+    <RunAOTCompilation Condition="'$(Configuration)' == 'Release'">false</RunAOTCompilation>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Reach.Client\Reach.Client.csproj" />

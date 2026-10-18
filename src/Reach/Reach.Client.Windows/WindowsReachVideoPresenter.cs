@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Threading.Channels;
 using Novolis.Reach.Client;
 using Novolis.Reach.Protocol;
 using Novolis.Video;
@@ -9,13 +10,34 @@ namespace Novolis.Reach.Client.Windows;
 /// <summary>Decodes the negotiated Windows H.264 stream for the Avalonia client.</summary>
 public sealed class WindowsReachVideoPresenter :
     IReachVideoPresenter,
-    IReachVideoPerformanceSource
+    IReachVideoPerformanceSource,
+    IReachKeyFrameRequester,
+    IReachVideoStreamResetter,
+    IReachVideoDropSource
 {
+    private readonly Channel<ReachVideoFrame> _frames =
+        Channel.CreateBounded<ReachVideoFrame>(
+            new BoundedChannelOptions(3)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = true,
+            });
+    private readonly CancellationTokenSource _decodeCancellation = new();
+    private readonly Task _decodeTask;
     private readonly object _gate = new();
     private WindowsH264Decoder? _decoder;
     private int _width;
     private int _height;
-    private bool _disposed;
+    private int _resetRequested;
+    private int _disposeStarted;
+    private int _keyFrameRequestSent;
+
+    /// <summary>Creates the latest-frame Windows decoder worker.</summary>
+    public WindowsReachVideoPresenter()
+    {
+        _decodeTask = DecodeLoopAsync(_decodeCancellation.Token);
+    }
 
     /// <inheritdoc />
     public event Action<RawVideoFrame>? FrameDecoded;
@@ -24,63 +46,165 @@ public sealed class WindowsReachVideoPresenter :
     public event Action<double>? DecodeCompleted;
 
     /// <inheritdoc />
+    public event Action? KeyFrameRequested;
+
+    /// <inheritdoc />
+    public event Action? FrameDropped;
+
+    /// <inheritdoc />
+    public void ResetStream()
+    {
+        lock (_gate)
+        {
+            if (Volatile.Read(ref _disposeStarted) != 0)
+                return;
+
+            while (_frames.Reader.TryRead(out _))
+            {
+            }
+
+            ResetDecoder();
+            Interlocked.Exchange(ref _resetRequested, 0);
+            Interlocked.Exchange(ref _keyFrameRequestSent, 0);
+        }
+    }
+
+    /// <inheritdoc />
     public void Present(ReachVideoFrame frame)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(
+            Volatile.Read(ref _disposeStarted) != 0,
+            this);
         if (!string.Equals(frame.Codec, "H264", StringComparison.OrdinalIgnoreCase))
             return;
 
-        RawVideoFrame decoded;
-        var decodeStart = Stopwatch.GetTimestamp();
-        lock (_gate)
-        {
-            if (_decoder is null || _width != frame.Width || _height != frame.Height)
-            {
-                _decoder?.Dispose();
-                _decoder = new WindowsH264Decoder(frame.Width, frame.Height);
-                _width = frame.Width;
-                _height = frame.Height;
-            }
+        if (_frames.Writer.TryWrite(frame))
+            return;
 
-            try
-            {
-                decoded = _decoder.Decode(
-                    new EncodedVideoFrame(
-                        frame.Width,
-                        frame.Height,
-                        frame.Timestamp,
-                        frame.AccessUnit,
-                        frame.IsKeyFrame,
-                        frame.Codec));
-            }
-            catch (InvalidOperationException)
-            {
-                // Decoder priming and an encoder-epoch transition can both
-                // produce an access unit without a presentable BGRA frame.
-                // Keep the control transport alive and wait for the next unit.
-                return;
-            }
+        while (_frames.Reader.TryRead(out _))
+        {
         }
 
-        DecodeCompleted?.Invoke(
-            Stopwatch.GetElapsedTime(decodeStart).TotalMilliseconds);
-        FrameDecoded?.Invoke(decoded);
+        FrameDropped?.Invoke();
+        Interlocked.Exchange(ref _resetRequested, 1);
+        RequestKeyFrame();
+        _frames.Writer.TryWrite(frame);
+    }
+
+    private async Task DecodeLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var frame in _frames.Reader.ReadAllAsync(cancellationToken))
+            {
+                if (Interlocked.Exchange(ref _resetRequested, 0) != 0)
+                    ResetStream();
+
+                RawVideoFrame? decoded = null;
+                var requestKeyFrame = false;
+                var decodeStart = Stopwatch.GetTimestamp();
+                lock (_gate)
+                {
+                    if (Volatile.Read(ref _disposeStarted) != 0)
+                        return;
+
+                    if (_decoder is null
+                        || _width != frame.Width
+                        || _height != frame.Height)
+                    {
+                        ResetDecoder();
+                        _decoder = new WindowsH264Decoder(
+                            frame.Width,
+                            frame.Height);
+                        _width = frame.Width;
+                        _height = frame.Height;
+                    }
+
+                    try
+                    {
+                        decoded = _decoder.Decode(
+                            new EncodedVideoFrame(
+                                frame.Width,
+                                frame.Height,
+                                frame.Timestamp,
+                                frame.AccessUnit,
+                                frame.IsKeyFrame,
+                                frame.Codec));
+                        if (frame.IsKeyFrame)
+                            Interlocked.Exchange(ref _keyFrameRequestSent, 0);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // A delta frame can arrive before the decoder has a
+                        // reference frame. Request an intra frame while
+                        // keeping control/input independent of decoding.
+                        if (frame.IsKeyFrame)
+                            ResetDecoder();
+                        requestKeyFrame =
+                            Interlocked.Exchange(
+                                ref _keyFrameRequestSent,
+                                1) == 0;
+                    }
+                }
+
+                if (requestKeyFrame)
+                    KeyFrameRequested?.Invoke();
+                if (decoded is null)
+                    continue;
+
+                DecodeCompleted?.Invoke(
+                    Stopwatch.GetElapsedTime(decodeStart).TotalMilliseconds);
+                FrameDecoded?.Invoke(decoded);
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            lock (_gate)
+                ResetDecoder();
+        }
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
             return;
 
-        lock (_gate)
+        _frames.Writer.TryComplete();
+        _decodeCancellation.Cancel();
+        try
         {
-            _disposed = true;
-            _decoder?.Dispose();
-            _decoder = null;
+            _decodeTask.GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException)
+        {
         }
 
+        _decodeCancellation.Dispose();
         FrameDecoded = null;
         DecodeCompleted = null;
+        KeyFrameRequested = null;
+        FrameDropped = null;
+    }
+
+    private void RequestKeyFrame()
+    {
+        if (Volatile.Read(ref _disposeStarted) != 0)
+            return;
+
+        if (Interlocked.Exchange(ref _keyFrameRequestSent, 1) == 0)
+            KeyFrameRequested?.Invoke();
+    }
+
+    private void ResetDecoder()
+    {
+        _decoder?.Dispose();
+        _decoder = null;
+        _width = 0;
+        _height = 0;
     }
 }

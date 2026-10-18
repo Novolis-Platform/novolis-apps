@@ -1,9 +1,8 @@
-using System.Text.Json;
-
 namespace Novolis.Reach.Protocol.Session;
 
 /// <summary>Opens a client session.</summary>
 public sealed record ReachSessionOpen(
     Guid SessionId,
     string RequestedDisplayId,
-    bool EnableAudio = false);
+    bool EnableAudio = false,
+    string InitialVideoProfile = "lan");

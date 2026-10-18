@@ -71,14 +71,11 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
 
                 view._discoveredHosts.ItemsSource = labels;
                 view._discoveredHosts.IsVisible = labels.Count > 0;
-                foreach (var host in hosts)
-                {
-                    view._endpoint.Text = host.Endpoint;
-                    if (await view.ConnectToEndpointAsync())
-                        return;
-                }
-
-                view._status.Text = $"Found {hosts.Count} Reach hosts, but none accepted a connection.";
+                view._endpoint.Text = hosts[0].Endpoint;
+                view._status.Text =
+                    $"Found {hosts.Count} Reach host"
+                    + (hosts.Count == 1 ? string.Empty : "s")
+                    + ". Select one, then Connect.";
             }
             catch (Exception exception)
             {
@@ -136,6 +133,7 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
             view._platformVideoConfigured = false;
             view._streamStatusShown = false;
             view.ResetStatusPriority();
+            view.SetSessionSurface(true);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             view._connectCancellation = timeout;
             try
@@ -158,11 +156,13 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
             }
             catch (OperationCanceledException) when (timeout.IsCancellationRequested)
             {
+                view.SetSessionSurface(false);
                 view.OnStatusChanged("Connection cancelled.");
                 return false;
             }
             catch (Exception exception)
             {
+                view.SetSessionSurface(false);
                 view.OnStatusChanged($"Connection failed: {exception.Message}");
                 return false;
             }
@@ -189,6 +189,7 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
             view._streamStatusShown = false;
             view.ResetStatusPriority();
             view.ClearVideoFrame();
+            view.SetSessionSurface(true);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(10));
@@ -206,6 +207,7 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
             catch (Exception exception)
             {
                 view.OnStatusChanged($"Reconnect failed: {exception.Message}");
+                view.SetSessionSurface(true);
                 return false;
             }
             finally

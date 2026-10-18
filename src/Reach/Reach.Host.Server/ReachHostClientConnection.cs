@@ -12,6 +12,7 @@ internal sealed class ReachHostClientConnection : IAsyncDisposable
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly ReachHostClientMedia _media;
     private int _disposeStarted;
+    private long _lastDatagramReofferAt;
 
     private ReachHostClientConnection(
         long id,
@@ -42,6 +43,7 @@ internal sealed class ReachHostClientConnection : IAsyncDisposable
     internal ReachCapabilities? Capabilities { get; set; }
     internal Guid SessionId { get; set; }
     internal string RequestedDisplayId { get; set; } = string.Empty;
+    internal string InitialVideoProfile { get; set; } = "lan";
     internal long LastVideoSequence { get; set; }
     internal bool EnableAudio { get; set; }
     internal bool SessionCloseForwarded { get; set; }
@@ -57,6 +59,20 @@ internal sealed class ReachHostClientConnection : IAsyncDisposable
         _media.AttachDatagram(channel, remoteEndpoint);
 
     internal void ClearDatagram() => _media.ClearDatagram();
+
+    internal bool TryAllowDatagramReoffer()
+    {
+        var now = Environment.TickCount64;
+        var last = Volatile.Read(ref _lastDatagramReofferAt);
+        if (last != 0 && now - last < 15_000)
+            return false;
+
+        return Interlocked.CompareExchange(
+                   ref _lastDatagramReofferAt,
+                   now,
+                   last)
+            == last;
+    }
 
     internal void AttachMediaStream(
         ITransportConnection owner,

@@ -111,6 +111,7 @@ internal sealed class ReachClientMediaChannel(ReachClientSession session)
             channel = null;
             Volatile.Write(ref session._datagramSession, sessionOffer);
             Volatile.Write(ref session._datagramEndpoint, remoteEndpoint);
+            Interlocked.Exchange(ref session._datagramFallbackRequested, 0);
             Volatile.Write(ref session._datagramReceiveCancellation, receiveCancellation);
             var receiveTask = Task.Run(
                 () => ReceiveDatagramLoopAsync(
@@ -162,8 +163,42 @@ internal sealed class ReachClientMediaChannel(ReachClientSession session)
             var reassembler = new ReachDatagramReassembler();
             while (!cancellationToken.IsCancellationRequested)
             {
-                var datagram = await channel.ReceiveAsync(cancellationToken)
-                    .ConfigureAwait(false);
+                TransportDatagram datagram;
+                try
+                {
+                    using var receiveTimeout =
+                        CancellationTokenSource.CreateLinkedTokenSource(
+                            cancellationToken);
+                    receiveTimeout.CancelAfter(TimeSpan.FromSeconds(3));
+                    datagram = await channel.ReceiveAsync(receiveTimeout.Token)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (
+                    !cancellationToken.IsCancellationRequested)
+                {
+                    if (session.Performance.ReceivedFrames > 0
+                        && await TryFallbackToReliableAsync().ConfigureAwait(false))
+                    {
+                        return;
+                    }
+
+                    continue;
+                }
+                /*
+                 * Keep the receive operation bounded even when a transport
+                 * implementation does not observe cancellation immediately.
+                 */
+                catch (TimeoutException)
+                {
+                    if (session.Performance.ReceivedFrames > 0
+                        && await TryFallbackToReliableAsync().ConfigureAwait(false))
+                    {
+                        return;
+                    }
+
+                    continue;
+                }
+
                 if (!ReachDatagramPacketCodec.TryDecodeData(
                         datagramSession,
                         datagram.Payload,
@@ -180,7 +215,11 @@ internal sealed class ReachClientMediaChannel(ReachClientSession session)
                     ref session._lastDatagramSequence,
                     fragment.Sequence);
                 if (previous >= 0 && fragment.Sequence > previous + 1)
+                {
+                    session.RaiseVideoStreamReset(
+                        new ReachVideoStreamReset(fragment.Sequence));
                     await RequestKeyFrameAfterGapAsync().ConfigureAwait(false);
+                }
 
                 if (!await session.Inbound.ProcessAsync(
                             ReachMessageCodec.Deserialize(payload))
@@ -216,10 +255,22 @@ internal sealed class ReachClientMediaChannel(ReachClientSession session)
                     owner))
             {
                 _ = Interlocked.Exchange(ref session._datagramReceiveTask, null);
-                Interlocked.Exchange(ref session._datagramChannel, null);
+                var channel = Interlocked.Exchange(
+                    ref session._datagramChannel,
+                    null);
                 Interlocked.Exchange(ref session._datagramSession, null);
                 Interlocked.Exchange(ref session._datagramEndpoint, null);
                 owner.Dispose();
+                if (channel is not null)
+                {
+                    try
+                    {
+                        await channel.DisposeAsync().ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                    }
+                }
                 if (session.IsConnected)
                     session.RaiseStatus(
                         "UDP media ended; the reliable fallback remains available.");
@@ -280,6 +331,41 @@ internal sealed class ReachClientMediaChannel(ReachClientSession session)
                 }
             }
         }
+    }
+
+    private async Task<bool> TryFallbackToReliableAsync()
+    {
+        if (Interlocked.Exchange(
+                ref session._datagramFallbackRequested,
+                1) != 0)
+        {
+            return true;
+        }
+
+        var supportsFallback =
+            session.NegotiatedCapabilities?.SupportsDatagramFallback == true;
+        session.RaiseStatus(
+            supportsFallback
+                ? "UDP media is stalled; switching to the reliable video path."
+                : "UDP media is stalled; reconnecting will be required.");
+        try
+        {
+            if (supportsFallback)
+            {
+                await ReachClientSends.DatagramFallback(
+                        session,
+                        "UDP media liveness timeout.",
+                        CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // The receive loop will still close the local UDP path. If the
+            // control channel is also unavailable, reconnect owns recovery.
+        }
+
+        return true;
     }
 
     private async Task RequestKeyFrameAfterGapAsync()

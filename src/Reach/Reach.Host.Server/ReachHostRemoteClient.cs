@@ -174,6 +174,21 @@ internal sealed class ReachHostRemoteClient(ReachHostRuntime runtime)
                         envelope,
                         cancellationToken)
                     .ConfigureAwait(false);
+            case ReachMessageType.DatagramFallback:
+            {
+                var fallback = ReachMessageCodec.ReadBody<ReachDatagramFallback>(
+                    envelope);
+                connection.ClearDatagram();
+                runtime.WriteLog(
+                    $"Client {connection.Id} requested reliable media fallback: "
+                    + fallback.Reason);
+                if (connection.Transport.Info.Kind == TransportKind.Quic
+                    && connection.TryAllowDatagramReoffer())
+                {
+                    _ = ReofferDatagramAsync(connection, cancellationToken);
+                }
+                return true;
+            }
             case ReachMessageType.FileOffer:
                 await runtime.Files.HandleOfferAsync(
                         connection,
@@ -236,6 +251,7 @@ internal sealed class ReachHostRemoteClient(ReachHostRuntime runtime)
             var open = ReachMessageCodec.ReadBody<ReachSessionOpen>(envelope);
             connection.SessionId = open.SessionId;
             connection.RequestedDisplayId = open.RequestedDisplayId;
+            connection.InitialVideoProfile = open.InitialVideoProfile;
             connection.EnableAudio = open.EnableAudio
                 && connection.Capabilities?.Supports(ReachCapability.Audio) == true;
             await OfferDatagramAsync(connection, cancellationToken)
@@ -251,6 +267,7 @@ internal sealed class ReachHostRemoteClient(ReachHostRuntime runtime)
             var resume = ReachMessageCodec.ReadBody<ReachSessionResume>(envelope);
             connection.SessionId = resume.SessionId;
             connection.LastVideoSequence = resume.LastVideoSequence;
+            connection.InitialVideoProfile = resume.InitialVideoProfile;
             connection.EnableAudio = resume.EnableAudio
                 && connection.Capabilities?.Supports(ReachCapability.Audio) == true;
             await OfferDatagramAsync(connection, cancellationToken)
@@ -265,5 +282,29 @@ internal sealed class ReachHostRemoteClient(ReachHostRuntime runtime)
         await runtime.Operator.SendSharingStateAsync(connection, cancellationToken)
             .ConfigureAwait(false);
         return true;
+    }
+
+    private async Task ReofferDatagramAsync(
+        ReachHostClientConnection connection,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken)
+                .ConfigureAwait(false);
+            if (connection.IsReady)
+                await OfferDatagramAsync(connection, cancellationToken)
+                    .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            runtime.WriteLog(
+                $"Could not re-offer UDP media to client {connection.Id}: "
+                + exception.Message);
+        }
     }
 }

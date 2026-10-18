@@ -30,6 +30,9 @@ public sealed class ReachClientSession : IAsyncDisposable
     internal long _lastVideoSequence;
     internal long _lastVideoFrameTicks;
     internal long _lastDatagramSequence = -1;
+    internal long _lastKeyFrameRequestAt;
+    internal int _datagramFallbackRequested;
+    internal int _mediaStallSignaled;
     internal int _disconnectRequested;
     internal int _remoteSessionEnded;
     internal int _state = (int)ReachClientConnectionState.Disconnected;

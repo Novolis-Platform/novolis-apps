@@ -97,63 +97,46 @@ public sealed class ReachWindowsTimelineTests
                     })
                 .ConfigureAwait(false);
 
-            var phaseBeforeManualEndpoint = ReachAppiumAssertions.ReadText(
-                session.Driver,
-                "ReachSessionPhase");
-            if (!phaseBeforeManualEndpoint.Contains(
-                    "Streaming",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                var endpointInput = session.Driver.FindElement(
-                    MobileBy.AccessibilityId("ReachEndpoint"));
-                endpointInput.Click();
-                endpointInput.Clear();
-                endpointInput.SendKeys(endpoint!);
-                await recorder.CaptureAsync(
-                        "endpoint-entered",
-                        "A trusted LAN or Tailscale endpoint is entered before starting the session.",
-                        path => SaveScreenshotAsync(session.Driver, path))
-                    .ConfigureAwait(false);
+            var endpointInput = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachEndpoint"));
+            endpointInput.Click();
+            endpointInput.Clear();
+            endpointInput.SendKeys(endpoint!);
+            await recorder.CaptureAsync(
+                    "endpoint-entered",
+                    "A trusted LAN or Tailscale endpoint is entered before starting the session.",
+                    path => SaveScreenshotAsync(session.Driver, path))
+                .ConfigureAwait(false);
 
-                var connect = session.Driver.FindElement(
-                    MobileBy.AccessibilityId("ReachConnect"));
-                await Assert.That(connect.Enabled).IsTrue();
-                var firstFrameStart = Stopwatch.GetTimestamp();
-                connect.Click();
-                await ReachAppiumAssertions.WaitForTextAsync(
-                        session.Driver,
-                        "ReachSessionPhase",
-                        text => text.Contains(
-                            "Streaming",
-                            StringComparison.OrdinalIgnoreCase),
-                        TimeSpan.FromSeconds(60))
-                    .ConfigureAwait(false);
-                var firstFrameElapsed = Stopwatch.GetElapsedTime(firstFrameStart);
-                recorder.RecordTelemetry(
-                    "time-to-first-frame",
-                    new
-                    {
-                        elapsedMilliseconds = firstFrameElapsed.TotalMilliseconds,
-                        budgetMilliseconds = 60_000,
-                        network = networkKind,
-                    });
-                await Assert.That(firstFrameElapsed)
-                    .IsLessThan(TimeSpan.FromSeconds(60));
-            }
-            else
-            {
-                recorder.Record(
-                    "first-frame",
-                    "discovery-connected",
-                    "Discovery connected to a host before the manual endpoint was entered.");
-                recorder.RecordTelemetry(
-                    "time-to-first-frame",
-                    new
-                    {
-                        status = "measured-before-timeline",
-                        network = networkKind,
-                    });
-            }
+            var connect = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachConnect"));
+            await Assert.That(connect.Enabled).IsTrue();
+            var firstFrameStart = Stopwatch.GetTimestamp();
+            connect.Click();
+            var firstFrameBudget = networkKind.Equals(
+                    "LAN",
+                    StringComparison.OrdinalIgnoreCase)
+                ? TimeSpan.FromSeconds(2)
+                : TimeSpan.FromSeconds(5);
+            await ReachAppiumAssertions.WaitForTextAsync(
+                    session.Driver,
+                    "ReachStatus",
+                    text => text.Contains(
+                        "Streaming remote session",
+                        StringComparison.OrdinalIgnoreCase),
+                    TimeSpan.FromSeconds(15))
+                .ConfigureAwait(false);
+            var firstFrameElapsed = Stopwatch.GetElapsedTime(firstFrameStart);
+            recorder.RecordTelemetry(
+                "time-to-first-frame",
+                new
+                {
+                    elapsedMilliseconds = firstFrameElapsed.TotalMilliseconds,
+                        budgetMilliseconds = firstFrameBudget.TotalMilliseconds,
+                    network = networkKind,
+                });
+            await Assert.That(firstFrameElapsed)
+                .IsLessThan(firstFrameBudget);
 
             await ReachAppiumAssertions.WaitForTextAsync(
                     session.Driver,
@@ -172,6 +155,18 @@ public sealed class ReachWindowsTimelineTests
                     "streaming-session",
                     "The session is streaming and the client exposes its negotiated capabilities.",
                     path => SaveScreenshotAsync(session.Driver, path))
+                .ConfigureAwait(false);
+
+            var diagnostics = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachDiagnostics"));
+            diagnostics.Click();
+            await ReachAppiumAssertions.WaitForTextAsync(
+                    session.Driver,
+                    "ReachPerformance",
+                    text => text.Contains(
+                        "Transport",
+                        StringComparison.OrdinalIgnoreCase),
+                    TimeSpan.FromSeconds(5))
                 .ConfigureAwait(false);
 
             var capabilities = ReachAppiumAssertions.ReadText(
@@ -353,6 +348,16 @@ public sealed class ReachWindowsTimelineTests
                     "The run ends with a connected session, negotiated quality, and the selected monitor surface visible.",
                     path => SaveScreenshotAsync(session.Driver, path))
                 .ConfigureAwait(false);
+
+            var disconnect = session.Driver.FindElement(
+                MobileBy.AccessibilityId("ReachDisconnect"));
+            await Assert.That(disconnect.Enabled).IsTrue();
+            disconnect.Click();
+            await Task.Delay(500).ConfigureAwait(false);
+            await Assert.That(
+                    session.Driver.FindElement(
+                        MobileBy.AccessibilityId("ReachLauncher")).Displayed)
+                .IsTrue();
         }
         catch (Exception exception)
         {

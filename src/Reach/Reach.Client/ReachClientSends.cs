@@ -2,6 +2,8 @@ namespace Novolis.Reach.Client;
 
 internal static class ReachClientSends
 {
+    private const long KeyFrameRequestCooldownMilliseconds = 750;
+
     internal static Task ClipboardText(
         ReachClientSession session,
         string text,
@@ -98,10 +100,35 @@ internal static class ReachClientSends
             new ReachDisplaySelect(displayId),
             cancellationToken);
 
+    internal static Task DatagramFallback(
+        ReachClientSession session,
+        string reason,
+        CancellationToken cancellationToken) =>
+        session.SendAsync(
+            ReachMessageType.DatagramFallback,
+            new ReachDatagramFallback(reason),
+            cancellationToken);
+
     internal static async Task RequestKeyFrame(
         ReachClientSession session,
         CancellationToken cancellationToken)
     {
+        var now = Environment.TickCount64;
+        var last = Volatile.Read(ref session._lastKeyFrameRequestAt);
+        if (last != 0
+            && now - last < KeyFrameRequestCooldownMilliseconds)
+        {
+            return;
+        }
+
+        if (Interlocked.CompareExchange(
+                ref session._lastKeyFrameRequestAt,
+                now,
+                last) != last)
+        {
+            return;
+        }
+
         session._performance.RecordKeyFrameRequest();
         session.RaisePerformanceChanged();
         await session.SendAsync(

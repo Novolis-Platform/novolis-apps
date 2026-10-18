@@ -136,6 +136,50 @@ internal static class ReachClientSessionEmulator
         }
     }
 
+    internal static async Task RunStalledVideoAsync(
+        TcpListener listener,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = await listener.AcceptTcpClientAsync(
+                    cancellationToken)
+                .ConfigureAwait(false);
+            using var stream = client.GetStream();
+            await CompleteHandshakeAsync(stream, cancellationToken)
+                .ConfigureAwait(false);
+            await SendAsync(
+                    stream,
+                    ReachMessageType.VideoStreamStart,
+                    new ReachVideoStreamStart("H264", 2, 2, 1),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            await SendAsync(
+                    stream,
+                    ReachMessageType.VideoFrame,
+                    new ReachVideoFrame(
+                        1,
+                        2,
+                        2,
+                        DateTime.UtcNow.Ticks,
+                        "H264",
+                        true,
+                        [1, 2, 3]),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
     internal static async Task RunReconnectAsync(
         TcpListener listener,
         TaskCompletionSource<bool> reconnected,

@@ -233,6 +233,36 @@ public sealed class ReachClientSessionTests
     }
 
     [Test]
+    public async Task ClientSessionReportsAStalledVideoPath()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        var mediaLost = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var emulator = ReachClientSessionEmulator.RunStalledVideoAsync(
+            listener,
+            cancellation.Token);
+
+        await using var session = new ReachClientSession(mediaPort: 0);
+        session.MediaConnectionLost += () => mediaLost.TrySetResult(true);
+        await session.ConnectAsync(
+                $"tcp://127.0.0.1:{endpoint.Port}",
+                ReachPlatform.Windows,
+                "Reach.Unit",
+                cancellation.Token)
+            .ConfigureAwait(false);
+
+        await mediaLost.Task.WaitAsync(cancellation.Token);
+        await Assert.That(session.State).IsEqualTo(ClientSessionState.Connected);
+
+        await session.DisconnectAsync().ConfigureAwait(false);
+        cancellation.Cancel();
+        await emulator.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Test]
     public async Task ClientSessionReconnectsAfterControlLoss()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);

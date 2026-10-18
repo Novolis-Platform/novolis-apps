@@ -7,7 +7,8 @@ public sealed record ReachCapabilities(
     int MaximumWidth = 3840,
     int MaximumHeight = 2160,
     string[]? VideoCodecs = null,
-    string[]? AudioCodecs = null)
+    string[]? AudioCodecs = null,
+    bool SupportsDatagramFallback = false)
 {
     /// <summary>Gets codecs offered for video.</summary>
     public IReadOnlyList<string> OfferedVideoCodecs =>
@@ -42,7 +43,9 @@ public sealed record ReachCapabilities(
             Math.Min(host.MaximumWidth, client.MaximumWidth),
             Math.Min(host.MaximumHeight, client.MaximumHeight),
             videoCodecs,
-            audioCodecs);
+            audioCodecs,
+            host.SupportsDatagramFallback
+                && client.SupportsDatagramFallback);
     }
 
     /// <summary>Baseline capabilities for a Windows host.</summary>
@@ -57,7 +60,8 @@ public sealed record ReachCapabilities(
         | ReachCapability.AdaptiveQuality,
         MaximumDisplays: 8,
         VideoCodecs: ["H264"],
-        AudioCodecs: ["PCM", "PCM_FLOAT"]);
+        AudioCodecs: ["PCM", "PCM_FLOAT"],
+        SupportsDatagramFallback: true);
 
     /// <summary>Baseline capabilities for a Windows client.</summary>
     public static ReachCapabilities WindowsClient { get; } = new(
@@ -70,7 +74,8 @@ public sealed record ReachCapabilities(
         | ReachCapability.AdaptiveQuality,
         MaximumDisplays: 8,
         VideoCodecs: ["H264"],
-        AudioCodecs: ["PCM", "PCM_FLOAT"]);
+        AudioCodecs: ["PCM", "PCM_FLOAT"],
+        SupportsDatagramFallback: true);
 
     /// <summary>Baseline capabilities for a Linux client.</summary>
     public static ReachCapabilities LinuxClient { get; } = new(
@@ -81,7 +86,8 @@ public sealed record ReachCapabilities(
         | ReachCapability.MultiMonitor
         | ReachCapability.AdaptiveQuality,
         MaximumDisplays: 8,
-        VideoCodecs: ["H264"]);
+        VideoCodecs: ["H264"],
+        SupportsDatagramFallback: true);
 
     /// <summary>Baseline capabilities for an Android client.</summary>
     public static ReachCapabilities AndroidClient { get; } = new(
@@ -90,5 +96,6 @@ public sealed record ReachCapabilities(
         | ReachCapability.ClipboardText
         | ReachCapability.SingleDisplay
         | ReachCapability.AdaptiveQuality,
-        VideoCodecs: ["H264"]);
+        VideoCodecs: ["H264"],
+        SupportsDatagramFallback: true);
 }
