@@ -10,12 +10,12 @@ public sealed class CiMatrixPlannerTests
         var document = LoadManifest();
         var plan = Program.CreateCiMatrix(document, [], forceAll: false, fullCoverage: false);
 
-        await Assert.That(document.Apps).Count().IsEqualTo(18);
-        await Assert.That(plan.Linux).Count().IsEqualTo(14);
-        await Assert.That(plan.Android).Count().IsEqualTo(8);
+        await Assert.That(document.Apps).Count().IsEqualTo(20);
+        await Assert.That(plan.Linux).Count().IsEqualTo(15);
+        await Assert.That(plan.Android).Count().IsEqualTo(10);
         await Assert.That(plan.Windows).Count().IsEqualTo(7);
-        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(30);
-        await Assert.That(plan.Summary.EstimatedWorkloadInstalls).IsEqualTo(8);
+        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(33);
+        await Assert.That(plan.Summary.EstimatedWorkloadInstalls).IsEqualTo(10);
     }
 
     [Test]
@@ -41,9 +41,9 @@ public sealed class CiMatrixPlannerTests
             forceAll: false,
             fullCoverage: false);
 
-        await Assert.That(plan.Summary.SelectedApps).IsEqualTo(3);
+        await Assert.That(plan.Summary.SelectedApps).IsEqualTo(4);
         await Assert.That(plan.Linux).Count().IsEqualTo(3);
-        await Assert.That(plan.Android).Count().IsEqualTo(2);
+        await Assert.That(plan.Android).Count().IsEqualTo(3);
         await Assert.That(plan.Linux.Select(row => row.Stack).Contains("avalonia-desktop")).IsTrue();
         await Assert.That(plan.Linux.Select(row => row.Stack).Contains("avalonia-mobile")).IsTrue();
         await Assert.That(plan.Linux.Select(row => row.Stack).Contains("maui")).IsTrue();
@@ -58,9 +58,9 @@ public sealed class CiMatrixPlannerTests
             forceAll: false,
             fullCoverage: true);
 
-        await Assert.That(plan.Summary.SelectedApps).IsEqualTo(18);
-        await Assert.That(plan.Linux).Count().IsEqualTo(14);
-        await Assert.That(plan.Android).Count().IsEqualTo(8);
+        await Assert.That(plan.Summary.SelectedApps).IsEqualTo(20);
+        await Assert.That(plan.Linux).Count().IsEqualTo(15);
+        await Assert.That(plan.Android).Count().IsEqualTo(10);
     }
 
     [Test]
