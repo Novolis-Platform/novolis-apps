@@ -155,6 +155,7 @@
     <PackageVersion Include="Novolis.Storage.Abstractions" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Storage.AzureTables" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Storage.Json" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Game.Sudoku" Version="2026.1.*" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
     <PackageVersion Include="Novolis.Avalonia.Manuscript" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Manuscript" Version="2026.1.*" />

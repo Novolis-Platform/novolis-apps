@@ -1016,6 +1016,72 @@
       },
       "update": { "enabled": false, "appId": "Novolis.FrankMoat", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "preview", "distribution": "direct-github" },
       "release": { "githubRelease": false, "checksums": true }
+    },
+    {
+      "key": "sudoku",
+      "choice": "Sudoku",
+      "displayName": "Novolis Sudoku",
+      "sourceRoot": "src/Sudoku",
+      "solution": "src/Sudoku/Sudoku.slnx",
+      "artifactPrefix": "Sudoku",
+      "stack": "avalonia-desktop",
+      "status": "internal",
+      "projects": {
+        "publishWindows": "src/Sudoku/Sudoku.Desktop/Sudoku.Desktop.csproj",
+        "linuxCi": [
+          "src/Sudoku/Sudoku.Core/Sudoku.Core.csproj",
+          "src/Sudoku/Sudoku.Storage/Sudoku.Storage.csproj",
+          "src/Sudoku/Sudoku.App/Sudoku.App.csproj",
+          "src/Sudoku/Sudoku.Desktop/Sudoku.Desktop.csproj",
+          "tests/Sudoku.Core.Tests/Sudoku.Core.Tests.csproj",
+          "tests/Sudoku.Storage.Tests/Sudoku.Storage.Tests.csproj"
+        ],
+        "android": null,
+        "maui": null,
+        "tests": [
+          "tests/Sudoku.Core.Tests/Sudoku.Core.Tests.csproj",
+          "tests/Sudoku.Storage.Tests/Sudoku.Storage.Tests.csproj"
+        ],
+        "all": [
+          "src/Sudoku/Sudoku.Core/Sudoku.Core.csproj",
+          "src/Sudoku/Sudoku.Storage/Sudoku.Storage.csproj",
+          "src/Sudoku/Sudoku.App/Sudoku.App.csproj",
+          "src/Sudoku/Sudoku.Desktop/Sudoku.Desktop.csproj",
+          "tests/Sudoku.Core.Tests/Sudoku.Core.Tests.csproj",
+          "tests/Sudoku.Storage.Tests/Sudoku.Storage.Tests.csproj"
+        ]
+      },
+      "local": ["windows", "linux"],
+      "ship": ["windows-inno"],
+      "validation": {
+        "changedPathGlobs": ["src/Sudoku/**", "tests/Sudoku.Core.Tests/**", "tests/Sudoku.Storage.Tests/**"],
+        "runTests": true,
+        "androidCompile": false,
+        "windowsCi": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia"]
+      },
+      "windows": {
+        "exeName": "Novolis.Sudoku.exe",
+        "appId": "Novolis.Sudoku",
+        "installDir": "Novolis\\Sudoku",
+        "groupName": "Novolis Sudoku",
+        "setupBase": "SudokuSetup",
+        "scriptFile": "sudoku.iss",
+        "closeApplicationsFilter": "Novolis.Sudoku.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": null,
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\sudoku",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\sudoku\\cache",
+        "credentialsNamespace": "Novolis.Sudoku",
+        "networkDestinations": [],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": false, "appId": "Novolis.Sudoku", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "preview", "distribution": "direct-github" },
+      "release": { "githubRelease": false, "checksums": true }
     }
   ]
 }

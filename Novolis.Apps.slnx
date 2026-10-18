@@ -24,6 +24,10 @@
     <Project Path="src/ReadAloud/ReadAloud/ReadAloud.csproj" />
     <Project Path="src/SinsOfACapitalismTycoon/SinsOfACapitalismTycoon.csproj" />
     <Project Path="src/SketchStudio/SketchStudio.csproj" />
+    <Project Path="src/Sudoku/Sudoku.App/Sudoku.App.csproj" />
+    <Project Path="src/Sudoku/Sudoku.Core/Sudoku.Core.csproj" />
+    <Project Path="src/Sudoku/Sudoku.Desktop/Sudoku.Desktop.csproj" />
+    <Project Path="src/Sudoku/Sudoku.Storage/Sudoku.Storage.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AssetStudio.Unit/AssetStudio.Unit.csproj" />
@@ -40,5 +44,7 @@
     <Project Path="tests/Reach.Unit/Reach.Unit.csproj" />
     <Project Path="tests/ReadAloud.Unit/ReadAloud.Unit.csproj" />
     <Project Path="tests/SinsOfACapitalismTycoon.Unit/SinsOfACapitalismTycoon.Unit.csproj" />
+    <Project Path="tests/Sudoku.Core.Tests/Sudoku.Core.Tests.csproj" />
+    <Project Path="tests/Sudoku.Storage.Tests/Sudoku.Storage.Tests.csproj" />
   </Folder>
 </Solution>
