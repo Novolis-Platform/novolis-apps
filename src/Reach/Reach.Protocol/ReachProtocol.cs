@@ -21,6 +21,15 @@ public static class ReachProtocol
     /// <summary>Discovery port.</summary>
     public const int DiscoveryPort = 19802;
 
+    /// <summary>HTTPS SignalR side-channel port.</summary>
+    public const int SideChannelPort = 19803;
+
+    /// <summary>SignalR hub path for status and diagnostics.</summary>
+    public const string SideChannelHubPath = "/reach-side-channel";
+
+    /// <summary>SignalR side-channel transport scheme.</summary>
+    public const string SideChannelScheme = "https";
+
     /// <summary>UDP discovery probe token.</summary>
     public const string DiscoveryProbe = "NOVOLIS-REACH-WHO";
 

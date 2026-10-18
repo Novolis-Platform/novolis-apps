@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Sudoku.App/">
+    <Project Path="Sudoku.App/Sudoku.App.csproj" />
+  </Folder>
+  <Folder Name="/Sudoku.Core/">
+    <Project Path="Sudoku.Core/Sudoku.Core.csproj" />
+  </Folder>
+  <Folder Name="/Sudoku.Desktop/">
+    <Project Path="Sudoku.Desktop/Sudoku.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/Sudoku.Storage/">
+    <Project Path="Sudoku.Storage/Sudoku.Storage.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/Sudoku.Core.Tests/Sudoku.Core.Tests.csproj" />
+    <Project Path="../../tests/Sudoku.Storage.Tests/Sudoku.Storage.Tests.csproj" />
+  </Folder>
+</Solution>

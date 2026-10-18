@@ -39,6 +39,10 @@ function Add-OrUpdateFirewallRule {
             -Action Allow `
             -Profile Any `
             -RemoteAddress $RemoteAddress
+        Set-NetFirewallPortFilter `
+            -AssociatedNetFirewallRule $rule `
+            -Protocol $Protocol `
+            -LocalPort ($LocalPort -join ',') | Out-Null
         return
     }
 
@@ -66,7 +70,7 @@ if (-not (Test-Path -LiteralPath $sessionExecutable -PathType Leaf)) {
 Add-OrUpdateFirewallRule `
     -DisplayName 'Novolis Reach TCP' `
     -Protocol TCP `
-    -LocalPort @('19800', '19801')
+    -LocalPort @('19800', '19801', '19803')
 Add-OrUpdateFirewallRule `
     -DisplayName 'Novolis Reach UDP' `
     -Protocol UDP `
@@ -103,7 +107,7 @@ $addresses = Get-NetIPAddress -AddressFamily IPv4 |
     Sort-Object InterfaceIndex, IPAddress
 
 $tcpListeners = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
-    Where-Object LocalPort -in @(19800, 19801)
+    Where-Object LocalPort -in @(19800, 19801, 19803)
 $udpListeners = Get-NetUDPEndpoint -ErrorAction SilentlyContinue |
     Where-Object LocalPort -in @(19800, 19801, 19802)
 
@@ -122,4 +126,5 @@ $udpListeners = Get-NetUDPEndpoint -ErrorAction SilentlyContinue |
 
 Write-Host ''
 Write-Host 'Use one tcp:// endpoint above in the Windows and Android clients.'
+Write-Host 'The HTTPS SignalR side channel uses TCP port 19803 when available.'
 Write-Host 'The guest must keep an active logged-in Windows session for screen capture.'

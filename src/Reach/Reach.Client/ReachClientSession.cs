@@ -11,6 +11,7 @@ public sealed class ReachClientSession : IAsyncDisposable
     internal readonly SemaphoreSlim _bulkSendGate = new(1, 1);
     internal readonly Guid _sessionId = Guid.NewGuid();
     internal readonly ReachPerformanceMetrics _performance = new();
+    internal readonly ReachClientSideChannel SideChannel;
     internal IReachTransportConnection? _transport;
     internal Stream? _stream;
     internal CancellationTokenSource? _receiveCancellation;
@@ -52,6 +53,7 @@ public sealed class ReachClientSession : IAsyncDisposable
         Closer = new ReachClientCloser(this);
         Connector = new ReachClientConnector(this);
         Files = new ReachClientFileSender(this);
+        SideChannel = new ReachClientSideChannel(this);
     }
 
     internal ReachClientInbound Inbound { get; }
@@ -80,6 +82,12 @@ public sealed class ReachClientSession : IAsyncDisposable
 
     /// <summary>Raised when bounded performance diagnostics change.</summary>
     public event Action<ReachPerformanceSnapshot>? PerformanceChanged;
+
+    /// <summary>Raised when the host status arrives over SignalR.</summary>
+    public event Action<ReachHostStatus>? SideChannelStatusChanged;
+
+    /// <summary>Raised when the optional SignalR channel changes state.</summary>
+    public event Action<ReachSideChannelState>? SideChannelStateChanged;
 
     /// <summary>Raised when the user-facing connection phase changes.</summary>
     public event Action<ReachConnectionPhase>? PhaseChanged;
@@ -129,6 +137,12 @@ public sealed class ReachClientSession : IAsyncDisposable
     /// <summary>Gets the selected transport kind.</summary>
     public string ActiveTransport =>
         _transport?.Info.Kind.ToString() ?? "Disconnected";
+
+    /// <summary>Gets the active side-channel protocol, if any.</summary>
+    public string ActiveSideChannel =>
+        SideChannel.State == ReachSideChannelState.Connected
+            ? "SignalR"
+            : "None";
 
     /// <summary>Gets the latest bounded performance snapshot.</summary>
     public ReachPerformanceSnapshot Performance => _performance.Snapshot();
@@ -253,6 +267,7 @@ public sealed class ReachClientSession : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await DisconnectAsync().ConfigureAwait(false);
+        await SideChannel.DisposeAsync().ConfigureAwait(false);
         _sendGate.Dispose();
         _bulkSendGate.Dispose();
     }
@@ -277,6 +292,12 @@ public sealed class ReachClientSession : IAsyncDisposable
 
     internal void RaisePerformanceChanged() =>
         PerformanceChanged?.Invoke(_performance.Snapshot());
+
+    internal void RaiseSideChannelStatus(ReachHostStatus status) =>
+        SideChannelStatusChanged?.Invoke(status);
+
+    internal void RaiseSideChannelStateChanged(ReachSideChannelState state) =>
+        SideChannelStateChanged?.Invoke(state);
 
     internal void RaiseMediaConnectionLost() => MediaConnectionLost?.Invoke();
 

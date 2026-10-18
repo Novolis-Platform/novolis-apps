@@ -9,6 +9,7 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
     <ProjectReference Include="..\Reach.Transport\Reach.Transport.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />

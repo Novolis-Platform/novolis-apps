@@ -88,6 +88,7 @@ internal sealed class ReachClientConnector(ReachClientSession session)
         try
         {
             await NegotiateAsync(
+                    transportEndpoint,
                     platform,
                     clientName,
                     initialVideoProfile,
@@ -133,6 +134,7 @@ internal sealed class ReachClientConnector(ReachClientSession session)
     }
 
     private async Task NegotiateAsync(
+        ReachTransportEndpoint transportEndpoint,
         ReachPlatform platform,
         string clientName,
         string initialVideoProfile,
@@ -195,6 +197,17 @@ internal sealed class ReachClientConnector(ReachClientSession session)
                         session._lastVideoSequence,
                         negotiatedCapabilities.Supports(ReachCapability.Audio),
                         initialVideoProfile),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (hostHello.SideChannel is { } sideChannel)
+        {
+            await session.SideChannel.ConnectAsync(
+                    sideChannel,
+                    transportEndpoint,
+                    platform,
+                    clientName,
                     cancellationToken)
                 .ConfigureAwait(false);
         }

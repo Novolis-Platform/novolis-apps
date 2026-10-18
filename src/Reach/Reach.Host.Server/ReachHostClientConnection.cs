@@ -40,6 +40,7 @@ internal sealed class ReachHostClientConnection : IAsyncDisposable
     internal Stream Stream => _controlTransportStream.Stream;
     internal EndPoint RemoteEndPoint => _transport.Info.RemoteEndPoint;
     internal bool IsReady { get; set; }
+    internal string? SideChannelToken { get; set; }
     internal ReachCapabilities? Capabilities { get; set; }
     internal Guid SessionId { get; set; }
     internal string RequestedDisplayId { get; set; } = string.Empty;

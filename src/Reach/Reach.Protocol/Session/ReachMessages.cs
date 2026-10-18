@@ -7,4 +7,5 @@ public sealed record ReachHostHello(
     string AppId,
     string ProtocolVersion,
     string HostName,
-    string[] Endpoints);
+    string[] Endpoints,
+    ReachSideChannelOffer? SideChannel = null);

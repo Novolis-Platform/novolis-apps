@@ -45,16 +45,19 @@ public sealed class ReachHostService : BackgroundService
             .Distinct()
             .ToArray();
         X509Certificate2? quicCertificate = null;
-        if (QuicTransportListener.IsSupported)
+        if (addresses.Length > 0)
         {
             try
             {
-                quicCertificate = ReachHostCertificates.CreateQuicCertificate();
+                quicCertificate = ReachHostCertificates.CreateQuicCertificate(
+                    addresses);
+                _runtime.SideChannelCertificatePin =
+                    quicCertificate.GetCertHashString(
+                        HashAlgorithmName.SHA256);
             }
             catch (Exception exception)
             {
-                _runtime.WriteLog(
-                    $"QUIC certificate initialization failed: {exception.Message}");
+                _runtime.WriteLog($"Reach certificate initialization failed: {exception.Message}");
             }
         }
 
@@ -104,11 +107,33 @@ public sealed class ReachHostService : BackgroundService
                 _runtime.Media.RunDatagramAsync(datagramChannel, cancellationToken));
         }
 
+        ReachSignalRSideChannelHost? sideChannel = null;
+        if (quicCertificate is not null)
+        {
+            try
+            {
+                sideChannel = new ReachSignalRSideChannelHost(
+                    _runtime,
+                    quicCertificate);
+                await sideChannel.StartAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                _runtime.WriteLog(
+                    $"SignalR side channel unavailable: {exception.Message}");
+                if (sideChannel is not null)
+                    await sideChannel.DisposeAsync().ConfigureAwait(false);
+                sideChannel = null;
+            }
+        }
+
         foreach (var address in addresses)
         {
             tasks.Add(_runtime.Control.RunTcpAsync(address, cancellationToken));
             tasks.Add(_runtime.Media.RunTcpAsync(address, cancellationToken));
-            if (quicCertificate is not null)
+            if (quicCertificate is not null
+                && QuicTransportListener.IsSupported)
             {
                 tasks.Add(
                     _runtime.Control.RunQuicAsync(
@@ -127,6 +152,8 @@ public sealed class ReachHostService : BackgroundService
         }
         finally
         {
+            if (sideChannel is not null)
+                await sideChannel.DisposeAsync().ConfigureAwait(false);
             foreach (var listener in _runtime.Listeners)
                 await listener.DisposeAsync().ConfigureAwait(false);
             foreach (var listener in _runtime.MediaListeners)

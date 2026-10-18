@@ -4,4 +4,5 @@ global using Novolis.Reach.Protocol.Host;
 global using Novolis.Reach.Protocol.Input;
 global using Novolis.Reach.Protocol.Media;
 global using Novolis.Reach.Protocol.Session;
+global using Novolis.Reach.Protocol.SideChannel;
 global using Novolis.Reach.Protocol.Transfer;

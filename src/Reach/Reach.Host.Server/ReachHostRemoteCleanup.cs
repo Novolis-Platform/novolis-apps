@@ -8,6 +8,7 @@ internal static class ReachHostRemoteCleanup
         CancellationToken cancellationToken)
     {
         runtime.Clients.TryRemove(connection.Id, out _);
+        runtime.RemoveSideChannelToken(connection.SideChannelToken);
         if (connection.IsReady
             && !connection.SessionCloseForwarded
             && !runtime.Clients.Values.Any(static client => client.IsReady))

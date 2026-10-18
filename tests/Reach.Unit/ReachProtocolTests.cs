@@ -204,6 +204,33 @@ public sealed class ReachProtocolTests
     }
 
     [Test]
+    public async Task HostHelloCarriesOptionalSignalRSideChannelOffer()
+    {
+        var offer = new ReachSideChannelOffer(
+            ReachProtocol.SideChannelScheme,
+            ReachProtocol.SideChannelPort,
+            ReachProtocol.SideChannelHubPath,
+            "test-token",
+            "ABCDEF");
+        var bytes = ReachMessageCodec.Serialize(
+            ReachMessageType.HostHello,
+            sequence: 13,
+            new ReachHostHello(
+                ReachProtocol.AppId,
+                ReachProtocol.Version,
+                "reach-host",
+                ["tcp://127.0.0.1:19800"],
+                offer));
+
+        var hello = ReachMessageCodec.ReadBody<ReachHostHello>(
+            ReachMessageCodec.Deserialize(bytes));
+
+        await Assert.That(hello.SideChannel).IsEqualTo(offer);
+        await Assert.That(hello.SideChannel!.Scheme).IsEqualTo("https");
+        await Assert.That(hello.SideChannel.Port).IsEqualTo(19803);
+    }
+
+    [Test]
     public async Task SessionStateMachineAcceptsOpenAndResume()
     {
         var machine = new ReachSessionStateMachine();

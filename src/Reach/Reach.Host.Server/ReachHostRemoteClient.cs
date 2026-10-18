@@ -41,13 +41,15 @@ internal sealed class ReachHostRemoteClient(ReachHostRuntime runtime)
                 ReachCapabilities.WindowsHost,
                 clientCapabilities.Capabilities);
             connection.Capabilities = negotiated;
+            var sideChannel = runtime.CreateSideChannelOffer(connection);
             await connection.SendAsync(
                     ReachMessageType.HostHello,
                     new ReachHostHello(
                         ReachProtocol.AppId,
                         ReachProtocol.Version,
                         Environment.MachineName,
-                        runtime.Endpoints),
+                        runtime.Endpoints,
+                        sideChannel),
                     cancellationToken)
                 .ConfigureAwait(false);
             await connection.SendAsync(

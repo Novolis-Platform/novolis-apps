@@ -9,7 +9,8 @@ namespace Novolis.Reach.Host.Server;
 
 internal static class ReachHostCertificates
 {
-    internal static X509Certificate2 CreateQuicCertificate()
+    internal static X509Certificate2 CreateQuicCertificate(
+        IEnumerable<IPAddress>? reachableAddresses = null)
     {
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest(
@@ -20,6 +21,9 @@ internal static class ReachHostCertificates
         var names = new SubjectAlternativeNameBuilder();
         names.AddDnsName("localhost");
         names.AddIpAddress(IPAddress.Loopback);
+        names.AddDnsName(Environment.MachineName);
+        foreach (var address in reachableAddresses ?? [])
+            names.AddIpAddress(address);
         request.CertificateExtensions.Add(names.Build());
         using var generated = request.CreateSelfSigned(
             DateTimeOffset.UtcNow.AddMinutes(-1),

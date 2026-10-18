@@ -7,6 +7,7 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <ProjectReference Include="..\Reach.Protocol\Reach.Protocol.csproj" />
     <ProjectReference Include="..\Reach.Transport\Reach.Transport.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />

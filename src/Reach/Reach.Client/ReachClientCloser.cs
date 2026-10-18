@@ -28,6 +28,7 @@ internal sealed class ReachClientCloser(ReachClientSession session)
         bool announce,
         bool preserveVideoSequence = false)
     {
+        await session.SideChannel.DisconnectAsync().ConfigureAwait(false);
         var latencyCancellation = Interlocked.Exchange(
             ref session._latencyCancellation,
             null);

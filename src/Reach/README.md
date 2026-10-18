@@ -29,7 +29,10 @@ media fallback, and UDP `19802` for discovery. When QUIC is available, the
 service advertises a pinned `quic://` control candidate alongside the TCP
 candidate. A successful QUIC session receives an authenticated AES-GCM UDP
 media offer on `19801`; clients fall back to QUIC streams or TCP when UDP is
-unavailable.
+unavailable. The host also offers an HTTPS SignalR side channel on TCP
+`19803` for status and diagnostics. It is authenticated with a short-lived
+token from the primary session and is never used for video or latency-sensitive
+input.
 
 Product-private libraries live next to the executables in this folder
 (`Reach.Protocol`, `Reach.Transport`, `Reach.Client`, `Reach.Host.Server`,
@@ -66,16 +69,32 @@ two reliable TCP ports through ADB and enter `tcp://127.0.0.1:19800` in Reach:
 ```powershell
 & "$env:ANDROID_HOME\platform-tools\adb.exe" -s emulator-5554 reverse tcp:19800 tcp:19800
 & "$env:ANDROID_HOME\platform-tools\adb.exe" -s emulator-5554 reverse tcp:19801 tcp:19801
+& "$env:ANDROID_HOME\platform-tools\adb.exe" -s emulator-5554 reverse tcp:19803 tcp:19803
 ```
 
 The emulator route uses reliable TCP media; UDP media still requires a
-reachable private-network address.
+reachable private-network address. The `19803` reverse keeps the pinned
+SignalR status channel available through the same emulator route.
 
 Launch Reach, allow discovery to finish, and connect to the Windows host.
 
 Reach's protocol is product-private. Generic framing, datagrams, discovery,
 Tailscale binding, Windows capabilities, and video codecs live in their
 respective Novolis libraries and do not contain Reach types.
+
+For routed or coordinated discovery, set
+`NOVOLIS_REACH_DISCOVERY_REGISTRY` to an HTTP(S) cohort registry URL on both
+the host and client. The host renews a 30-second `reach/host` lease and the
+client merges registry results with the existing LAN broadcast scan. Multiple
+client registry URLs can be supplied through
+`NOVOLIS_REACH_DISCOVERY_REGISTRIES`, separated by semicolons.
+
+Reach can also query DNS SRV/TXT records by setting
+`NOVOLIS_REACH_DISCOVERY_DNS_DOMAIN`. It resolves
+`_host._tcp.reach.<domain>` and reads `hostName` and `protocolVersion` from
+TXT metadata. The reusable contract and resolver live in
+`Novolis.Transports.Discovery`; DNS publishing and the HTTP registry service
+remain infrastructure concerns.
 
 ## Hyper-V Windows host
 
@@ -127,10 +146,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -RemoteAddress LocalSubnet
 ```
 
-The guest script opens TCP `19800` and `19801`, UDP `19800`, `19801`, and
-`19802`, registers `Novolis Reach Host` as an automatic service, and prints
-the guest's `tcp://` endpoints. Keep the guest user session active and
-unlocked so screen capture and input can be exercised.
+The guest script opens TCP `19800`, `19801`, and `19803`, plus UDP `19800`,
+`19801`, and `19802`. It registers `Novolis Reach Host` as an automatic
+service and prints the guest's `tcp://` endpoints. Keep the guest user session
+active and unlocked so screen capture and input can be exercised.
 
 Check the guest endpoint and build both clients from the main Windows system:
 
@@ -151,8 +170,8 @@ Windows host.
 ## Usability validation
 
 The first usability gate is a Windows client controlling a Windows host on a
-trusted LAN or Tailscale path. Keep TCP `19800`, TCP `19801`, and UDP `19802`
-reachable between the two private-network peers. The gate covers video,
+trusted LAN or Tailscale path. Keep TCP `19800`, TCP `19801`, TCP `19803`, and
+UDP `19802` reachable between the two private-network peers. The gate covers video,
 pointer and keyboard input, Unicode text, host audio, text clipboard
 synchronization, monitor selection, reconnect behavior, and adaptive quality.
 
