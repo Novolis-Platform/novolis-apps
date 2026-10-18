@@ -8,7 +8,6 @@ using Android.Views;
 using Android.Widget;
 using AndroidUri = Android.Net.Uri;
 using DeviceConfiguration = global::Android.Content.Res.Configuration;
-using DeviceOrientation = global::Android.Content.Res.Orientation;
 using MediaPlayer = Android.Media.MediaPlayer;
 using WidgetOrientation = Android.Widget.Orientation;
 
@@ -49,7 +48,6 @@ public sealed class MainActivity : Activity
     private Button? _openButton;
     private Button? _playPauseButton;
     private Button? _resetZoomButton;
-    private Button? _orientationButton;
     private SeekBar? _seekBar;
     private SeekBar? _volumeBar;
     private Button? _muteButton;
@@ -242,42 +240,20 @@ public sealed class MainActivity : Activity
         playParameters.LeftMargin = 8;
         controls.AddView(_playPauseButton, playParameters);
 
+        _resetZoomButton = CreateButton("Fit view", "Reset video zoom");
+        _resetZoomButton.Click += (_, _) => ResetZoom();
+        var resetZoomParameters = new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WrapContent,
+            1f);
+        resetZoomParameters.LeftMargin = 8;
+        controls.AddView(_resetZoomButton, resetZoomParameters);
+
         root.AddView(
             controls,
             new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent,
                 ViewGroup.LayoutParams.WrapContent));
-
-        var viewControls = new LinearLayout(this)
-        {
-            Orientation = WidgetOrientation.Horizontal,
-        };
-        viewControls.SetPadding(12, 0, 12, 4);
-
-        _resetZoomButton = CreateButton("Fit view", "Reset video zoom");
-        _resetZoomButton.Click += (_, _) => ResetZoom();
-        viewControls.AddView(
-            _resetZoomButton,
-            new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WrapContent,
-                1f));
-
-        _orientationButton = CreateButton("Landscape", "Switch to horizontal playback");
-        _orientationButton.Click += (_, _) => ToggleOrientation();
-        var orientationParameters = new LinearLayout.LayoutParams(
-            0,
-            ViewGroup.LayoutParams.WrapContent,
-            1f);
-        orientationParameters.LeftMargin = 8;
-        viewControls.AddView(_orientationButton, orientationParameters);
-
-        root.AddView(
-            viewControls,
-            new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MatchParent,
-                ViewGroup.LayoutParams.WrapContent));
-        UpdateOrientationButton();
 
         var privacyNote = new TextView(this)
         {
@@ -299,7 +275,6 @@ public sealed class MainActivity : Activity
     public override void OnConfigurationChanged(DeviceConfiguration newConfig)
     {
         base.OnConfigurationChanged(newConfig);
-        UpdateOrientationButton();
         _video?.Post(() => ApplyZoom());
     }
 
@@ -652,28 +627,6 @@ public sealed class MainActivity : Activity
             _video.Width / 2f,
             _video.Height / 2f);
         _video.SetTransform(_videoTransform);
-    }
-
-    private void ToggleOrientation()
-    {
-        var isLandscape = Resources?.Configuration?.Orientation
-            == DeviceOrientation.Landscape;
-        RequestedOrientation = isLandscape
-            ? ScreenOrientation.Portrait
-            : ScreenOrientation.Landscape;
-    }
-
-    private void UpdateOrientationButton()
-    {
-        if (_orientationButton is null)
-            return;
-
-        var isLandscape = Resources?.Configuration?.Orientation
-            == DeviceOrientation.Landscape;
-        _orientationButton.Text = isLandscape ? "Portrait" : "Landscape";
-        _orientationButton.ContentDescription = isLandscape
-            ? "Switch to vertical playback"
-            : "Switch to horizontal playback";
     }
 
     private void StartProgressUpdates()
