@@ -14,7 +14,7 @@ public sealed class CiMatrixPlannerTests
         await Assert.That(plan.Linux).Count().IsEqualTo(14);
         await Assert.That(plan.Android).Count().IsEqualTo(8);
         await Assert.That(plan.Windows).Count().IsEqualTo(7);
-        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(29);
+        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(30);
         await Assert.That(plan.Summary.EstimatedWorkloadInstalls).IsEqualTo(8);
     }
 
