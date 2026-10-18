@@ -28,6 +28,13 @@ public sealed class App : Application
                 "Sudoku services were not assigned before Avalonia startup.");
             desktop.MainWindow = services.GetRequiredService<MainWindow>();
         }
+        else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
+        {
+            var services = Services ?? throw new InvalidOperationException(
+                "Sudoku services were not assigned before Avalonia startup.");
+            single.MainView = new SudokuView(
+                services.GetRequiredService<SudokuGameService>());
+        }
 
         base.OnFrameworkInitializationCompleted();
     }

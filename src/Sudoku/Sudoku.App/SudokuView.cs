@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Game.Sudoku;
+using Sudoku.Core;
 
 namespace Sudoku.App;
 
@@ -15,6 +16,8 @@ public sealed class SudokuView : UserControl
     private readonly SudokuGameService _game;
     private readonly Grid _board = new();
     private readonly Button[] _cellButtons = new Button[SudokuConstants.CellCount];
+    private readonly Button[] _numberButtons = new Button[SudokuConstants.SymbolCount + 1];
+    private readonly Button _clearButton = new();
     private readonly TextBlock _status = new();
     private readonly TextBlock _progress = new();
     private readonly TextBlock _gameInfo = new();
@@ -60,12 +63,12 @@ public sealed class SudokuView : UserControl
             if (await _game.LoadLatestAsync().ConfigureAwait(true))
                 SetStatus("Loaded the latest saved game.");
             else
-                NewGame(SudokuDifficulty.Medium);
+                NewGame(SudokuDifficultySegment.Medium);
         }
         catch (Exception exception)
         {
             SetStatus($"Load failed: {exception.Message}");
-            NewGame(SudokuDifficulty.Medium);
+            NewGame(SudokuDifficultySegment.Medium);
         }
     }
 
@@ -109,10 +112,14 @@ public sealed class SudokuView : UserControl
             Margin = new Thickness(20, 0, 20, 10),
             Orientation = Orientation.Horizontal,
         };
-        toolbar.Children.Add(ActionButton("Easy", () => NewGame(SudokuDifficulty.Easy)));
-        toolbar.Children.Add(ActionButton("Medium", () => NewGame(SudokuDifficulty.Medium)));
-        toolbar.Children.Add(ActionButton("Hard", () => NewGame(SudokuDifficulty.Hard)));
-        toolbar.Children.Add(ActionButton("Expert", () => NewGame(SudokuDifficulty.Expert)));
+        foreach (var segment in _game.Segments)
+        {
+            var selectedSegment = segment.Segment;
+            toolbar.Children.Add(
+                ActionButton(
+                    segment.DisplayName,
+                    () => NewGame(selectedSegment)));
+        }
         toolbar.Children.Add(ActionButton("Load latest", () => _ = LoadLatestAsync()));
         toolbar.Children.Add(ActionButton("Save", () => _ = SaveAsync()));
         toolbar.Children.Add(ActionButton("Hint", ApplyHint));
@@ -143,29 +150,47 @@ public sealed class SudokuView : UserControl
                 BuildInputCard(),
             },
         };
-        var body = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,330"),
-            Margin = new Thickness(20, 0, 0, 10),
-        };
-        body.Children.Add(new ScrollViewer
+        var boardScroll = new ScrollViewer
         {
             Content = boardCard,
             HorizontalScrollBarVisibility =
                 Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility =
                 Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-        });
-        Grid.SetColumn(side, 1);
-        body.Children.Add(new ScrollViewer
+        };
+        var sideScroll = new ScrollViewer
         {
             Content = side,
             HorizontalScrollBarVisibility =
                 Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility =
                 Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-        });
-        Grid.SetColumn(body.Children[^1], 1);
+        };
+        Control body;
+        if (OperatingSystem.IsAndroid())
+        {
+            var mobileBody = new Grid
+            {
+                RowDefinitions = new RowDefinitions("Auto,*"),
+                Margin = new Thickness(12, 0, 12, 10),
+            };
+            mobileBody.Children.Add(boardScroll);
+            Grid.SetRow(sideScroll, 1);
+            mobileBody.Children.Add(sideScroll);
+            body = mobileBody;
+        }
+        else
+        {
+            var desktopBody = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("*,330"),
+                Margin = new Thickness(20, 0, 0, 10),
+            };
+            desktopBody.Children.Add(boardScroll);
+            Grid.SetColumn(sideScroll, 1);
+            desktopBody.Children.Add(sideScroll);
+            body = desktopBody;
+        }
 
         _status.Margin = new Thickness(20, 4, 20, 14);
         _status.Foreground = GraphicalProfile.MutedBrush;
@@ -229,9 +254,10 @@ public sealed class SudokuView : UserControl
 
     private Control BuildInputCard()
     {
-        var keypad = new WrapPanel
+        var keypad = new Grid
         {
-            Orientation = Orientation.Horizontal,
+            ColumnDefinitions = new ColumnDefinitions("*,*,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         for (byte value = 1; value <= SudokuConstants.SymbolCount; value++)
@@ -240,17 +266,33 @@ public sealed class SudokuView : UserControl
             var button = new Button
             {
                 Content = number.ToString(),
-                Width = 52,
                 MinHeight = 44,
                 Margin = new Thickness(0, 0, 6, 6),
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
                 Background = GraphicalProfile.RaisedBrush,
                 Foreground = GraphicalProfile.TextBrush,
             };
             button.Click += (_, _) => ApplyValue(number);
+            _numberButtons[number] = button;
+            Grid.SetRow(button, (number - 1) / 3);
+            Grid.SetColumn(button, (number - 1) % 3);
             keypad.Children.Add(button);
         }
 
-        var clear = ActionButton("Clear", () => ApplyValue(SudokuConstants.Empty));
+        _clearButton.Content = "Clear";
+        _clearButton.MinHeight = 44;
+        _clearButton.Margin = new Thickness(0, 0, 6, 6);
+        _clearButton.HorizontalContentAlignment = HorizontalAlignment.Center;
+        _clearButton.VerticalContentAlignment = VerticalAlignment.Center;
+        _clearButton.Background = GraphicalProfile.RaisedBrush;
+        _clearButton.Foreground = GraphicalProfile.TextBrush;
+        _clearButton.Click += (_, _) => ApplyValue(SudokuConstants.Empty);
+        Grid.SetRow(_clearButton, 3);
+        Grid.SetColumn(_clearButton, 0);
+        Grid.SetColumnSpan(_clearButton, 3);
+        keypad.Children.Add(_clearButton);
+
         _notesButton.Content = "Notes off";
         _notesButton.MinHeight = 44;
         _notesButton.Margin = new Thickness(0, 0, 6, 6);
@@ -278,7 +320,7 @@ public sealed class SudokuView : UserControl
                     keypad,
                     new WrapPanel
                     {
-                        Children = { clear, _notesButton, check },
+                        Children = { _notesButton, check },
                     },
                 },
             });
@@ -315,8 +357,8 @@ public sealed class SudokuView : UserControl
             MinHeight = 42,
             Margin = new Thickness(0, 0, 6, 6),
             Padding = new Thickness(12, 7),
-            Background = GraphicalProfile.ActionBrush,
-            Foreground = GraphicalProfile.OnActionBrush,
+            Background = GraphicalProfile.AccentFillBrush,
+            Foreground = GraphicalProfile.OnAccentFillBrush,
         };
         button.Click += (_, _) => action();
         return button;
@@ -334,8 +376,14 @@ public sealed class SudokuView : UserControl
         }
 
         var report = session.Game.Difficulty;
+        var segmentName = _game.CurrentSegment?.DisplayName ?? report.Difficulty.ToString();
+        var puzzlePosition = _game.CurrentPuzzleNumber > 0
+            ? $" · puzzle {_game.CurrentPuzzleNumber}/{_game.CurrentSegment?.Games.Count ?? 0}"
+            : string.Empty;
         _gameInfo.Text =
-            $"{report.Difficulty} · seed {session.Game.Seed}"
+            $"{segmentName}{puzzlePosition}"
+            + Environment.NewLine
+            + $"{report.Difficulty} · seed {session.Game.Seed}"
             + Environment.NewLine
             + $"{report.GivenCount} givens · score {report.Score}";
         _progress.Text =
@@ -349,6 +397,17 @@ public sealed class SudokuView : UserControl
         var conflicts = _selectedCell >= 0
             ? SudokuHelpers.FindConflicts(session.Entries, _selectedCell).ToHashSet()
             : [];
+        var selectedValue = _selectedCell >= 0
+            ? session.Entries.Get(_selectedCell)
+            : SudokuConstants.Empty;
+        var valueCounts = new int[SudokuConstants.SymbolCount + 1];
+        for (var cellIndex = 0; cellIndex < SudokuConstants.CellCount; cellIndex++)
+        {
+            var value = session.Entries.Get(cellIndex);
+            if (value != SudokuConstants.Empty)
+                valueCounts[value]++;
+        }
+
         for (var cellIndex = 0; cellIndex < _cellButtons.Length; cellIndex++)
         {
             var button = _cellButtons[cellIndex];
@@ -363,17 +422,21 @@ public sealed class SudokuView : UserControl
                                 || cell.Column == SudokuConstants.ColumnOf(_selectedCell)
                                 || cell.Box == SudokuConstants.BoxOf(_selectedCell));
             var isSelected = cellIndex == _selectedCell;
+            var isValueMatch = selectedValue != SudokuConstants.Empty
+                               && value == selectedValue;
             button.Background = isSelected
-                ? GraphicalProfile.ActionBrush
+                ? GraphicalProfile.AccentFillBrush
                 : isWrong || conflicts.Contains(cellIndex)
                     ? GraphicalProfile.DangerBrush
-                    : isRelated
+                    : isValueMatch
                         ? GraphicalProfile.ActionSoftBrush
+                        : isRelated
+                            ? GraphicalProfile.RaisedBrush
                         : isGiven
                             ? GraphicalProfile.RaisedBrush
                             : GraphicalProfile.SurfaceBrush;
             button.Foreground = isSelected
-                ? GraphicalProfile.OnActionBrush
+                ? GraphicalProfile.OnAccentFillBrush
                 : isWrong || conflicts.Contains(cellIndex)
                     ? GraphicalProfile.TextBrush
                     : isGiven
@@ -386,18 +449,39 @@ public sealed class SudokuView : UserControl
                 : value.ToString();
         }
 
+        for (byte value = 1; value <= SudokuConstants.SymbolCount; value++)
+        {
+            var isSelectedValue = value == selectedValue;
+            var isComplete = valueCounts[value] >= SudokuConstants.Size;
+            var button = _numberButtons[value];
+            button.IsEnabled = !isComplete;
+            button.Opacity = isComplete ? 0.42 : 1;
+            button.Background = isComplete
+                ? GraphicalProfile.SurfaceBrush
+                : isSelectedValue
+                    ? GraphicalProfile.AccentFillBrush
+                    : GraphicalProfile.RaisedBrush;
+            button.Foreground = isComplete
+                ? GraphicalProfile.MutedBrush
+                : isSelectedValue
+                    ? GraphicalProfile.OnAccentFillBrush
+                    : GraphicalProfile.TextBrush;
+        }
+        _clearButton.Background = GraphicalProfile.RaisedBrush;
+        _clearButton.Foreground = GraphicalProfile.TextBrush;
+
         _status.Text = _game.LastStorageError is null
             ? _message
             : $"{_message} Storage warning: {_game.LastStorageError}";
     }
 
-    private void NewGame(SudokuDifficulty difficulty)
+    private void NewGame(SudokuDifficultySegment segment)
     {
         try
         {
             _selectedCell = -1;
-            _game.StartNew(difficulty);
-            SetStatus($"{difficulty} puzzle generated.");
+            _game.StartNew(segment);
+            SetStatus($"{segment} puzzle loaded.");
         }
         catch (Exception exception)
         {

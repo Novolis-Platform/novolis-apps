@@ -12,10 +12,10 @@ public sealed class CiMatrixPlannerTests
 
         await Assert.That(document.Apps).Count().IsEqualTo(20);
         await Assert.That(plan.Linux).Count().IsEqualTo(15);
-        await Assert.That(plan.Android).Count().IsEqualTo(10);
+        await Assert.That(plan.Android).Count().IsEqualTo(11);
         await Assert.That(plan.Windows).Count().IsEqualTo(7);
-        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(33);
-        await Assert.That(plan.Summary.EstimatedWorkloadInstalls).IsEqualTo(10);
+        await Assert.That(plan.Summary.EstimatedCheckouts).IsEqualTo(34);
+        await Assert.That(plan.Summary.EstimatedWorkloadInstalls).IsEqualTo(11);
     }
 
     [Test]
@@ -60,7 +60,7 @@ public sealed class CiMatrixPlannerTests
 
         await Assert.That(plan.Summary.SelectedApps).IsEqualTo(20);
         await Assert.That(plan.Linux).Count().IsEqualTo(15);
-        await Assert.That(plan.Android).Count().IsEqualTo(10);
+        await Assert.That(plan.Android).Count().IsEqualTo(11);
     }
 
     [Test]
@@ -85,6 +85,20 @@ public sealed class CiMatrixPlannerTests
         await Assert.That(readAloud.Release?.GooglePlay?.Enabled).IsTrue();
         await Assert.That(readAloud.Android?.ApplicationId)
             .IsEqualTo("com.novolis.readaloud");
+    }
+
+    [Test]
+    public async Task SudokuShipsWindowsAndAndroid()
+    {
+        var sudoku = LoadManifest().Apps.Single(app => app.Key == "sudoku");
+
+        await Assert.That(sudoku.Stack).IsEqualTo("avalonia-mobile");
+        await Assert.That(sudoku.Ship.Contains("windows-inno")).IsTrue();
+        await Assert.That(sudoku.Ship.Contains("android-apk")).IsTrue();
+        await Assert.That(sudoku.Projects.Android)
+            .IsEqualTo("src/Sudoku/Sudoku.Android/Sudoku.Android.csproj");
+        await Assert.That(sudoku.Android?.ApplicationId)
+            .IsEqualTo("com.novolis.sudoku");
     }
 
     [Test]

@@ -1030,7 +1030,7 @@
       "sourceRoot": "src/Sudoku",
       "solution": "src/Sudoku/Sudoku.slnx",
       "artifactPrefix": "Sudoku",
-      "stack": "avalonia-desktop",
+      "stack": "avalonia-mobile",
       "status": "internal",
       "projects": {
         "publishWindows": "src/Sudoku/Sudoku.Desktop/Sudoku.Desktop.csproj",
@@ -1042,7 +1042,7 @@
           "tests/Sudoku.Core.Tests/Sudoku.Core.Tests.csproj",
           "tests/Sudoku.Storage.Tests/Sudoku.Storage.Tests.csproj"
         ],
-        "android": null,
+        "android": "src/Sudoku/Sudoku.Android/Sudoku.Android.csproj",
         "maui": null,
         "tests": [
           "tests/Sudoku.Core.Tests/Sudoku.Core.Tests.csproj",
@@ -1053,20 +1053,21 @@
           "src/Sudoku/Sudoku.Storage/Sudoku.Storage.csproj",
           "src/Sudoku/Sudoku.App/Sudoku.App.csproj",
           "src/Sudoku/Sudoku.Desktop/Sudoku.Desktop.csproj",
+          "src/Sudoku/Sudoku.Android/Sudoku.Android.csproj",
           "tests/Sudoku.Core.Tests/Sudoku.Core.Tests.csproj",
           "tests/Sudoku.Storage.Tests/Sudoku.Storage.Tests.csproj"
         ]
       },
-      "local": ["windows", "linux"],
-      "ship": ["windows-inno"],
+      "local": ["windows", "linux", "android"],
+      "ship": ["windows-inno", "android-apk"],
       "validation": {
         "changedPathGlobs": ["src/Sudoku/**", "tests/Sudoku.Core.Tests/**", "tests/Sudoku.Storage.Tests/**"],
         "runTests": true,
-        "androidCompile": false,
+        "androidCompile": true,
         "windowsCi": true,
         "windowsWorkload": false,
         "linuxCi": true,
-        "fanOutStacks": ["avalonia"]
+        "fanOutStacks": ["avalonia", "android"]
       },
       "windows": {
         "exeName": "Novolis.Sudoku.exe",
@@ -1078,7 +1079,16 @@
         "closeApplicationsFilter": "Novolis.Sudoku.exe",
         "fileAssociationsAllowed": false
       },
-      "android": null,
+      "android": {
+        "project": "src/Sudoku/Sudoku.Android/Sudoku.Android.csproj",
+        "applicationId": "com.novolis.sudoku",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "SUDOKU_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [],
+        "networkPolicy": "none"
+      },
       "data": {
         "appDataRoot": "%LOCALAPPDATA%\\Novolis\\sudoku",
         "cacheRoot": "%LOCALAPPDATA%\\Novolis\\sudoku\\cache",
@@ -1087,7 +1097,7 @@
         "retention": "uninstall-preserves-user-data"
       },
       "update": { "enabled": false, "appId": "Novolis.Sudoku", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "preview", "distribution": "direct-github" },
-      "release": { "githubRelease": false, "checksums": true }
+      "release": { "githubRelease": true, "checksums": true }
     },
     {
       "key": "novolis-quiet-video",

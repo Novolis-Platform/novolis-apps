@@ -7,12 +7,20 @@ namespace Sudoku.App;
 /// <summary>Coordinates a current Sudoku session with generation and storage.</summary>
 public sealed class SudokuGameService
 {
-    private readonly SudokuGenerator _generator = new();
     private readonly SudokuSaveStore _store;
+    private readonly SudokuPuzzleCatalog _catalog;
+    private readonly Dictionary<SudokuDifficultySegment, int> _nextPuzzle = [];
 
     /// <summary>Creates the service over the local save store.</summary>
-    public SudokuGameService(SudokuSaveStore store) =>
+    public SudokuGameService(
+        SudokuSaveStore store,
+        SudokuPuzzleCatalog? catalog = null)
+    {
         _store = store ?? throw new ArgumentNullException(nameof(store));
+        _catalog = catalog ?? SudokuPuzzleCatalog.LoadDefault();
+        foreach (var segment in Enum.GetValues<SudokuDifficultySegment>())
+            _nextPuzzle[segment] = 0;
+    }
 
     /// <summary>Raised after the current session changes.</summary>
     public event EventHandler? StateChanged;
@@ -20,27 +28,65 @@ public sealed class SudokuGameService
     /// <summary>Current player session, if one has been opened.</summary>
     public SudokuSession? Current { get; private set; }
 
+    /// <summary>All five pre-generated difficulty segments.</summary>
+    public IReadOnlyList<SudokuPuzzleSegment> Segments => _catalog.Segments;
+
+    /// <summary>Segment containing the current pre-generated puzzle.</summary>
+    public SudokuPuzzleSegment? CurrentSegment { get; private set; }
+
+    /// <summary>Current pre-generated puzzle metadata, when available.</summary>
+    public SudokuPuzzleDefinition? CurrentPuzzle { get; private set; }
+
+    /// <summary>One-based position of the current puzzle within its segment.</summary>
+    public int CurrentPuzzleNumber { get; private set; }
+
     /// <summary>Most recent non-fatal storage error.</summary>
     public string? LastStorageError { get; private set; }
 
-    /// <summary>Starts a deterministic session for a new seed.</summary>
+    /// <summary>Starts the next pre-generated game in a named segment.</summary>
+    public SudokuSession StartNew(SudokuDifficultySegment segment)
+    {
+        var selected = _catalog.GetSegment(segment);
+        var index = _nextPuzzle[segment] % selected.Games.Count;
+        _nextPuzzle[segment] = (index + 1) % selected.Games.Count;
+        return StartNewAt(segment, index);
+    }
+
+    /// <summary>
+    /// Starts a pre-generated game from an engine difficulty band. The optional
+    /// seed selects a stable position within that band's segment.
+    /// </summary>
     public SudokuSession StartNew(
         SudokuDifficulty difficulty,
         ulong? seed = null)
     {
-        var selectedSeed = seed
-            ?? unchecked((ulong)DateTime.UtcNow.Ticks);
-        var profile = SudokuDifficultyProfile.For(difficulty);
-        var game = _generator.Generate(
-            selectedSeed,
-            difficulty,
-            new SudokuGenerationOptions
-            {
-                Profile = profile,
-                MaximumAttempts = 16,
-                RequireProfileMatch = false,
-            });
+        var segment = difficulty switch
+        {
+            SudokuDifficulty.Easy => SudokuDifficultySegment.Easy,
+            SudokuDifficulty.Medium => SudokuDifficultySegment.Medium,
+            SudokuDifficulty.Hard => SudokuDifficultySegment.Hard,
+            SudokuDifficulty.Expert => SudokuDifficultySegment.Expert,
+            _ => SudokuDifficultySegment.Medium,
+        };
+        if (seed is null)
+            return StartNew(segment);
+
+        var selected = _catalog.GetSegment(segment);
+        var index = (int)(seed.Value % (ulong)selected.Games.Count);
+        _nextPuzzle[segment] = (index + 1) % selected.Games.Count;
+        return StartNewAt(segment, index);
+    }
+
+    private SudokuSession StartNewAt(
+        SudokuDifficultySegment segment,
+        int index)
+    {
+        var selected = _catalog.GetSegment(segment);
+        var game = _catalog.CreateGame(segment, index);
         Current = SudokuSession.Create(Guid.CreateVersion7(), game);
+        CurrentSegment = selected;
+        CurrentPuzzle = selected.Games[index];
+        CurrentPuzzleNumber = index + 1;
         NotifyChanged(writeRecovery: true);
         return Current;
     }
@@ -52,6 +98,23 @@ public sealed class SudokuGameService
         if (session is null)
             return false;
         Current = session;
+        if (_catalog.TryFind(
+                session.Puzzle,
+                out var segment,
+                out var definition)
+            && segment is not null
+            && definition is not null)
+        {
+            CurrentSegment = segment;
+            CurrentPuzzle = definition;
+            CurrentPuzzleNumber = FindPuzzleNumber(segment, definition) + 1;
+        }
+        else
+        {
+            CurrentSegment = null;
+            CurrentPuzzle = null;
+            CurrentPuzzleNumber = 0;
+        }
         NotifyChanged(writeRecovery: false);
         return true;
     }
@@ -154,5 +217,24 @@ public sealed class SudokuGameService
         if (writeRecovery)
             WriteRecovery();
         StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static int FindPuzzleNumber(
+        SudokuPuzzleSegment segment,
+        SudokuPuzzleDefinition definition)
+    {
+        for (var index = 0; index < segment.Games.Count; index++)
+        {
+            if (ReferenceEquals(segment.Games[index], definition)
+                || string.Equals(
+                    segment.Games[index].Id,
+                    definition.Id,
+                    StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return 0;
     }
 }

@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Sudoku.Android/">
+    <Project Path="Sudoku.Android/Sudoku.Android.csproj" />
+  </Folder>
   <Folder Name="/Sudoku.App/">
     <Project Path="Sudoku.App/Sudoku.App.csproj" />
   </Folder>

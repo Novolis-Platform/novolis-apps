@@ -84,6 +84,33 @@ public sealed class SudokuSessionTests
         });
     }
 
+    [Test]
+    public async Task DefaultCatalog_Contains_SixtyNine_Games_In_Five_Difficulty_Segments()
+    {
+        var catalog = SudokuPuzzleCatalog.LoadDefault();
+
+        await Assert.That(catalog.Segments.Count).IsEqualTo(5);
+        await Assert.That(catalog.Segments.SelectMany(segment => segment.Games).Count())
+            .IsEqualTo(69);
+        await Assert.That(catalog.GetSegment(SudokuDifficultySegment.Beginner).Games.Count)
+            .IsEqualTo(14);
+        await Assert.That(catalog.GetSegment(SudokuDifficultySegment.Easy).Games.Count)
+            .IsEqualTo(14);
+        await Assert.That(catalog.GetSegment(SudokuDifficultySegment.Medium).Games.Count)
+            .IsEqualTo(14);
+        await Assert.That(catalog.GetSegment(SudokuDifficultySegment.Hard).Games.Count)
+            .IsEqualTo(14);
+        await Assert.That(catalog.GetSegment(SudokuDifficultySegment.Expert).Games.Count)
+            .IsEqualTo(13);
+
+        var analyzer = new SudokuDifficultyAnalyzer();
+        foreach (var definition in catalog.Segments.SelectMany(segment => segment.Games))
+        {
+            var game = definition.CreateGame(analyzer);
+            await Assert.That(game.Difficulty.IsValidAndUnique).IsTrue();
+        }
+    }
+
     private static SudokuGeneratedGame CreateGame() =>
         new()
         {

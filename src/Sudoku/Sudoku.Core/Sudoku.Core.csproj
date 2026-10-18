@@ -7,4 +7,7 @@
   <ItemGroup>
     <LibraryReference Include="Novolis.Game.Sudoku" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\SudokuPuzzleDump.json" />
+  </ItemGroup>
 </Project>

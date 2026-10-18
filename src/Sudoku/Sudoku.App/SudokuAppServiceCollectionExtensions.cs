@@ -7,10 +7,12 @@ namespace Sudoku.App;
 public static class SudokuAppServiceCollectionExtensions
 {
     /// <summary>Adds local storage and the current-game coordinator.</summary>
-    public static IServiceCollection AddSudokuApp(this IServiceCollection services)
+    public static IServiceCollection AddSudokuApp(
+        this IServiceCollection services,
+        string? storageRootPath = null)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.AddSudokuStorage();
+        services.AddSudokuStorage(storageRootPath);
         services.AddSingleton<SudokuGameService>();
         services.AddSingleton<MainWindow>();
         return services;
