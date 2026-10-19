@@ -16,6 +16,8 @@ minimizing disclosure about the video being played.
   Bluetooth playback metadata.
 - It does not persist a selected URI, filename, playback history, thumbnail,
   title, artist, artwork, duration, or diagnostic log.
+- It stores only the user's volume, mute, and pre-mute volume controls in private
+  app preferences so those controls survive a new video or app restart.
 - It does not copy videos to shared storage or create media-library entries.
 
 ## File access
@@ -24,14 +26,23 @@ Videos are opened through Android's system document picker or an explicit
 `ACTION_VIEW` video activation. The player uses the supplied `content://`,
 `file://`, or `https://` URI for the current activity session only. Persistable
 grants are not requested or retained. When playback is released, the player
-drops its in-memory source reference.
+drops its in-memory source reference when the activity session ends or the
+source is replaced.
+
+The folder action uses Android's tree picker to enumerate direct child
+documents for the current session. It keeps only candidate document URIs in
+memory, does not retain the folder grant, and does not display, log, or save
+filenames. Previous/next transport actions and automatic advance operate only
+on that in-memory queue.
 
 The document picker accepts video files and generic attachment documents so a
 provider can expose a partial download or an attachment whose MIME type is
 `application/octet-stream`. The native decoder decides whether the bytes are
-playable. A source with enough valid data may begin playback; an incomplete,
-corrupt, unsupported, or non-video source receives a generic playback error and
-is released without being copied or retained.
+playable. If preparation fails, the player briefly retries while more provider
+data may be arriving and also offers a generic retry action. A source with
+enough valid data may begin playback; an incomplete, corrupt, unsupported, or
+non-video source eventually receives a generic playback error and is released
+without being copied or retained.
 
 HTTPS servers and document providers can observe the request, source URL,
 account context, and network address according to their own policies. The app
