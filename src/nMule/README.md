@@ -2,8 +2,11 @@
 
 nMule is a .NET MAUI eD2K/Kad client for Android and Windows. The MVP is a
 foreground client for loading editable HTTPS bootstrap sources, searching an
-eD2K server, bootstrapping Kad, and downloading one verified eD2K part into
-app-private storage.
+eD2K server, bootstrapping Kad, and downloading verified multipart eD2K files
+into app-private storage. Search results use a horizontally scrollable grid
+with size, advertised availability, advertised speed, hash, same-hash names,
+transfer path, and output location columns; expandable details show the
+remaining peer metadata.
 
 ## Network admission
 
@@ -29,8 +32,11 @@ enabled.
 ## MVP limits
 
 - No uploads, background transfers, callback hosting, or LowID callback path.
-- Files larger than one eD2K part are shown but cannot be downloaded yet.
-- LowID search results require a Kad source and a reachable one-part source.
+- Files up to the eD2K peer protocol's 4 GiB range are downloaded part by
+  part, verified against the complete eD2K file hash, and staged through a
+  temporary file before completion.
+- LowID search results require a Kad source and a reachable multipart-capable
+  source.
 - Completed files, `server.met`, and `nodes.dat` remain below the app-private
   profile directory. Windows does not register file associations or use
   public/shared storage.

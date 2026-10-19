@@ -6,6 +6,5 @@ public enum NmuleTransferEligibility
     DirectHighId,
     KadSourceRequired,
     LowIdRequiresCallback,
-    MultipartRequired,
     InvalidSource,
 }

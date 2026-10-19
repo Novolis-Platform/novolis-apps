@@ -12,8 +12,11 @@ namespace Novolis.NMule;
 /// <summary>Foreground nMule search, Kad, and download surface.</summary>
 public sealed class MainPage : ContentPage
 {
+    private const double ResultGridWidth = 1_820;
+    private const int ResultGridColumnCount = 9;
     private const string AllTypesFilter = "All types";
     private const string AllAvailabilityFilter = "All availability";
+    private const string AllSpeedFilter = "All advertised speeds";
     private const string AllTransferPathsFilter = "All transfer paths";
     private const string OriginalOrderSort = "Original order";
     private readonly NmuleSession _session;
@@ -24,6 +27,7 @@ public sealed class MainPage : ContentPage
     private readonly Entry _resultFilter;
     private readonly Picker _resultTypeFilter;
     private readonly Picker _resultAvailabilityFilter;
+    private readonly Picker _resultSpeedFilter;
     private readonly Picker _resultTransferFilter;
     private readonly Picker _resultSort;
     private readonly Label _status;
@@ -33,6 +37,7 @@ public sealed class MainPage : ContentPage
     private readonly Label _kadStatus;
     private readonly Label _downloadStatus;
     private readonly Label _resultStatus;
+    private readonly Label _outputLocation;
     private readonly CollectionView _serverList;
     private readonly CollectionView _results;
     private readonly CollectionView _downloads;
@@ -121,6 +126,10 @@ public sealed class MainPage : ContentPage
             AllAvailabilityFilter,
             "NmuleResultAvailabilityFilter",
             [AllAvailabilityFilter, "Has advertised sources", "No advertised sources"]);
+        _resultSpeedFilter = CreatePicker(
+            AllSpeedFilter,
+            "NmuleResultSpeedFilter",
+            [AllSpeedFilter, "Speed advertised", "Speed not advertised"]);
         _resultTransferFilter = CreatePicker(
             AllTransferPathsFilter,
             "NmuleResultTransferFilter",
@@ -128,7 +137,6 @@ public sealed class MainPage : ContentPage
                 AllTransferPathsFilter,
                 "Direct download",
                 "Kad source lookup",
-                "Multipart required",
                 "Unavailable",
             ]);
         _resultSort = CreatePicker(
@@ -142,10 +150,13 @@ public sealed class MainPage : ContentPage
                 "Largest first",
                 "Most sources",
                 "Fewest sources",
+                "Fastest advertised",
+                "Slowest advertised",
             ]);
         _resultTypeFilter.SelectedIndexChanged += (_, _) => ApplyResultFilters();
         _resultAvailabilityFilter.SelectedIndexChanged += (_, _) =>
             ApplyResultFilters();
+        _resultSpeedFilter.SelectedIndexChanged += (_, _) => ApplyResultFilters();
         _resultTransferFilter.SelectedIndexChanged += (_, _) =>
             ApplyResultFilters();
         _resultSort.SelectedIndexChanged += (_, _) => ApplyResultFilters();
@@ -155,6 +166,15 @@ public sealed class MainPage : ContentPage
             Text = "No search results yet.",
             FontSize = GraphicalProfileColors.CaptionSize,
             TextColor = Profile.Muted,
+        };
+        _outputLocation = new Label
+        {
+            AutomationId = "NmuleOutputLocation",
+            Text = $"Output: {_session.OutputDirectory}",
+            FontSize = GraphicalProfileColors.CaptionSize,
+            TextColor = Profile.Muted,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            MaxLines = 1,
         };
 
         _allowTailscale = new Switch
@@ -196,13 +216,12 @@ public sealed class MainPage : ContentPage
             AutomationId = "NmuleSearchResults",
             ItemsSource = _searchResults,
             SelectionMode = SelectionMode.None,
-            HeightRequest = 520,
-            ItemsLayout = new GridItemsLayout(
-                2,
+            WidthRequest = ResultGridWidth,
+            HeightRequest = 460,
+            ItemsLayout = new LinearItemsLayout(
                 ItemsLayoutOrientation.Vertical)
             {
-                HorizontalItemSpacing = 8,
-                VerticalItemSpacing = 8,
+                ItemSpacing = 1,
             },
             ItemTemplate = CreateSearchTemplate(),
         };
@@ -341,6 +360,7 @@ public sealed class MainPage : ContentPage
                     _query,
                     CreateButton("Search", "NmuleSearch", SearchAsync),
                     CreateSectionTitle("Results"),
+                    _outputLocation,
                     _resultFilter,
                     new Grid
                     {
@@ -353,6 +373,7 @@ public sealed class MainPage : ContentPage
                         {
                             new RowDefinition(GridLength.Auto),
                             new RowDefinition(GridLength.Auto),
+                            new RowDefinition(GridLength.Auto),
                         },
                         ColumnSpacing = 8,
                         RowSpacing = 8,
@@ -360,22 +381,26 @@ public sealed class MainPage : ContentPage
                         {
                             _resultTypeFilter,
                             _resultAvailabilityFilter,
+                            _resultSpeedFilter,
                             _resultTransferFilter,
                             _resultSort,
                         },
                     },
                     _resultStatus,
-                    _results,
+                    CreateResultsGrid(),
                 },
             });
         Grid.SetColumn(_resultTypeFilter, 0);
         Grid.SetRow(_resultTypeFilter, 0);
         Grid.SetColumn(_resultAvailabilityFilter, 1);
         Grid.SetRow(_resultAvailabilityFilter, 0);
-        Grid.SetColumn(_resultTransferFilter, 0);
+        Grid.SetColumn(_resultSpeedFilter, 0);
+        Grid.SetRow(_resultSpeedFilter, 1);
+        Grid.SetColumn(_resultTransferFilter, 1);
         Grid.SetRow(_resultTransferFilter, 1);
-        Grid.SetColumn(_resultSort, 1);
-        Grid.SetRow(_resultSort, 1);
+        Grid.SetColumn(_resultSort, 0);
+        Grid.SetRow(_resultSort, 2);
+        Grid.SetColumnSpan(_resultSort, 2);
 
         return new ScrollView
         {
@@ -506,7 +531,7 @@ public sealed class MainPage : ContentPage
                                 },
                                 new Label
                                 {
-                                    Text = "The first transfer supports one verified eD2K part. Larger files, LowID callback hosting, uploads, and resume scheduling are intentionally unavailable in this MVP.",
+                                    Text = "Transfers are verified across all eD2K parts and written to the app-private output location. LowID callback hosting, uploads, and resume scheduling are intentionally unavailable in this MVP.",
                                     FontSize = GraphicalProfileColors.CaptionSize,
                                     TextColor = Profile.Muted,
                                     LineBreakMode = LineBreakMode.WordWrap,
@@ -517,42 +542,104 @@ public sealed class MainPage : ContentPage
             },
         };
 
+    private View CreateResultsGrid() =>
+        new ScrollView
+        {
+            AutomationId = "NmuleResultsGrid",
+            Orientation = ScrollOrientation.Horizontal,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Always,
+            Content = new VerticalStackLayout
+            {
+                Spacing = 1,
+                WidthRequest = ResultGridWidth,
+                Children =
+                {
+                    CreateResultsGridHeader(),
+                    _results,
+                },
+            },
+        };
+
+    private static Grid CreateResultsGridHeader()
+    {
+        var grid = CreateResultGrid();
+        grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        AddResultCell(
+            grid,
+            CreateGridHeaderLabel("Name"),
+            0);
+        AddResultCell(
+            grid,
+            CreateGridHeaderLabel("Size"),
+            1);
+        AddResultCell(
+            grid,
+            CreateGridHeaderLabel("Availability"),
+            2);
+        AddResultCell(
+            grid,
+            CreateGridHeaderLabel("Speed"),
+            3);
+        AddResultCell(
+            grid,
+            CreateGridHeaderLabel("Hash"),
+            4);
+        AddResultCell(
+            grid,
+            CreateGridHeaderLabel("Same hash / names"),
+            5);
+        AddResultCell(
+            grid,
+            CreateGridHeaderLabel("Transfer"),
+            6);
+        AddResultCell(
+            grid,
+            CreateGridHeaderLabel("Output location"),
+            7);
+        AddResultCell(
+            grid,
+            CreateGridHeaderLabel("Actions"),
+            8);
+        return grid;
+    }
+
     private DataTemplate CreateSearchTemplate() =>
         new(() =>
         {
-            var name = new Label
-            {
-                FontAttributes = FontAttributes.Bold,
-                LineBreakMode = LineBreakMode.TailTruncation,
-                MaxLines = 1,
-            };
+            var name = CreateGridValueLabel(bold: true);
             name.SetBinding(Label.TextProperty, nameof(NmuleSearchHit.Name));
-            var details = new Label
-            {
-                FontSize = GraphicalProfileColors.CaptionSize,
-                TextColor = Profile.Muted,
-            };
-            details.SetBinding(
+            var size = CreateGridValueLabel();
+            size.SetBinding(
                 Label.TextProperty,
-                nameof(NmuleSearchHit.Summary));
-            var eligibility = new Label
-            {
-                FontSize = GraphicalProfileColors.CaptionSize,
-                TextColor = Profile.Muted,
-            };
-            eligibility.SetBinding(
+                new Binding(
+                    nameof(NmuleSearchHit.Size),
+                    stringFormat: "{0:N0} bytes"));
+            var availability = CreateGridValueLabel();
+            availability.SetBinding(
+                Label.TextProperty,
+                nameof(NmuleSearchHit.AvailabilityLabel));
+            var speed = CreateGridValueLabel();
+            speed.SetBinding(Label.TextProperty, nameof(NmuleSearchHit.SpeedLabel));
+            var hash = CreateGridValueLabel();
+            hash.SetBinding(Label.TextProperty, nameof(NmuleSearchHit.HashLabel));
+            var names = CreateGridValueLabel();
+            names.SetBinding(
+                Label.TextProperty,
+                nameof(NmuleSearchHit.SameHashNamesLabel));
+            var transfer = CreateGridValueLabel();
+            transfer.SetBinding(
                 Label.TextProperty,
                 nameof(NmuleSearchHit.EligibilityLabel));
-            var metadata = new Label
-            {
-                FontSize = GraphicalProfileColors.CaptionSize,
-                TextColor = Profile.Muted,
-                IsVisible = false,
-                LineBreakMode = LineBreakMode.WordWrap,
-            };
+            var output = CreateGridValueLabel();
+            output.SetBinding(
+                Label.TextProperty,
+                nameof(NmuleSearchHit.OutputLocationLabel));
+            var metadata = CreateGridValueLabel();
             metadata.SetBinding(
                 Label.TextProperty,
                 nameof(NmuleSearchHit.DetailsText));
+            metadata.IsVisible = false;
+
             var download = CreateButton(
                 "Download",
                 "NmuleDownloadResult",
@@ -578,23 +665,90 @@ public sealed class MainPage : ContentPage
 
                     return Task.CompletedTask;
                 });
-            var card = CreateCard(
-                new VerticalStackLayout
-                {
-                    Spacing = 4,
-                    Children =
-                    {
-                        name,
-                        details,
-                        eligibility,
-                        download,
-                        toggleDetails,
-                        metadata,
-                    },
-                });
-            card.MinimumHeightRequest = 190;
-            return card;
+            var actions = new VerticalStackLayout
+            {
+                Spacing = 4,
+                Children = { download, toggleDetails },
+            };
+
+            var row = CreateResultGrid();
+            row.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            row.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            AddResultCell(row, name, 0);
+            AddResultCell(row, size, 1);
+            AddResultCell(row, availability, 2);
+            AddResultCell(row, speed, 3);
+            AddResultCell(row, hash, 4);
+            AddResultCell(row, names, 5);
+            AddResultCell(row, transfer, 6);
+            AddResultCell(row, output, 7);
+            AddResultCell(row, actions, 8);
+            AddResultCell(row, metadata, 0, 1, ResultGridColumnCount);
+            return row;
         });
+
+    private static Grid CreateResultGrid()
+    {
+        var grid = new Grid
+        {
+            WidthRequest = ResultGridWidth,
+            ColumnSpacing = 1,
+            RowSpacing = 1,
+            BackgroundColor = Profile.Border,
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(220)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(120)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(190)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(140)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(280)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(300)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(160)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(260)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(140)));
+        return grid;
+    }
+
+    private static void AddResultCell(
+        Grid grid,
+        View content,
+        int column,
+        int row = 0,
+        int columnSpan = 1)
+    {
+        var cell = new Grid
+        {
+            Padding = new Thickness(8, 7),
+            BackgroundColor = Profile.Surface,
+            MinimumHeightRequest = GraphicalProfileColors.TouchTarget,
+            Children = { content },
+        };
+        grid.Children.Add(cell);
+        Grid.SetColumn(cell, column);
+        Grid.SetRow(cell, row);
+        if (columnSpan > 1)
+            Grid.SetColumnSpan(cell, columnSpan);
+    }
+
+    private static Label CreateGridHeaderLabel(string text) =>
+        new()
+        {
+            Text = text,
+            FontFamily = Profile.FontFamily,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = Profile.Text,
+            LineBreakMode = LineBreakMode.WordWrap,
+        };
+
+    private static Label CreateGridValueLabel(bool bold = false) =>
+        new()
+        {
+            FontAttributes = bold ? FontAttributes.Bold : FontAttributes.None,
+            FontSize = GraphicalProfileColors.CaptionSize,
+            TextColor = Profile.Text,
+            LineBreakMode = LineBreakMode.WordWrap,
+            MaxLines = 4,
+            VerticalTextAlignment = TextAlignment.Center,
+        };
 
     private DataTemplate CreateServerTemplate() =>
         new(() =>
@@ -637,11 +791,23 @@ public sealed class MainPage : ContentPage
             source.SetBinding(
                 Label.TextProperty,
                 nameof(NmuleDownloadResult.SourceDescription));
+            var path = new Label
+            {
+                FontSize = GraphicalProfileColors.CaptionSize,
+                TextColor = Profile.Muted,
+                LineBreakMode = LineBreakMode.TailTruncation,
+                MaxLines = 2,
+            };
+            path.SetBinding(
+                Label.TextProperty,
+                new Binding(
+                    nameof(NmuleDownloadResult.Path),
+                    stringFormat: "Output: {0}"));
             return CreateCard(
                 new VerticalStackLayout
                 {
                     Spacing = 4,
-                    Children = { name, details, source },
+                    Children = { name, details, source, path },
                 });
         });
 
@@ -805,6 +971,7 @@ public sealed class MainPage : ContentPage
         var text = (_resultFilter.Text ?? string.Empty).Trim();
         var type = _resultTypeFilter.SelectedItem as string;
         var availability = _resultAvailabilityFilter.SelectedItem as string;
+        var speed = _resultSpeedFilter.SelectedItem as string;
         var transfer = _resultTransferFilter.SelectedItem as string;
         var sort = _resultSort.SelectedItem as string;
         IEnumerable<NmuleSearchHit> filtered = _allSearchResults;
@@ -839,6 +1006,14 @@ public sealed class MainPage : ContentPage
                 static hit => hit.SourceCount <= 0),
             _ => filtered,
         };
+        filtered = speed switch
+        {
+            "Speed advertised" => filtered.Where(
+                static hit => hit.SpeedBytesPerSecond is > 0),
+            "Speed not advertised" => filtered.Where(
+                static hit => hit.SpeedBytesPerSecond is not > 0),
+            _ => filtered,
+        };
         filtered = transfer switch
         {
             "Direct download" => filtered.Where(
@@ -847,9 +1022,6 @@ public sealed class MainPage : ContentPage
             "Kad source lookup" => filtered.Where(
                 static hit => hit.Eligibility
                     == NmuleTransferEligibility.KadSourceRequired),
-            "Multipart required" => filtered.Where(
-                static hit => hit.Eligibility
-                    == NmuleTransferEligibility.MultipartRequired),
             "Unavailable" => filtered.Where(
                 static hit => hit.Eligibility
                     == NmuleTransferEligibility.InvalidSource),
@@ -869,6 +1041,10 @@ public sealed class MainPage : ContentPage
             "Most sources" => filtered.OrderByDescending(
                 static hit => hit.SourceCount),
             "Fewest sources" => filtered.OrderBy(static hit => hit.SourceCount),
+            "Fastest advertised" => filtered.OrderByDescending(
+                static hit => hit.SpeedBytesPerSecond ?? -1),
+            "Slowest advertised" => filtered.OrderBy(
+                static hit => hit.SpeedBytesPerSecond ?? long.MaxValue),
             _ => filtered,
         };
 

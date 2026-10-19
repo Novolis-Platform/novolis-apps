@@ -7,8 +7,8 @@ using Novolis.Transports.Kad;
 namespace Novolis.NMule.Core;
 
 /// <summary>
-/// Owns the foreground nMule eD2K search, Kad source lookup, and bounded
-/// one-part download workflow.
+/// Owns the foreground nMule eD2K search, Kad source lookup, and verified
+/// multipart download workflow.
 /// </summary>
 public sealed class NmuleSession : IAsyncDisposable
 {
@@ -57,6 +57,9 @@ public sealed class NmuleSession : IAsyncDisposable
 
     /// <summary>Gets the currently known Kad contacts.</summary>
     public IReadOnlyList<KadContact> KadContacts => _kadContacts;
+
+    /// <summary>Gets the app-private destination for completed files.</summary>
+    public string OutputDirectory => _storage.CompletedDirectory;
 
     /// <summary>Loads and caches a text or server.met list.</summary>
     public async Task<ServerList> LoadServerListAsync(
@@ -166,7 +169,21 @@ public sealed class NmuleSession : IAsyncDisposable
         RaiseStatus($"Searching for {query.Trim()}...");
         var results = await session.SearchAsync(query.Trim(), cancellationToken)
             .ConfigureAwait(false);
-        var hits = results.Select(static result => new NmuleSearchHit(result)).ToArray();
+        var namesByHash = results
+            .GroupBy(static result => result.FileId)
+            .ToDictionary(
+                static group => group.Key,
+                static group => (IReadOnlyList<string>)group
+                    .Select(static result => result.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
+                    .ToArray());
+        var hits = results
+            .Select(result => new NmuleSearchHit(
+                result,
+                namesByHash[result.FileId],
+                _storage.CompletedDirectory))
+            .ToArray();
         RaiseStatus($"Search returned {hits.Length} result(s).");
         return hits;
     }
@@ -288,7 +305,7 @@ public sealed class NmuleSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Downloads one bounded file into app-private storage, using a direct
+    /// Downloads and verifies a file into app-private storage, using a direct
     /// HighID source or a Kad source when required.
     /// </summary>
     public async Task<NmuleDownloadResult> DownloadAsync(
@@ -297,8 +314,7 @@ public sealed class NmuleSession : IAsyncDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(hit);
-        if (hit.Eligibility is NmuleTransferEligibility.MultipartRequired
-            or NmuleTransferEligibility.InvalidSource)
+        if (hit.Eligibility is NmuleTransferEligibility.InvalidSource)
         {
             throw new NotSupportedException(
                 $"{hit.Name} cannot be downloaded by the nMule MVP: "
@@ -381,7 +397,7 @@ public sealed class NmuleSession : IAsyncDisposable
                 if (sourceDescription.Length == 0)
                 {
                     throw new InvalidOperationException(
-                        "All Kad sources failed the one-part transfer.",
+                        "All Kad sources failed the multipart transfer.",
                         lastFailure);
                 }
             }
