@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/NovolisMaps.Desktop/">
+    <Project Path="NovolisMaps.Desktop/NovolisMaps.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/NovolisMaps/">
+    <Project Path="NovolisMaps/NovolisMaps.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="../../tests/NovolisMaps.Unit/NovolisMaps.Unit.csproj" />
+  </Folder>
+</Solution>

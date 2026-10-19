@@ -6,7 +6,7 @@
       "id": "windows-inno",
       "runner": "windows-latest",
       "artifacts": ["installer", "portable-zip", "sha256"],
-      "description": "Per-user Inno Setup installer plus portable zip under LocalAppData\\\\Programs\\\\Novolis"
+      "description": "Inno Setup installer (per-user or machine-scoped by app metadata) plus a portable zip"
     },
     "android-apk": {
       "id": "android-apk",
@@ -125,25 +125,28 @@
       "sourceRoot": "src/SketchStudio",
       "solution": "src/SketchStudio/SketchStudio.slnx",
       "artifactPrefix": "SketchStudio",
-      "stack": "avalonia-desktop",
+      "stack": "avalonia-mobile",
       "status": "public",
       "projects": {
         "publishWindows": "src/SketchStudio/SketchStudio.csproj",
         "linuxCi": ["src/SketchStudio/SketchStudio.csproj"],
-        "android": null,
+        "android": "src/SketchStudio/SketchStudio.Android/SketchStudio.Android.csproj",
         "maui": null,
         "tests": [],
-        "all": ["src/SketchStudio/SketchStudio.csproj"]
+        "all": [
+          "src/SketchStudio/SketchStudio.csproj",
+          "src/SketchStudio/SketchStudio.Android/SketchStudio.Android.csproj"
+        ]
       },
-      "local": ["windows", "linux"],
-      "ship": ["windows-inno"],
+      "local": ["windows", "linux", "android"],
+      "ship": ["windows-inno", "android-apk"],
       "validation": {
         "changedPathGlobs": ["src/SketchStudio/**"],
         "runTests": false,
-        "androidCompile": false,
+        "androidCompile": true,
         "windowsWorkload": false,
         "linuxCi": true,
-        "fanOutStacks": ["avalonia"]
+        "fanOutStacks": ["avalonia", "android"]
       },
       "windows": {
         "exeName": "SketchStudio.exe",
@@ -155,7 +158,16 @@
         "closeApplicationsFilter": "SketchStudio.exe",
         "fileAssociationsAllowed": false
       },
-      "android": null,
+      "android": {
+        "project": "src/SketchStudio/SketchStudio.Android/SketchStudio.Android.csproj",
+        "applicationId": "com.novolis.sketchstudio",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "SKETCHSTUDIO_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [],
+        "networkPolicy": "none"
+      },
       "data": {
         "appDataRoot": "%LOCALAPPDATA%\\Novolis\\sketch-studio",
         "cacheRoot": "%LOCALAPPDATA%\\Novolis\\sketch-studio\\cache",
@@ -449,6 +461,10 @@
           "src/Reach/Reach.Host.Windows.Service/Reach.Host.Windows.Service.csproj",
           "src/Reach/Reach.Host.Windows/Reach.Host.Windows.csproj"
         ],
+        "installScope": "machine",
+        "requiresAdministrator": true,
+        "serviceName": "Novolis Reach Host",
+        "managementExecutable": "Novolis.Reach.Host.Windows.exe",
         "appId": "Novolis.Reach",
         "installDir": "Novolis\\Reach",
         "groupName": "Novolis Reach",
@@ -1216,6 +1232,78 @@
         "retention": "uninstall-preserves-user-data"
       },
       "update": { "enabled": false, "appId": "Novolis.nMule", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "preview", "distribution": "direct-github" },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
+      "key": "novolis-maps",
+      "choice": "NovolisMaps",
+      "displayName": "Novolis Maps",
+      "sourceRoot": "src/NovolisMaps",
+      "solution": "src/NovolisMaps/NovolisMaps.slnx",
+      "artifactPrefix": "NovolisMaps",
+      "stack": "avalonia-mobile",
+      "status": "public",
+      "projects": {
+        "publishWindows": "src/NovolisMaps/NovolisMaps.Desktop/NovolisMaps.Desktop.csproj",
+        "linuxCi": [
+          "src/NovolisMaps/NovolisMaps/NovolisMaps.csproj",
+          "src/NovolisMaps/NovolisMaps.Desktop/NovolisMaps.Desktop.csproj",
+          "tests/NovolisMaps.Unit/NovolisMaps.Unit.csproj"
+        ],
+        "android": "src/NovolisMaps/NovolisMaps.Android/NovolisMaps.Android.csproj",
+        "maui": null,
+        "tests": ["tests/NovolisMaps.Unit/NovolisMaps.Unit.csproj"],
+        "all": [
+          "src/NovolisMaps/NovolisMaps/NovolisMaps.csproj",
+          "src/NovolisMaps/NovolisMaps.Desktop/NovolisMaps.Desktop.csproj",
+          "src/NovolisMaps/NovolisMaps.Android/NovolisMaps.Android.csproj",
+          "tests/NovolisMaps.Unit/NovolisMaps.Unit.csproj"
+        ]
+      },
+      "local": ["windows", "linux", "android"],
+      "ship": ["windows-inno", "android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/NovolisMaps/**", "tests/NovolisMaps.Unit/**"],
+        "runTests": true,
+        "androidCompile": true,
+        "windowsCi": true,
+        "windowsWorkload": false,
+        "linuxCi": true,
+        "fanOutStacks": ["avalonia", "android"]
+      },
+      "windows": {
+        "exeName": "NovolisMaps.exe",
+        "appId": "Novolis.Maps",
+        "installDir": "Novolis\\Maps",
+        "groupName": "Novolis Maps",
+        "setupBase": "NovolisMapsSetup",
+        "scriptFile": "novolis-maps.iss",
+        "closeApplicationsFilter": "NovolisMaps.exe",
+        "fileAssociationsAllowed": false
+      },
+      "android": {
+        "project": "src/NovolisMaps/NovolisMaps.Android/NovolisMaps.Android.csproj",
+        "applicationId": "com.novolis.maps",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "NOVOLIS_MAPS_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": ["android.permission.INTERNET"],
+        "networkPolicy": "selected-public-map-providers"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\maps",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\maps\\cache",
+        "credentialsNamespace": "Novolis.Maps",
+        "networkDestinations": [
+          "cache.kartverket.no",
+          "ws.geonorge.no",
+          "tile.openstreetmap.org",
+          "nominatim.openstreetmap.org"
+        ],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": true, "appId": "Novolis.Maps", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     }
   ]

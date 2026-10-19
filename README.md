@@ -100,12 +100,13 @@ pwsh -File d:\novolis\novolis-apps\scripts\build-installer.ps1 -App CadStudio
 |-----|-------|------|-------|
 | Books Writer Studio | avalonia-desktop | windows-inno | windows, linux |
 | Novolis CAD Studio | avalonia-desktop | windows-inno | windows, linux |
-| Sketch Studio | avalonia-desktop | windows-inno | windows, linux |
+| Sketch Studio | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Sins of a Capitalism Tycoon | avalonia-desktop | windows-inno | windows, linux |
 | Live Studio | avalonia-desktop | windows-inno | windows, linux |
 | Books Mobile | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Read Aloud | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Presence Ledger | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
+| Novolis Maps | avalonia-mobile | windows-inno, android-apk | windows, linux, android |
 | Merglyph | maui | windows-inno, android-apk | windows, android |
 | Novolis PDF Reader | maui | windows-inno, android-apk | windows, android |
 | Novolis Quiet Video | android | android-apk | android |

@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/SketchStudio.Android/">
+    <Project Path="SketchStudio.Android/SketchStudio.Android.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="SketchStudio.csproj" />
   </Folder>
