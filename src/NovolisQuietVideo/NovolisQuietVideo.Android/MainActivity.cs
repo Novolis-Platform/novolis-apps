@@ -29,8 +29,13 @@ namespace NovolisQuietVideo.Android;
 [IntentFilter(
     new[] { Intent.ActionView },
     Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
-    DataSchemes = new[] { "content", "file" },
+    DataSchemes = new[] { "content", "file", "https" },
     DataMimeType = "video/*")]
+[IntentFilter(
+    new[] { Intent.ActionView },
+    Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
+    DataSchemes = new[] { "content", "file", "https" },
+    DataMimeType = "application/octet-stream")]
 public sealed class MainActivity : Activity
 {
     private const int OpenVideoRequestCode = 4101;
@@ -62,6 +67,7 @@ public sealed class MainActivity : Activity
     private bool _shouldPlay = true;
     private bool _prepared;
     private bool _destroyed;
+    private Action? _prepareTimeout;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -299,8 +305,8 @@ public sealed class MainActivity : Activity
 
         var intent = new Intent(Intent.ActionOpenDocument);
         intent.AddCategory(Intent.CategoryOpenable);
-        intent.SetType("video/*");
-        intent.PutExtra(Intent.ExtraLocalOnly, true);
+        intent.SetType("*/*");
+        intent.PutExtra(Intent.ExtraMimeTypes, new[] { "video/*", "application/octet-stream" });
         StartActivityForResult(intent, OpenVideoRequestCode);
     }
 
@@ -322,11 +328,11 @@ public sealed class MainActivity : Activity
         if (!string.Equals(scheme, "content", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(scheme, "file", StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            if (!string.Equals(scheme, "https", StringComparison.OrdinalIgnoreCase))
+                return false;
         }
 
-        return string.IsNullOrWhiteSpace(intent.Type)
-            || intent.Type.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+        return true;
     }
 
     private void LoadVideo(AndroidUri uri)
@@ -357,19 +363,48 @@ public sealed class MainActivity : Activity
 
         try
         {
+            var uri = _sessionUri;
+            var surface = _surface;
             var player = new MediaPlayer();
-            player.Prepared += (_, _) => HandlePrepared();
-            player.Completion += (_, _) => HandleCompletion();
-            player.Error += (_, _) => HandlePlaybackError();
-            player.SetSurface(_surface);
-            player.SetDataSource(this, _sessionUri);
             _player = player;
+            player.Completion += (_, _) =>
+            {
+                if (ReferenceEquals(_player, player))
+                    TryPostToMain(HandleCompletion);
+            };
+            player.Error += (_, _) =>
+            {
+                if (_prepared && ReferenceEquals(_player, player))
+                    TryPostToMain(() => HandlePlaybackError(player));
+            };
+            player.SetSurface(surface);
             ApplyAudioVolume();
-            player.PrepareAsync();
+            StartPrepareTimeout();
+            _ = PreparePlayerAsync(player, uri);
         }
         catch
         {
             HandlePlaybackError();
+        }
+    }
+
+    private async Task PreparePlayerAsync(MediaPlayer player, AndroidUri uri)
+    {
+        try
+        {
+            await Task.Run(() =>
+            {
+                player.SetDataSource(this, uri);
+                player.Prepare();
+            }).ConfigureAwait(false);
+
+            if (!TryPostToMain(() => HandlePrepared(player)))
+                ReleasePlayer(player);
+        }
+        catch
+        {
+            if (!TryPostToMain(() => HandlePlaybackError(player)))
+                ReleasePlayer(player);
         }
     }
 
@@ -420,20 +455,26 @@ public sealed class MainActivity : Activity
         args.Handled = true;
     }
 
-    private void HandlePrepared()
+    private void HandlePrepared(MediaPlayer player)
     {
-        if (_player is null || _destroyed || _sessionUri is null)
+        if (!ReferenceEquals(_player, player)
+            || _destroyed
+            || _sessionUri is null)
+        {
+            ReleasePlayer(player);
             return;
+        }
 
         try
         {
-            _durationMilliseconds = Math.Max(0, _player.Duration);
+            _durationMilliseconds = Math.Max(0, player.Duration);
+            StopPrepareTimeout();
             _prepared = true;
             SetControls(enabled: true);
             ApplyAudioVolume();
             if (_shouldPlay)
             {
-                _player.Start();
+                player.Start();
                 _playPauseButton!.Text = "Pause";
                 SetStatus(string.Empty, visible: false);
                 StartProgressUpdates();
@@ -467,13 +508,20 @@ public sealed class MainActivity : Activity
         SetStatus("Finished", visible: true);
     }
 
-    private void HandlePlaybackError()
+    private void HandlePlaybackError(MediaPlayer? source = null)
     {
+        if (source is not null && !ReferenceEquals(_player, source))
+        {
+            ReleasePlayer(source);
+            return;
+        }
+
         if (_destroyed)
             return;
 
+        StopPrepareTimeout();
         ReleasePlayback();
-        SetStatus("Unable to play this video", visible: true);
+        SetStatus("Unable to play this video or stream", visible: true);
     }
 
     private void TogglePlayback()
@@ -528,6 +576,7 @@ public sealed class MainActivity : Activity
 
     private void ReleasePlayback(bool clearSession = true)
     {
+        StopPrepareTimeout();
         StopProgressUpdates();
         if (_player is not null)
         {
@@ -557,6 +606,51 @@ public sealed class MainActivity : Activity
         _prepared = false;
         UpdateSeekBar(0);
         SetControls(enabled: false);
+    }
+
+    private void StartPrepareTimeout()
+    {
+        if (_prepareTimeout is null)
+        {
+            _prepareTimeout = () =>
+            {
+                if (!_prepared && _player is not null)
+                    HandlePlaybackError();
+            };
+        }
+
+        _main.RemoveCallbacks(_prepareTimeout);
+        _main.PostDelayed(_prepareTimeout, 15_000);
+    }
+
+    private void StopPrepareTimeout()
+    {
+        if (_prepareTimeout is not null)
+            _main.RemoveCallbacks(_prepareTimeout);
+    }
+
+    private bool TryPostToMain(Action action)
+    {
+        try
+        {
+            _main.Post(action);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void ReleasePlayer(MediaPlayer player)
+    {
+        try
+        {
+            player.Release();
+        }
+        catch
+        {
+        }
     }
 
     private void OnSeekProgressChanged(object? sender, SeekBar.ProgressChangedEventArgs args)

@@ -1137,8 +1137,8 @@
         "signingSecretKey": "NOVOLIS_QUIET_VIDEO_ANDROID",
         "allowBackup": false,
         "usesCleartextTraffic": false,
-        "permissionAllowlist": [],
-        "networkPolicy": "none"
+        "permissionAllowlist": ["android.permission.INTERNET"],
+        "networkPolicy": "user-selected-https-video"
       },
       "data": {
         "appDataRoot": "%LOCALAPPDATA%\\Novolis\\quiet-video",
