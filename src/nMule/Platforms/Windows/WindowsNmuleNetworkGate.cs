@@ -109,15 +109,19 @@ public sealed class WindowsNmuleNetworkGate : INmuleNetworkGate
     private static bool IsTailscaleInterface(NetworkInterface networkInterface)
     {
         var identity = $"{networkInterface.Name} {networkInterface.Description}";
-        if (Contains(identity, "tailscale"))
-            return true;
-
         var properties = networkInterface.GetIPProperties();
         if (properties.DnsAddresses.Any(IsTailscaleDns))
             return true;
 
-        return properties.UnicastAddresses
-            .Any(address => IsTailscaleIpv4(address.Address));
+        // A disconnected Tailscale adapter can remain OperationalStatus.Up
+        // with only a 169.254.* link-local address. Its name alone does not
+        // prove that the active path is Tailscale.
+        if (!Contains(identity, "tailscale"))
+            return false;
+
+        return properties.UnicastAddresses.Any(
+            address => IsTailscaleIpv4(address.Address)
+                || IsTailscaleIpv6(address.Address));
     }
 
     private static bool IsTailscaleDns(IPAddress address) =>
@@ -132,6 +136,21 @@ public sealed class WindowsNmuleNetworkGate : INmuleNetworkGate
 
         var bytes = address.GetAddressBytes();
         return bytes[0] == 100 && bytes[1] is >= 64 and <= 127;
+    }
+
+    private static bool IsTailscaleIpv6(IPAddress address)
+    {
+        if (address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6)
+            return false;
+
+        var bytes = address.GetAddressBytes();
+        return bytes.Length >= 6
+            && bytes[0] == 0xFD
+            && bytes[1] == 0x7A
+            && bytes[2] == 0x11
+            && bytes[3] == 0x5C
+            && bytes[4] == 0xA1
+            && bytes[5] == 0xE0;
     }
 
     private static bool Contains(string value, string part) =>
