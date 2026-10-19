@@ -9,6 +9,7 @@ namespace Novolis.Reach.Client;
 /// </summary>
 public sealed class ReachVideoProfileController
 {
+    private readonly ReachDisplay _display;
     private readonly VideoAdaptiveProfileController _inner;
 
     /// <summary>Creates a profile controller for one selected display.</summary>
@@ -17,6 +18,7 @@ public sealed class ReachVideoProfileController
         ReachVideoProfileKind initialKind)
     {
         ArgumentNullException.ThrowIfNull(display);
+        _display = display;
         _inner = new VideoAdaptiveProfileController(
             display.Width,
             display.Height,
@@ -25,7 +27,9 @@ public sealed class ReachVideoProfileController
 
     /// <summary>Gets the profile currently applied to the host.</summary>
     public ReachVideoProfile Current =>
-        ReachVideoProfile.FromAdaptive(_inner.Current);
+        ReachVideoProfile.ForDisplay(
+            _display,
+            ReachVideoProfile.FromAdaptive(_inner.Current.Kind));
 
     /// <summary>
     /// Returns a new profile only when pressure or sustained stability warrants
@@ -42,6 +46,10 @@ public sealed class ReachVideoProfileController
             snapshot.FrameAgeP95Milliseconds,
             snapshot.InputRoundTripP95Milliseconds,
             now);
-        return next is null ? null : ReachVideoProfile.FromAdaptive(next);
+        return next is null
+            ? null
+            : ReachVideoProfile.ForDisplay(
+                _display,
+                ReachVideoProfile.FromAdaptive(next.Kind));
     }
 }

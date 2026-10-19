@@ -69,7 +69,7 @@ public sealed class ReachPerformanceTests
 
         await Assert.That(downgraded).IsNotNull();
         await Assert.That(downgraded!.Kind).IsEqualTo(ReachVideoProfileKind.Routed);
-        await Assert.That(downgraded.Width).IsLessThanOrEqualTo(720);
+        await Assert.That(downgraded.Width).IsLessThanOrEqualTo(1080);
         var held = controller.Observe(
             pressure with
             {

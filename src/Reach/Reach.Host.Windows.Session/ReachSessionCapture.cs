@@ -17,16 +17,16 @@ internal sealed class ReachSessionCapture(ReachSessionHost host)
             return;
         }
 
-        var kind = profile?.ToLowerInvariant() switch
+        var tier = profile?.ToLowerInvariant() switch
         {
-            "routed" => VideoAdaptiveProfileKind.Medium,
-            "constrained" => VideoAdaptiveProfileKind.Low,
-            _ => VideoAdaptiveProfileKind.High,
+            "routed" => ReachVideoQualityTier.Routed,
+            "constrained" => ReachVideoQualityTier.Constrained,
+            _ => ReachVideoQualityTier.Lan,
         };
-        var initial = VideoAdaptiveProfile.ForSource(
+        var initial = ReachVideoQualityProfile.ForSource(
             monitor.Width,
             monitor.Height,
-            kind);
+            tier);
         host._targetWidth = initial.Width;
         host._targetHeight = initial.Height;
         host._framesPerSecond = initial.FramesPerSecond;

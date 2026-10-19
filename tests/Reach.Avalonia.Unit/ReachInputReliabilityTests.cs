@@ -67,5 +67,10 @@ public sealed class ReachInputReliabilityTests
                 ReachClientViewFrames.ResolveInitialVideoProfileKind(
                     "quic://reach.tail123.ts.net:19800"))
             .IsEqualTo(ReachVideoProfileKind.Routed);
+        await Assert.That(
+                ReachClientViewFrames.ResolveInitialVideoProfileKind(
+                    "tcp://192.168.1.20:19800",
+                    preferConstrained: true))
+            .IsEqualTo(ReachVideoProfileKind.Constrained);
     }
 }

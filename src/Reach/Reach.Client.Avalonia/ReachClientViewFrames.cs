@@ -243,7 +243,8 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
                 view._videoProfileController = new ReachVideoProfileController(
                     display,
                     ResolveInitialVideoProfileKind(
-                        Volatile.Read(ref view._endpointValue)));
+                        Volatile.Read(ref view._endpointValue),
+                        OperatingSystem.IsAndroid()));
                 var profile = view._videoProfileController.Current;
                 view._activeVideoProfile = profile;
                 ApplyInitialVideoProfileIfNeeded(view);
@@ -334,11 +335,17 @@ internal sealed class ReachClientViewFrames(ReachClientView view)
         }
 
         internal static ReachVideoProfileKind ResolveInitialVideoProfileKind(
-            string? endpoint) =>
-            endpoint?.Contains("100.", StringComparison.Ordinal) == true
+            string? endpoint,
+            bool preferConstrained = false)
+        {
+            if (preferConstrained)
+                return ReachVideoProfileKind.Constrained;
+
+            return endpoint?.Contains("100.", StringComparison.Ordinal) == true
                 || endpoint?.Contains(".ts.net", StringComparison.OrdinalIgnoreCase)
                     == true
                 ? ReachVideoProfileKind.Routed
                 : ReachVideoProfileKind.Lan;
+        }
 }
 

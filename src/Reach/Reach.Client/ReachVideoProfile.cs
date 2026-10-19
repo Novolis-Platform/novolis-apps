@@ -1,5 +1,4 @@
 using Novolis.Reach.Protocol;
-using Novolis.Video;
 
 namespace Novolis.Reach.Client;
 
@@ -17,34 +16,42 @@ public sealed record ReachVideoProfile(
         ReachVideoProfileKind kind)
     {
         ArgumentNullException.ThrowIfNull(display);
-        return FromAdaptive(
-            VideoAdaptiveProfile.ForSource(
-                display.Width,
-                display.Height,
-                ToAdaptive(kind)));
-    }
-
-    internal static ReachVideoProfile FromAdaptive(VideoAdaptiveProfile profile) =>
-        new(
-            FromAdaptive(profile.Kind),
+        var profile = ReachVideoQualityProfile.ForSource(
+            display.Width,
+            display.Height,
+            ToQualityTier(kind));
+        return new ReachVideoProfile(
+            kind,
             profile.Width,
             profile.Height,
             profile.FramesPerSecond,
             profile.TargetBitrate);
+    }
 
-    internal static VideoAdaptiveProfileKind ToAdaptive(ReachVideoProfileKind kind) =>
+    internal static ReachVideoProfileKind FromAdaptive(
+        Novolis.Video.VideoAdaptiveProfileKind kind) =>
         kind switch
         {
-            ReachVideoProfileKind.Lan => VideoAdaptiveProfileKind.High,
-            ReachVideoProfileKind.Routed => VideoAdaptiveProfileKind.Medium,
-            _ => VideoAdaptiveProfileKind.Low,
+            Novolis.Video.VideoAdaptiveProfileKind.High => ReachVideoProfileKind.Lan,
+            Novolis.Video.VideoAdaptiveProfileKind.Medium => ReachVideoProfileKind.Routed,
+            _ => ReachVideoProfileKind.Constrained,
         };
 
-    internal static ReachVideoProfileKind FromAdaptive(VideoAdaptiveProfileKind kind) =>
+    internal static Novolis.Video.VideoAdaptiveProfileKind ToAdaptive(
+        ReachVideoProfileKind kind) =>
         kind switch
         {
-            VideoAdaptiveProfileKind.High => ReachVideoProfileKind.Lan,
-            VideoAdaptiveProfileKind.Medium => ReachVideoProfileKind.Routed,
-            _ => ReachVideoProfileKind.Constrained,
+            ReachVideoProfileKind.Lan => Novolis.Video.VideoAdaptiveProfileKind.High,
+            ReachVideoProfileKind.Routed => Novolis.Video.VideoAdaptiveProfileKind.Medium,
+            _ => Novolis.Video.VideoAdaptiveProfileKind.Low,
+        };
+
+    private static ReachVideoQualityTier ToQualityTier(
+        ReachVideoProfileKind kind) =>
+        kind switch
+        {
+            ReachVideoProfileKind.Lan => ReachVideoQualityTier.Lan,
+            ReachVideoProfileKind.Routed => ReachVideoQualityTier.Routed,
+            _ => ReachVideoQualityTier.Constrained,
         };
 }
