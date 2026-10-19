@@ -10,7 +10,7 @@ using Android.Views;
 using Android.Widget;
 using AndroidUri = Android.Net.Uri;
 using DeviceConfiguration = global::Android.Content.Res.Configuration;
-using MediaPlayer = Android.Media.MediaPlayer;
+using Novolis.Video.Playback.Android;
 using WidgetOrientation = Android.Widget.Orientation;
 
 namespace NovolisQuietVideo.Android;
@@ -44,23 +44,20 @@ public sealed class MainActivity : Activity
     private const int OpenFolderRequestCode = 4102;
     private const int SeekBarMaximum = 1000;
     private const int VolumeMaximum = 100;
-    private const float MinimumZoom = 1f;
-    private const float MaximumZoom = 4f;
     private const int MaximumPrepareRetries = 10;
     private const int PrepareRetryDelayMilliseconds = 1000;
+    private const string VlcPackageName = "org.videolan.vlc";
     private const string PreferencesName = "quiet_video_preferences";
     private const string VolumePreferenceKey = "volume";
     private const string VolumeBeforeMutePreferenceKey = "volume_before_mute";
     private const string MutedPreferenceKey = "muted";
 
     private readonly Handler _main = new(Looper.MainLooper!);
-    private readonly Matrix _videoTransform = new();
-    private TextureView? _video;
-    private MediaPlayer? _player;
-    private Surface? _surface;
+    private AndroidVideoPlayerView? _playerView;
     private TextView? _status;
     private Button? _openButton;
     private Button? _openFolderButton;
+    private Button? _vlcButton;
     private MediaControlBar? _transportControls;
     private Button? _viewModeButton;
     private SeekBar? _seekBar;
@@ -71,20 +68,12 @@ public sealed class MainActivity : Activity
     private readonly List<AndroidUri> _folderVideos = [];
     private int _folderIndex = -1;
     private int _folderLoadVersion;
-    private int _durationMilliseconds;
-    private int _videoWidth;
-    private int _videoHeight;
     private float _volume = 1f;
     private float _volumeBeforeMute = 1f;
-    private float _zoom = MinimumZoom;
     private bool _muted;
     private bool _shouldPlay = true;
-    private bool _prepared;
     private bool _destroyed;
-    private VideoScaleMode _scaleMode = VideoScaleMode.FitView;
-    private bool _pinching;
-    private float _pinchStartDistance;
-    private float _pinchStartZoom = MinimumZoom;
+    private AndroidVideoScaleMode _scaleMode = AndroidVideoScaleMode.FitView;
     private Action? _prepareTimeout;
     private Action? _prepareRetry;
     private int _prepareRetryCount;
@@ -142,7 +131,7 @@ public sealed class MainActivity : Activity
         _destroyed = true;
         _folderLoadVersion++;
         StopProgressUpdates();
-        ReleasePlayback();
+        _playerView?.Release();
         _main.Dispose();
         base.OnDestroy();
     }
@@ -164,13 +153,14 @@ public sealed class MainActivity : Activity
                 0,
                 1f));
 
-        _video = new TextureView(this);
-        _video.ContentDescription = "Video playback surface; pinch to zoom";
-        _video.SurfaceTextureAvailable += OnSurfaceTextureAvailable;
-        _video.SurfaceTextureDestroyed += OnSurfaceTextureDestroyed;
-        _video.Touch += OnVideoTouch;
+        _playerView = new AndroidVideoPlayerView(this);
+        _playerView.Prepared += OnPlayerPrepared;
+        _playerView.PlaybackFailed += OnPlayerPlaybackFailed;
+        _playerView.PlaybackCompleted += OnPlayerPlaybackCompleted;
+        _playerView.PlaybackStarted += OnPlayerPlaybackStarted;
+        _playerView.PlaybackPaused += OnPlayerPlaybackPaused;
         stage.AddView(
-            _video,
+            _playerView,
             new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent,
                 ViewGroup.LayoutParams.MatchParent));
@@ -321,6 +311,24 @@ public sealed class MainActivity : Activity
         viewModeParameters.LeftMargin = 8;
         controls.AddView(_viewModeButton, viewModeParameters);
 
+        _vlcButton = CreateButton(
+            "Open in VLC",
+            "Explicitly open this video in VLC; VLC may receive the current URI");
+        _vlcButton.SetCompoundDrawablesWithIntrinsicBounds(
+            Resource.Drawable.media_open,
+            0,
+            0,
+            0);
+        _vlcButton.CompoundDrawablePadding = 8;
+        _vlcButton.Click += (_, _) => OpenWithVlc();
+        _vlcButton.Visibility = ViewStates.Gone;
+        var vlcParameters = new LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WrapContent,
+            1f);
+        vlcParameters.LeftMargin = 8;
+        controls.AddView(_vlcButton, vlcParameters);
+
         root.AddView(
             controls,
             new LinearLayout.LayoutParams(
@@ -347,7 +355,7 @@ public sealed class MainActivity : Activity
     public override void OnConfigurationChanged(DeviceConfiguration newConfig)
     {
         base.OnConfigurationChanged(newConfig);
-        _video?.Post(() => ApplyZoom());
+        _playerView?.Post(() => _playerView.RefreshTransform());
     }
 
     private Button CreateButton(string text, string description)
@@ -498,7 +506,7 @@ public sealed class MainActivity : Activity
 
     private void LoadVideo(AndroidUri uri, bool keepFolder = false)
     {
-        if (_video is null || _destroyed)
+        if (_playerView is null || _destroyed)
             return;
 
         if (!keepFolder)
@@ -512,13 +520,13 @@ public sealed class MainActivity : Activity
         _sessionUri = uri;
         _prepareRetryCount = 0;
         _shouldPlay = true;
-        _prepared = false;
-        _durationMilliseconds = 0;
         UpdateSeekBar(0);
         UpdateFolderControls();
         SetStatus("Loading video", visible: true);
         SetControls(enabled: false);
-        TryStartPlayback();
+        _playerView.ScaleMode = _scaleMode;
+        _playerView.Open(uri, autoPlay: true);
+        StartPrepareTimeout();
     }
 
     private void LoadFolder(AndroidUri treeUri)
@@ -669,227 +677,68 @@ public sealed class MainActivity : Activity
 
     private void TryStartPlayback()
     {
-        if (_sessionUri is null
-            || _surface is null
-            || _player is not null
-            || _destroyed)
-        {
+        if (_playerView is null || !_playerView.HasSource || _destroyed)
             return;
-        }
 
-        MediaPlayer? player = null;
-        try
-        {
-            var uri = _sessionUri;
-            var surface = _surface;
-            player = new MediaPlayer();
-            _player = player;
-            player.Completion += (_, _) =>
-            {
-                if (ReferenceEquals(_player, player))
-                    TryPostToMain(HandleCompletion);
-            };
-            player.Error += (_, _) =>
-            {
-                if (ReferenceEquals(_player, player))
-                {
-                    TryPostToMain(
-                        () =>
-                        {
-                            if (_prepared)
-                                HandlePlaybackError(player);
-                            else
-                                HandlePrepareFailure(player);
-                        });
-                }
-            };
-            player.SetSurface(surface);
-            ApplyAudioVolume();
-            StartPrepareTimeout();
-            _ = PreparePlayerAsync(player, uri);
-        }
-        catch
-        {
-            if (player is not null)
-                HandlePrepareFailure(player);
-            else
-                HandlePlaybackError();
-        }
+        _playerView.ShouldPlay = _shouldPlay;
+        _playerView.Retry();
+        StartPrepareTimeout();
     }
 
-    private async Task PreparePlayerAsync(MediaPlayer player, AndroidUri uri)
+    private void OnPlayerPrepared(object? sender, EventArgs args)
     {
-        try
+        StopPrepareTimeout();
+        StopPrepareRetry();
+        _prepareRetryCount = 0;
+        SetControls(enabled: true);
+        ApplyAudioVolume();
+        if (_shouldPlay)
         {
-            await Task.Run(() =>
-            {
-                player.SetDataSource(this, uri);
-                player.Prepare();
-            }).ConfigureAwait(false);
-
-            if (!TryPostToMain(() => HandlePrepared(player)))
-                ReleasePlayer(player);
+            _transportControls?.SetPlaying(true);
+            SetStatus(string.Empty, visible: false);
+            StartProgressUpdates();
         }
-        catch
+        else
         {
-            if (!TryPostToMain(() => HandlePrepareFailure(player)))
-                ReleasePlayer(player);
+            _transportControls?.SetPlaying(false);
+            SetStatus("Paused", visible: true);
         }
     }
 
-    private void OnSurfaceTextureAvailable(
+    private void OnPlayerPlaybackStarted(object? sender, EventArgs args)
+    {
+        _shouldPlay = true;
+        _transportControls?.SetPlaying(true);
+        SetStatus(string.Empty, visible: false);
+        StartProgressUpdates();
+    }
+
+    private void OnPlayerPlaybackPaused(object? sender, EventArgs args)
+    {
+        _shouldPlay = false;
+        StopProgressUpdates();
+        _transportControls?.SetPlaying(false);
+        SetStatus("Paused", visible: true);
+    }
+
+    private void OnPlayerPlaybackCompleted(object? sender, EventArgs args) =>
+        HandleCompletion();
+
+    private void OnPlayerPlaybackFailed(
         object? sender,
-        TextureView.SurfaceTextureAvailableEventArgs args)
+        PlaybackFailureEventArgs args)
     {
         if (_destroyed)
             return;
-
-        try
-        {
-            _surface?.Release();
-            _surface = new Surface(args.Surface);
-            ApplyZoom();
-            if (_sessionUri is not null)
-                SetStatus("Loading video", visible: true);
-            TryStartPlayback();
-        }
-        catch
-        {
-            HandlePlaybackError();
-        }
-    }
-
-    private void OnSurfaceTextureDestroyed(
-        object? sender,
-        TextureView.SurfaceTextureDestroyedEventArgs args)
-    {
-        try
-        {
-            _shouldPlay = _player?.IsPlaying == true;
-        }
-        catch
-        {
-            _shouldPlay = false;
-        }
-
-        ReleasePlayback(clearSession: false);
-        _surface?.Release();
-        _surface = null;
-    }
-
-    private void OnVideoTouch(object? sender, View.TouchEventArgs args)
-    {
-        if (args.Event is { } motionEvent)
-        {
-            switch (motionEvent.ActionMasked)
-            {
-                case MotionEventActions.Down:
-                    _pinching = false;
-                    _pinchStartDistance = 0f;
-                    _pinchStartZoom = _zoom;
-                    break;
-                case MotionEventActions.PointerDown:
-                    if (motionEvent.PointerCount >= 2)
-                    {
-                        _pinchStartDistance = GetPointerDistance(motionEvent);
-                        _pinchStartZoom = _zoom;
-                        _pinching = _pinchStartDistance > 0f;
-                    }
-
-                    break;
-                case MotionEventActions.Move:
-                    if (_pinching && motionEvent.PointerCount >= 2)
-                    {
-                        var distance = GetPointerDistance(motionEvent);
-                        if (distance > 0f && _pinchStartDistance > 0f)
-                        {
-                            SetZoom(
-                                _pinchStartZoom * distance / _pinchStartDistance);
-                        }
-                    }
-
-                    break;
-                case MotionEventActions.PointerUp:
-                case MotionEventActions.Up:
-                case MotionEventActions.Cancel:
-                    _pinching = false;
-                    _pinchStartDistance = 0f;
-                    break;
-            }
-        }
-
-        args.Handled = true;
-    }
-
-    private static float GetPointerDistance(MotionEvent motionEvent)
-    {
-        var deltaX = motionEvent.GetX(0) - motionEvent.GetX(1);
-        var deltaY = motionEvent.GetY(0) - motionEvent.GetY(1);
-        return (float)Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
-    }
-
-    private void HandlePrepared(MediaPlayer player)
-    {
-        if (!ReferenceEquals(_player, player)
-            || _destroyed
-            || _sessionUri is null)
-        {
-            ReleasePlayer(player);
-            return;
-        }
-
-        try
-        {
-            _durationMilliseconds = Math.Max(0, player.Duration);
-            _videoWidth = Math.Max(0, player.VideoWidth);
-            _videoHeight = Math.Max(0, player.VideoHeight);
-            ApplyZoom();
-            StopPrepareTimeout();
-            StopPrepareRetry();
-            _prepareRetryCount = 0;
-            _prepared = true;
-            SetControls(enabled: true);
-            ApplyAudioVolume();
-            if (_shouldPlay)
-            {
-                player.Start();
-                _transportControls?.SetPlaying(true);
-                SetStatus(string.Empty, visible: false);
-                StartProgressUpdates();
-            }
-            else
-            {
-                _transportControls?.SetPlaying(false);
-                SetStatus("Paused", visible: true);
-            }
-        }
-        catch
-        {
-            HandlePlaybackError();
-        }
-    }
-
-    private void HandlePrepareFailure(MediaPlayer player)
-    {
-        if (!ReferenceEquals(_player, player))
-        {
-            ReleasePlayer(player);
-            return;
-        }
-
-        if (_destroyed)
-        {
-            ReleasePlayback();
-            return;
-        }
 
         StopPrepareTimeout();
-        ReleasePlayback(clearSession: false);
-        if (_sessionUri is not null && _prepareRetryCount < MaximumPrepareRetries)
+        StopPrepareRetry();
+        if (args.DuringPreparation
+            && _sessionUri is not null
+            && _prepareRetryCount < MaximumPrepareRetries)
         {
             _prepareRetryCount++;
             _transportControls?.SetRetryAvailable(true);
-
             SetStatus("Waiting for more video data", visible: true);
             StartPrepareRetry();
             return;
@@ -913,45 +762,63 @@ public sealed class MainActivity : Activity
         StopProgressUpdates();
         UpdateSeekBar(SeekBarMaximum);
         _transportControls?.SetPlaying(false);
-        _transportControls?.SetTransportEnabled(_prepared);
+        _transportControls?.SetTransportEnabled(_playerView?.IsPrepared == true);
         UpdateFolderControls();
 
         SetStatus("Finished", visible: true);
     }
 
-    private void HandlePlaybackError(MediaPlayer? source = null)
-    {
-        if (source is not null && !ReferenceEquals(_player, source))
-        {
-            ReleasePlayer(source);
-            return;
-        }
-
-        if (_destroyed)
-            return;
-
-        StopPrepareTimeout();
-        StopPrepareRetry();
-        ReleasePlayback(clearSession: false);
-        ShowPlaybackRetryState();
-    }
-
     private void ShowPlaybackRetryState()
     {
         _transportControls?.SetRetryAvailable(_sessionUri is not null);
+        if (_vlcButton is not null)
+        {
+            _vlcButton.Visibility = IsVlcAvailable
+                ? ViewStates.Visible
+                : ViewStates.Gone;
+        }
 
         SetStatus("Unable to play this video or stream", visible: true);
     }
 
+    private bool IsVlcAvailable =>
+        PackageManager?.GetLaunchIntentForPackage(VlcPackageName) is not null;
+
+    private void OpenWithVlc()
+    {
+        if (_sessionUri is not { } uri)
+            return;
+
+        if (!IsVlcAvailable)
+        {
+            SetStatus("VLC is not installed", visible: true);
+            return;
+        }
+
+        try
+        {
+            var intent = new Intent(Intent.ActionView);
+            intent.SetDataAndType(uri, "video/*");
+            intent.SetPackage(VlcPackageName);
+            intent.AddFlags(ActivityFlags.GrantReadUriPermission);
+            StartActivity(intent);
+        }
+        catch
+        {
+            SetStatus("VLC could not open this video", visible: true);
+        }
+    }
+
     private void TogglePlayback()
     {
-        if (_player is null || !_prepared)
+        if (_playerView is null || !_playerView.IsPrepared)
         {
-            if (_sessionUri is not null)
+            if (_sessionUri is not null && _playerView is not null)
             {
                 StopPrepareRetry();
                 _prepareRetryCount = 0;
                 _shouldPlay = true;
+                _playerView.ShouldPlay = true;
                 SetStatus("Loading video", visible: true);
                 SetControls(enabled: false);
                 TryStartPlayback();
@@ -960,48 +827,23 @@ public sealed class MainActivity : Activity
             return;
         }
 
-        try
+        if (_playerView.IsPlaying)
         {
-            if (_player.IsPlaying)
-            {
-                PausePlayback();
-                return;
-            }
-
-            if (_durationMilliseconds > 0 && _player.CurrentPosition >= _durationMilliseconds)
-                _player.SeekTo(0);
-
-            _shouldPlay = true;
-            _player.Start();
-            _transportControls?.SetPlaying(true);
-            SetStatus(string.Empty, visible: false);
-            StartProgressUpdates();
+            PausePlayback();
+            return;
         }
-        catch
-        {
-            HandlePlaybackError();
-        }
+
+        _shouldPlay = true;
+        _playerView.Play();
     }
 
     private void PausePlayback()
     {
-        if (_player is null || !_prepared)
+        if (_playerView is null || !_playerView.IsPrepared)
             return;
 
-        try
-        {
-            if (_player.IsPlaying)
-                _player.Pause();
-        }
-        catch
-        {
-            return;
-        }
-
-        StopProgressUpdates();
         _shouldPlay = false;
-        _transportControls?.SetPlaying(false);
-        SetStatus("Paused", visible: true);
+        _playerView.Pause();
     }
 
     private void ReleasePlayback(bool clearSession = true)
@@ -1009,37 +851,13 @@ public sealed class MainActivity : Activity
         StopPrepareTimeout();
         StopPrepareRetry();
         StopProgressUpdates();
-        if (_player is not null)
-        {
-            try
-            {
-                _player.Stop();
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                _player.Reset();
-            }
-            catch
-            {
-            }
-
-            _player.Release();
-            _player = null;
-        }
+        _playerView?.ClearSource();
 
         if (clearSession)
         {
             _sessionUri = null;
             _prepareRetryCount = 0;
         }
-        _durationMilliseconds = 0;
-        _videoWidth = 0;
-        _videoHeight = 0;
-        _prepared = false;
         UpdateSeekBar(0);
         SetControls(enabled: false);
     }
@@ -1050,8 +868,12 @@ public sealed class MainActivity : Activity
         {
             _prepareTimeout = () =>
             {
-                if (!_prepared && _player is not null)
-                    HandlePrepareFailure(_player);
+                if (_playerView?.HasSource == true && !_playerView.IsPrepared)
+                {
+                    OnPlayerPlaybackFailed(
+                        _playerView,
+                        new PlaybackFailureEventArgs(duringPreparation: true));
+                }
             };
         }
 
@@ -1071,7 +893,7 @@ public sealed class MainActivity : Activity
         {
             _prepareRetry = () =>
             {
-                if (_destroyed || _sessionUri is null || _player is not null)
+                if (_destroyed || _sessionUri is null || _playerView is null)
                     return;
 
                 SetStatus("Loading video", visible: true);
@@ -1102,35 +924,19 @@ public sealed class MainActivity : Activity
         }
     }
 
-    private static void ReleasePlayer(MediaPlayer player)
-    {
-        try
-        {
-            player.Release();
-        }
-        catch
-        {
-        }
-    }
-
     private void OnSeekProgressChanged(object? sender, SeekBar.ProgressChangedEventArgs args)
     {
         if (!args.FromUser
-            || _player is null
-            || !_prepared
-            || _durationMilliseconds <= 0)
+            || _playerView is null
+            || !_playerView.IsPrepared
+            || _playerView.DurationMilliseconds <= 0)
         {
             return;
         }
 
-        try
-        {
-            var position = (int)((long)_durationMilliseconds * args.Progress / SeekBarMaximum);
-            _player.SeekTo(position);
-        }
-        catch
-        {
-        }
+        var position = (int)(
+            (long)_playerView.DurationMilliseconds * args.Progress / SeekBarMaximum);
+        _playerView.SeekTo(position);
     }
 
     private void OnVolumeProgressChanged(
@@ -1196,33 +1002,24 @@ public sealed class MainActivity : Activity
 
     private void ApplyAudioVolume()
     {
-        try
-        {
-            var volume = _muted ? 0f : _volume;
-            _player?.SetVolume(volume, volume);
-        }
-        catch
-        {
-        }
-    }
-
-    private void SetZoom(float zoom)
-    {
-        _zoom = Math.Clamp(zoom, MinimumZoom, MaximumZoom);
-        ApplyZoom();
+        var volume = _muted ? 0f : _volume;
+        _playerView?.SetVolume(volume);
     }
 
     private void CycleScaleMode()
     {
         _scaleMode = _scaleMode switch
         {
-            VideoScaleMode.FitView => VideoScaleMode.FitWidth,
-            VideoScaleMode.FitWidth => VideoScaleMode.FitHeight,
-            _ => VideoScaleMode.FitView,
+            AndroidVideoScaleMode.FitView => AndroidVideoScaleMode.FitWidth,
+            AndroidVideoScaleMode.FitWidth => AndroidVideoScaleMode.FitHeight,
+            _ => AndroidVideoScaleMode.FitView,
         };
-        _zoom = MinimumZoom;
+        if (_playerView is not null)
+        {
+            _playerView.ScaleMode = _scaleMode;
+            _playerView.ResetZoom();
+        }
         UpdateViewModeButton();
-        ApplyZoom();
     }
 
     private void UpdateViewModeButton()
@@ -1232,62 +1029,13 @@ public sealed class MainActivity : Activity
 
         var label = _scaleMode switch
         {
-            VideoScaleMode.FitWidth => "Fit width",
-            VideoScaleMode.FitHeight => "Fit height",
+            AndroidVideoScaleMode.FitWidth => "Fit width",
+            AndroidVideoScaleMode.FitHeight => "Fit height",
             _ => "Fit view",
         };
         _viewModeButton.Text = label;
         _viewModeButton.ContentDescription =
             $"Video sizing: {label}; tap to change";
-    }
-
-    private void ApplyZoom()
-    {
-        if (_video is null || _video.Width <= 0 || _video.Height <= 0)
-            return;
-
-        var viewWidth = _video.Width;
-        var viewHeight = _video.Height;
-        var scaleX = 1f;
-        var scaleY = 1f;
-        if (_videoWidth > 0 && _videoHeight > 0)
-        {
-            var videoAspect = (float)_videoWidth / _videoHeight;
-            var viewAspect = (float)viewWidth / viewHeight;
-            var targetWidth = (float)viewWidth;
-            var targetHeight = (float)viewHeight;
-
-            switch (_scaleMode)
-            {
-                case VideoScaleMode.FitWidth:
-                    targetHeight = viewWidth / videoAspect;
-                    break;
-                case VideoScaleMode.FitHeight:
-                    targetWidth = viewHeight * videoAspect;
-                    break;
-                default:
-                    if (viewAspect > videoAspect)
-                        targetWidth = viewHeight * videoAspect;
-                    else
-                        targetHeight = viewWidth / videoAspect;
-                    break;
-            }
-
-            scaleX = targetWidth / viewWidth;
-            scaleY = targetHeight / viewHeight;
-        }
-
-        _videoTransform.Reset();
-        _videoTransform.SetScale(
-            scaleX * _zoom,
-            scaleY * _zoom,
-            viewWidth / 2f,
-            viewHeight / 2f);
-        _video.SetTransform(_videoTransform);
-        _video.Invalidate();
-        _video.PostInvalidateOnAnimation();
-        if (_video.Parent is View parent)
-            parent.Invalidate();
     }
 
     private void StartProgressUpdates()
@@ -1307,21 +1055,18 @@ public sealed class MainActivity : Activity
 
     private void UpdateProgress()
     {
-        if (_destroyed || _player is null || !_prepared)
+        if (_destroyed || _playerView is null || !_playerView.IsPrepared)
             return;
 
-        try
+        if (_playerView.IsPlaying && _playerView.DurationMilliseconds > 0)
         {
-            if (_player.IsPlaying && _durationMilliseconds > 0)
-            {
-                var position = Math.Clamp(_player.CurrentPosition, 0, _durationMilliseconds);
-                UpdateSeekBar(
-                    (int)((long)position * SeekBarMaximum / _durationMilliseconds));
-                _main.PostDelayed(_progressTick!, 500);
-            }
-        }
-        catch
-        {
+            var position = Math.Clamp(
+                _playerView.CurrentPositionMilliseconds,
+                0,
+                _playerView.DurationMilliseconds);
+            UpdateSeekBar(
+                (int)((long)position * SeekBarMaximum / _playerView.DurationMilliseconds));
+            _main.PostDelayed(_progressTick!, 500);
         }
     }
 
@@ -1335,12 +1080,15 @@ public sealed class MainActivity : Activity
     {
         _transportControls?.SetTransportEnabled(enabled);
         if (_seekBar is not null)
-            _seekBar.Enabled = enabled && _durationMilliseconds > 0;
+            _seekBar.Enabled = enabled
+                && _playerView?.DurationMilliseconds > 0;
         var sessionControlsEnabled = _sessionUri is not null;
         if (_volumeBar is not null)
             _volumeBar.Enabled = sessionControlsEnabled;
         if (_muteButton is not null)
             _muteButton.Enabled = sessionControlsEnabled;
+        if (_vlcButton is not null)
+            _vlcButton.Visibility = ViewStates.Gone;
         UpdateFolderControls();
     }
 
@@ -1351,13 +1099,6 @@ public sealed class MainActivity : Activity
 
         _status.Text = text;
         _status.Visibility = visible ? ViewStates.Visible : ViewStates.Gone;
-    }
-
-    private enum VideoScaleMode
-    {
-        FitView,
-        FitWidth,
-        FitHeight,
     }
 
 }

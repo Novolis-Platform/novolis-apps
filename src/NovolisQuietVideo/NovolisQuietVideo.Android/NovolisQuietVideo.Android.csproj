@@ -13,4 +13,7 @@
     <AssemblyName>NovolisQuietVideo.Android</AssemblyName>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
   </PropertyGroup>
+  <ItemGroup>
+    <LibraryReference Include="Novolis.Video.Playback.Android" />
+  </ItemGroup>
 </Project>

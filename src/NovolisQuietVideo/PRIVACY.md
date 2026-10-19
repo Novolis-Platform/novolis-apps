@@ -38,11 +38,21 @@ on that in-memory queue.
 The document picker accepts video files and generic attachment documents so a
 provider can expose a partial download or an attachment whose MIME type is
 `application/octet-stream`. The native decoder decides whether the bytes are
-playable. If preparation fails, the player briefly retries while more provider
-data may be arriving and also offers a generic retry action. A source with
-enough valid data may begin playback; an incomplete, corrupt, unsupported, or
-non-video source eventually receives a generic playback error and is released
-without being copied or retained.
+playable. Playback is a compositional native surface: a provider can supply
+random-access bytes that wait for missing ranges, which lets P2P or torrent
+integrations buffer the container header and next playback window rather than
+feeding sparse-file zeros to the decoder. If preparation fails, the player
+briefly retries while more provider data may be arriving and also offers a
+generic retry action. A source with enough valid data may begin playback; an
+incomplete, corrupt, unsupported, or non-video source eventually receives a
+generic playback error and is released without being copied or retained.
+
+If native playback cannot open a source, the failure screen may show an
+explicit **Open in VLC** action when VLC is installed. This is an opt-in
+escape hatch, not part of the quiet-player privacy guarantee: Android and VLC
+can receive the current URI and VLC may create its own playback history or
+metadata. The app does not launch VLC automatically and does not persist the
+URI.
 
 HTTPS servers and document providers can observe the request, source URL,
 account context, and network address according to their own policies. The app
