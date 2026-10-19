@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       app:
-        description: App choice, key, or All
+        description: Comma-separated app choices/keys, or All
         required: false
         default: All
         type: string

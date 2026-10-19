@@ -182,6 +182,32 @@ internal static class Program
                 if (!app.Windows.InstallDir.StartsWith("Novolis\\", StringComparison.Ordinal)
                     && !app.Windows.InstallDir.StartsWith("Novolis/", StringComparison.Ordinal))
                     errors.Add($"App '{app.Key}' installDir must be under Novolis\\…");
+                if (app.Windows.RequiresAdministrator
+                    && !app.Windows.InstallScope.Equals(
+                        "machine",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add(
+                        $"App '{app.Key}' requires administrator access but is not marked as machine-scoped.");
+                }
+                if (app.Windows.InstallScope.Equals(
+                        "machine",
+                        StringComparison.OrdinalIgnoreCase)
+                    && !app.Windows.RequiresAdministrator)
+                {
+                    errors.Add(
+                        $"App '{app.Key}' is machine-scoped but does not require administrator access.");
+                }
+                if (!app.Windows.InstallScope.Equals(
+                        "user",
+                        StringComparison.OrdinalIgnoreCase)
+                    && !app.Windows.InstallScope.Equals(
+                        "machine",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add(
+                        $"App '{app.Key}' has unsupported Windows installScope '{app.Windows.InstallScope}'.");
+                }
             }
 
             if (app.Android is not null)
@@ -563,11 +589,15 @@ internal static class Program
         var appChoice = GetOption(args, "--app") ?? "All";
         var channelOverride = GetOption(args, "--channel");
         var allAppsSelected = string.Equals(appChoice, "All", StringComparison.OrdinalIgnoreCase);
+        var requestedChoices = appChoice
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         IEnumerable<AppEntry> apps = allAppsSelected
             ? doc.Apps
-            : doc.Apps.Where(a => a.Choice.Equals(appChoice, StringComparison.OrdinalIgnoreCase)
-                                  || a.Key.Equals(appChoice, StringComparison.OrdinalIgnoreCase));
+            : doc.Apps.Where(a =>
+                requestedChoices.Contains(a.Choice)
+                || requestedChoices.Contains(a.Key));
 
         var selectedApps = apps.ToList();
         if (selectedApps.Count == 0)
@@ -880,6 +910,10 @@ internal sealed class WindowsConfig
 {
     public string ExeName { get; set; } = "";
     public List<string> AdditionalProjects { get; set; } = [];
+    public string InstallScope { get; set; } = "user";
+    public bool RequiresAdministrator { get; set; }
+    public string? ServiceName { get; set; }
+    public string? ManagementExecutable { get; set; }
     public string AppId { get; set; } = "";
     public string InstallDir { get; set; } = "";
     public string GroupName { get; set; } = "";
