@@ -12,17 +12,27 @@ namespace Novolis.NMule;
 /// <summary>Foreground nMule search, Kad, and download surface.</summary>
 public sealed class MainPage : ContentPage
 {
+    private const string AllTypesFilter = "All types";
+    private const string AllAvailabilityFilter = "All availability";
+    private const string AllTransferPathsFilter = "All transfer paths";
+    private const string OriginalOrderSort = "Original order";
     private readonly NmuleSession _session;
     private readonly MobileNavigationShell _navigationShell;
     private readonly Entry _serverSource;
     private readonly Entry _kadSource;
     private readonly Entry _query;
+    private readonly Entry _resultFilter;
+    private readonly Picker _resultTypeFilter;
+    private readonly Picker _resultAvailabilityFilter;
+    private readonly Picker _resultTransferFilter;
+    private readonly Picker _resultSort;
     private readonly Label _status;
     private readonly Label _networkStatus;
     private readonly Label _searchNetworkStatus;
     private readonly Label _serverStatus;
     private readonly Label _kadStatus;
     private readonly Label _downloadStatus;
+    private readonly Label _resultStatus;
     private readonly CollectionView _serverList;
     private readonly CollectionView _results;
     private readonly CollectionView _downloads;
@@ -34,6 +44,7 @@ public sealed class MainPage : ContentPage
     private readonly View _searchView;
     private readonly View _downloadsView;
     private readonly View _settingsView;
+    private IReadOnlyList<NmuleSearchHit> _allSearchResults = [];
     private bool _busy;
     private bool _themeSubscribed;
     private NmuleServerRow? _selectedServer;
@@ -97,6 +108,55 @@ public sealed class MainPage : ContentPage
         _query.ReturnType = ReturnType.Search;
         _query.Completed += (_, _) => _ = SearchAsync();
 
+        _resultFilter = CreateEntry(
+            "Filter by name, type, or file ID",
+            string.Empty,
+            "NmuleResultFilter");
+        _resultFilter.TextChanged += (_, _) => ApplyResultFilters();
+        _resultTypeFilter = CreatePicker(
+            AllTypesFilter,
+            "NmuleResultTypeFilter",
+            [AllTypesFilter]);
+        _resultAvailabilityFilter = CreatePicker(
+            AllAvailabilityFilter,
+            "NmuleResultAvailabilityFilter",
+            [AllAvailabilityFilter, "Has advertised sources", "No advertised sources"]);
+        _resultTransferFilter = CreatePicker(
+            AllTransferPathsFilter,
+            "NmuleResultTransferFilter",
+            [
+                AllTransferPathsFilter,
+                "Direct download",
+                "Kad source lookup",
+                "Multipart required",
+                "Unavailable",
+            ]);
+        _resultSort = CreatePicker(
+            OriginalOrderSort,
+            "NmuleResultSort",
+            [
+                OriginalOrderSort,
+                "Name A-Z",
+                "Name Z-A",
+                "Smallest first",
+                "Largest first",
+                "Most sources",
+                "Fewest sources",
+            ]);
+        _resultTypeFilter.SelectedIndexChanged += (_, _) => ApplyResultFilters();
+        _resultAvailabilityFilter.SelectedIndexChanged += (_, _) =>
+            ApplyResultFilters();
+        _resultTransferFilter.SelectedIndexChanged += (_, _) =>
+            ApplyResultFilters();
+        _resultSort.SelectedIndexChanged += (_, _) => ApplyResultFilters();
+        _resultStatus = new Label
+        {
+            AutomationId = "NmuleResultStatus",
+            Text = "No search results yet.",
+            FontSize = GraphicalProfileColors.CaptionSize,
+            TextColor = Profile.Muted,
+        };
+
         _allowTailscale = new Switch
         {
             AutomationId = "NmuleAllowTailscale",
@@ -136,7 +196,14 @@ public sealed class MainPage : ContentPage
             AutomationId = "NmuleSearchResults",
             ItemsSource = _searchResults,
             SelectionMode = SelectionMode.None,
-            HeightRequest = 380,
+            HeightRequest = 520,
+            ItemsLayout = new GridItemsLayout(
+                2,
+                ItemsLayoutOrientation.Vertical)
+            {
+                HorizontalItemSpacing = 8,
+                VerticalItemSpacing = 8,
+            },
             ItemTemplate = CreateSearchTemplate(),
         };
         _downloads = new CollectionView
@@ -273,9 +340,42 @@ public sealed class MainPage : ContentPage
                     CreateSectionTitle("Search"),
                     _query,
                     CreateButton("Search", "NmuleSearch", SearchAsync),
+                    CreateSectionTitle("Results"),
+                    _resultFilter,
+                    new Grid
+                    {
+                        ColumnDefinitions =
+                        {
+                            new ColumnDefinition(GridLength.Star),
+                            new ColumnDefinition(GridLength.Star),
+                        },
+                        RowDefinitions =
+                        {
+                            new RowDefinition(GridLength.Auto),
+                            new RowDefinition(GridLength.Auto),
+                        },
+                        ColumnSpacing = 8,
+                        RowSpacing = 8,
+                        Children =
+                        {
+                            _resultTypeFilter,
+                            _resultAvailabilityFilter,
+                            _resultTransferFilter,
+                            _resultSort,
+                        },
+                    },
+                    _resultStatus,
                     _results,
                 },
             });
+        Grid.SetColumn(_resultTypeFilter, 0);
+        Grid.SetRow(_resultTypeFilter, 0);
+        Grid.SetColumn(_resultAvailabilityFilter, 1);
+        Grid.SetRow(_resultAvailabilityFilter, 0);
+        Grid.SetColumn(_resultTransferFilter, 0);
+        Grid.SetRow(_resultTransferFilter, 1);
+        Grid.SetColumn(_resultSort, 1);
+        Grid.SetRow(_resultSort, 1);
 
         return new ScrollView
         {
@@ -478,7 +578,7 @@ public sealed class MainPage : ContentPage
 
                     return Task.CompletedTask;
                 });
-            return CreateCard(
+            var card = CreateCard(
                 new VerticalStackLayout
                 {
                     Spacing = 4,
@@ -492,6 +592,8 @@ public sealed class MainPage : ContentPage
                         metadata,
                     },
                 });
+            card.MinimumHeightRequest = 190;
+            return card;
         });
 
     private DataTemplate CreateServerTemplate() =>
@@ -680,10 +782,103 @@ public sealed class MainPage : ContentPage
                 var hits = await _session.SearchAsync(
                         _query.Text ?? string.Empty,
                         cancellationToken);
-                _searchResults.Clear();
-                foreach (var hit in hits)
-                    _searchResults.Add(hit);
+                _allSearchResults = hits.ToArray();
+                UpdateResultTypeOptions();
+                ApplyResultFilters();
             });
+
+    private void UpdateResultTypeOptions()
+    {
+        var types = new[] { AllTypesFilter }
+            .Concat(
+                _allSearchResults
+                    .Select(static hit => hit.TypeLabel)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static type => type, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+        _resultTypeFilter.ItemsSource = types;
+        _resultTypeFilter.SelectedIndex = 0;
+    }
+
+    private void ApplyResultFilters()
+    {
+        var text = (_resultFilter.Text ?? string.Empty).Trim();
+        var type = _resultTypeFilter.SelectedItem as string;
+        var availability = _resultAvailabilityFilter.SelectedItem as string;
+        var transfer = _resultTransferFilter.SelectedItem as string;
+        var sort = _resultSort.SelectedItem as string;
+        IEnumerable<NmuleSearchHit> filtered = _allSearchResults;
+
+        if (text.Length > 0)
+        {
+            filtered = filtered.Where(
+                hit => hit.Name.Contains(text, StringComparison.OrdinalIgnoreCase)
+                    || hit.TypeLabel.Contains(
+                        text,
+                        StringComparison.OrdinalIgnoreCase)
+                    || hit.FileId.ToString().Contains(
+                        text,
+                        StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(type)
+            && !string.Equals(type, AllTypesFilter, StringComparison.Ordinal))
+        {
+            filtered = filtered.Where(
+                hit => string.Equals(
+                    hit.TypeLabel,
+                    type,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        filtered = availability switch
+        {
+            "Has advertised sources" => filtered.Where(
+                static hit => hit.SourceCount > 0),
+            "No advertised sources" => filtered.Where(
+                static hit => hit.SourceCount <= 0),
+            _ => filtered,
+        };
+        filtered = transfer switch
+        {
+            "Direct download" => filtered.Where(
+                static hit => hit.Eligibility
+                    == NmuleTransferEligibility.DirectHighId),
+            "Kad source lookup" => filtered.Where(
+                static hit => hit.Eligibility
+                    == NmuleTransferEligibility.KadSourceRequired),
+            "Multipart required" => filtered.Where(
+                static hit => hit.Eligibility
+                    == NmuleTransferEligibility.MultipartRequired),
+            "Unavailable" => filtered.Where(
+                static hit => hit.Eligibility
+                    == NmuleTransferEligibility.InvalidSource),
+            _ => filtered,
+        };
+
+        filtered = sort switch
+        {
+            "Name A-Z" => filtered.OrderBy(
+                static hit => hit.Name,
+                StringComparer.OrdinalIgnoreCase),
+            "Name Z-A" => filtered.OrderByDescending(
+                static hit => hit.Name,
+                StringComparer.OrdinalIgnoreCase),
+            "Smallest first" => filtered.OrderBy(static hit => hit.Size),
+            "Largest first" => filtered.OrderByDescending(static hit => hit.Size),
+            "Most sources" => filtered.OrderByDescending(
+                static hit => hit.SourceCount),
+            "Fewest sources" => filtered.OrderBy(static hit => hit.SourceCount),
+            _ => filtered,
+        };
+
+        var visible = filtered.ToArray();
+        _searchResults.Clear();
+        foreach (var hit in visible)
+            _searchResults.Add(hit);
+        _resultStatus.Text =
+            $"{visible.Length:N0} of {_allSearchResults.Count:N0} result(s) shown.";
+    }
 
     private async Task DownloadAsync(NmuleSearchHit hit) =>
         await RunActionAsync(
@@ -811,6 +1006,21 @@ public sealed class MainPage : ContentPage
             BackgroundColor = Profile.Raised,
             PlaceholderColor = Profile.Muted,
             ClearButtonVisibility = ClearButtonVisibility.WhileEditing,
+        };
+
+    private static Picker CreatePicker(
+        string title,
+        string automationId,
+        string[] items) =>
+        new()
+        {
+            AutomationId = automationId,
+            Title = title,
+            ItemsSource = items,
+            SelectedIndex = 0,
+            TextColor = Profile.Text,
+            BackgroundColor = Profile.Raised,
+            MinimumHeightRequest = GraphicalProfileColors.TouchTarget,
         };
 
     private static Button CreateButton(

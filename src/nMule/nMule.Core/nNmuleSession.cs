@@ -145,8 +145,11 @@ public sealed class NmuleSession : IAsyncDisposable
         }
 
         await session.DisposeAsync().ConfigureAwait(false);
+        var detail = lastFailure is null
+            ? string.Empty
+            : $" Last error: {lastFailure.Message}";
         throw new InvalidOperationException(
-            "No eD2K server accepted the connection.",
+            "No eD2K server accepted the connection." + detail,
             lastFailure);
     }
 
