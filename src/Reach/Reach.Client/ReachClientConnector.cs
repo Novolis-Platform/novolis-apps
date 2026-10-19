@@ -1,3 +1,4 @@
+using Novolis.Reach.Protocol.SideChannel;
 using Novolis.Reach.Transport;
 using Novolis.Transports.Framing;
 
@@ -203,13 +204,12 @@ internal sealed class ReachClientConnector(ReachClientSession session)
 
         if (hostHello.SideChannel is { } sideChannel)
         {
-            await session.SideChannel.ConnectAsync(
+            _ = ConnectSideChannelAsync(
                     sideChannel,
                     transportEndpoint,
                     platform,
                     clientName,
-                    cancellationToken)
-                .ConfigureAwait(false);
+                    cancellationToken);
         }
 
         session._receiveCancellation = new CancellationTokenSource();
@@ -238,6 +238,45 @@ internal sealed class ReachClientConnector(ReachClientSession session)
                   + $"video={string.Join(",", negotiatedCapabilities.OfferedVideoCodecs)}"
                 : $"Connected to {hostHello.HostName}, but the video channel is unavailable.");
         await session.RequestKeyFrameAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task ConnectSideChannelAsync(
+        ReachSideChannelOffer offer,
+        ReachTransportEndpoint transportEndpoint,
+        ReachPlatform platform,
+        string clientName,
+        CancellationToken primaryCancellationToken)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(
+                TimeSpan.FromSeconds(3));
+            await session.SideChannel.ConnectAsync(
+                    offer,
+                    transportEndpoint,
+                    platform,
+                    clientName,
+                    timeout.Token)
+                .ConfigureAwait(false);
+            if (primaryCancellationToken.IsCancellationRequested
+                || !session.IsConnected)
+            {
+                await session.SideChannel.DisconnectAsync().ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            if (!primaryCancellationToken.IsCancellationRequested)
+            {
+                session.RaiseStatus(
+                    "SignalR side channel unavailable; primary Reach transport remains active.");
+            }
+        }
+        catch
+        {
+            // Reach control and media remain usable when the optional status
+            // channel cannot be established.
+        }
     }
 
     private static string ResolveInitialVideoProfile(

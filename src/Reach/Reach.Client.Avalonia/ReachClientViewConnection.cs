@@ -133,9 +133,13 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
             view._platformVideoConfigured = false;
             view._streamStatusShown = false;
             view.ResetStatusPriority();
+            view._capabilities.Text = "Capabilities: negotiating...";
             view.SetSessionSurface(true);
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            view._connectCancellation = timeout;
+            using var userCancellation = new CancellationTokenSource();
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+                userCancellation.Token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+            view._connectCancellation = userCancellation;
             try
             {
                 await view._session.ConnectAsync(
@@ -154,15 +158,28 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
                 await view.RequestRemoteClipboardAsync(timeout.Token);
                 return true;
             }
-            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            catch (OperationCanceledException)
+                when (userCancellation.IsCancellationRequested)
             {
                 view.SetSessionSurface(false);
+                view.ResetStatusPriority();
                 view.OnStatusChanged("Connection cancelled.");
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                view.SetSessionSurface(false);
+                view._capabilities.Text = "Capabilities: not negotiated";
+                view.ResetStatusPriority();
+                view.OnStatusChanged(
+                    "Connection timed out. Check the host and try again.");
                 return false;
             }
             catch (Exception exception)
             {
                 view.SetSessionSurface(false);
+                view._capabilities.Text = "Capabilities: not negotiated";
+                view.ResetStatusPriority();
                 view.OnStatusChanged($"Connection failed: {exception.Message}");
                 return false;
             }
@@ -171,7 +188,7 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
                 _ = Interlocked.CompareExchange(
                     ref view._connectCancellation,
                     null,
-                    timeout);
+                    userCancellation);
                 view.UpdateConnectionControls();
             }
         }
@@ -188,6 +205,7 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
             view._platformVideoConfigured = false;
             view._streamStatusShown = false;
             view.ResetStatusPriority();
+            view._capabilities.Text = "Capabilities: negotiating...";
             view.ClearVideoFrame();
             view.SetSessionSurface(true);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
@@ -204,10 +222,28 @@ internal sealed class ReachClientViewConnection(ReachClientView view)
                 await view.RequestRemoteClipboardAsync(timeout.Token);
                 return true;
             }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                view.SetSessionSurface(false);
+                view._capabilities.Text = "Capabilities: not negotiated";
+                view.ResetStatusPriority();
+                view.OnStatusChanged(
+                    "Reconnect timed out. Check the host and try again.");
+                return false;
+            }
             catch (Exception exception)
             {
-                view.OnStatusChanged($"Reconnect failed: {exception.Message}");
-                view.SetSessionSurface(true);
+                view.SetSessionSurface(false);
+                view._capabilities.Text = "Capabilities: not negotiated";
+                view.ResetStatusPriority();
+                view.OnStatusChanged(
+                    $"Reconnect failed. Check the host and try again: "
+                    + exception.Message);
                 return false;
             }
             finally

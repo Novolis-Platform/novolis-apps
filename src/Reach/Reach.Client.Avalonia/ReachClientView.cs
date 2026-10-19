@@ -165,6 +165,7 @@ public sealed class ReachClientView : UserControl
             _sessionEnded = false;
             ClearVideoFrame();
             SetSessionSurface(false);
+            ResetStatusPriority();
             OnStatusChanged("Choose a host to connect.");
             UpdateConnectionControls();
             return;
@@ -217,6 +218,7 @@ public sealed class ReachClientView : UserControl
             _sessionEnded = false;
             ClearVideoFrame();
             SetSessionSurface(false);
+            ResetStatusPriority();
             OnStatusChanged("Disconnected.");
             UpdateConnectionControls();
         }
