@@ -89,6 +89,9 @@ internal static class AppPublishCommand
             DotnetPublish(extraProject, "win-x64", publishDir, repoRoot, versionArgs);
         }
 
+        if (app.Key.Equals("reach", StringComparison.OrdinalIgnoreCase))
+            CopyReachInstallerAssets(repoRoot, publishDir);
+
         ReleaseTrace.WriteStamp(publishDir, app.DisplayName, app.Windows.AppId, packageVersion, commit);
 
         var exeBase = Path.GetFileNameWithoutExtension(appProject);
@@ -315,14 +318,33 @@ internal static class AppPublishCommand
         }
     }
 
+    private static void CopyReachInstallerAssets(string repoRoot, string publishDir)
+    {
+        var source = Path.Combine(
+            repoRoot,
+            "scripts",
+            "Install-ReachWindowsHost.ps1");
+        if (!File.Exists(source))
+            throw new FileNotFoundException(
+                "Reach installer helper was not found.",
+                source);
+
+        File.Copy(
+            source,
+            Path.Combine(publishDir, Path.GetFileName(source)),
+            overwrite: true);
+    }
+
     private static void AddReachInstallerEntries(string scriptPath)
     {
         var contents = File.ReadAllText(scriptPath);
         var newLine = contents.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        const string serviceStartup =
-            "Name: \"{userstartup}\\Novolis Reach Service\"; Filename: \"{app}\\Novolis.Reach.Host.Windows.Service.exe\"; WorkingDir: \"{app}\"";
-        const string serviceRun =
-            "Filename: \"{app}\\Novolis.Reach.Host.Windows.Service.exe\"; Description: \"Start Novolis Reach Service\"; Flags: nowait runhidden skipifsilent";
+        const string managementShortcut =
+            "Name: \"{autoprograms}\\Novolis Reach\\Reach Management\"; Filename: \"{app}\\Novolis.Reach.Host.Windows.exe\"; Parameters: \"--dashboard\"; WorkingDir: \"{app}\"";
+        const string installHelper =
+            "Filename: \"{sys}\\WindowsPowerShell\\v1.0\\powershell.exe\"; Parameters: \"-NoProfile -ExecutionPolicy Bypass -File \"\"{app}\\Install-ReachWindowsHost.ps1\"\" -ApplicationRoot \"\"{app}\"\"\"; WorkingDir: \"{app}\"; Flags: waituntilterminated runhidden";
+        const string uninstallHelper =
+            "Filename: \"{sys}\\WindowsPowerShell\\v1.0\\powershell.exe\"; Parameters: \"-NoProfile -ExecutionPolicy Bypass -File \"\"{app}\\Install-ReachWindowsHost.ps1\"\" -ApplicationRoot \"\"{app}\"\" -Uninstall\"; WorkingDir: \"{app}\"; RunOnceId: \"NovolisReachCleanup\"; Flags: waituntilterminated runhidden";
 
         if (!contents.Contains($"[Icons]{newLine}", StringComparison.Ordinal))
             throw new InvalidOperationException($"Reach installer script is missing the [Icons] section: {scriptPath}");
@@ -330,13 +352,27 @@ internal static class AppPublishCommand
             throw new InvalidOperationException($"Reach installer script is missing the [Run] section: {scriptPath}");
 
         contents = contents.Replace(
+            "DefaultDirName={localappdata}\\Programs\\",
+            "DefaultDirName={autopf}\\",
+            StringComparison.Ordinal);
+        contents = contents.Replace(
+            "PrivilegesRequired=lowest",
+            "PrivilegesRequired=admin",
+            StringComparison.Ordinal);
+        contents = contents.Replace(
+            "Per-user install (no admin)",
+            "Machine-wide install (administrator consent)",
+            StringComparison.Ordinal);
+        contents = contents.Replace(
             $"[Icons]{newLine}",
-            $"[Icons]{newLine}{serviceStartup}{newLine}",
+            $"[Icons]{newLine}{managementShortcut}{newLine}",
             StringComparison.Ordinal);
         contents = contents.Replace(
             $"[Run]{newLine}",
-            $"[Run]{newLine}{serviceRun}{newLine}",
+            $"[Run]{newLine}{installHelper}{newLine}",
             StringComparison.Ordinal);
+        contents +=
+            $"{newLine}[UninstallRun]{newLine}{uninstallHelper}{newLine}";
         File.WriteAllText(scriptPath, contents, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 

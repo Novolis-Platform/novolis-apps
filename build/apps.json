@@ -1235,6 +1235,58 @@
       "release": { "githubRelease": true, "checksums": true }
     },
     {
+      "key": "novolis-torrent",
+      "choice": "NovolisTorrent",
+      "displayName": "Novolis Torrent",
+      "sourceRoot": "src/NovolisTorrent",
+      "solution": "src/NovolisTorrent/NovolisTorrent.slnx",
+      "artifactPrefix": "NovolisTorrent",
+      "stack": "maui",
+      "status": "public",
+      "projects": {
+        "publishWindows": null,
+        "linuxCi": [],
+        "android": "src/NovolisTorrent/NovolisTorrent.csproj",
+        "maui": "src/NovolisTorrent/NovolisTorrent.csproj",
+        "tests": [],
+        "all": ["src/NovolisTorrent/NovolisTorrent.csproj"]
+      },
+      "local": ["android"],
+      "ship": ["android-apk"],
+      "validation": {
+        "changedPathGlobs": ["src/NovolisTorrent/**", "Directory.Packages.props"],
+        "runTests": false,
+        "androidCompile": true,
+        "windowsCi": false,
+        "windowsWorkload": false,
+        "linuxCi": false,
+        "fanOutStacks": ["maui", "android"]
+      },
+      "windows": null,
+      "android": {
+        "project": "src/NovolisTorrent/NovolisTorrent.csproj",
+        "applicationId": "com.novolis.torrent",
+        "versionCodeStrategy": "release-run",
+        "signingSecretKey": "NOVOLIS_TORRENT_ANDROID",
+        "allowBackup": false,
+        "usesCleartextTraffic": false,
+        "permissionAllowlist": [
+          "android.permission.INTERNET",
+          "android.permission.ACCESS_NETWORK_STATE"
+        ],
+        "networkPolicy": "user-selected-torznab-and-maintained-trackers"
+      },
+      "data": {
+        "appDataRoot": "%LOCALAPPDATA%\\Novolis\\torrent",
+        "cacheRoot": "%LOCALAPPDATA%\\Novolis\\torrent\\cache",
+        "credentialsNamespace": "Novolis.Torrent",
+        "networkDestinations": ["user-selected-torznab-endpoint", "newtrackon", "ngosang-trackerslist", "xiu2-trackerslistcollection"],
+        "retention": "uninstall-preserves-user-data"
+      },
+      "update": { "enabled": false, "appId": "Novolis.Torrent", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
+      "release": { "githubRelease": true, "checksums": true }
+    },
+    {
       "key": "novolis-maps",
       "choice": "NovolisMaps",
       "displayName": "Novolis Maps",

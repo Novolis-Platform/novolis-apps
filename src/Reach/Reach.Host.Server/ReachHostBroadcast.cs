@@ -54,7 +54,7 @@ internal sealed class ReachHostBroadcast(ReachHostRuntime runtime)
 
         if (runtime.Sessions.TryStartInActiveSession(
                 executable,
-                string.Empty,
+                "--tray",
                 out var errorCode))
         {
             runtime.WriteLog("Started the interactive Reach host.");

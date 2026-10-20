@@ -14,8 +14,8 @@ implementation.
 
 | Process | Role |
 | --- | --- |
-| `Novolis.Reach.Host.Windows.Service` | Headless Windows service; accepts remote clients and owns lifecycle |
-| `Novolis.Reach.Host.Windows` | Per-user Windows host app; captures the interactive session and owns the tray icon |
+| `Novolis.Reach.Host.Windows.Service` | Machine-wide Windows service; accepts remote clients, owns device lifecycle, and routes local IPC |
+| `Novolis.Reach.Host.Windows` | Per-user interactive session agent; owns capture/input/clipboard/audio plus the tray and debugging panel |
 | `Novolis.Reach.Client.Windows` | Windows client |
 | `Novolis.Reach.Client.Linux` | Linux client |
 | `Novolis.Reach.Client.Android` | Android client |
@@ -33,6 +33,23 @@ unavailable. The host also offers an HTTPS SignalR side channel on TCP
 `19803` for status and diagnostics. It is authenticated with a short-lived
 token from the primary session and is never used for video or latency-sensitive
 input.
+
+The Windows host is organized as one device with a user-session attachment:
+
+```text
+machine service/device
+    └── local IPC
+        └── active user-session agent + tray/debugging panel
+                └── capture starts only after SessionOpen or SessionResume
+```
+
+The service is installed machine-wide with administrator consent. The
+interactive agent is launched in the logged-in user's session through a
+limited scheduled task; the service reconciles it if the agent exits. Closing
+the tray panel does not stop the service or an active remote session.
+The service operator pipe has an explicit Windows ACL for the limited
+management process, so UAC elevation is not required every time the tray
+panel reads status or sends an operator command.
 
 Product-private libraries live next to the executables in this folder
 (`Reach.Protocol`, `Reach.Transport`, `Reach.Client`, `Reach.Host.Server`,
@@ -54,7 +71,8 @@ catalog produces a Windows installer, a self-contained Linux tarball, and an
 Android APK. The Windows installer contains the service and the per-user host
 app; the service launches the host app in the active Windows session (or
 directly when the service is running in the user's session), where it captures
-the real screen and shows the Reach tray icon.
+the real screen and shows the Reach tray icon. Capture remains idle until a
+client opens or resumes a session.
 
 To build a packaged APK and install it on a booted Android emulator:
 
@@ -148,8 +166,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 The guest script opens TCP `19800`, `19801`, and `19803`, plus UDP `19800`,
 `19801`, and `19802`. It registers `Novolis Reach Host` as an automatic
-service and prints the guest's `tcp://` endpoints. Keep the guest user session
-active and unlocked so screen capture and input can be exercised.
+service with restart recovery, installs the per-user `Novolis Reach Management`
+scheduled task, and prints the guest's `tcp://` endpoints. Keep the guest user
+session active and unlocked so screen capture and input can be exercised.
+Installing the service does not begin capture: the session agent reports
+`Ready` until a remote client opens or resumes a Reach session.
+
+The packaged Windows installer is machine-scoped and performs the same setup
+with UAC elevation. It installs under Program Files, configures the Windows
+service and private-network firewall rules, creates the current user's
+management task, and adds a Start Menu shortcut for the debugging panel.
+Uninstall removes the service, task, and Reach firewall rules while preserving
+Reach user data.
 
 Check the guest endpoint and build both clients from the main Windows system:
 

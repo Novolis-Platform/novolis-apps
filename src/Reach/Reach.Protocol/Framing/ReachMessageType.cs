@@ -39,6 +39,7 @@ public enum ReachMessageType
     FileComplete,
     DatagramOffer,
     HostStatus,
+    SessionStatus,
     LatencyProbe,
     LatencyResponse,
     SharingState,

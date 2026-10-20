@@ -10,4 +10,6 @@ public sealed record ReachHostStatus(
     bool SharingPaused,
     string? InteractiveUser,
     string[] RecentMessages,
-    ReachPerformanceSnapshot? Performance = null);
+    ReachPerformanceSnapshot? Performance = null,
+    ReachDeviceStatus? Device = null,
+    ReachUserSessionStatus? UserSession = null);

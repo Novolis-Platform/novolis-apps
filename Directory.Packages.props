@@ -69,6 +69,9 @@
     <PackageVersion Include="Novolis.Transports.Ed2k" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Kad" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Transports.Tailscale" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Torrent" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Torrent.Search" Version="2026.1.*" />
+    <PackageVersion Include="Novolis.Transports.Torrent.Trackers" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Http.Client" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Http.Documents" Version="2026.1.*" />
     <PackageVersion Include="Novolis.Http.Variables" Version="2026.1.*" />

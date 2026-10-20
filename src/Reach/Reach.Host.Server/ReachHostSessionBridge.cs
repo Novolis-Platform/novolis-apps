@@ -35,6 +35,8 @@ internal sealed class ReachHostSessionBridge(ReachHostRuntime runtime)
                 }
 
                 Interlocked.Exchange(ref runtime.SessionConnection, connection);
+                runtime.SetInteractiveHelperState(
+                    new ReachSessionLifecycleStatus("Ready", CaptureActive: false));
                 runtime.WriteLog("Interactive session helper connected.");
                 var pendingClient = runtime.Clients.Values
                     .Where(static client => client.IsReady)
@@ -59,10 +61,23 @@ internal sealed class ReachHostSessionBridge(ReachHostRuntime runtime)
                             frame.Name,
                             ignoreCase: true,
                             out var messageType)
-                        || !ReachHostFraming.IsHostToClientFrame(frame.Kind, messageType))
+                        )
                     {
                         continue;
                     }
+
+                    if (frame.Kind == "status"
+                        && messageType == ReachMessageType.SessionStatus)
+                    {
+                        var lifecycle =
+                            ReachMessageCodec.ReadBody<ReachSessionLifecycleStatus>(
+                                ReachMessageCodec.Deserialize(frame.Payload));
+                        runtime.SetInteractiveHelperState(lifecycle);
+                        continue;
+                    }
+
+                    if (!ReachHostFraming.IsHostToClientFrame(frame.Kind, messageType))
+                        continue;
 
                     if (runtime.SharingPaused && frame.Kind == "media")
                         continue;
@@ -104,6 +119,7 @@ internal sealed class ReachHostSessionBridge(ReachHostRuntime runtime)
                     await connection.DisposeAsync().ConfigureAwait(false);
                 }
 
+                runtime.SetInteractiveHelperDisconnected();
                 if (connection is not null
                     && !cancellationToken.IsCancellationRequested)
                 {

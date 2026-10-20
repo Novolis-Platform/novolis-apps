@@ -24,7 +24,7 @@ if (File.Exists(generator))
         "PrivilegesRequired=lowest",
         "UsePreviousAppDir=yes",
         "CloseApplications=yes",
-        @"{localappdata}}\Programs\",
+        "DefaultDirName={{localappdata}}\\\\Programs\\\\",
         "Flags: unchecked",
     })
     {
@@ -35,6 +35,59 @@ if (File.Exists(generator))
 else
 {
     Console.WriteLine($"Sibling InnoScriptGenerator not found at {generator} — skipping source contract check.");
+}
+
+var reachPublisher = Path.Combine(repoRoot, "tools", "AppsManifest", "AppPublishCommand.cs");
+if (File.Exists(reachPublisher))
+{
+    var src = File.ReadAllText(reachPublisher);
+    foreach (var needle in new[]
+    {
+        "CopyReachInstallerAssets",
+        "PrivilegesRequired=admin",
+        "Machine-wide install (administrator consent)",
+        "Install-ReachWindowsHost.ps1",
+        "[UninstallRun]",
+        "RunOnceId: \\\"NovolisReachCleanup\\\"",
+        "Novolis.Reach.Host.Windows.exe",
+    })
+    {
+        if (!src.Contains(needle, StringComparison.Ordinal))
+            errors.Add($"Reach installer publisher missing required fragment: {needle}");
+    }
+}
+else
+{
+    errors.Add($"Reach installer publisher not found at {reachPublisher}");
+}
+
+var reachInstaller = Path.Combine(repoRoot, "scripts", "Install-ReachWindowsHost.ps1");
+if (File.Exists(reachInstaller))
+{
+    var src = File.ReadAllText(reachInstaller);
+    foreach (var needle in new[]
+    {
+        "New-Service",
+        "'LocalSystem'",
+        "'delayed-auto'",
+        "'restart/5000/restart/30000/restart/60000'",
+        "-LocalPort @('19800', '19801', '19803')",
+        "-LocalPort @('19800', '19801', '19802')",
+        "New-ScheduledTaskPrincipal",
+        "-LogonType Interactive",
+        "-RunLevel Limited",
+        "-Argument '--tray'",
+        "Stop-ScheduledTask",
+        "Remove-NetFirewallRule",
+    })
+    {
+        if (!src.Contains(needle, StringComparison.Ordinal))
+            errors.Add($"Reach Windows installer missing required fragment: {needle}");
+    }
+}
+else
+{
+    errors.Add($"Reach Windows installer not found at {reachInstaller}");
 }
 
 using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(repoRoot, "build", "apps.json")));
@@ -63,6 +116,29 @@ foreach (var app in doc.RootElement.GetProperty("apps").EnumerateArray())
         errors.Add($"Duplicate AppId {appId}");
     if (!windows.TryGetProperty("closeApplicationsFilter", out var filter) || string.IsNullOrWhiteSpace(filter.GetString()))
         errors.Add($"{key}: closeApplicationsFilter required");
+    if (key.Equals("reach", StringComparison.OrdinalIgnoreCase))
+    {
+        var installScope = windows.TryGetProperty("installScope", out var scope)
+            ? scope.GetString()
+            : null;
+        if (!string.Equals(installScope, "machine", StringComparison.OrdinalIgnoreCase))
+            errors.Add("reach: installScope must be machine");
+        if (!windows.TryGetProperty("requiresAdministrator", out var requiresAdministrator)
+            || requiresAdministrator.ValueKind != JsonValueKind.True)
+        {
+            errors.Add("reach: requiresAdministrator must be true");
+        }
+        if (!windows.TryGetProperty("serviceName", out var serviceName)
+            || string.IsNullOrWhiteSpace(serviceName.GetString()))
+        {
+            errors.Add("reach: serviceName required");
+        }
+        if (!windows.TryGetProperty("managementExecutable", out var managementExecutable)
+            || string.IsNullOrWhiteSpace(managementExecutable.GetString()))
+        {
+            errors.Add("reach: managementExecutable required");
+        }
+    }
     var retention = app.TryGetProperty("data", out var data) && data.TryGetProperty("retention", out var ret)
         ? ret.GetString()
         : null;

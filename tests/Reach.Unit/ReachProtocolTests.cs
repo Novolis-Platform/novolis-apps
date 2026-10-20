@@ -231,6 +231,56 @@ public sealed class ReachProtocolTests
     }
 
     [Test]
+    public async Task HostStatusCarriesDeviceAndUserSessionState()
+    {
+        var status = new ReachHostStatus(
+            "Running",
+            ["tcp://192.168.1.20:19800"],
+            ConnectedClients: 1,
+            SharingPaused: false,
+            InteractiveUser: "DEV\\user",
+            RecentMessages: ["helper ready"],
+            Device: new ReachDeviceStatus(
+                "device-id",
+                "reach-vm",
+                "Windows",
+                "2026.1.0.1"),
+            UserSession: new ReachUserSessionStatus(
+                3,
+                "DEV",
+                "user",
+                "Ready",
+                HelperConnected: true,
+                CaptureState: "Idle"));
+
+        var roundTrip = ReachMessageCodec.ReadBody<ReachHostStatus>(
+            ReachMessageCodec.Deserialize(
+                ReachMessageCodec.Serialize(
+                    ReachMessageType.HostStatus,
+                    sequence: 14,
+                    status)));
+
+        await Assert.That(roundTrip.Device!.DeviceId).IsEqualTo("device-id");
+        await Assert.That(roundTrip.UserSession!.SessionId).IsEqualTo((uint)3);
+        await Assert.That(roundTrip.UserSession.CaptureState).IsEqualTo("Idle");
+    }
+
+    [Test]
+    public async Task SessionLifecycleStatusCarriesLazyCaptureState()
+    {
+        var bytes = ReachMessageCodec.Serialize(
+            ReachMessageType.SessionStatus,
+            sequence: 15,
+            new ReachSessionLifecycleStatus("Capturing", CaptureActive: true));
+
+        var lifecycle = ReachMessageCodec.ReadBody<ReachSessionLifecycleStatus>(
+            ReachMessageCodec.Deserialize(bytes));
+
+        await Assert.That(lifecycle.State).IsEqualTo("Capturing");
+        await Assert.That(lifecycle.CaptureActive).IsTrue();
+    }
+
+    [Test]
     public async Task SessionStateMachineAcceptsOpenAndResume()
     {
         var machine = new ReachSessionStateMachine();

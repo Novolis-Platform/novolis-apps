@@ -98,6 +98,11 @@ public sealed class ReachSessionHost : BackgroundService
                 videoSenderCancellation.Token);
             try
             {
+                await SendLifecycleStatusAsync(
+                        "Ready",
+                        captureActive: false,
+                        stoppingToken)
+                    .ConfigureAwait(false);
                 await foreach (var frame in connection.ReadAllAsync(stoppingToken))
                 {
                     if (!string.Equals(frame.Kind, "control", StringComparison.Ordinal))
@@ -132,6 +137,11 @@ public sealed class ReachSessionHost : BackgroundService
                 _videoSenderTask = null;
                 _videoQueue = null;
                 await Capture.StopAsync().ConfigureAwait(false);
+                await SendLifecycleStatusAsync(
+                        "Disconnected",
+                        captureActive: false,
+                        CancellationToken.None)
+                    .ConfigureAwait(false);
                 _connection = null;
             }
         }
@@ -217,6 +227,36 @@ public sealed class ReachSessionHost : BackgroundService
         finally
         {
             _sendGate.Release();
+        }
+    }
+
+    internal async Task SendLifecycleStatusAsync(
+        string state,
+        bool captureActive,
+        CancellationToken cancellationToken)
+    {
+        var connection = _connection;
+        if (connection is null)
+            return;
+
+        try
+        {
+            await SendAsync(
+                    connection,
+                    ReachMessageType.SessionStatus,
+                    new ReachSessionLifecycleStatus(state, captureActive),
+                    "status",
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception) when (
+            exception is IOException
+                or ObjectDisposedException
+                or InvalidOperationException)
+        {
+            _log.LogDebug(
+                exception,
+                "Reach session lifecycle status could not be sent.");
         }
     }
 }

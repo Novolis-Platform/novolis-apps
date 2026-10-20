@@ -19,6 +19,7 @@ internal sealed class ReachHostRuntime
     {
         Log = log;
         Sessions = sessions;
+        Device = ReachHostDeviceIdentity.Load(log);
         Broadcast = new ReachHostBroadcast(this);
         Session = new ReachHostSessionBridge(this);
         Files = new ReachHostFileTransfers(this);
@@ -31,6 +32,7 @@ internal sealed class ReachHostRuntime
 
     internal ILogger Log { get; }
     internal WindowsSessionManager Sessions { get; }
+    internal ReachDeviceStatus Device { get; }
     internal ConcurrentDictionary<long, ReachHostClientConnection> Clients { get; } = new();
     internal ConcurrentDictionary<string, long> SideChannelTokens { get; } = new();
     internal ConcurrentDictionary<string, long> SideChannelConnections { get; } = new();
@@ -38,6 +40,7 @@ internal sealed class ReachHostRuntime
     internal ConcurrentBag<IAsyncDisposable> Listeners { get; } = [];
     internal ConcurrentBag<IAsyncDisposable> MediaListeners { get; } = [];
     internal object MessagesGate { get; } = new();
+    internal object SessionStatusGate { get; } = new();
     internal List<string> Messages { get; } = [];
     internal SemaphoreSlim SessionGate { get; } = new(1, 1);
     internal CancellationTokenSource Lifetime { get; } = new();
@@ -52,6 +55,7 @@ internal sealed class ReachHostRuntime
     internal int SideChannelStarted;
     internal int HostingStopped;
     internal DateTimeOffset NextSessionHelperLaunchAttempt = DateTimeOffset.MinValue;
+    internal ReachUserSessionStatus? UserSessionStatus { get; private set; }
 
     internal ReachHostBroadcast Broadcast { get; }
     internal ReachHostSessionBridge Session { get; }
@@ -130,6 +134,13 @@ internal sealed class ReachHostRuntime
     {
         Sessions.TryGetActiveSession(out var session);
         var sessionConnection = Volatile.Read(ref SessionConnection);
+        ReachUserSessionStatus userSession;
+        lock (SessionStatusGate)
+        {
+            userSession = CreateCurrentUserSessionStatus(
+                session,
+                sessionConnection is not null);
+        }
         lock (MessagesGate)
         {
             return new ReachHostStatus(
@@ -147,7 +158,98 @@ internal sealed class ReachHostRuntime
                     ? $"{domain}\\{session.UserName}"
                     : session?.UserName,
                 Messages.TakeLast(40).ToArray(),
-                Performance.Snapshot());
+                Performance.Snapshot(),
+                Device,
+                userSession);
         }
     }
+
+    internal void SetInteractiveHelperState(
+        ReachSessionLifecycleStatus lifecycle,
+        bool helperConnected = true)
+    {
+        Sessions.TryGetActiveSession(out var session);
+        lock (SessionStatusGate)
+        {
+            UserSessionStatus = CreateUserSessionStatus(
+                session,
+                lifecycle.State,
+                helperConnected,
+                lifecycle.CaptureActive ? "Capturing" : "Idle");
+        }
+    }
+
+    internal void SetInteractiveHelperDisconnected()
+    {
+        Sessions.TryGetActiveSession(out var session);
+        lock (SessionStatusGate)
+        {
+            UserSessionStatus = CreateUserSessionStatus(
+                session,
+                session is null ? "NoUser" : "WaitingForHelper",
+                helperConnected: false,
+                captureState: "Idle");
+        }
+    }
+
+    private ReachUserSessionStatus CreateCurrentUserSessionStatus(
+        WindowsSessionInfo? session,
+        bool helperConnected)
+    {
+        if (session is null)
+        {
+            UserSessionStatus = new ReachUserSessionStatus(
+                null,
+                null,
+                null,
+                "NoUser",
+                false,
+                "Idle");
+            return UserSessionStatus;
+        }
+
+        var previous = UserSessionStatus;
+        if (previous is null
+            || previous.SessionId != session.SessionId
+            || !helperConnected)
+        {
+            UserSessionStatus = CreateUserSessionStatus(
+                session,
+                helperConnected ? "Ready" : "WaitingForHelper",
+                helperConnected,
+                helperConnected
+                    && previous is not null
+                    && previous.SessionId == session.SessionId
+                    && string.Equals(
+                        previous.CaptureState,
+                        "Capturing",
+                        StringComparison.Ordinal)
+                    ? "Capturing"
+                    : "Idle");
+        }
+        else
+        {
+            UserSessionStatus = previous with
+            {
+                DomainName = session.DomainName,
+                UserName = session.UserName,
+                HelperConnected = true,
+            };
+        }
+
+        return UserSessionStatus;
+    }
+
+    private static ReachUserSessionStatus CreateUserSessionStatus(
+        WindowsSessionInfo? session,
+        string state,
+        bool helperConnected,
+        string captureState) =>
+        new(
+            session?.SessionId,
+            session?.DomainName,
+            session?.UserName,
+            state,
+            helperConnected,
+            captureState);
 }

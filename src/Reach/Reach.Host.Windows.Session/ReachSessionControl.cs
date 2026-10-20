@@ -150,6 +150,8 @@ internal sealed class ReachSessionControl(ReachSessionHost host)
                 break;
             }
             case ReachMessageType.RequestKeyFrame:
+                if (host._capture is null)
+                    break;
                 await host.Capture.RestartAsync(
                         host._targetWidth,
                         host._targetHeight,

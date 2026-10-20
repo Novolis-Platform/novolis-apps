@@ -8,7 +8,9 @@ internal sealed class ReachHostOperator(ReachHostRuntime runtime)
     internal async Task RunAsync(CancellationToken cancellationToken)
     {
         await using var listener = LocalIpcTransport.CreateListener(
-            new LocalIpcEndpoint(ReachHostRuntime.OperatorEndpoint));
+            new LocalIpcEndpoint(
+                ReachHostRuntime.OperatorEndpoint,
+                AllowAuthenticatedUsers: true));
         while (!cancellationToken.IsCancellationRequested)
         {
             await using var connection = await listener.AcceptAsync(cancellationToken)

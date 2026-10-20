@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.GraphicalProfile;
 
@@ -11,6 +12,9 @@ public sealed class App : Application
 {
     /// <summary>Host services supplied by the process entry point.</summary>
     public static IServiceProvider Services { get; set; } = null!;
+
+    /// <summary>Whether the management companion should start minimized to its tray icon.</summary>
+    public static bool StartInTray { get; set; }
 
     /// <inheritdoc />
     public override void Initialize()
@@ -26,8 +30,11 @@ public sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var window = new ReachHostWindow { Content = view };
-            Services.GetRequiredService<ReachHostTrayController>().Attach(window);
+            var tray = Services.GetRequiredService<ReachHostTrayController>();
+            tray.Attach(window);
             desktop.MainWindow = window;
+            if (StartInTray)
+                Dispatcher.UIThread.Post(tray.HideToTray);
         }
         base.OnFrameworkInitializationCompleted();
     }

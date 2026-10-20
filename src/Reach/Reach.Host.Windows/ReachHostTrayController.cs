@@ -16,6 +16,8 @@ public sealed class ReachHostTrayController : IDisposable
     private NativeMenuItem? _reconnect;
     private NativeMenuItem? _stop;
     private ReachHostStatus? _lastStatus;
+    private DispatcherTimer? _statusTimer;
+    private int _statusRefreshInProgress;
     private bool _forceExit;
 
     /// <summary>Creates the notification-area controller.</summary>
@@ -35,6 +37,12 @@ public sealed class ReachHostTrayController : IDisposable
         _window.Closing += OnClosing;
         _window.PropertyChanged += OnWindowPropertyChanged;
         EnsureTray();
+        _statusTimer = new DispatcherTimer(
+            TimeSpan.FromSeconds(2),
+            DispatcherPriority.Background,
+            async (_, _) => await RefreshStatusAsync());
+        _statusTimer.Start();
+        _ = RefreshStatusAsync();
     }
 
     /// <summary>Hides the dashboard while leaving the host running.</summary>
@@ -139,6 +147,9 @@ public sealed class ReachHostTrayController : IDisposable
 
         if (Application.Current is { } app)
             TrayIcon.SetIcons(app, null);
+
+        _statusTimer?.Stop();
+        _statusTimer = null;
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs args)
@@ -235,6 +246,29 @@ public sealed class ReachHostTrayController : IDisposable
         {
             if (_tray is not null)
                 _tray.ToolTipText = $"Reach host unavailable: {exception.Message}";
+        }
+    }
+
+    private async Task RefreshStatusAsync()
+    {
+        if (Interlocked.Exchange(ref _statusRefreshInProgress, 1) != 0)
+            return;
+
+        try
+        {
+            var response = await _client.SendAsync(
+                new ReachHostControlRequest(ReachHostCommand.GetStatus));
+            if (response.Status is not null)
+                UpdateStatus(response.Status);
+        }
+        catch (Exception exception)
+        {
+            if (_tray is not null)
+                _tray.ToolTipText = $"Reach host unavailable: {exception.Message}";
+        }
+        finally
+        {
+            Volatile.Write(ref _statusRefreshInProgress, 0);
         }
     }
 

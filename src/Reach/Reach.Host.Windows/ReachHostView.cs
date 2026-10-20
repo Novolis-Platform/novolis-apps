@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.Automation;
 using Novolis.Avalonia.GraphicalProfile;
 using Novolis.Reach.Protocol;
 
@@ -13,6 +14,9 @@ public sealed class ReachHostView : UserControl
     private readonly ReachHostClient _client;
     private readonly ReachHostTrayController _tray;
     private readonly TextBlock _status;
+    private readonly TextBlock _device;
+    private readonly TextBlock _session;
+    private readonly TextBlock _capture;
     private readonly TextBlock _endpoints;
     private readonly TextBlock _clients;
     private readonly TextBlock _health;
@@ -35,6 +39,9 @@ public sealed class ReachHostView : UserControl
             BackgroundProperty,
             GraphicalProfile.BackgroundResourceKey);
         _status = new TextBlock { Text = "Service status: unknown" };
+        _device = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        _session = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        _capture = new TextBlock { TextWrapping = TextWrapping.Wrap };
         _endpoints = new TextBlock { TextWrapping = TextWrapping.Wrap };
         _clients = new TextBlock { TextWrapping = TextWrapping.Wrap };
         _health = new TextBlock { TextWrapping = TextWrapping.Wrap };
@@ -43,6 +50,7 @@ public sealed class ReachHostView : UserControl
             IsReadOnly = true,
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
+            Height = 240,
         };
         _pause = new Button { Content = "Pause sharing" };
         _pause.Click += PauseClicked;
@@ -59,9 +67,50 @@ public sealed class ReachHostView : UserControl
             DispatcherPriority.Background,
             async (_, _) => await RefreshAsync());
 
+        SetAutomationId(_status, "ReachHostStatus");
+        SetAutomationId(_device, "ReachHostDevice");
+        SetAutomationId(_session, "ReachHostUserSession");
+        SetAutomationId(_capture, "ReachHostCapture");
+        SetAutomationId(_endpoints, "ReachHostEndpoints");
+        SetAutomationId(_clients, "ReachHostClients");
+        SetAutomationId(_health, "ReachHostHealth");
+        SetAutomationId(_log, "ReachHostDebugLog");
+        SetAutomationId(_pause, "ReachHostPause");
+        SetAutomationId(_reconnect, "ReachHostReconnect");
+        SetAutomationId(_stop, "ReachHostStop");
+
+        var summary = new StackPanel
+        {
+            Spacing = 8,
+            Children =
+            {
+                _status,
+                _device,
+                _session,
+                _capture,
+            },
+        };
+        var diagnostics = new StackPanel
+        {
+            Spacing = 8,
+            Children =
+            {
+                _endpoints,
+                _clients,
+                _health,
+                _log,
+            },
+        };
+        var debuggingPanel = new Expander
+        {
+            Header = "Debugging panel",
+            IsExpanded = true,
+            Content = diagnostics,
+        };
+        SetAutomationId(debuggingPanel, "ReachHostDebuggingPanel");
         Content = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,*"),
             Margin = new global::Avalonia.Thickness(24),
             RowSpacing = 12,
             Children =
@@ -72,18 +121,12 @@ public sealed class ReachHostView : UserControl
                     Spacing = 8,
                     Children = { refresh, _pause, _reconnect, _stop, hideToTray },
                 },
-                _status,
-                _endpoints,
-                _clients,
-                _health,
-                _log,
+                summary,
+                debuggingPanel,
             },
         };
-        Grid.SetRow(_status, 1);
-        Grid.SetRow(_endpoints, 2);
-        Grid.SetRow(_clients, 3);
-        Grid.SetRow(_health, 4);
-        Grid.SetRow(_log, 5);
+        Grid.SetRow(summary, 1);
+        Grid.SetRow(debuggingPanel, 2);
         AttachedToVisualTree += async (_, _) =>
         {
             _refreshTimer.Start();
@@ -168,6 +211,16 @@ public sealed class ReachHostView : UserControl
         _sharingPaused = status.SharingPaused;
         _pause.Content = _sharingPaused ? "Resume sharing" : "Pause sharing";
         _status.Text = $"Service: {status.State}; user: {status.InteractiveUser ?? "none"}";
+        _device.Text = status.Device is { } device
+            ? $"Device: {device.DeviceName} ({device.Platform}); id={device.DeviceId}; version={device.SoftwareVersion}"
+            : "Device: unavailable";
+        _session.Text = status.UserSession is { } session
+            ? $"User session: {FormatSessionUser(session)}; session={session.SessionId?.ToString() ?? "none"}; "
+              + $"state={session.State}; helper={(session.HelperConnected ? "connected" : "offline")}"
+            : "User session: unavailable";
+        _capture.Text = status.UserSession is { } captureSession
+            ? $"Capture: {captureSession.CaptureState}; starts only after a client opens or resumes a session."
+            : "Capture: waiting for an interactive user session.";
         _endpoints.Text = $"Tailscale endpoints: "
             + (status.Endpoints.Length == 0
                 ? "none"
@@ -188,4 +241,13 @@ public sealed class ReachHostView : UserControl
 
     private static string FormatMilliseconds(double? milliseconds) =>
         milliseconds is { } value ? $"{value:0} ms" : "n/a";
+
+    private static string FormatSessionUser(ReachUserSessionStatus session) =>
+        session.DomainName is { Length: > 0 } domain
+            && session.UserName is { Length: > 0 } user
+            ? $"{domain}\\{user}"
+            : session.UserName ?? "none";
+
+    private static void SetAutomationId(Control control, string id) =>
+        control.SetValue(AutomationProperties.AutomationIdProperty, id);
 }

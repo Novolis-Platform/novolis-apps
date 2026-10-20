@@ -55,15 +55,30 @@ internal sealed class ReachSessionCapture(ReachSessionHost host)
         host._streamHeight = 0;
         host._capture = CreateSource();
         host._capture.FrameCaptured += host.Encoder.OnFrameCaptured;
-        await host._capture.StartAsync(cancellationToken).ConfigureAwait(false);
         host._encodeTask = host.Encoder.EncodeLoopAsync(
             connection,
             host._frames.Reader,
             cancellationToken);
 
-        host.Audio.Start();
-        await SendAudioMetadataAsync(connection, cancellationToken).ConfigureAwait(false);
-        await SendTopologyAsync(connection, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await host._capture.StartAsync(cancellationToken).ConfigureAwait(false);
+            await host.SendLifecycleStatusAsync(
+                    "Capturing",
+                    captureActive: true,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            host.Audio.Start();
+            await SendAudioMetadataAsync(connection, cancellationToken)
+                .ConfigureAwait(false);
+            await SendTopologyAsync(connection, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            await StopAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     internal async Task RestartAsync(
@@ -127,6 +142,11 @@ internal sealed class ReachSessionCapture(ReachSessionHost host)
         host._videoMetadataSent = false;
         host._streamWidth = 0;
         host._streamHeight = 0;
+        await host.SendLifecycleStatusAsync(
+                "Ready",
+                captureActive: false,
+                CancellationToken.None)
+            .ConfigureAwait(false);
     }
 
     internal async Task SendMetadataAsync(CancellationToken cancellationToken)
