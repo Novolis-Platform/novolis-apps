@@ -646,6 +646,7 @@ internal static class Program
                     linux_exe_name = app.Linux?.ExeName,
                     display_name = app.DisplayName,
                     signing_secret_key = app.Android?.SigningSecretKey,
+                    allow_adhoc_signing = app.Android?.AllowAdhocSigning ?? false,
                     update_app_id = string.IsNullOrWhiteSpace(app.Update?.AppId)
                         ? app.Windows?.AppId ?? $"Novolis.{app.Choice}"
                         : app.Update.AppId,
@@ -929,6 +930,7 @@ internal sealed class AndroidConfig
     public string ApplicationId { get; set; } = "";
     public string VersionCodeStrategy { get; set; } = "release-run";
     public string SigningSecretKey { get; set; } = "";
+    public bool AllowAdhocSigning { get; set; }
     public bool AllowBackup { get; set; }
     public bool UsesCleartextTraffic { get; set; }
     public List<string> PermissionAllowlist { get; set; } = [];

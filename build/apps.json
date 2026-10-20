@@ -1268,6 +1268,7 @@
         "applicationId": "com.novolis.torrent",
         "versionCodeStrategy": "release-run",
         "signingSecretKey": "NOVOLIS_TORRENT_ANDROID",
+        "allowAdhocSigning": true,
         "allowBackup": false,
         "usesCleartextTraffic": false,
         "permissionAllowlist": [
