@@ -1075,22 +1075,35 @@ public sealed class MainPage : ContentPage
                 _navigationShell.Controller.SelectPrimary("nmule.downloads");
             });
 
-    private Task DownloadFromButtonAsync(Button? button)
+    private async Task DownloadFromButtonAsync(Button? button)
     {
         if (button?.BindingContext is not NmuleSearchHit hit)
         {
             SetOperationStatus("This result is no longer available.");
-            return Task.CompletedTask;
+            return;
         }
 
         if (hit.Eligibility is NmuleTransferEligibility.InvalidSource)
         {
+            button.IsEnabled = false;
+            button.Text = "Unavailable";
             SetOperationStatus(
                 "This result is unavailable for the current transfer mode.");
-            return Task.CompletedTask;
+            return;
         }
 
-        return DownloadAsync(hit);
+        var originalText = button.Text;
+        button.IsEnabled = false;
+        button.Text = "Downloading...";
+        try
+        {
+            await DownloadAsync(hit);
+        }
+        finally
+        {
+            button.IsEnabled = true;
+            button.Text = originalText;
+        }
     }
 
     private async Task RunActionAsync(
