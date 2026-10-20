@@ -79,7 +79,7 @@ public sealed class NmuleSession : IAsyncDisposable
             throw new InvalidDataException("The server list has no usable endpoints.");
 
         ServerList = list;
-        RaiseStatus($"Loaded {list.Servers.Count} eD2K server endpoint(s).");
+        RaiseStatus("eD2K server list loaded.");
         return list;
     }
 
@@ -116,7 +116,6 @@ public sealed class NmuleSession : IAsyncDisposable
 
         await DisposeEd2kAsync().ConfigureAwait(false);
         var session = new Ed2kSession(clientName: "nMule Android");
-        Exception? lastFailure = null;
         foreach (var server in list.Servers)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -126,15 +125,16 @@ public sealed class NmuleSession : IAsyncDisposable
                 .ConfigureAwait(false);
             try
             {
-                RaiseStatus($"Connecting to {server.Endpoint}...");
+                RaiseStatus("Connecting to an eD2K server...");
                 var connection = await session.ConnectServerAsync(
                         server.Endpoint,
                         cancellationToken)
                     .ConfigureAwait(false);
                 _ed2k = session;
                 RaiseStatus(
-                    $"Connected to {server.Endpoint} "
-                    + $"({(connection.IsHighId ? "HighID" : "LowID")}).");
+                    connection.IsHighId
+                        ? "Connected to an eD2K server with direct transfer support."
+                        : "Connected to an eD2K server; Kad source lookup may be required.");
                 return connection;
             }
             catch (Exception exception) when (
@@ -143,17 +143,11 @@ public sealed class NmuleSession : IAsyncDisposable
                     or InvalidDataException
                     or TimeoutException)
             {
-                lastFailure = exception;
             }
         }
 
         await session.DisposeAsync().ConfigureAwait(false);
-        var detail = lastFailure is null
-            ? string.Empty
-            : $" Last error: {lastFailure.Message}";
-        throw new InvalidOperationException(
-            "No eD2K server accepted the connection." + detail,
-            lastFailure);
+        throw new InvalidOperationException("No eD2K server accepted the connection.");
     }
 
     /// <summary>Searches the connected eD2K server by name.</summary>
@@ -166,7 +160,7 @@ public sealed class NmuleSession : IAsyncDisposable
         var session = _ed2k
             ?? throw new InvalidOperationException("Connect to an eD2K server first.");
         await EnsureNetworkAllowedAsync(null, cancellationToken).ConfigureAwait(false);
-        RaiseStatus($"Searching for {query.Trim()}...");
+        RaiseStatus("Searching...");
         var results = await session.SearchAsync(query.Trim(), cancellationToken)
             .ConfigureAwait(false);
         var namesByHash = results
@@ -212,7 +206,6 @@ public sealed class NmuleSession : IAsyncDisposable
         var node = new KadNode(
             udpPort: 0,
             tcpPort: _ed2k?.ListenPort ?? 4662);
-        Exception? lastFailure = null;
         var known = new Dictionary<string, KadContact>(StringComparer.Ordinal);
         foreach (var contact in contacts.Take(12))
         {
@@ -223,7 +216,7 @@ public sealed class NmuleSession : IAsyncDisposable
                         contact.Endpoint.Address,
                         cancellationToken)
                     .ConfigureAwait(false);
-                RaiseStatus($"Bootstrapping Kad via {contact.Endpoint}...");
+                RaiseStatus("Bootstrapping Kad...");
                 var discovered = await node.BootstrapAsync(
                         contact,
                         cancellationToken)
@@ -239,16 +232,13 @@ public sealed class NmuleSession : IAsyncDisposable
                     or InvalidDataException
                     or TimeoutException)
             {
-                lastFailure = exception;
             }
         }
 
         if (known.Count == 0)
         {
             await node.DisposeAsync().ConfigureAwait(false);
-            throw new InvalidOperationException(
-                "No Kad bootstrap contact responded.",
-                lastFailure);
+            throw new InvalidOperationException("No Kad bootstrap contact responded.");
         }
 
         _kad = node;
@@ -317,8 +307,7 @@ public sealed class NmuleSession : IAsyncDisposable
         if (hit.Eligibility is NmuleTransferEligibility.InvalidSource)
         {
             throw new NotSupportedException(
-                $"{hit.Name} cannot be downloaded by the nMule MVP: "
-                + $"{hit.EligibilityLabel}.");
+                "This result cannot be downloaded by the nMule MVP.");
         }
 
         var session = _ed2k
@@ -337,7 +326,7 @@ public sealed class NmuleSession : IAsyncDisposable
                 var address = ClientIdToAddress(hit.Result.ClientId);
                 await EnsureNetworkAllowedAsync(address, cancellationToken)
                     .ConfigureAwait(false);
-                RaiseStatus($"Downloading {fileName} from the eD2K source...");
+                RaiseStatus("Downloading from an eD2K source...");
                 await session.DownloadAsync(
                         hit.Result,
                         temporary,
@@ -355,7 +344,6 @@ public sealed class NmuleSession : IAsyncDisposable
                         "No usable Kad source was returned for this LowID result.");
                 }
 
-                Exception? lastFailure = null;
                 sourceDescription = string.Empty;
                 foreach (var source in sources)
                 {
@@ -366,9 +354,7 @@ public sealed class NmuleSession : IAsyncDisposable
                         .ConfigureAwait(false);
                     try
                     {
-                        RaiseStatus(
-                            $"Downloading {fileName} from Kad source "
-                            + $"{source.Endpoint.Address}:{source.TcpPort}...");
+                        RaiseStatus("Downloading from a Kad source...");
                         await Ed2kPeerSession.DownloadAsync(
                                 new IPEndPoint(
                                     source.Endpoint.Address,
@@ -390,20 +376,18 @@ public sealed class NmuleSession : IAsyncDisposable
                             or InvalidDataException
                             or TimeoutException)
                     {
-                        lastFailure = exception;
                     }
                 }
 
                 if (sourceDescription.Length == 0)
                 {
                     throw new InvalidOperationException(
-                        "All Kad sources failed the multipart transfer.",
-                        lastFailure);
+                        "All Kad sources failed the multipart transfer.");
                 }
             }
 
             File.Move(temporary, destination);
-            RaiseStatus($"Completed {fileName}.");
+            RaiseStatus("Download completed.");
             return new NmuleDownloadResult(
                 fileName,
                 destination,
@@ -457,7 +441,7 @@ public sealed class NmuleSession : IAsyncDisposable
             }
 
             await EnsureNetworkAllowedAsync(null, cancellationToken).ConfigureAwait(false);
-            RaiseStatus($"Fetching {uri.Host}...");
+            RaiseStatus("Fetching bootstrap configuration...");
             try
             {
                 using var response = await _httpClient.GetAsync(
@@ -487,9 +471,7 @@ public sealed class NmuleSession : IAsyncDisposable
         if (string.Equals(trimmedSource, "cache", StringComparison.OrdinalIgnoreCase))
             source = cachePath;
         if (!File.Exists(source))
-            throw new FileNotFoundException(
-                "The bootstrap source was not found.",
-                source);
+            throw new FileNotFoundException("The bootstrap source was not found.");
         return await File.ReadAllBytesAsync(source, cancellationToken)
             .ConfigureAwait(false);
     }

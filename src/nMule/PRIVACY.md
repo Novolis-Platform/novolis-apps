@@ -3,6 +3,12 @@
 nMule does not require a Novolis account and does not include analytics,
 advertising, relay, telemetry, or cloud storage.
 
+nMule does not write search terms, result filters, file names, file content,
+hashes, or transfer content to logs, diagnostics, analytics, or telemetry.
+Operation status is generic and does not echo those values. Search results
+and completed-file details are shown only in the active UI or the app-private
+storage required to perform the requested transfer.
+
 The app stores editable `server.met` and `nodes.dat` bootstrap caches plus
 completed files in an app-private profile directory. On Android, that is the
 application data directory. On Windows, that is nMule's per-user local

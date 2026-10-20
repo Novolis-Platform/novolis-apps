@@ -25,6 +25,7 @@ public sealed class MainPage : ContentPage
     private readonly Entry _kadSource;
     private readonly Entry _query;
     private readonly Entry _resultFilter;
+    private readonly Label _actionStatus;
     private readonly Picker _resultTypeFilter;
     private readonly Picker _resultAvailabilityFilter;
     private readonly Picker _resultSpeedFilter;
@@ -65,6 +66,14 @@ public sealed class MainPage : ContentPage
         {
             AutomationId = "NmuleStatus",
             Text = "Ready. nMule requires an active VPN.",
+            LineBreakMode = LineBreakMode.WordWrap,
+        };
+        _actionStatus = new Label
+        {
+            AutomationId = "NmuleActionStatus",
+            Text = "Ready.",
+            FontSize = GraphicalProfileColors.CaptionSize,
+            TextColor = Profile.Muted,
             LineBreakMode = LineBreakMode.WordWrap,
         };
         _networkStatus = new Label
@@ -359,6 +368,7 @@ public sealed class MainPage : ContentPage
                     CreateSectionTitle("Search"),
                     _query,
                     CreateButton("Search", "NmuleSearch", SearchAsync),
+                    _actionStatus,
                     CreateSectionTitle("Results"),
                     _outputLocation,
                     _resultFilter,
@@ -640,15 +650,11 @@ public sealed class MainPage : ContentPage
                 nameof(NmuleSearchHit.DetailsText));
             metadata.IsVisible = false;
 
-            var download = CreateButton(
+            Button? download = null;
+            download = CreateButton(
                 "Download",
                 "NmuleDownloadResult",
-                () => Task.CompletedTask);
-            download.Clicked += async (sender, _) =>
-            {
-                if ((sender as Button)?.BindingContext is NmuleSearchHit hit)
-                    await DownloadAsync(hit);
-            };
+                () => DownloadFromButtonAsync(download));
             Button? toggleDetails = null;
             toggleDetails = CreateButton(
                 "More details",
@@ -1060,38 +1066,74 @@ public sealed class MainPage : ContentPage
         await RunActionAsync(
             async cancellationToken =>
             {
+                SetOperationStatus("Preparing download...");
                 var result = await _session.DownloadAsync(hit, cancellationToken);
                 _downloadResults.Add(result);
                 _downloadStatus.Text =
                     $"{_downloadResults.Count} completed download(s).";
+                SetOperationStatus("Download completed.");
                 _navigationShell.Controller.SelectPrimary("nmule.downloads");
             });
+
+    private Task DownloadFromButtonAsync(Button? button)
+    {
+        if (button?.BindingContext is not NmuleSearchHit hit)
+        {
+            SetOperationStatus("This result is no longer available.");
+            return Task.CompletedTask;
+        }
+
+        if (hit.Eligibility is NmuleTransferEligibility.InvalidSource)
+        {
+            SetOperationStatus(
+                "This result is unavailable for the current transfer mode.");
+            return Task.CompletedTask;
+        }
+
+        return DownloadAsync(hit);
+    }
 
     private async Task RunActionAsync(
         Func<CancellationToken, Task> action)
     {
         if (_busy)
+        {
+            SetOperationStatus("Another operation is already in progress.");
             return;
+        }
 
         _busy = true;
         try
         {
+            SetOperationStatus("Working...");
             using var timeout = new CancellationTokenSource(
                 TimeSpan.FromMinutes(2));
             await action(timeout.Token);
         }
         catch (OperationCanceledException)
         {
-            _status.Text = "Operation cancelled.";
+            SetOperationStatus("Operation cancelled.");
         }
-        catch (NmuleNetworkBlockedException exception)
+        catch (NmuleNetworkBlockedException)
         {
-            _status.Text = exception.Message;
+            SetOperationStatus(
+                "Network access is blocked by the current VPN policy.");
             await RefreshNetworkStatusAsync();
         }
-        catch (Exception exception)
+        catch (NotSupportedException)
         {
-            _status.Text = $"nMule could not complete the operation: {exception.Message}";
+            SetOperationStatus(
+                "This operation is not available for the selected result.");
+        }
+        catch (InvalidOperationException)
+        {
+            SetOperationStatus(
+                "nMule could not complete the operation. "
+                + "Check the connection and required Kad state.");
+        }
+        catch (Exception)
+        {
+            SetOperationStatus("nMule could not complete the operation.");
         }
         finally
         {
@@ -1119,16 +1161,22 @@ public sealed class MainPage : ContentPage
                     _searchNetworkStatus.Text = status;
                 });
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            var status = $"VPN policy check failed: {exception.Message}";
+            var status = "VPN policy check failed.";
             _networkStatus.Text = status;
             _searchNetworkStatus.Text = status;
         }
     }
 
     private void OnSessionStatusChanged(string status) =>
-        MainThread.BeginInvokeOnMainThread(() => _status.Text = status);
+        MainThread.BeginInvokeOnMainThread(() => SetOperationStatus(status));
+
+    private void SetOperationStatus(string status)
+    {
+        _status.Text = status;
+        _actionStatus.Text = status;
+    }
 
     private void OnNavigationChanged(
         object? sender,
