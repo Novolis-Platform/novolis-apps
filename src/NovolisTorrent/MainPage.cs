@@ -228,7 +228,7 @@ public sealed class MainPage : ContentPage
                     _pageTitle,
                     new Label
                     {
-                        Text = "Search, inspect, and transfer torrents from one Android app.",
+                        Text = "Search, inspect, and transfer torrents from one Novolis app.",
                         FontSize = 12,
                         TextColor = Profile.Muted,
                         LineBreakMode = LineBreakMode.WordWrap,
@@ -310,7 +310,7 @@ public sealed class MainPage : ContentPage
                     SectionTitle("Transfers"),
                     new Label
                     {
-                        Text = "Transfers run while Novolis Torrent is open. Files stay in app-private Android storage.",
+                        Text = "Transfers run while Novolis Torrent is open. Files stay in app-private storage.",
                         TextColor = Profile.Muted,
                         FontSize = 12,
                         LineBreakMode = LineBreakMode.WordWrap,
@@ -428,7 +428,7 @@ public sealed class MainPage : ContentPage
                                 SectionTitle("Network and privacy"),
                                 new Label
                                 {
-                                    Text = "Search requests go only to the Torznab endpoint you configure. Tracker refreshes go to the three public source URLs used by the tracker library. API keys are stored with Android Secure Storage.",
+                                    Text = "Search requests go only to the Torznab endpoint you configure. Tracker refreshes go to the three public source URLs used by the tracker library. API keys are stored with platform secure storage.",
                                     TextColor = Profile.Muted,
                                     FontSize = 12,
                                     LineBreakMode = LineBreakMode.WordWrap,

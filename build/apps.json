@@ -1244,25 +1244,34 @@
       "stack": "maui",
       "status": "public",
       "projects": {
-        "publishWindows": null,
+        "publishWindows": "src/NovolisTorrent/NovolisTorrent.csproj",
         "linuxCi": [],
         "android": "src/NovolisTorrent/NovolisTorrent.csproj",
         "maui": "src/NovolisTorrent/NovolisTorrent.csproj",
         "tests": [],
         "all": ["src/NovolisTorrent/NovolisTorrent.csproj"]
       },
-      "local": ["android"],
-      "ship": ["android-apk"],
+      "local": ["windows", "android"],
+      "ship": ["windows-inno", "android-apk"],
       "validation": {
         "changedPathGlobs": ["src/NovolisTorrent/**", "Directory.Packages.props"],
         "runTests": false,
         "androidCompile": true,
-        "windowsCi": false,
+        "windowsCi": true,
         "windowsWorkload": false,
         "linuxCi": false,
         "fanOutStacks": ["maui", "android"]
       },
-      "windows": null,
+      "windows": {
+        "exeName": "Novolis.Torrent.exe",
+        "appId": "Novolis.Torrent",
+        "installDir": "Novolis\\Torrent",
+        "groupName": "Novolis Torrent",
+        "setupBase": "NovolisTorrentSetup",
+        "scriptFile": "novolis-torrent.iss",
+        "closeApplicationsFilter": "Novolis.Torrent.exe",
+        "fileAssociationsAllowed": false
+      },
       "android": {
         "project": "src/NovolisTorrent/NovolisTorrent.csproj",
         "applicationId": "com.novolis.torrent",
@@ -1284,7 +1293,7 @@
         "networkDestinations": ["user-selected-torznab-endpoint", "newtrackon", "ngosang-trackerslist", "xiu2-trackerslistcollection"],
         "retention": "uninstall-preserves-user-data"
       },
-      "update": { "enabled": false, "appId": "Novolis.Torrent", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
+      "update": { "enabled": true, "appId": "Novolis.Torrent", "repository": "https://github.com/Novolis-Platform/novolis-apps", "channel": "stable", "distribution": "direct-github" },
       "release": { "githubRelease": true, "checksums": true }
     },
     {
