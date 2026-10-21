@@ -61,7 +61,7 @@ public sealed class MainPage : ContentPage
         BackgroundColor = Profile.Background;
 
         _endpoint = CreateEntry(
-            "Torznab API endpoint",
+            "Optional Torznab endpoint",
             Preferences.Default.Get("torrent.endpoint", string.Empty),
             "TorrentEndpoint");
         _apiKey = CreateEntry("API key (optional)", string.Empty, "TorrentApiKey");
@@ -273,13 +273,14 @@ public sealed class MainPage : ContentPage
                     SectionTitle("Indexer search"),
                     new Label
                     {
-                        Text = "Torznab keeps the app provider-neutral. Maintained tracker lists "
+                        Text = "Leave the endpoint blank for public Magnetz search, or enter "
+                            + "a Torznab endpoint you operate. Maintained tracker lists "
                             + "refresh automatically before search.",
                         TextColor = Profile.Muted,
                         FontSize = 12,
                         LineBreakMode = LineBreakMode.WordWrap,
                     },
-                    FieldRow("Endpoint", _endpoint, _apiKey),
+                    FieldRow("Torznab (optional)", _endpoint, _apiKey),
                     FieldRow("Search", _term, ActionButton("Search", SearchAsync)),
                     BuildFilters(),
                     _searchStatus,
@@ -431,7 +432,10 @@ public sealed class MainPage : ContentPage
                                 SectionTitle("Network and privacy"),
                                 new Label
                                 {
-                                    Text = "Search requests go only to the Torznab endpoint you configure. Tracker refreshes go to the three public source URLs used by the tracker library. API keys are stored with platform secure storage.",
+                                    Text = "With no endpoint, search uses the public Magnetz metadata API. "
+                                        + "Otherwise requests go to the Torznab endpoint you configure. "
+                                        + "Tracker refreshes go to the three public source URLs used by "
+                                        + "the tracker library. API keys are stored with platform secure storage.",
                                     TextColor = Profile.Muted,
                                     FontSize = 12,
                                     LineBreakMode = LineBreakMode.WordWrap,
@@ -633,11 +637,14 @@ public sealed class MainPage : ContentPage
         if (_busy)
             return;
 
-        if (!Uri.TryCreate(
-                _endpoint.Text?.Trim(),
-                UriKind.Absolute,
-                out var endpoint)
-            || endpoint.Scheme is not ("http" or "https"))
+        var endpointText = _endpoint.Text?.Trim();
+        Uri? endpoint = null;
+        if (!string.IsNullOrWhiteSpace(endpointText)
+            && (!Uri.TryCreate(
+                    endpointText,
+                    UriKind.Absolute,
+                    out endpoint)
+                || endpoint.Scheme is not ("http" or "https")))
         {
             SetStatus("Enter an absolute HTTP or HTTPS Torznab endpoint.");
             return;
@@ -674,11 +681,15 @@ public sealed class MainPage : ContentPage
             SetStatus(
                 trackerCount > 0
                     ? $"Searching with {trackerCount:N0} maintained trackers…"
-                    : "Searching…");
-            var provider = new TorznabSearchProvider(
-                _httpClient,
-                endpoint,
-                _apiKey.Text);
+                    : endpoint is null
+                        ? "Searching public Magnetz index…"
+                        : "Searching…");
+            ITorrentSearchProvider provider = endpoint is null
+                ? new MagnetzSearchProvider(_httpClient)
+                : new TorznabSearchProvider(
+                    _httpClient,
+                    endpoint,
+                    _apiKey.Text);
             var client = new TorrentSearchClient(provider);
             var results = await client.SearchAsync(query);
             _searchItems.Clear();
