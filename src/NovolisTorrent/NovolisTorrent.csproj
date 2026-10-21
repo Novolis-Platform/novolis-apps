@@ -42,5 +42,6 @@
     <LibraryReference Include="Novolis.Transports.Torrent" />
     <LibraryReference Include="Novolis.Transports.Torrent.Search" />
     <LibraryReference Include="Novolis.Transports.Torrent.Trackers" />
+    <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
   </ItemGroup>
 </Project>
