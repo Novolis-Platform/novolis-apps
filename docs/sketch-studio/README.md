@@ -21,6 +21,7 @@ Installers and portable zips ship from `novolis-apps` releases.
 8. [Architecture](architecture.md) — host vs Controls.Sketch, packages, layers
 9. [Smoke and release](smoke-and-release.md) — `--smoke`, Inno, catalog assets
 10. [UX chrome](ux-chrome.md) — toolbar layout, status line, discoverability
+11. [Mobile UX](mobile.md) — Android feature parity, sheets, storage, gestures
 
 ## External contracts
 

@@ -22,6 +22,10 @@
 
 Default window ~1180×760; minimum 720×480. Code-built UI (no XAML). Theme: Avalonia Fluent **Light** + Inter.
 
+The Android head uses the same command contract with an adaptive touch layout.
+See [Mobile UX](mobile.md) for its bottom bar, sheets, gestures, and storage
+behavior.
+
 ## File cluster
 
 New, Open, **Recent** (clock + `MenuFlyout`), Save, Save As — Font Awesome via Optris.
