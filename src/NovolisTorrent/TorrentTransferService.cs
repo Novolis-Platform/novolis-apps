@@ -41,7 +41,19 @@ public sealed class TorrentTransferService : IDisposable
         FileResult file,
         CancellationToken cancellationToken = default)
     {
+        return await AddFileAsync(
+            file,
+            Array.Empty<Uri>(),
+            cancellationToken);
+    }
+
+    public async Task<TorrentTransferItem> AddFileAsync(
+        FileResult file,
+        IReadOnlyList<Uri> trackers,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(trackers);
         ThrowIfDisposed();
 
         await using var source = await file.OpenReadAsync();
@@ -52,6 +64,7 @@ public sealed class TorrentTransferService : IDisposable
         return await AddBytesAsync(
             fileName,
             source,
+            trackers,
             cancellationToken);
     }
 
@@ -59,7 +72,19 @@ public sealed class TorrentTransferService : IDisposable
         Uri torrentUri,
         CancellationToken cancellationToken = default)
     {
+        return await AddUriAsync(
+            torrentUri,
+            Array.Empty<Uri>(),
+            cancellationToken);
+    }
+
+    public async Task<TorrentTransferItem> AddUriAsync(
+        Uri torrentUri,
+        IReadOnlyList<Uri> trackers,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(torrentUri);
+        ArgumentNullException.ThrowIfNull(trackers);
         if (torrentUri.Scheme is not ("http" or "https"))
             throw new ArgumentException(
                 "Torrent downloads must use HTTP or HTTPS.",
@@ -79,6 +104,7 @@ public sealed class TorrentTransferService : IDisposable
         return await AddBytesAsync(
             fileName,
             stream,
+            trackers,
             cancellationToken);
     }
 
@@ -170,6 +196,7 @@ public sealed class TorrentTransferService : IDisposable
     private async Task<TorrentTransferItem> AddBytesAsync(
         string fileName,
         Stream source,
+        IReadOnlyList<Uri> trackers,
         CancellationToken cancellationToken)
     {
         var safeName = Path.GetFileName(fileName);
@@ -179,13 +206,28 @@ public sealed class TorrentTransferService : IDisposable
         var path = Path.Combine(
             _torrentDirectory,
             $"{Guid.NewGuid():N}-{safeName}");
-        await using (var destination = File.Create(path))
-            await source.CopyToAsync(destination, cancellationToken);
+        await using var buffer = new MemoryStream();
+        await source.CopyToAsync(buffer, cancellationToken);
+        var torrentBytes = buffer.ToArray();
 
-        if (!TorrentInfo.TryLoad(path, out var torrent) || torrent is null)
+        if (!TorrentInfo.TryLoad(torrentBytes, out var originalTorrent)
+            || originalTorrent is null)
+        {
+            throw new InvalidDataException("The selected file is not a valid torrent.");
+        }
+
+        if (!originalTorrent.IsPrivate && trackers.Count > 0)
+        {
+            torrentBytes = TorrentTrackerEnricher.AddToTorrent(
+                torrentBytes,
+                trackers);
+        }
+
+        await File.WriteAllBytesAsync(path, torrentBytes, cancellationToken);
+        if (!TorrentInfo.TryLoad(torrentBytes, out var torrent) || torrent is null)
         {
             File.Delete(path);
-            throw new InvalidDataException("The selected file is not a valid torrent.");
+            throw new InvalidDataException("The enriched torrent is not valid.");
         }
 
         var item = new TorrentTransferItem(

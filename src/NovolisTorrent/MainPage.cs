@@ -14,6 +14,7 @@ namespace Novolis.Torrent;
 
 public sealed class MainPage : ContentPage
 {
+    private static readonly TimeSpan TrackerCacheDuration = TimeSpan.FromMinutes(15);
     private const string SearchRoute = "search";
     private const string TransfersRoute = "transfers";
     private const string TrackersRoute = "trackers";
@@ -43,6 +44,7 @@ public sealed class MainPage : ContentPage
     private readonly Dictionary<string, Button> _routeButtons = [];
     private readonly Dictionary<string, View> _routes = [];
     private IReadOnlyList<Uri> _trackerUris = [];
+    private DateTimeOffset _trackersRefreshedAt;
     private bool _themeSubscribed;
     private bool _busy;
 
@@ -271,7 +273,8 @@ public sealed class MainPage : ContentPage
                     SectionTitle("Indexer search"),
                     new Label
                     {
-                        Text = "Torznab keeps the app provider-neutral. Use an endpoint you operate or are authorized to access.",
+                        Text = "Torznab keeps the app provider-neutral. Maintained tracker lists "
+                            + "refresh automatically before search.",
                         TextColor = Profile.Muted,
                         FontSize = 12,
                         LineBreakMode = LineBreakMode.WordWrap,
@@ -667,7 +670,11 @@ public sealed class MainPage : ContentPage
             query.Validate();
             await SaveSettingsAsync();
             _busy = true;
-            SetStatus("Searching…");
+            var trackerCount = await EnsureTrackersAsync();
+            SetStatus(
+                trackerCount > 0
+                    ? $"Searching with {trackerCount:N0} maintained trackers…"
+                    : "Searching…");
             var provider = new TorznabSearchProvider(
                 _httpClient,
                 endpoint,
@@ -676,11 +683,20 @@ public sealed class MainPage : ContentPage
             var results = await client.SearchAsync(query);
             _searchItems.Clear();
             foreach (var result in results)
-                _searchItems.Add(result);
+            {
+                _searchItems.Add(
+                    result with
+                    {
+                        MagnetUri = TorrentTrackerEnricher.AddToMagnet(
+                            result.MagnetUri,
+                            _trackerUris),
+                    });
+            }
             SetStatus(
                 results.Count == 0
                     ? "No results matched the active filters."
-                    : $"Found {results.Count:N0} result(s) from {provider.Name}.");
+                    : $"Found {results.Count:N0} result(s) from {provider.Name}; "
+                        + $"applied {_trackerUris.Count:N0} maintained trackers.");
         }
         catch (Exception exception)
         {
@@ -698,43 +714,72 @@ public sealed class MainPage : ContentPage
             return;
 
         _busy = true;
-        _trackerItems.Clear();
-        var trackers = new List<Uri>();
-        var entries = new List<string>();
         try
         {
-            SetTrackerStatus("Refreshing newTrackon, ngosang, and XIU2…");
-            foreach (var source in _trackerCatalog.Sources)
-            {
-                try
-                {
-                    var list = await source.GetAsync(TorrentTrackerListKind.Best);
-                    trackers.AddRange(list.Trackers);
-                    entries.Add($"{list.Source}: {list.Trackers.Count:N0} trackers");
-                }
-                catch (Exception exception)
-                {
-                    entries.Add($"{source.Kind}: unavailable · {exception.Message}");
-                }
-            }
-
-            _trackerUris = trackers
-                .GroupBy(uri => uri.AbsoluteUri, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.First())
-                .ToArray();
-            foreach (var entry in entries)
-                _trackerItems.Add(entry);
-            SetTrackerStatus(
-                $"Loaded {_trackerUris.Count:N0} distinct tracker URL(s) across {entries.Count:N0} sources.");
+            await LoadTrackersAsync();
         }
         catch (Exception exception)
         {
+            _trackersRefreshedAt = DateTimeOffset.UtcNow;
             SetTrackerStatus($"Tracker refresh failed: {exception.Message}");
         }
         finally
         {
             _busy = false;
         }
+    }
+
+    private async Task<int> EnsureTrackersAsync()
+    {
+        if (_trackersRefreshedAt != default
+            && DateTimeOffset.UtcNow - _trackersRefreshedAt < TrackerCacheDuration)
+        {
+            return _trackerUris.Count;
+        }
+
+        try
+        {
+            return await LoadTrackersAsync();
+        }
+        catch (Exception exception)
+        {
+            _trackersRefreshedAt = DateTimeOffset.UtcNow;
+            SetTrackerStatus(
+                $"Tracker refresh failed; continuing without new URLs: {exception.Message}");
+            return _trackerUris.Count;
+        }
+    }
+
+    private async Task<int> LoadTrackersAsync()
+    {
+        _trackerItems.Clear();
+        var trackers = new List<Uri>();
+        var entries = new List<string>();
+        SetTrackerStatus("Refreshing newTrackon, ngosang, and XIU2…");
+        foreach (var source in _trackerCatalog.Sources)
+        {
+            try
+            {
+                var list = await source.GetAsync(TorrentTrackerListKind.Best);
+                trackers.AddRange(list.Trackers);
+                entries.Add($"{list.Source}: {list.Trackers.Count:N0} trackers");
+            }
+            catch (Exception exception)
+            {
+                entries.Add($"{source.Kind}: unavailable · {exception.Message}");
+            }
+        }
+
+        _trackerUris = trackers
+            .GroupBy(uri => uri.AbsoluteUri, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+        foreach (var entry in entries)
+            _trackerItems.Add(entry);
+        _trackersRefreshedAt = DateTimeOffset.UtcNow;
+        SetTrackerStatus(
+            $"Loaded {_trackerUris.Count:N0} distinct tracker URL(s) across {entries.Count:N0} sources.");
+        return _trackerUris.Count;
     }
 
     private async Task PickTorrentAsync()
@@ -754,7 +799,8 @@ public sealed class MainPage : ContentPage
 
             _busy = true;
             SetTransferStatus("Importing torrent metadata…");
-            await _transferService.AddFileAsync(file);
+            await EnsureTrackersAsync();
+            await _transferService.AddFileAsync(file, _trackerUris);
             RefreshTransferItems();
             ShowRoute(TransfersRoute);
             SetTransferStatus("Torrent added. Press Start when you are ready.");
@@ -782,7 +828,8 @@ public sealed class MainPage : ContentPage
         {
             _busy = true;
             SetStatus("Downloading torrent metadata…");
-            await _transferService.AddUriAsync(result.TorrentUri);
+            await EnsureTrackersAsync();
+            await _transferService.AddUriAsync(result.TorrentUri, _trackerUris);
             RefreshTransferItems();
             ShowRoute(TransfersRoute);
             SetTransferStatus("Torrent added. Press Start when you are ready.");
@@ -806,7 +853,10 @@ public sealed class MainPage : ContentPage
             return;
         }
 
-        await Clipboard.Default.SetTextAsync(result.MagnetUri.AbsoluteUri);
+        var magnet = TorrentTrackerEnricher.AddToMagnet(
+            result.MagnetUri,
+            _trackerUris);
+        await Clipboard.Default.SetTextAsync(magnet?.AbsoluteUri ?? result.MagnetUri.AbsoluteUri);
         SetStatus("Magnet URI copied.");
     }
 
@@ -818,7 +868,8 @@ public sealed class MainPage : ContentPage
             return;
         }
 
-        var uri = result.TorrentUri ?? result.MagnetUri;
+        var uri = result.TorrentUri
+            ?? TorrentTrackerEnricher.AddToMagnet(result.MagnetUri, _trackerUris);
         if (uri is null)
         {
             SetStatus("This result has no source URI.");
