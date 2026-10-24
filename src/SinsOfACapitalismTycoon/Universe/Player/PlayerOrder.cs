@@ -13,4 +13,7 @@ internal sealed record PlayerOrder(
   decimal LiftLimit = 0m,
   decimal DestBid = 0m,
   TransitProfile Profile = TransitProfile.StandardCommercial,
-  Guid? CounterpartyFirmId = null);
+  Guid? CounterpartyFirmId = null,
+  string? CorrelationId = null,
+  long? StateRevision = null,
+  string? Lifecycle = null);

@@ -5,7 +5,10 @@ internal sealed record PlayerActionResult(
   string ActionId,
   bool Ok,
   string Message,
-  string? ErrorCode = null)
+  string? ErrorCode = null,
+  string? CorrelationId = null,
+  long? StateRevision = null,
+  string? Lifecycle = null)
 {
   public static PlayerActionResult Success(string actionId, string message) =>
     new(actionId, true, message);

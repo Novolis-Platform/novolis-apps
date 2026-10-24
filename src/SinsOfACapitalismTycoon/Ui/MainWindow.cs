@@ -31,6 +31,8 @@ internal sealed class MainWindow : Window
   readonly TextBlock _cashChipValue;
   readonly TextBlock _lifeChipValue;
   readonly TextBlock _runwayChipValue;
+  readonly TextBlock _receipt;
+  readonly TextBlock _agentError;
   readonly TextBlock _decision;
   readonly TextBlock _coach;
   readonly Border _coachChrome;
@@ -345,6 +347,26 @@ internal sealed class MainWindow : Window
     var cashChip = CalypsoTheme.MetricChip("Cash", "—", out _cashChipValue);
     var runwayChip = CalypsoTheme.MetricChip("Runway", "—", out _runwayChipValue);
     var lifeChip = CalypsoTheme.MetricChip("Hull life", "—", out _lifeChipValue);
+    AgentProperties.SetId(_cashChipValue, CalypsoAgentIds.Cash);
+    AgentProperties.SetId(_runwayChipValue, CalypsoAgentIds.Runway);
+    AgentProperties.SetId(_lifeChipValue, CalypsoAgentIds.Life);
+    _receipt = new TextBlock
+    {
+      Foreground = GraphicalProfile.TextBrush,
+      FontFamily = GraphicalProfile.BodyFont,
+      TextWrapping = TextWrapping.Wrap,
+      FontSize = 12,
+    };
+    _agentError = new TextBlock
+    {
+      Foreground = GraphicalProfile.DangerBrush,
+      FontFamily = GraphicalProfile.BodyFont,
+      TextWrapping = TextWrapping.Wrap,
+      FontSize = 12,
+      IsVisible = false,
+    };
+    AgentProperties.SetId(_receipt, CalypsoAgentIds.Receipt);
+    AgentProperties.SetId(_agentError, CalypsoAgentIds.Error);
     var chipRow = new StackPanel
     {
       Orientation = Orientation.Horizontal,
@@ -596,6 +618,8 @@ internal sealed class MainWindow : Window
       {
         _voyage,
         chipRow,
+        _receipt,
+        _agentError,
         _hullStats,
         _decision,
         _coachChrome,
@@ -872,6 +896,11 @@ internal sealed class MainWindow : Window
         : GraphicalProfile.ActionSoftBrush;
     var lifeMatch = System.Text.RegularExpressions.Regex.Match(bridge.HullLine, @"life (\d+)%");
     _lifeChipValue.Text = lifeMatch.Success ? lifeMatch.Groups[1].Value + "%" : "—";
+    var action = bridge.LastAction;
+    _receipt.Text = action is null ? "" : $"{action.ActionId}: {action.Message}";
+    _receipt.IsVisible = action is not null;
+    _agentError.Text = action is { Ok: false } ? action.Message : "";
+    _agentError.IsVisible = action is { Ok: false };
     _hullStats.Text = $"{bridge.StandingLine}\n{bridge.HullLine}\n{bridge.HoldLine}";
     // Voyage carries clockwork escrow when underway (TTD "watch the train").
     _voyage.Text = string.IsNullOrEmpty(bridge.EscrowClockLine) || !bridge.Underway

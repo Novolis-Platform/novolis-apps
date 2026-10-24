@@ -9,7 +9,11 @@ internal sealed class CaptainBridgeService : IAgentHost
 {
   private readonly CampaignRunner.LiveSession _session;
   private readonly object _gate = new();
+  private readonly Dictionary<string, AgentCommandResult> _receipts = new(StringComparer.Ordinal);
   private PlayerActionResult? _lastEmittedAction;
+  private AgentCommand? _active;
+  private AgentReceipt? _lastReceipt;
+  private long _revision = 1;
   private int _changedCoalesce;
 
   public CaptainBridgeService(CampaignRunner.LiveSession session)
@@ -36,6 +40,9 @@ internal sealed class CaptainBridgeService : IAgentHost
       AgentMethodNames.Command,
       AgentMethodNames.Continue,
       AgentMethodNames.Subscribe,
+      AgentMethodNames.Watch,
+      AgentMethodNames.WatchNext,
+      AgentMethodNames.Unwatch,
       AgentMethodNames.Decision,
       AgentMethodNames.Changed,
       AgentMethodNames.ActionResult,
@@ -63,13 +70,16 @@ internal sealed class CaptainBridgeService : IAgentHost
     lock (_gate)
     {
       _session.Continue();
-      return new AgentCommandResult
+      var previous = _active;
+      _active = new AgentCommand { ActionId = AgentActionIds.Continue };
+      try
       {
-        Ok = true,
-        ActionId = AgentActionIds.Continue,
-        Message = "continue",
-        Snapshot = BuildSnapshot(),
-      };
+        return Finish(true, AgentActionIds.Continue, "continue", null);
+      }
+      finally
+      {
+        _active = previous;
+      }
     }
   }
 
@@ -86,10 +96,25 @@ internal sealed class CaptainBridgeService : IAgentHost
     lock (_gate)
     {
       ArgumentNullException.ThrowIfNull(command);
+      _active = command;
       var actionId = command.ActionId?.Trim() ?? "";
       if (actionId.Length == 0)
       {
         return Fail(actionId, "incomplete", "ActionId required");
+      }
+
+      if (!string.IsNullOrWhiteSpace(command.CorrelationId)
+          && _receipts.TryGetValue(command.CorrelationId, out var prior))
+      {
+        return prior;
+      }
+
+      var described = BuildActions(_session.LastBridge ?? _session.CaptureBridge())
+        .FirstOrDefault(candidate => string.Equals(candidate.Id, actionId, StringComparison.Ordinal));
+      var rejected = AgentCommandGate.Reject(described, command, _revision);
+      if (rejected is not null)
+      {
+        return rejected;
       }
 
       try
@@ -139,7 +164,7 @@ internal sealed class CaptainBridgeService : IAgentHost
     var r = CaptainActions.TryTravel(_session, dest);
     if (!r.Ok)
     {
-      return Fail(AgentActionIds.Travel, r.ErrorCode ?? "error", r.Message, BuildSnapshot());
+      return Fail(AgentActionIds.Travel, r.ErrorCode ?? "error", r.Message);
     }
 
     return new AgentCommandResult
@@ -271,26 +296,42 @@ internal sealed class CaptainBridgeService : IAgentHost
     return r.Ok ? Ok(actionId, r.Message) : Fail(actionId, r.ErrorCode ?? "error", r.Message);
   }
 
-  private AgentCommandResult Ok(string actionId, string message) => new()
-  {
-    Ok = true,
-    ActionId = actionId,
-    Message = message,
-    Snapshot = BuildSnapshot(),
-  };
+  private AgentCommandResult Ok(string actionId, string message) => Finish(true, actionId, message, null);
 
-  private static AgentCommandResult Fail(
-    string actionId,
-    string errorCode,
-    string message,
-    AgentSnapshot? snapshot = null) => new()
+  private AgentCommandResult Fail(string actionId, string errorCode, string message) =>
+    Finish(false, actionId, message, errorCode);
+
+  private AgentCommandResult Finish(bool ok, string actionId, string message, string? errorCode)
   {
-    Ok = false,
-    ActionId = actionId,
-    ErrorCode = errorCode,
-    Message = message,
-    Snapshot = snapshot,
-  };
+    _revision++;
+    var command = _active ?? new AgentCommand { ActionId = actionId };
+    var receipt = AgentCommandGate.CreateReceipt(
+      command,
+      ok ? AgentLifecycle.Applied : AgentLifecycle.Rejected,
+      ok,
+      message,
+      _revision,
+      errorCode,
+      ok ? "Read the snapshot before the next order." : message);
+    _lastReceipt = receipt;
+    var result = new AgentCommandResult
+    {
+      Ok = ok,
+      ActionId = actionId,
+      Message = message,
+      ErrorCode = errorCode,
+      CorrelationId = command.CorrelationId,
+      StateRevision = _revision,
+      Receipt = receipt,
+      Snapshot = BuildSnapshot(),
+    };
+    if (!string.IsNullOrWhiteSpace(command.CorrelationId))
+    {
+      _receipts[command.CorrelationId] = result;
+    }
+
+    return result;
+  }
 
   private void OnAwaitingDecision()
   {
@@ -446,6 +487,21 @@ internal sealed class CaptainBridgeService : IAgentHost
       MapVisible = bridge.ShipMapVisible,
       GameHoursPerRealMinute = bridge.GameHoursPerRealMinute,
       SessionGameHoursPerRealMinute = bridge.SessionGameHoursPerRealMinute,
+      StateRevision = _revision,
+      MetadataVersion = AgentMetadata.Version,
+      Receipt = _lastReceipt,
+      Observations =
+      [
+        new AgentObservation
+        {
+          ResourceId = string.IsNullOrWhiteSpace(bridge.CurrentSystemId) ? "captain" : bridge.CurrentSystemId,
+          StateRevision = _revision,
+          Summary = pause,
+          BlockedReason = bridge.SoftFail ? bridge.SoftFailLine : null,
+          Recovery = bridge.DecisionLine,
+          AvailableActionIds = BuildActions(bridge).Where(action => action.Enabled).Select(action => action.Id).ToArray(),
+        },
+      ],
     };
   }
 
@@ -495,11 +551,41 @@ internal sealed class CaptainBridgeService : IAgentHost
     ];
   }
 
-  private static AgentAction Act(string id, string label, bool enabled, string? disabledReason) => new()
+  private static AgentAction Act(string id, string label, bool enabled, string? disabledReason)
   {
-    Id = id,
-    Label = label,
-    Enabled = enabled,
-    DisabledReason = enabled ? null : disabledReason,
-  };
+    var (summary, preview, idempotency, schema) = Describe(id);
+    return new()
+    {
+      Id = id,
+      Label = label,
+      Enabled = enabled,
+      DisabledReason = enabled ? null : disabledReason,
+      Summary = summary,
+      Schema = schema,
+      Capability = "captain.play",
+      SafetyClass = AgentSafetyClass.Mutate,
+      ApprovalRequired = false,
+      Idempotency = idempotency,
+      EffectPreview = preview,
+      MetadataVersion = AgentMetadata.Version,
+    };
+  }
+
+  private static (string Summary, string Preview, string Idempotency, Dictionary<string, object?>? Schema) Describe(string id)
+  {
+    var index = AgentActionSchema.Object(null, ("index", "integer"));
+    return id switch
+    {
+      AgentActionIds.Travel => ("Travel to a system", "Sets the voyage destination.", "at-most-once",
+        AgentActionSchema.Object(["destSystemId"], ("destSystemId", "string"))),
+      AgentActionIds.AcceptSpot => ("Accept the spot freight at this dock", "Lifts the selected spot job.", "at-most-once", index),
+      AgentActionIds.AcceptCharter => ("Accept a charter", "Takes the selected charter.", "at-most-once", index),
+      AgentActionIds.MarketBuy => ("Buy a market lot", "Buys the selected ask.", "at-most-once", index),
+      AgentActionIds.MarketSell => ("Sell a market lot", "Sells into the selected bid.", "at-most-once", index),
+      AgentActionIds.Depart => ("Depart", "Leaves dock with the current manifest.", "at-most-once", null),
+      AgentActionIds.Save => ("Save a checkpoint", "Writes a campaign checkpoint.", "repeatable",
+        AgentActionSchema.Object(null, ("label", "string"))),
+      _ => (id, "Applies the captain order.", "repeatable", null),
+    };
+  }
 }

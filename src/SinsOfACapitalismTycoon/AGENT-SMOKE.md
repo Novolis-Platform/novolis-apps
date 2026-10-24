@@ -25,6 +25,8 @@ dotnet run --project d:\novolis\novolis-apps\src\SinsOfACapitalismTycoon `
 | Id | Control |
 |----|---------|
 | `calypso.voyage` / `calypso.hull` / `calypso.decision` / `calypso.survival` | Voyage strip (+ last-tramp line) |
+| `calypso.cash` / `calypso.runway` / `calypso.life` | Cash, runway, and hull-life values |
+| `calypso.receipt` / `calypso.error` | Last captain action and its error text |
 | `calypso.map` | Star map |
 | `calypso.travelSystem` | Typed travel destination (system id) |
 | `calypso.travel` | Travel here |
