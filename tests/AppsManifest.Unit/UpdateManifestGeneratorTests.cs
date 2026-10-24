@@ -61,6 +61,62 @@ public sealed class UpdateManifestGeneratorTests
     }
 
     [Test]
+    public async Task Generator_omits_update_disabled_rows()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"novolis-manifest-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            File.WriteAllBytes(
+                Path.Combine(root, "Enabled-2026.1.2.0.apk"),
+                [1, 2, 3, 4]);
+            var metadataPath = Path.Combine(root, "matrix.json");
+            File.WriteAllText(
+                metadataPath,
+                """
+                {"include":[
+                  {
+                    "key":"enabled",
+                    "display_name":"Enabled",
+                    "artifact_prefix":"Enabled",
+                    "update_enabled":true,
+                    "update_app_id":"Novolis.Enabled",
+                    "update_channel":"stable",
+                    "update_distribution":"direct-github",
+                    "declared_update_artifacts":["androidApk"]
+                  },
+                  {
+                    "key":"disabled",
+                    "display_name":"Disabled",
+                    "artifact_prefix":"Disabled",
+                    "update_enabled":false,
+                    "update_app_id":"Novolis.Disabled",
+                    "update_channel":"stable",
+                    "update_distribution":"direct-github",
+                    "declared_update_artifacts":[]
+                  }
+                ]}
+                """);
+            var output = Path.Combine(root, "Novolis.Update.json");
+
+            await Assert.That(UpdateManifestGenerator.Generate(
+                    Arguments(metadataPath, root, output)))
+                .IsEqualTo(0);
+
+            using var json = JsonDocument.Parse(File.ReadAllText(output));
+            var updates = json.RootElement.GetProperty("updates");
+            await Assert.That(updates.GetArrayLength()).IsEqualTo(1);
+            await Assert.That(updates[0].GetProperty("appId").GetString())
+                .IsEqualTo("Novolis.Enabled");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task Generator_rejects_declared_artifacts_that_are_missing()
     {
         var root = Path.Combine(Path.GetTempPath(), $"novolis-manifest-{Guid.NewGuid():N}");

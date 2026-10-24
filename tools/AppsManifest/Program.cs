@@ -115,6 +115,8 @@ internal static class Program
                 errors.Add($"Duplicate or missing choice: '{app.Choice}'.");
             if (app.Ship is null || app.Ship.Count == 0)
                 errors.Add($"App '{app.Key}' under src/ must declare at least one ship channel.");
+            if (app.Release?.GithubRelease == false)
+                errors.Add($"App '{app.Key}' cannot opt out of the full GitHub release.");
 
             var update = app.Update;
             var updateAppId = string.IsNullOrWhiteSpace(update?.AppId)
@@ -603,9 +605,6 @@ internal static class Program
         if (selectedApps.Count == 0)
             throw new InvalidOperationException($"Unknown app selection: {appChoice}");
 
-        if (allAppsSelected)
-            selectedApps = selectedApps.Where(app => app.Release?.GithubRelease != false).ToList();
-
         var include = new List<object>();
         foreach (var app in selectedApps)
         {
@@ -625,6 +624,7 @@ internal static class Program
 
             foreach (var channel in channels)
             {
+                var declaredReleaseArtifacts = GetDeclaredReleaseArtifacts(channel);
                 include.Add(new
                 {
                     key = app.Key,
@@ -659,7 +659,11 @@ internal static class Program
                     update_distribution = string.IsNullOrWhiteSpace(app.Update?.Distribution)
                         ? "direct-github"
                         : app.Update.Distribution,
-                    declared_update_artifacts = GetDeclaredUpdateArtifacts(channel),
+                    update_enabled = app.Update?.Enabled ?? false,
+                    declared_release_artifacts = declaredReleaseArtifacts,
+                    declared_update_artifacts = app.Update?.Enabled == true
+                        ? declaredReleaseArtifacts
+                        : Array.Empty<string>(),
                 });
             }
         }
@@ -701,7 +705,7 @@ internal static class Program
         return 0;
     }
 
-    private static IReadOnlyList<string> GetDeclaredUpdateArtifacts(string channel) =>
+    private static IReadOnlyList<string> GetDeclaredReleaseArtifacts(string channel) =>
         channel.ToLowerInvariant() switch
         {
             "windows-inno" => ["windowsInstaller", "windowsPortable"],

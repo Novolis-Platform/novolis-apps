@@ -45,8 +45,13 @@ internal static class UpdateManifestGenerator
         if (assets.Count == 0)
             throw new InvalidOperationException("No release artifacts were found for the update catalog.");
 
+        var updateRows = rows
+            .Where(row => !row.TryGetProperty("update_enabled", out var enabled)
+                || enabled.ValueKind != JsonValueKind.False)
+            .ToList();
+
         var updates = new List<ManifestFile>();
-        foreach (var group in rows
+        foreach (var group in updateRows
                      .GroupBy(row => (
                          AppId: RequiredProperty(row, "update_app_id"),
                          Channel: RequiredProperty(row, "update_channel"))))
