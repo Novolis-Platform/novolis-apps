@@ -160,7 +160,10 @@ public sealed class PdfReaderDiagnosticsLog
         };
         var diagnostics = new List<object>();
         if (exception is PdfReaderException reader)
+        {
+            record["failureKind"] = reader.FailureKind.ToString();
             diagnostics.Add(CreateDiagnosticRecord(reader.Diagnostic));
+        }
 
         var inner = exception.InnerException;
         for (var depth = 1; inner is not null && depth <= 8; depth++)

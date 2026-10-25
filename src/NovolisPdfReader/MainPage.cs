@@ -28,12 +28,16 @@ public sealed class MainPage : ContentPage
     private readonly Label _documentName;
     private readonly Label _documentMeta;
     private readonly Label _privacyNote;
+    private readonly Label _passwordPromptMessage;
+    private readonly Entry _passwordEntry;
+    private readonly Grid _passwordOverlay;
     private readonly Grid _body;
     private readonly Button _heroOpenButton;
     private readonly Button _registerButton;
     private readonly MobileNavigationShell _navigationShell;
     private CancellationTokenSource? _activationCancellation;
     private Task? _activationTask;
+    private TaskCompletionSource<string?>? _passwordPrompt;
     private bool _themeSubscribed;
 
     /// <summary>Creates the reader shell.</summary>
@@ -48,6 +52,7 @@ public sealed class MainPage : ContentPage
         _activationInbox = activationInbox;
         _diagnosticsLog = diagnosticsLog;
         _viewer.Error += OnViewerError;
+        _viewer.PasswordProvider = RequestPasswordAsync;
         _viewer.OpenRequested += (_, _) => _ = PickAndOpenAsync();
         Title = "Novolis PDF Reader";
         _diagnosticsEditor = new Editor
@@ -201,7 +206,75 @@ public sealed class MainPage : ContentPage
             Body = _body,
         };
         _navigationShell.ActivationRequested += OnNavigationActivationRequested;
-        Content = _navigationShell;
+        _passwordPromptMessage = new Label
+        {
+            Text = "This PDF is password protected.",
+            FontSize = 15,
+            LineBreakMode = LineBreakMode.WordWrap,
+        };
+        _passwordEntry = new Entry
+        {
+            AutomationId = "PdfReaderPassword",
+            Placeholder = "Password",
+            IsPassword = true,
+            ReturnType = ReturnType.Go,
+            ClearButtonVisibility = ClearButtonVisibility.WhileEditing,
+        };
+        _passwordEntry.Completed += (_, _) => _ = CompletePasswordAsync(accept: true);
+        var passwordCard = new Border
+        {
+            Padding = new Thickness(24),
+            StrokeThickness = GraphicalProfileColors.Stroke,
+            StrokeShape = new RoundRectangle
+            {
+                CornerRadius = new CornerRadius(GraphicalProfileColors.CardRadius),
+            },
+            Content = new VerticalStackLayout
+            {
+                Spacing = 12,
+                Children =
+                {
+                    new Label
+                    {
+                        Text = "Unlock PDF",
+                        FontAttributes = FontAttributes.Bold,
+                        FontSize = 22,
+                    },
+                    _passwordPromptMessage,
+                    _passwordEntry,
+                    new HorizontalStackLayout
+                    {
+                        Spacing = 8,
+                        Children =
+                        {
+                            CreateButton(
+                                "Unlock",
+                                "PdfReaderPasswordUnlock",
+                                () => CompletePasswordAsync(accept: true)),
+                            CreateButton(
+                                "Cancel",
+                                "PdfReaderPasswordCancel",
+                                () => CompletePasswordAsync(accept: false)),
+                        },
+                    },
+                },
+            },
+        };
+        _passwordOverlay = new Grid
+        {
+            AutomationId = "PdfReaderPasswordPrompt",
+            IsVisible = false,
+            ZIndex = 100,
+            BackgroundColor = Profile.Background.WithAlpha(0.94f),
+            Padding = new Thickness(24),
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
+        };
+        _passwordOverlay.Add(passwordCard);
+        var root = new Grid();
+        root.Add(_navigationShell);
+        root.Add(_passwordOverlay);
+        Content = root;
         SizeChanged += (_, _) => ApplyShellLayout();
         ShowWelcome();
     }
@@ -269,6 +342,7 @@ public sealed class MainPage : ContentPage
     /// <inheritdoc />
     protected override void OnDisappearing()
     {
+        _ = CompletePasswordAsync(accept: false);
         _activationCancellation?.Cancel();
         _activationCancellation?.Dispose();
         _activationCancellation = null;
@@ -388,21 +462,89 @@ public sealed class MainPage : ContentPage
             exception: args.Exception,
             diagnostics: _viewer.Diagnostics);
 
+    private async ValueTask<string?> RequestPasswordAsync(
+        PdfPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var message = request.PreviousFailure == PdfPasswordFailureReason.Invalid
+            ? "That password was not accepted. Try again."
+            : "This PDF is password protected.";
+        return await MainThread.InvokeOnMainThreadAsync(
+                () => ShowPasswordPromptAsync(message, cancellationToken))
+            .ConfigureAwait(false);
+    }
+
+    private async Task<string?> ShowPasswordPromptAsync(
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (_passwordPrompt is not null)
+            _passwordPrompt.TrySetResult(null);
+
+        _passwordPromptMessage.Text = message;
+        _passwordEntry.Text = string.Empty;
+        _passwordOverlay.IsVisible = true;
+        _passwordEntry.Focus();
+        var prompt = new TaskCompletionSource<string?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _passwordPrompt = prompt;
+        using var registration = cancellationToken.Register(
+            () => MainThread.BeginInvokeOnMainThread(
+                () => _ = CompletePasswordAsync(accept: false)));
+        return await prompt.Task.ConfigureAwait(false);
+    }
+
+    private Task CompletePasswordAsync(bool accept)
+    {
+        var prompt = _passwordPrompt;
+        _passwordPrompt = null;
+        _passwordOverlay.IsVisible = false;
+        var password = accept ? _passwordEntry.Text : null;
+        _passwordEntry.Text = string.Empty;
+        prompt?.TrySetResult(password);
+        return Task.CompletedTask;
+    }
+
     private async Task ShowOpenFailureAsync(Exception exception)
     {
         var summary = exception is PdfReaderException reader
             ? $"{reader.Diagnostic.Code}: {reader.Diagnostic.Message}"
             : $"{exception.GetType().Name}: {exception.Message}";
+        var title = exception is PdfReaderException readerFailure
+            ? readerFailure.FailureKind switch
+            {
+                PdfReaderFailureKind.PasswordRequired => "Password required",
+                PdfReaderFailureKind.InvalidPassword => "Wrong password",
+                PdfReaderFailureKind.UnsupportedEncryption => "Unsupported PDF protection",
+                PdfReaderFailureKind.Render => "PDF page could not be rendered",
+                _ => "Unable to open PDF",
+            }
+            : "Unable to open PDF";
         await MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            ShowWelcome();
-            _diagnosticsEditor.Text =
-                $"Log: {_diagnosticsLog.FilePath}{Environment.NewLine}{Environment.NewLine}{_diagnosticsLog.ReadTail()}";
-            _diagnosticsEditor.IsVisible = true;
-            await OpenDiagnosticsViewerAsync();
+            var currentDocumentRemainsOpen = _viewer.Session is not null && _viewer.PageCount > 0;
+            if (currentDocumentRemainsOpen)
+            {
+                _welcomeScroll.IsVisible = false;
+                _viewerCard.IsVisible = true;
+                _documentMeta.Text = $"{_viewer.PageCount} pages · current document remains open";
+                _diagnosticsEditor.IsVisible = false;
+                _diagnosticsViewer.IsVisible = false;
+                ApplyShellLayout();
+            }
+            else
+            {
+                ShowWelcome();
+                _diagnosticsEditor.Text =
+                    $"Log: {_diagnosticsLog.FilePath}{Environment.NewLine}{Environment.NewLine}{_diagnosticsLog.ReadTail()}";
+                _diagnosticsEditor.IsVisible = true;
+                await OpenDiagnosticsViewerAsync();
+            }
+
             ApplyTheme();
             await DisplayAlertAsync(
-                "Unable to open PDF",
+                title,
                 $"{summary}{Environment.NewLine}{Environment.NewLine}Details were written to:{Environment.NewLine}{_diagnosticsLog.FilePath}",
                 "OK");
         });
@@ -486,6 +628,10 @@ public sealed class MainPage : ContentPage
         _diagnosticsEditor.TextColor = Profile.Text;
         _diagnosticsEditor.BackgroundColor = Profile.Raised;
         _diagnosticsViewer.ApplyTheme();
+        _passwordOverlay.BackgroundColor = Profile.Background.WithAlpha(0.94f);
+        _passwordPromptMessage.TextColor = Profile.Text;
+        _passwordEntry.TextColor = Profile.Text;
+        _passwordEntry.BackgroundColor = Profile.Raised;
         _heroOpenButton.BackgroundColor = Profile.Action;
         _heroOpenButton.TextColor = Profile.OnAction;
         _registerButton.BackgroundColor = Profile.ActionSoft;

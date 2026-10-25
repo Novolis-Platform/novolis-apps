@@ -20,7 +20,7 @@ public sealed class PdfReaderWindowsUiTests
             App = exe!,
         });
 
-        var open = session.Driver.FindElement(MobileBy.AccessibilityId("PdfReaderOpen"));
+        var open = session.Driver.FindElement(MobileBy.AccessibilityId("PdfReaderHeroOpen"));
         var documentName = session.Driver.FindElement(MobileBy.AccessibilityId("PdfReaderDocumentName"));
         var welcome = session.Driver.FindElement(MobileBy.AccessibilityId("PdfReaderWelcome"));
 
@@ -54,7 +54,6 @@ public sealed class PdfReaderWindowsUiTests
         var tree = await client.TreeAsync(interactiveOnly: true).ConfigureAwait(false);
         await Assert.That(tree.Success).IsTrue().Because(tree.Error ?? "tree failed");
         var ids = tree.Nodes.Select(static node => node.Id).ToHashSet(StringComparer.Ordinal);
-        await Assert.That(ids.Contains("PdfReaderOpen")).IsTrue();
         await Assert.That(ids.Contains("PdfReaderHeroOpen")).IsTrue();
     }
 
@@ -81,5 +80,31 @@ public sealed class PdfReaderWindowsUiTests
         var pageLabel = session.Driver.FindElement(MobileBy.AccessibilityId("PdfPageLabel"));
         await Assert.That(pageLabel.Displayed).IsTrue();
         await Assert.That(pageLabel.Text).Contains("/");
+    }
+
+    [Test]
+    public async Task PasswordProtectedDocumentExposesUnlockAndCancelControls()
+    {
+        Skip.Unless(OperatingSystem.IsWindows(), "Windows Appium driver is required.");
+        Skip.Unless(PdfReaderUiHarness.AppiumIsListening(), "Start Appium on APPIUM_HOST (default http://127.0.0.1:4723/).");
+        var exe = PdfReaderUiHarness.TryResolveWindowsExe();
+        Skip.Unless(exe is not null, "Build NovolisPdfReader or set NOVOLIS_PDFREADER_UI_APP to the unpackaged exe.");
+        var pdf = PdfReaderUiHarness.TryResolveProtectedCompatibilityPdf();
+        Skip.Unless(pdf is not null, "Generate the required protected compatibility fixture first.");
+
+        using var session = WindowsAppiumSession.Connect(new WindowsAppiumSessionOptions
+        {
+            App = exe!,
+            AppArguments = $"\"{pdf}\"",
+        });
+
+        var prompt = session.Driver.FindElement(MobileBy.AccessibilityId("PdfReaderPasswordPrompt"));
+        var entry = session.Driver.FindElement(MobileBy.AccessibilityId("PdfReaderPassword"));
+        var cancel = session.Driver.FindElement(MobileBy.AccessibilityId("PdfReaderPasswordCancel"));
+
+        await Assert.That(prompt.Displayed).IsTrue();
+        await Assert.That(entry.Displayed).IsTrue();
+        await Assert.That(cancel.Displayed).IsTrue();
+        cancel.Click();
     }
 }

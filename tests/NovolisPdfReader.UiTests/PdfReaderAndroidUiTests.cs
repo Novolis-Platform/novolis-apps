@@ -22,7 +22,7 @@ public sealed class PdfReaderAndroidUiTests
             NoReset = true,
         });
 
-        var open = session.Driver.FindElement(MobileBy.Id("PdfReaderOpen"));
+        var open = session.Driver.FindElement(MobileBy.Id("PdfReaderHeroOpen"));
         var documentName = session.Driver.FindElement(MobileBy.Id("PdfReaderDocumentName"));
 
         await Assert.That(open.Displayed).IsTrue();
@@ -46,7 +46,7 @@ public sealed class PdfReaderAndroidUiTests
             NoReset = true,
         });
 
-        var open = session.Driver.FindElement(MobileBy.Id("PdfReaderOpen"));
+        var open = session.Driver.FindElement(MobileBy.Id("PdfReaderHeroOpen"));
         var pageEntry = session.Driver.FindElement(MobileBy.Id("PdfPageEntry"));
         var rail = session.Driver.FindElement(MobileBy.Id("PdfPageRail"));
         await Assert.That(open).IsNotNull();

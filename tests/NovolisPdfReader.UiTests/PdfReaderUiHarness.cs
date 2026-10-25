@@ -7,6 +7,7 @@ internal static class PdfReaderUiHarness
 {
     public const string AppEnvironmentVariable = "NOVOLIS_PDFREADER_UI_APP";
     public const string PlatformEnvironmentVariable = "NOVOLIS_PDFREADER_UI_PLATFORM";
+    public const string ProtectedFixtureEnvironmentVariable = "NOVOLIS_PDF_COMPATIBILITY_PROTECTED";
 
     public static bool AppiumIsListening()
     {
@@ -56,6 +57,22 @@ internal static class PdfReaderUiHarness
             StringComparison.OrdinalIgnoreCase);
 
     public static string? TryResolveCalypsoPdf() => PublishedBooksPdf.TryResolveCalypso();
+
+    public static string? TryResolveProtectedCompatibilityPdf()
+    {
+        var fromEnv = Environment.GetEnvironmentVariable(ProtectedFixtureEnvironmentVariable);
+        foreach (var candidate in new[]
+                 {
+                     fromEnv,
+                     @"d:\novolis\novolis-pdf\tests\Novolis.Pdf.Unit\Fixtures\generated\protected-r3.pdf",
+                 })
+        {
+            if (!string.IsNullOrWhiteSpace(candidate) && File.Exists(candidate))
+                return Path.GetFullPath(candidate);
+        }
+
+        return null;
+    }
 
     private static IEnumerable<string> EnumerateWindowsCandidates()
     {
