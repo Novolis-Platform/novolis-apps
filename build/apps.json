@@ -1010,13 +1010,13 @@
         "fanOutStacks": ["avalonia", "android"]
       },
       "windows": {
-        "exeName": "FrankMoat.exe",
+        "exeName": "FrankMoat.Desktop.exe",
         "appId": "Novolis.FrankMoat",
         "installDir": "Novolis\\Frank Moat",
         "groupName": "Frank Moat",
         "setupBase": "FrankMoatSetup",
         "scriptFile": "frank-moat.iss",
-        "closeApplicationsFilter": "FrankMoat.exe",
+        "closeApplicationsFilter": "FrankMoat.Desktop.exe",
         "fileAssociationsAllowed": false
       },
       "android": {
