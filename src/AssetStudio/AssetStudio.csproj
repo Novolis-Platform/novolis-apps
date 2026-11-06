@@ -15,6 +15,8 @@
     <LibraryReference Include="Novolis.Avalonia.AssetStudio" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
     <PackageReference Include="Novolis.Avalonia.Packaging.Inno" PrivateAssets="all" />
+    <LibraryReference Include="Novolis.Avalonia.Agent" />
+    <LibraryReference Include="Novolis.Avalonia.Agent.Protocol" />
     <LibraryReference Include="Novolis.AssetStudio.Authoring" />
     <LibraryReference Include="Novolis.AssetStudio.Export" />
     <LibraryReference Include="Novolis.Visual.Definitions" />
