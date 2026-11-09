@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using BooksMobile.Services;
 using Novolis.Avalonia.Mobile;
@@ -63,6 +64,7 @@ public sealed class MainView : UserControl
     readonly ReadAnythingView _readAnything = new();
     readonly PasteSelectionView _pasteSelection = new();
     readonly DispatcherTimer _draftHintTimer;
+    SoftKeyboardAvoidance? _softKeyboard;
 
     MarkdownSourceEditor? _editor;
     IDisposable? _wake;
@@ -138,7 +140,7 @@ public sealed class MainView : UserControl
 
         _preview = new MarkdownPreviewPane
         {
-            PreviewTheme = MarkdownPreviewTheme.StudioDark,
+            PreviewTheme = MarkdownPreviewThemeResolver.FromApplication(),
             ZoomScale = 1.18,
             SideMarginFraction = 0.04,
             IsVisible = false,
@@ -200,12 +202,16 @@ public sealed class MainView : UserControl
             VisibleRegion = AuthoringRegion.Nav,
         };
         BooksTheme.ApplyRoot(_workspace);
+        GraphicalProfileBinding.Bind(this, BackgroundProperty, GraphicalProfile.BackgroundResourceKey);
         Content = _workspace;
 
         // Draft reminder only — never writes manuscript files until Save / Push.
         _draftHintTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
         _draftHintTimer.Tick += (_, _) => DraftHintTick();
         _draftHintTimer.Start();
+
+        // Squish for soft keyboard; never overlay. Keep caret in the visible editor.
+        _softKeyboard = new SoftKeyboardAvoidance(this, EnsureEditorCaretVisible);
 
         _session.Changed += (_, _) => Dispatcher.UIThread.Post(OnSessionChanged);
         _speech.Changed += (_, _) => Dispatcher.UIThread.Post(OnSpeechChanged);
@@ -217,17 +223,43 @@ public sealed class MainView : UserControl
         _readAnything.ListenRequested += async (_, _) => await OnReadAnythingListenAsync();
         _pasteSelection.ImportRequested += async (_, _) => await RunUi(ImportSelectionAsync);
 
+        if (Application.Current is { } app)
+            app.ActualThemeVariantChanged += (_, _) => Dispatcher.UIThread.Post(ApplySystemThemeSurfaces);
+
         AttachedToVisualTree += async (_, _) =>
         {
+            ApplySystemThemeSurfaces();
             await _session.TryRestoreSessionAsync();
             OnSessionChanged();
         };
         DetachedFromVisualTree += (_, _) =>
         {
             _draftHintTimer.Stop();
+            _softKeyboard?.Dispose();
+            _softKeyboard = null;
             ReleaseWake();
             _speech.Stop();
         };
+    }
+
+    /// <summary>Desktop / headless proof hook — simulates IME height without a real keyboard.</summary>
+    public void SimulateSoftKeyboard(double bottomInsetDips) =>
+        _softKeyboard?.SimulateKeyboardBottom(bottomInsetDips);
+
+    /// <summary>Current soft-keyboard bottom inset applied to this view.</summary>
+    public double SoftKeyboardBottom => _softKeyboard?.KeyboardBottom ?? 0;
+
+    void EnsureEditorCaretVisible()
+    {
+        if (_screen == Screen.Chapter && _chapterMode == ChapterMode.Edit)
+            _editor?.EnsureCaretVisible();
+    }
+
+    void ApplySystemThemeSurfaces()
+    {
+        _preview.PreviewTheme = MarkdownPreviewThemeResolver.FromApplication();
+        if (_chapterMode == ChapterMode.Read)
+            SyncPreviewFromEditor();
     }
 
     Control BuildAuthPanel()
@@ -581,9 +613,12 @@ public sealed class MainView : UserControl
         // In read mode, Edit is the primary escape; in edit mode, Read returns to the reader.
         BooksTheme.StyleButton(_modeButton, BooksButtonKind.Primary);
         _preview.ZoomScale = reading ? 1.18 : 1.08;
+        _preview.PreviewTheme = MarkdownPreviewThemeResolver.FromApplication();
         _chapterTopBar.Opacity = reading ? 0.92 : 1;
         if (reading)
             SyncPreviewFromEditor();
+        else
+            Dispatcher.UIThread.Post(FocusEditorInput, DispatcherPriority.Input);
         UpdateChapterActions();
     }
 
@@ -646,6 +681,7 @@ public sealed class MainView : UserControl
         _editor.IsHitTestVisible = true;
         _editor.Focusable = true;
         _editor.FocusEditor();
+        _editor.EnsureCaretVisible();
     }
 
     bool HasPendingChanges()

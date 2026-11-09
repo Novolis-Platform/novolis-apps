@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media.Imaging;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using BooksMobile;
 using BooksMobile.Services;
@@ -11,6 +12,7 @@ using BooksMobile.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Audio.Voice;
 using Novolis.Avalonia.GraphicalProfile;
+using Novolis.Avalonia.Markdown;
 using Novolis.Avalonia.Mobile;
 using Novolis.Avalonia.Mobile.Desktop;
 using Novolis.Manuscript;
@@ -94,14 +96,80 @@ internal static class BooksUxCapture
         Pump(400);
         CaptureFrame(window, Path.Combine(outDir, "books-flip8-chapter-edit.png"));
 
+        // Soft-keyboard proof: squish host by ~1/3 Flip height; caret must stay in view.
+        PlaceCaretNearEnd(view);
+        view.SimulateSoftKeyboard(420);
+        Pump(500);
+        CaptureFrame(window, Path.Combine(outDir, "books-flip8-chapter-edit-keyboard.png"));
+        Console.WriteLine($"SoftKeyboardBottom={view.SoftKeyboardBottom}");
+        view.SimulateSoftKeyboard(0);
+        Pump(200);
+
         Invoke(view, "ShowReadAnything");
         Pump(200);
         CaptureFrame(window, Path.Combine(outDir, "books-flip8-read-anything.png"));
+
+        CaptureThemePair(outDir, booksWorkspace);
 
         // Auth chrome without local workspace (separate short-lived session).
         CaptureAuth(outDir);
 
         window.Close();
+    }
+
+    static void CaptureThemePair(string outDir, string booksWorkspace)
+    {
+        if (Application.Current is null)
+            return;
+
+        CaptureThemedLibrary(outDir, booksWorkspace, ThemeVariant.Light, "books-flip8-library-light.png");
+        CaptureThemedLibrary(outDir, booksWorkspace, ThemeVariant.Dark, "books-flip8-library-dark.png");
+        Application.Current.RequestedThemeVariant = ThemeVariant.Default;
+    }
+
+    static void CaptureThemedLibrary(
+        string outDir,
+        string booksWorkspace,
+        ThemeVariant theme,
+        string fileName)
+    {
+        Environment.SetEnvironmentVariable("BOOKSMOBILE_LOCAL_WORKSPACE", Path.GetFullPath(booksWorkspace));
+        Environment.SetEnvironmentVariable("BOOKSMOBILE_REPO_NAME", "books");
+        Environment.SetEnvironmentVariable("BOOKSMOBILE_CONTENT_PREFIX", "src/");
+        Application.Current!.RequestedThemeVariant = theme;
+
+        var services = new ServiceCollection();
+        services.AddNovolisMobileDesktop("BooksMobileUxCaptureTheme");
+        services.AddSingleton<IScreenWakeLock, NullScreenWakeLock>();
+        services.AddSingleton<IAudioPlayer, SilentAudioPlayer>();
+        services.AddSingleton<IVoiceService, SilentVoice>();
+        services.AddBooksMobileCore();
+        using var provider = services.BuildServiceProvider();
+        var session = provider.GetRequiredService<BooksMobileSession>();
+        session.TryRestoreSessionAsync().GetAwaiter().GetResult();
+        var view = provider.GetRequiredService<MainView>();
+        var window = new Window
+        {
+            Width = Flip8Width,
+            Height = Flip8Height,
+            Content = view,
+        };
+        window.Show();
+        Pump(700);
+        CaptureFrame(window, Path.Combine(outDir, fileName));
+        window.Close();
+    }
+
+    static void PlaceCaretNearEnd(MainView view)
+    {
+        var editorField = typeof(MainView).GetField(
+            "_editor",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        if (editorField?.GetValue(view) is not MarkdownSourceEditor editor)
+            return;
+        var text = editor.Text ?? string.Empty;
+        editor.MoveCaretTo(Math.Max(0, text.Length - 1));
+        editor.EnsureCaretVisible();
     }
 
     static void CaptureAuth(string outDir)

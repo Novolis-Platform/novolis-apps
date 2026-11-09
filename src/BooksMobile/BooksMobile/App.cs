@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 using BooksMobile.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.GraphicalProfile;
@@ -14,6 +15,8 @@ public sealed class App : Application
 
     public override void Initialize()
     {
+        // Follow OS light/dark — never force a ThemeVariant.
+        RequestedThemeVariant = ThemeVariant.Default;
         AvaloniaXamlLoader.Load(this);
         GraphicalProfile.Install(this);
     }
@@ -32,6 +35,7 @@ public sealed class App : Application
             {
                 Content = mainView,
             };
+            GraphicalProfile.ApplyWindowChrome(window);
             desktop.MainWindow = window;
             Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(window);
         }
