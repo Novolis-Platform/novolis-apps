@@ -9,7 +9,7 @@ namespace BooksWriterStudio.Unit;
 public sealed class WriterSpeechStartupTests
 {
     [Test]
-    public async Task Missing_environment_leaves_speech_front_unconfigured()
+    public async Task Missing_environment_selects_edge_tts_for_mp3()
     {
         using var env = AzureSpeechEnvironment.Clear();
         var front = new SpeechFront(new SilentVoice(), new MemoryTokenStore());
@@ -17,7 +17,8 @@ public sealed class WriterSpeechStartupTests
         await WriterSpeechStartup.InitializeAsync(front);
 
         await Assert.That(front.IsAzureConfigured).IsFalse();
-        await Assert.That(front.Capabilities.CanCreateMp3).IsFalse();
+        await Assert.That(front.Provider).IsEqualTo(SpeechProvider.EdgeTts);
+        await Assert.That(front.Capabilities.CanCreateMp3).IsTrue();
     }
 
     [Test]

@@ -4,8 +4,8 @@ using Novolis.Avalonia.Speech;
 namespace BooksWriterStudio.Services;
 
 /// <summary>
-/// Loads Read Aloud's <see cref="SpeechFront"/> store, then optionally imports
-/// <c>NOVOLIS_AZURE_SPEECH_*</c> when no Azure connection is saved yet.
+/// Loads the <see cref="SpeechFront"/> store, optionally imports
+/// <c>NOVOLIS_AZURE_SPEECH_*</c>, otherwise selects Edge Read Aloud for MP3.
 /// </summary>
 static class WriterSpeechStartup
 {
@@ -15,10 +15,21 @@ static class WriterSpeechStartup
     {
         ArgumentNullException.ThrowIfNull(front);
         await front.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        if (front.IsAzureConfigured || !TryReadEnvironment(out var setup))
+        if (front.IsAzureConfigured)
+        {
+            if (front.Provider != SpeechProvider.AzureSpeech)
+                await front.UseAzureSpeechAsync(cancellationToken).ConfigureAwait(false);
             return;
+        }
 
-        await front.ConfigureAzureAsync(setup, cancellationToken).ConfigureAwait(false);
+        if (TryReadEnvironment(out var setup))
+        {
+            await front.ConfigureAzureAsync(setup, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (front.Provider != SpeechProvider.EdgeTts)
+            await front.UseEdgeTtsAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal static bool TryReadEnvironment([NotNullWhen(true)] out AzureSpeechSetup? setup)

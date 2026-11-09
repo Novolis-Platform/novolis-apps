@@ -54,7 +54,7 @@ internal sealed class ReadAnythingView : DockPanel
         readBtn.Click += (_, _) => ApplyPasteBox();
         var clearBtn = BooksTheme.Button("Clear", BooksButtonKind.Quiet);
         clearBtn.Click += (_, _) => Clear();
-        _listenButton = BooksTheme.Button("Listen", BooksButtonKind.Primary);
+        _listenButton = BooksTheme.Button("Listen", BooksButtonKind.Secondary);
         _listenButton.Click += (_, _) => ListenRequested?.Invoke(this, EventArgs.Empty);
 
         var actions = new WrapPanel
@@ -76,7 +76,7 @@ internal sealed class ReadAnythingView : DockPanel
             Children =
             {
                 BooksTheme.BrandTitle("Read anything", 22),
-                BooksTheme.Muted("Scratch reader — not part of your library / protocol tree."),
+                BooksTheme.Muted("Scratch reader — paste text or open a file."),
                 actions,
                 _sourceLabel,
             },
@@ -108,7 +108,9 @@ internal sealed class ReadAnythingView : DockPanel
     public void SetListening(bool speaking, bool hasCache)
     {
         _listenButton.Content = speaking ? "Stop" : (hasCache ? "Listen ✓" : "Listen");
-        BooksTheme.StyleButton(_listenButton, BooksButtonKind.Primary);
+        BooksTheme.StyleButton(
+            _listenButton,
+            speaking ? BooksButtonKind.Primary : BooksButtonKind.Secondary);
     }
 
     public void LoadText(string text, string? sourceLabel)

@@ -10,17 +10,25 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Sudoku\Sudoku.App\Sudoku.App.csproj" />
+    <ProjectReference Include="..\..\src\BooksMobile\BooksMobile\BooksMobile.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.4" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
     <PackageReference Include="Avalonia.Headless" Version="12.1.4" />
     <PackageReference Include="Avalonia.Skia" Version="12.1.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
     <PackageReference Include="SkiaSharp" Version="4.153.1" />
     <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="4.153.1" />
+    <LibraryReference Include="Novolis.Audio.Voice" />
     <LibraryReference Include="Novolis.Avalonia.GraphicalProfile" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile" />
+    <LibraryReference Include="Novolis.Avalonia.Mobile.Desktop" />
     <LibraryReference Include="Novolis.Avalonia.Navigation" />
+    <LibraryReference Include="Novolis.Avalonia.Speech" />
     <LibraryReference Include="Novolis.Commands.Navigation" />
+    <LibraryReference Include="Novolis.Manuscript" />
+    <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
   </ItemGroup>
 </Project>

@@ -11,10 +11,19 @@
 
 .PARAMETER ClientId
   Optional GitHub OAuth client id override for remote sign-in mode.
+
+.PARAMETER Device
+  Desktop geometry: desktop (default), flip8 (540x1260), flip8-native (1080x2520).
+
+.PARAMETER BooksWorkspace
+  When set with -LocalWorkspace omitted, open this NMP books checkout (repo books, src/).
 #>
 param(
     [switch]$LocalReview,
     [string]$LocalWorkspace,
+    [string]$BooksWorkspace,
+    [ValidateSet('desktop', 'flip8', 'flip8-native')]
+    [string]$Device = 'desktop',
     [string]$ClientId = $env:BOOKSMOBILE_GITHUB_CLIENT_ID
 )
 
@@ -22,9 +31,15 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $repoRoot
 
-if ($LocalReview -and -not [string]::IsNullOrWhiteSpace($LocalWorkspace)) {
-    throw "Use either -LocalReview or -LocalWorkspace, not both."
+if ($LocalReview -and (-not [string]::IsNullOrWhiteSpace($LocalWorkspace) -or -not [string]::IsNullOrWhiteSpace($BooksWorkspace))) {
+    throw "Use only one of -LocalReview, -LocalWorkspace, or -BooksWorkspace."
 }
+if (-not [string]::IsNullOrWhiteSpace($LocalWorkspace) -and -not [string]::IsNullOrWhiteSpace($BooksWorkspace)) {
+    throw "Use either -LocalWorkspace or -BooksWorkspace, not both."
+}
+
+$repoName = $null
+$contentPrefix = $null
 
 if ($LocalReview) {
     $checkout = Join-Path (Split-Path $repoRoot -Parent) 'artifacts\galactic-confederation-review'
@@ -35,6 +50,13 @@ if ($LocalReview) {
         git -C $checkout pull --ff-only
     }
     $LocalWorkspace = $checkout
+    $repoName = 'galactic-confederation-review'
+    $contentPrefix = 'docs/'
+}
+elseif (-not [string]::IsNullOrWhiteSpace($BooksWorkspace)) {
+    $LocalWorkspace = $BooksWorkspace
+    $repoName = 'books'
+    $contentPrefix = 'src/'
 }
 
 if (-not [string]::IsNullOrWhiteSpace($LocalWorkspace)) {
@@ -42,9 +64,13 @@ if (-not [string]::IsNullOrWhiteSpace($LocalWorkspace)) {
         throw "Local workspace not found: $LocalWorkspace"
     }
     $env:BOOKSMOBILE_LOCAL_WORKSPACE = (Resolve-Path $LocalWorkspace).Path
-    $env:BOOKSMOBILE_REPO_NAME = 'galactic-confederation-review'
-    $env:BOOKSMOBILE_CONTENT_PREFIX = 'docs/'
-    Write-Host "Local workspace: $($env:BOOKSMOBILE_LOCAL_WORKSPACE)"
+    if ([string]::IsNullOrWhiteSpace($repoName)) {
+        $repoName = 'galactic-confederation-review'
+        $contentPrefix = 'docs/'
+    }
+    $env:BOOKSMOBILE_REPO_NAME = $repoName
+    $env:BOOKSMOBILE_CONTENT_PREFIX = $contentPrefix
+    Write-Host "Local workspace: $($env:BOOKSMOBILE_LOCAL_WORKSPACE) ($repoName)"
 } else {
     Remove-Item Env:BOOKSMOBILE_LOCAL_WORKSPACE -ErrorAction SilentlyContinue
     if ([string]::IsNullOrWhiteSpace($ClientId)) {
@@ -54,5 +80,6 @@ if (-not [string]::IsNullOrWhiteSpace($LocalWorkspace)) {
     }
 }
 
+$env:BOOKSMOBILE_DEVICE = $Device
 $project = Join-Path $repoRoot 'src/BooksMobile/BooksMobile.Desktop/BooksMobile.Desktop.csproj'
-dotnet run --project $project -c Debug
+dotnet run --project $project -c Debug -p:NovolisUseProjectReferences=true -- --device $Device

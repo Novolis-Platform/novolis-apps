@@ -8,7 +8,7 @@ using ReadAloud.Reading;
 
 namespace ReadAloud.Services;
 
-/// <summary>Reads text with the configured user-owned Azure Speech resource.</summary>
+/// <summary>Reads text with Edge Read Aloud or a configured Azure Speech resource.</summary>
 public sealed class SpeechService : IDisposable
 {
     public const int MobileMaxChunkChars = 700;
@@ -88,9 +88,17 @@ public sealed class SpeechService : IDisposable
             if (setup is not null && !string.IsNullOrWhiteSpace(setup.VoiceName))
                 SetVoice(setup.VoiceName, setup.Locale);
         }
+        else if (_front.Provider != SpeechProvider.EdgeTts)
+        {
+            await _front.UseEdgeTtsAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         Notify();
     }
+
+    /// <summary>Selects Edge Read Aloud (MP3 without Azure credentials).</summary>
+    public Task UseEdgeTtsAsync(CancellationToken cancellationToken = default) =>
+        _front.UseEdgeTtsAsync(cancellationToken);
 
     /// <summary>Updates the in-memory voice used for synthesis. Does not persist.</summary>
     public void SetVoice(string voiceName, string? locale = null)

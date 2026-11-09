@@ -29,7 +29,8 @@ public sealed class CompositionRootTests
         await Assert.That(provider.GetRequiredService<ISynthesizer>()).IsNotNull();
         await Assert.That(provider.GetRequiredService<SpeechPreview>()).IsNotNull();
         await Assert.That(front.IsAzureConfigured).IsFalse();
-        await Assert.That(front.Capabilities.CanCreateMp3).IsFalse();
+        await Assert.That(front.Provider).IsEqualTo(SpeechProvider.EdgeTts);
+        await Assert.That(front.Capabilities.CanCreateMp3).IsTrue();
         await Assert.That(provider.GetRequiredService<ISynthesizer>() is SpeechFrontSynthesizer)
             .IsTrue();
     }

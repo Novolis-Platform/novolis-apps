@@ -18,14 +18,22 @@ internal static class Program
 {
     public static int Main(string[] args)
     {
-        var outDir = args.Length > 0
-            ? Path.GetFullPath(args[0])
+        var positional = args.Where(static a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+        var outDir = positional.Length > 0
+            ? Path.GetFullPath(positional[0])
             : Path.GetFullPath(Path.Combine(
                 AppContext.BaseDirectory,
                 "..", "..", "..", "..", "..", ".tmp", "ux-captures"));
         Directory.CreateDirectory(outDir);
 
-        CapturePdfWireframes(outDir);
+        var booksOnly = args.Any(static a =>
+            string.Equals(a, "--books", StringComparison.OrdinalIgnoreCase));
+        var booksWorkspace = args
+            .SkipWhile(static a => !string.Equals(a, "--books-workspace", StringComparison.OrdinalIgnoreCase))
+            .Skip(1)
+            .FirstOrDefault(static a => !a.StartsWith("--", StringComparison.Ordinal));
+        if (string.IsNullOrWhiteSpace(booksWorkspace))
+            booksWorkspace = @"d:\novolis\.tmp\books-ux-eval";
 
         AppBuilder.Configure<CaptureApp>()
             .UseSkia()
@@ -35,11 +43,20 @@ internal static class Program
             })
             .SetupWithoutStarting();
 
-        CaptureSudoku(outDir, 390, 844, "sudoku-phone.png");
-        CaptureSudoku(outDir, 1280, 800, "sudoku-desktop.png");
-        CaptureShell(outDir, 390, 844, "presence-shell-phone.png");
-        CaptureShell(outDir, 1280, 800, "presence-shell-desktop.png");
-        CapturePdfWelcome(outDir, 390, 844, "pdf-welcome-phone.png");
+        if (!booksOnly)
+        {
+            CapturePdfWireframes(outDir);
+            CaptureSudoku(outDir, 390, 844, "sudoku-phone.png");
+            CaptureSudoku(outDir, 1280, 800, "sudoku-desktop.png");
+            CaptureShell(outDir, 390, 844, "presence-shell-phone.png");
+            CaptureShell(outDir, 1280, 800, "presence-shell-desktop.png");
+            CapturePdfWelcome(outDir, 390, 844, "pdf-welcome-phone.png");
+        }
+
+        if (Directory.Exists(booksWorkspace))
+            BooksUxCapture.CaptureAll(outDir, booksWorkspace);
+        else
+            Console.WriteLine($"Skip Books captures — workspace missing: {booksWorkspace}");
 
         Console.WriteLine($"Wrote UX captures to {outDir}");
         foreach (var file in Directory.EnumerateFiles(outDir, "*.png").OrderBy(static path => path))

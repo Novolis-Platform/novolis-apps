@@ -49,8 +49,11 @@ public sealed class MainView : UserControl
     readonly Button _copyCode;
     readonly Button _signIn;
     readonly DockPanel _chapterHost;
+    readonly StackPanel _chapterTopBar;
+    readonly Border _chapterBottomBar;
     readonly Button _listenButton;
     readonly Button _undoButton;
+    readonly Button _saveButton;
     readonly Button _modeButton;
     readonly Button _prevChapterButton;
     readonly Button _nextChapterButton;
@@ -59,7 +62,7 @@ public sealed class MainView : UserControl
     readonly MarkdownPreviewPane _preview;
     readonly ReadAnythingView _readAnything = new();
     readonly PasteSelectionView _pasteSelection = new();
-    readonly DispatcherTimer _autoSaveTimer;
+    readonly DispatcherTimer _draftHintTimer;
 
     MarkdownSourceEditor? _editor;
     IDisposable? _wake;
@@ -120,11 +123,13 @@ public sealed class MainView : UserControl
         _menuButton.ZIndex = 20;
         _menuButton.Flyout = BuildMenuFlyout();
 
-        _listenButton = BooksTheme.Button("Listen", BooksButtonKind.Primary);
+        _listenButton = BooksTheme.Button("Listen", BooksButtonKind.Secondary);
         _listenButton.Click += async (_, _) => await OnListenClickAsync();
-        _undoButton = BooksTheme.Button("Undo", BooksButtonKind.Secondary);
+        _undoButton = BooksTheme.Button("Discard", BooksButtonKind.Quiet);
         _undoButton.Click += (_, _) => UndoPendingChanges();
-        _modeButton = BooksTheme.Button("Read", BooksButtonKind.Secondary);
+        _saveButton = BooksTheme.Button("Save", BooksButtonKind.Secondary);
+        _saveButton.Click += (_, _) => SaveDraftToWorkspace();
+        _modeButton = BooksTheme.Button("Edit", BooksButtonKind.Primary);
         _modeButton.Click += (_, _) => ToggleChapterMode();
         _prevChapterButton = BooksTheme.Button("‹ Prev", BooksButtonKind.Quiet);
         _prevChapterButton.Click += (_, _) => GoAdjacentChapter(-1);
@@ -134,8 +139,8 @@ public sealed class MainView : UserControl
         _preview = new MarkdownPreviewPane
         {
             PreviewTheme = MarkdownPreviewTheme.StudioDark,
-            ZoomScale = 1.08,
-            SideMarginFraction = 0.06,
+            ZoomScale = 1.18,
+            SideMarginFraction = 0.04,
             IsVisible = false,
         };
 
@@ -151,23 +156,27 @@ public sealed class MainView : UserControl
             e.Handled = false;
         };
 
-        var navRow = new StackPanel
+        _chapterTopBar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
+            Margin = new Thickness(12, 8, 12, 4),
             Children = { _prevChapterButton, _chapterMeta, _nextChapterButton },
         };
         var actionRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Children = { _modeButton, _listenButton, _undoButton },
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Children = { _modeButton, _listenButton, _saveButton, _undoButton },
         };
-        var toolbar = new StackPanel
+        _chapterBottomBar = new Border
         {
-            Spacing = 8,
-            Margin = new Thickness(12, 8),
-            Children = { navRow, actionRow },
+            Background = GraphicalProfile.SurfaceBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(12, 10),
+            Child = actionRow,
         };
 
         var contentHost = new Grid();
@@ -175,8 +184,10 @@ public sealed class MainView : UserControl
         contentHost.Children.Add(_preview);
 
         _chapterHost = new DockPanel { LastChildFill = true, IsHitTestVisible = true };
-        DockPanel.SetDock(toolbar, Dock.Top);
-        _chapterHost.Children.Add(toolbar);
+        DockPanel.SetDock(_chapterTopBar, Dock.Top);
+        DockPanel.SetDock(_chapterBottomBar, Dock.Bottom);
+        _chapterHost.Children.Add(_chapterTopBar);
+        _chapterHost.Children.Add(_chapterBottomBar);
         _chapterHost.Children.Add(contentHost);
 
         _chrome = BuildChrome();
@@ -191,9 +202,10 @@ public sealed class MainView : UserControl
         BooksTheme.ApplyRoot(_workspace);
         Content = _workspace;
 
-        _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
-        _autoSaveTimer.Tick += (_, _) => AutoSaveTick();
-        _autoSaveTimer.Start();
+        // Draft reminder only — never writes manuscript files until Save / Push.
+        _draftHintTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
+        _draftHintTimer.Tick += (_, _) => DraftHintTick();
+        _draftHintTimer.Start();
 
         _session.Changed += (_, _) => Dispatcher.UIThread.Post(OnSessionChanged);
         _speech.Changed += (_, _) => Dispatcher.UIThread.Post(OnSpeechChanged);
@@ -212,7 +224,7 @@ public sealed class MainView : UserControl
         };
         DetachedFromVisualTree += (_, _) =>
         {
-            _autoSaveTimer.Stop();
+            _draftHintTimer.Stop();
             ReleaseWake();
             _speech.Stop();
         };
@@ -230,8 +242,8 @@ public sealed class MainView : UserControl
                 BooksTheme.BrandTitle("Books", 34),
                 BooksTheme.Muted(
                     _session.IsLocalWorkspace
-                        ? $"Local bridge mode · {_session.WorkspaceRoot}"
-                        : "Your manuscript library on the go — pull, edit or read a chapter with device voice, then save & push."),
+                        ? "Local workspace — read, listen, and edit. Save writes files; leave without Save and drafts disappear."
+                        : "Your library on the go — pull, read or listen, edit a draft, then save & push."),
                 _signIn,
                 _userCode,
                 _copyCode,
@@ -294,9 +306,9 @@ public sealed class MainView : UserControl
     MenuFlyout BuildMenuFlyout()
     {
         var pull = new MenuItem { Header = "Pull from GitHub" };
-        var push = new MenuItem { Header = "Save / Commit / Push" };
-        var undo = new MenuItem { Header = "Undo pending changes" };
-        var read = new MenuItem { Header = "Toggle reading mode" };
+        var push = new MenuItem { Header = "Commit / Push" };
+        var undo = new MenuItem { Header = "Discard draft" };
+        var read = new MenuItem { Header = "Toggle edit / read" };
         var readAnything = new MenuItem { Header = "Read anything" };
         var pasteSelection = new MenuItem { Header = "Paste selection…" };
         var library = new MenuItem { Header = "Library" };
@@ -412,7 +424,7 @@ public sealed class MainView : UserControl
 
     void ShowLibrary()
     {
-        FlushEditorToDisk();
+        AbandonDraft();
         _speech.Stop();
         ReleaseWake();
         _openBook = null;
@@ -421,25 +433,25 @@ public sealed class MainView : UserControl
         _loadedPath = null;
         _baselineText = null;
         _chapterTitle = null;
-        _chapterMode = ChapterMode.Edit;
+        _chapterMode = ChapterMode.Read;
         _screen = Screen.Library;
         RenderCurrentScreen();
     }
 
     void ShowReadAnything()
     {
-        FlushEditorToDisk();
+        AbandonDraft();
         _speech.Stop();
         ReleaseWake();
         _screen = Screen.ReadAnything;
         RenderCurrentScreen();
-        SetStatus("Scratch reader — not part of your library / protocol tree.");
+        SetStatus("Scratch reader — not part of your library.");
         RefreshReadAnythingListen();
     }
 
     void ShowPasteSelection()
     {
-        FlushEditorToDisk();
+        AbandonDraft();
         _speech.Stop();
         ReleaseWake();
         _screen = Screen.PasteSelection;
@@ -449,7 +461,7 @@ public sealed class MainView : UserControl
 
     void ShowBook(BookInfo book, string? seriesTitle)
     {
-        FlushEditorToDisk();
+        AbandonDraft();
         _speech.Stop();
         ReleaseWake();
         _openBook = book;
@@ -458,7 +470,7 @@ public sealed class MainView : UserControl
         _loadedPath = null;
         _baselineText = null;
         _chapterTitle = null;
-        _chapterMode = ChapterMode.Edit;
+        _chapterMode = ChapterMode.Read;
         _screen = Screen.Book;
         RenderCurrentScreen();
     }
@@ -470,7 +482,7 @@ public sealed class MainView : UserControl
 
         try
         {
-            FlushEditorToDisk();
+            AbandonDraft();
             _speech.Stop();
             ReleaseWake();
 
@@ -488,14 +500,13 @@ public sealed class MainView : UserControl
             _openChapter = chapter;
             _speechMarkdownSource = null;
             _speechMarkdownCache = null;
+            _chapterMode = ChapterMode.Read;
             _screen = Screen.Chapter;
             ReplaceEditor(text);
             ApplyChapterMode();
             RenderCurrentScreen();
             var unit = _session.IsReviewMode ? "selection" : "chapter";
-            SetStatus($"{(_chapterMode == ChapterMode.Read ? "Reading" : "Editing")} {unit} · {chapter.Title}");
-            if (_chapterMode == ChapterMode.Edit)
-                Dispatcher.UIThread.Post(FocusEditorInput, DispatcherPriority.Input);
+            SetStatus($"Reading {unit} · {chapter.Title}");
         }
         catch (Exception ex)
         {
@@ -567,7 +578,10 @@ public sealed class MainView : UserControl
         _preview.IsVisible = reading;
         _editorHost.IsVisible = !reading;
         _modeButton.Content = reading ? "Edit" : "Read";
-        BooksTheme.StyleButton(_modeButton, reading ? BooksButtonKind.Primary : BooksButtonKind.Secondary);
+        // In read mode, Edit is the primary escape; in edit mode, Read returns to the reader.
+        BooksTheme.StyleButton(_modeButton, BooksButtonKind.Primary);
+        _preview.ZoomScale = reading ? 1.18 : 1.08;
+        _chapterTopBar.Opacity = reading ? 0.92 : 1;
         if (reading)
             SyncPreviewFromEditor();
         UpdateChapterActions();
@@ -659,29 +673,60 @@ public sealed class MainView : UserControl
         _suppressDirty = true;
         _editor.Text = _baselineText;
         _suppressDirty = false;
-        if (!string.IsNullOrWhiteSpace(_loadedPath))
-            File.WriteAllText(_loadedPath, _baselineText);
         SyncPreviewFromEditor();
         UpdateChapterActions();
         RefreshChrome();
         if (_chapterMode == ChapterMode.Edit)
             FocusEditorInput();
-        SetStatus("Pending changes discarded.");
+        SetStatus("Draft discarded — files unchanged.");
     }
 
-    void AutoSaveTick()
+    void DraftHintTick()
     {
-        if (_screen != Screen.Chapter || !HasPendingChanges())
+        if (_screen != Screen.Chapter || !HasPendingChanges() || _speech.IsSpeaking)
             return;
+        SetStatus($"Unsaved draft · {_chapterTitle} — Save writes files; leave without Save and it disappears.");
+    }
+
+    void SaveDraftToWorkspace()
+    {
+        if (_screen != Screen.Chapter || _editor is null || string.IsNullOrWhiteSpace(_loadedPath))
+        {
+            SetStatus("Nothing to save.");
+            return;
+        }
+
+        if (!HasPendingChanges())
+        {
+            SetStatus("Already saved.");
+            return;
+        }
+
         try
         {
             FlushEditorToDisk();
-            SetStatus($"Auto-saved · {_chapterTitle}");
+            _baselineText = _editor.Text ?? string.Empty;
+            UpdateChapterActions();
+            RefreshChrome();
+            SetStatus($"Saved · {_chapterTitle}");
         }
         catch (Exception ex)
         {
-            SetStatus($"Auto-save failed: {ex.Message}");
+            SetStatus($"Save failed: {ex.Message}");
         }
+    }
+
+    /// <summary>Drops in-memory edits without writing manuscript files.</summary>
+    void AbandonDraft()
+    {
+        if (_editor is null || _baselineText is null)
+            return;
+        if (!HasPendingChanges())
+            return;
+        _suppressDirty = true;
+        _editor.Text = _baselineText;
+        _suppressDirty = false;
+        SyncPreviewFromEditor();
     }
 
     void GoBack()
@@ -693,12 +738,12 @@ public sealed class MainView : UserControl
         switch (_screen)
         {
             case Screen.Chapter:
-                FlushEditorToDisk();
+                AbandonDraft();
                 _loadedPath = null;
                 _baselineText = null;
                 _chapterTitle = null;
                 _openChapter = null;
-                _chapterMode = ChapterMode.Edit;
+                _chapterMode = ChapterMode.Read;
                 _screen = _openBook is null ? Screen.Library : Screen.Book;
                 RenderCurrentScreen();
                 SetStatus(_openBook is null ? "Library" : _openBook.Title);
@@ -768,14 +813,14 @@ public sealed class MainView : UserControl
         _backButton.IsEnabled = true;
         _menuButton.IsVisible = true;
         _menuButton.IsEnabled = true;
-        var dirty = HasPendingChanges() ? " · edited" : string.Empty;
+        var dirty = HasPendingChanges() ? " · draft" : string.Empty;
         var mode = _screen == Screen.Chapter
             ? (_chapterMode == ChapterMode.Read ? " · read" : " · edit")
             : string.Empty;
         var unit = _session.IsReviewMode ? "Selection" : "Chapter";
         _chromeTitle.Text = _screen switch
         {
-            Screen.Library => _session.IsReviewMode ? "Review" : "Books · NMP/1",
+            Screen.Library => _session.IsReviewMode ? "Review" : "Your books",
             Screen.Book => _openBook?.Title ?? (_session.IsReviewMode ? "Archive" : "Book"),
             Screen.Chapter => $"{_chapterTitle ?? unit}{mode}{dirty}",
             Screen.ReadAnything => "Read anything",
@@ -797,15 +842,13 @@ public sealed class MainView : UserControl
 
         if (_session.IsReviewMode)
         {
-            list.Children.Add(BooksTheme.BrandTitle("Galactic Confederation Review", 22));
-            list.Children.Add(BooksTheme.Muted(
-                "MkDocs docs/ selections — not manuscript books. Structure is the Review archive, not NMP/1."));
+            list.Children.Add(BooksTheme.BrandTitle("Review", 22));
+            list.Children.Add(BooksTheme.Muted("Selections from the Review archive."));
         }
         else
         {
-            list.Children.Add(BooksTheme.BrandTitle("Books · NMP/1", 22));
-            list.Children.Add(BooksTheme.Muted(
-                "Novolis Manuscript Protocol — Fiction / NonFiction folders under manuscript.yaml + src/. Series and books are directories."));
+            list.Children.Add(BooksTheme.BrandTitle("Your books", 22));
+            list.Children.Add(BooksTheme.Muted("Open a book to read. Edit is one tap away."));
         }
 
         if (series.Count == 0 && standalone.Count == 0)
@@ -843,7 +886,7 @@ public sealed class MainView : UserControl
 
     Control BuildWorkspaceSwitcher()
     {
-        var booksBtn = BooksTheme.Button("Books (NMP)", BooksButtonKind.Secondary);
+        var booksBtn = BooksTheme.Button("Books", BooksButtonKind.Secondary);
         var reviewBtn = BooksTheme.Button("Review", BooksButtonKind.Secondary);
         if (_session.Mode == WorkspaceMode.Books)
             BooksTheme.StyleButton(booksBtn, BooksButtonKind.Primary);
@@ -917,8 +960,8 @@ public sealed class MainView : UserControl
             list.Children.Add(BooksTheme.Muted(_openBook.Subtitle!));
         list.Children.Add(BooksTheme.Muted(
             _session.IsReviewMode
-                ? "Selections — opens in reading mode; tap Edit to change text."
-                : "Chapters — opens in reading mode; tap Edit to change text.",
+                ? "Tap a selection to read. Use Edit when you want to change text."
+                : "Tap a chapter to read. Use Edit when you want to change text.",
             13));
 
         foreach (var ch in _openBook.Chapters)
@@ -939,11 +982,7 @@ public sealed class MainView : UserControl
                 HorizontalContentAlignment = HorizontalAlignment.Left,
                 Cursor = new Cursor(StandardCursorType.Hand),
             };
-            btn.Click += (_, _) => Dispatcher.UIThread.Post(() =>
-            {
-                _chapterMode = ChapterMode.Read;
-                OpenChapter(ch);
-            });
+            btn.Click += (_, _) => Dispatcher.UIThread.Post(() => OpenChapter(ch));
             list.Children.Add(btn);
         }
 
@@ -953,24 +992,48 @@ public sealed class MainView : UserControl
     void UpdateChapterActions()
     {
         if (_speech.IsSpeaking)
+        {
             _listenButton.Content = "Stop";
+            BooksTheme.StyleButton(_listenButton, BooksButtonKind.Primary);
+        }
         else
         {
             var text = PrepareSpeechMarkdown(_editor?.Text ?? string.Empty);
             _listenButton.Content = _speech.HasCachedAudio(text) ? "Listen ✓" : "Listen";
+            BooksTheme.StyleButton(_listenButton, BooksButtonKind.Secondary);
         }
 
-        BooksTheme.StyleButton(_listenButton, BooksButtonKind.Primary);
         var pending = HasPendingChanges();
+        _saveButton.IsEnabled = pending && !_speech.IsSpeaking;
+        _saveButton.Opacity = pending ? 1 : 0.45;
+        if (_speech.IsSpeaking)
+        {
+            // Stop already owns Primary on Listen.
+            BooksTheme.StyleButton(_saveButton, BooksButtonKind.Secondary);
+            BooksTheme.StyleButton(_modeButton, BooksButtonKind.Secondary);
+        }
+        else if (pending)
+        {
+            BooksTheme.StyleButton(_saveButton, BooksButtonKind.Primary);
+            BooksTheme.StyleButton(_modeButton, BooksButtonKind.Secondary);
+        }
+        else
+        {
+            BooksTheme.StyleButton(_saveButton, BooksButtonKind.Secondary);
+            BooksTheme.StyleButton(_modeButton, BooksButtonKind.Primary);
+        }
+
         _undoButton.IsEnabled = pending && !_speech.IsSpeaking;
         _undoButton.Opacity = pending ? 1 : 0.45;
+        _undoButton.IsVisible = pending || _chapterMode == ChapterMode.Edit;
+        _saveButton.IsVisible = true;
         _listenButton.IsEnabled = true;
 
         var idx = CurrentChapterIndex();
         var count = _openBook?.Chapters.Count ?? 0;
         _chapterMeta.Text = idx >= 0 && count > 0 ? $"{idx + 1} / {count}" : string.Empty;
-        _prevChapterButton.IsEnabled = idx > 0;
-        _nextChapterButton.IsEnabled = idx >= 0 && idx < count - 1;
+        _prevChapterButton.IsEnabled = idx > 0 && !pending;
+        _nextChapterButton.IsEnabled = idx >= 0 && idx < count - 1 && !pending;
         _prevChapterButton.Opacity = _prevChapterButton.IsEnabled ? 1 : 0.4;
         _nextChapterButton.Opacity = _nextChapterButton.IsEnabled ? 1 : 0.4;
     }
@@ -1139,7 +1202,7 @@ public sealed class MainView : UserControl
 
     async Task SignOutAsync()
     {
-        FlushEditorToDisk();
+        AbandonDraft();
         _speech.Stop();
         ReleaseWake();
         await _session.SignOutAsync();
@@ -1152,7 +1215,7 @@ public sealed class MainView : UserControl
 
     async Task PullAsync()
     {
-        FlushEditorToDisk();
+        AbandonDraft();
         await _session.PullAsync();
         if (_screen == Screen.Library || _openBook is null)
             ShowLibrary();

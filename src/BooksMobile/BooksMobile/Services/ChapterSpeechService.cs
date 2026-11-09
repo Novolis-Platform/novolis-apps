@@ -5,7 +5,7 @@ using Novolis.Manuscript.Export.Audio;
 
 namespace BooksMobile.Services;
 
-/// <summary>Reads chapters with local device speech or configured Azure Speech.</summary>
+/// <summary>Reads chapters with device speech, Edge Read Aloud, or Azure Speech.</summary>
 public sealed class ChapterSpeechService : IDisposable
 {
     public const int MobileMaxChunkChars = 700;
@@ -28,7 +28,7 @@ public sealed class ChapterSpeechService : IDisposable
 
         Voice = new VoiceSettings
         {
-            Voice = "en-US-AvaMultilingualNeural",
+            Voice = "en-US-AvaNeural",
             RatePercent = -4,
             PitchHertz = 0,
             VolumePercent = 0,
@@ -39,8 +39,23 @@ public sealed class ChapterSpeechService : IDisposable
         };
     }
 
-    /// <summary>Default Azure voice settings used when Azure is configured.</summary>
+    /// <summary>Default voice settings used for Edge/Azure synthesis.</summary>
     public VoiceSettings Voice { get; }
+
+    /// <summary>Ensures Edge Read Aloud is selected when Azure is not configured.</summary>
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        await _front.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        if (_front.IsAzureConfigured)
+        {
+            if (_front.Provider != SpeechProvider.AzureSpeech)
+                await _front.UseAzureSpeechAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (_front.Provider != SpeechProvider.EdgeTts)
+            await _front.UseEdgeTtsAsync(cancellationToken).ConfigureAwait(false);
+    }
 
     public bool IsSpeaking { get; private set; }
 
@@ -70,6 +85,7 @@ public sealed class ChapterSpeechService : IDisposable
 
         try
         {
+            await InitializeAsync(linked).ConfigureAwait(false);
             var plan = SpeechPlanner.Create(markdown, Voice.ToSpeechOptions(), speakTitle: true);
             var provider = _front.Provider;
             foreach (var segment in plan.Segments)
@@ -122,15 +138,16 @@ public sealed class ChapterSpeechService : IDisposable
         }
     }
 
-    /// <summary>Synthesizes one chapter to MP3 through the configured Azure resource.</summary>
+    /// <summary>Synthesizes one chapter to MP3 through Edge Read Aloud or Azure Speech.</summary>
     public async Task<byte[]> SynthesizeDocumentMp3Async(
         string markdown,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(markdown);
-        if (!_front.IsAzureConfigured)
+        await InitializeAsync(cancellationToken).ConfigureAwait(false);
+        if (!_front.Capabilities.CanCreateMp3)
             throw new SpeechCapabilityException(
-                "MP3 export requires Azure Speech setup. Device voice does not create files.");
+                "MP3 export requires Edge Read Aloud or Azure Speech. Device voice does not create files.");
 
         return await _playback.ConcatenateMp3Async(
             markdown,

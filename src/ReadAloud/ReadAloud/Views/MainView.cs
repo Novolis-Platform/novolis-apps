@@ -486,22 +486,28 @@ public sealed class MainView : DockPanel
         try
         {
             await _speech.InitializeAsync();
-            if (_speech.CanCreateMp3)
-                await _speech.UseAzureSpeechAsync();
             Dispatcher.UIThread.Post(() =>
             {
                 RefreshManualCredentialFields();
                 RefreshProviderUi();
                 RefreshListen();
             });
-            if (_speech.CanCreateMp3)
+            if (_speech.AzureConfiguration is not null)
                 await RefreshVoiceListAsync();
             Dispatcher.UIThread.Post(() =>
             {
                 RefreshDeviceUsage();
                 RefreshDiagnosticsView();
                 RefreshConnectionCard();
-                if (!_speech.CanCreateMp3 && !_openedSetupForFirstRun)
+                if (_speech.CanCreateMp3)
+                {
+                    SetStatus(
+                        _speech.AzureConfiguration is null
+                            ? "Ready (Edge Read Aloud). Listen starts at the beginning."
+                            : "Ready. Listen starts at the beginning.",
+                        StatusTone.Success);
+                }
+                else if (!_openedSetupForFirstRun)
                 {
                     _openedSetupForFirstRun = true;
                     ToggleAzureSetup(forceOpen: true);
@@ -510,10 +516,6 @@ public sealed class MainView : DockPanel
                             ? "Connect Azure Speech to start listening."
                             : "Enter a Speech endpoint and key to start listening.",
                         StatusTone.Warning);
-                }
-                else if (_speech.CanCreateMp3)
-                {
-                    SetStatus("Ready. Listen starts at the beginning.", StatusTone.Success);
                 }
 
                 if (CanRefreshAzureUsage())

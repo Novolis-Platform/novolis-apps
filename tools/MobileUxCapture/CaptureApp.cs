@@ -11,6 +11,11 @@ internal sealed class CaptureApp : Application
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
+        Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(
+            new Uri("avares://MobileUxCapture"))
+        {
+            Source = new Uri("avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml"),
+        });
         GraphicalProfile.Install(this);
     }
 

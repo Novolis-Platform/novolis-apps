@@ -28,11 +28,12 @@ public sealed class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
+            var window = new MainWindow
             {
                 Content = mainView,
             };
-            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(desktop.MainWindow);
+            desktop.MainWindow = window;
+            Novolis.Apps.Branding.AppBrand.ApplyWindowIcon(window);
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
         {
