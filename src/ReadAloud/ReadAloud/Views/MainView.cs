@@ -422,6 +422,13 @@ public sealed class MainView : DockPanel
     void OnWorkspaceChanged()
     {
         _speech.SetVoice(_workspace.Voice.Voice);
+        if (!string.IsNullOrWhiteSpace(_workspace.StatusDetail)
+            && !_speech.IsSpeaking
+            && !_listenPending)
+        {
+            SetStatus(_workspace.StatusDetail, StatusTone.Neutral);
+        }
+
         RefreshListen();
         if (CanRefreshAzureUsage() && !_azureUsageLoaded)
             _ = RefreshUsageAsync();
