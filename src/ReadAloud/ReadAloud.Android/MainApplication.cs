@@ -58,7 +58,11 @@ public class MainApplication : AvaloniaAndroidApplication<App>
                     SpeechService.DefaultAzureClientId,
                     SpeechService.DefaultAzureTenantId));
                 services.AddSingleton<HttpClient>();
-                services.AddSingleton<IAzureSpeechResourcePicker, AndroidAzureSpeechResourcePicker>();
+                services.AddSingleton<AndroidAzureSpeechResourcePicker>();
+                services.AddSingleton<ReadAloud.Services.IAzureSpeechResourcePicker>(
+                    sp => sp.GetRequiredService<AndroidAzureSpeechResourcePicker>());
+                services.AddSingleton<Novolis.Avalonia.Speech.IAzureSpeechResourcePicker>(
+                    sp => sp.GetRequiredService<AndroidAzureSpeechResourcePicker>());
                 services.AddSingleton<IAzureSpeechCredentialFactory, AndroidEntraSpeechCredentialFactory>();
             })
             .Build();

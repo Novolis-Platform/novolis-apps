@@ -26,6 +26,8 @@ namespace ReadAloud.Views;
 public sealed class MainView : DockPanel
 {
     readonly SpeechService _speech;
+    readonly SpeechWorkspace _workspace;
+    readonly SpeechSettingsPanel _speechSettings;
     readonly IScreenWakeLock _wakeLock;
     readonly IDiagnosticShare _diagnosticShare;
     readonly IDiagnosticJournal _journal;
@@ -42,7 +44,7 @@ public sealed class MainView : DockPanel
     readonly Button _connectionAction;
     readonly Border _connectionCard;
     readonly Border _azureSetupPanel;
-    readonly IAzureSpeechResourcePicker? _resourcePicker;
+    readonly Services.IAzureSpeechResourcePicker? _resourcePicker;
     readonly Button _automaticModeButton;
     readonly Button _manualModeButton;
     readonly StackPanel _automaticCredentialsPanel;
@@ -90,19 +92,23 @@ public sealed class MainView : DockPanel
 
     public MainView(
         SpeechService speech,
+        SpeechWorkspace workspace,
         IScreenWakeLock wakeLock,
         IDiagnosticShare diagnosticShare,
         IDiagnosticJournal journal,
         ILogger<MainView> logger,
-        IAzureSpeechResourcePicker? resourcePicker = null)
+        Services.IAzureSpeechResourcePicker? resourcePicker = null)
     {
         _speech = speech ?? throw new ArgumentNullException(nameof(speech));
+        _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
         _wakeLock = wakeLock ?? throw new ArgumentNullException(nameof(wakeLock));
         _diagnosticShare = diagnosticShare ?? throw new ArgumentNullException(nameof(diagnosticShare));
         _journal = journal ?? throw new ArgumentNullException(nameof(journal));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _resourcePicker = resourcePicker;
+        _resourcePicker = resourcePicker
+            ?? workspace.ResourcePicker as Services.IAzureSpeechResourcePicker;
         _useAutomaticCredentials = _resourcePicker is not null;
+        _speechSettings = new SpeechSettingsPanel { Workspace = _workspace };
 
         LastChildFill = true;
         HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -282,16 +288,7 @@ public sealed class MainView : DockPanel
             Margin = new Thickness(16, 12, 16, 0),
             Children =
             {
-                _connectionCard,
-                new StackPanel
-                {
-                    Spacing = 4,
-                    Children =
-                    {
-                        ReadAloudTheme.SectionLabel("Voice"),
-                        _voicePicker,
-                    },
-                },
+                _speechSettings,
             },
         };
         var footer = new StackPanel
@@ -304,13 +301,6 @@ public sealed class MainView : DockPanel
                 _listenButton,
                 secondary,
                 details,
-                new ScrollViewer
-                {
-                    MaxHeight = 420,
-                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                    Content = _azureSetupPanel,
-                },
             },
         };
 
@@ -397,6 +387,7 @@ public sealed class MainView : DockPanel
         Children.Add(_navigationShell);
 
         _speech.Changed += (_, _) => Dispatcher.UIThread.Post(RefreshListen);
+        _workspace.Changed += (_, _) => Dispatcher.UIThread.Post(OnWorkspaceChanged);
         SharedTextInbox.Received += text =>
             Dispatcher.UIThread.Post(() => ApplySharedText(text));
         BaselineLaunch.Requested += path =>
@@ -419,14 +410,21 @@ public sealed class MainView : DockPanel
     /// <summary>Closes the mobile menu before the Android activity navigates back.</summary>
     public bool TryHandleBack()
     {
-        if (_azureSetupPanel.IsVisible && _speech.CanCreateMp3)
+        if (_workspace.WantAzureSetup && _speech.CanCreateMp3)
         {
-            _azureSetupPanel.IsVisible = false;
-            RefreshConnectionCard();
+            _workspace.DismissAzureSetup();
             return true;
         }
 
         return _navigationShell.TryHandleBack();
+    }
+
+    void OnWorkspaceChanged()
+    {
+        _speech.SetVoice(_workspace.Voice.Voice);
+        RefreshListen();
+        if (CanRefreshAzureUsage() && !_azureUsageLoaded)
+            _ = RefreshUsageAsync();
     }
 
     void OnNavigationActivationRequested(
@@ -453,21 +451,18 @@ public sealed class MainView : DockPanel
                 ClearPassage();
                 break;
             case "azure.settings":
-                ToggleAzureSetup(forceOpen: true);
+                await _workspace.SelectAzureAsync();
                 break;
             case "credentials.import-json":
-                SetCredentialMode(automatic: false);
-                ToggleAzureSetup(forceOpen: true);
+                _workspace.SetAzureCredentialMode(automatic: false);
                 await ImportAzureCredentialsAsync();
                 break;
             case "credentials.import-encrypted":
-                SetCredentialMode(automatic: false);
-                ToggleAzureSetup(forceOpen: true);
+                _workspace.SetAzureCredentialMode(automatic: false);
                 await ImportEncryptedAzureCredentialsAsync();
                 break;
             case "credentials.export-encrypted":
-                SetCredentialMode(automatic: false);
-                ToggleAzureSetup(forceOpen: true);
+                _workspace.SetAzureCredentialMode(automatic: false);
                 await ExportAzureCredentialsAsync();
                 break;
             case "diagnostics.share":
@@ -485,15 +480,14 @@ public sealed class MainView : DockPanel
     {
         try
         {
-            await _speech.InitializeAsync();
+            await _workspace.InitializeAsync();
+            _speech.SetVoice(_workspace.Voice.Voice);
             Dispatcher.UIThread.Post(() =>
             {
                 RefreshManualCredentialFields();
                 RefreshProviderUi();
                 RefreshListen();
             });
-            if (_speech.AzureConfiguration is not null)
-                await RefreshVoiceListAsync();
             Dispatcher.UIThread.Post(() =>
             {
                 RefreshDeviceUsage();
@@ -507,14 +501,12 @@ public sealed class MainView : DockPanel
                             : "Ready. Listen starts at the beginning.",
                         StatusTone.Success);
                 }
-                else if (!_openedSetupForFirstRun)
+                else if (!_openedSetupForFirstRun && !_workspace.Capabilities.CanCreateMp3)
                 {
                     _openedSetupForFirstRun = true;
-                    ToggleAzureSetup(forceOpen: true);
+                    // Edge should already be selected by SpeechWorkspace; only warn if still blocked.
                     SetStatus(
-                        _resourcePicker is not null
-                            ? "Connect Azure Speech to start listening."
-                            : "Enter a Speech endpoint and key to start listening.",
+                        "Speech is not ready yet. Pick Edge, or connect Azure.",
                         StatusTone.Warning);
                 }
 
@@ -532,7 +524,7 @@ public sealed class MainView : DockPanel
                 SetStatus(
                     AzureErrorText.Describe(ex, "Azure Speech setup needs attention"),
                     StatusTone.Danger);
-                ToggleAzureSetup(forceOpen: true);
+                _ = _workspace.SelectAzureAsync();
                 RefreshProviderUi();
                 RefreshListen();
             });
@@ -1897,11 +1889,9 @@ public sealed class MainView : DockPanel
 
         if (!_speech.CanCreateMp3)
         {
-            ToggleAzureSetup(forceOpen: true);
+            await _workspace.SelectAzureAsync();
             SetStatus(
-                _resourcePicker is null
-                    ? "Enter Azure Speech credentials before listening."
-                    : "Sign in or enter Azure Speech credentials before listening.",
+                "Pick Edge Read Aloud, or connect Azure Speech, before listening.",
                 StatusTone.Warning);
             return;
         }
@@ -1981,11 +1971,9 @@ public sealed class MainView : DockPanel
 
         if (!_speech.CanCreateMp3)
         {
-            ToggleAzureSetup(forceOpen: true);
+            await _workspace.SelectAzureAsync();
             SetStatus(
-                _resourcePicker is null
-                    ? "MP3 export needs typed or imported Azure credentials."
-                    : "MP3 export needs Microsoft sign-in or typed credentials.",
+                "MP3 export needs Edge Read Aloud or a connected Azure Speech resource.",
                 StatusTone.Warning);
             return;
         }

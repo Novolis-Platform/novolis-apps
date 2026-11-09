@@ -1,11 +1,12 @@
 using System.Net;
 using System.Text.Json;
+using Novolis.Avalonia.Speech;
 using ReadAloud.Services;
 
 namespace ReadAloud.Android;
 
 /// <summary>Discovers Azure subscriptions and compatible Speech resources for Android.</summary>
-public sealed class AndroidAzureSpeechResourcePicker : IAzureSpeechResourcePicker
+public sealed class AndroidAzureSpeechResourcePicker : ReadAloud.Services.IAzureSpeechResourcePicker
 {
     const string ManagementBase = "https://management.azure.com";
     const string CognitiveServicesApiVersion = "2023-05-01";
