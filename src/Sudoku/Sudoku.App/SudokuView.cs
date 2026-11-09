@@ -27,7 +27,14 @@ public sealed class SudokuView : UserControl
     private int _selectedCell = -1;
     private bool _notesMode;
     private bool _loaded;
+    private bool _arrangingBody;
+    private bool _narrowBody = true;
     private string _message = "Choose a difficulty to begin.";
+    private Grid? _bodyHost;
+    private Border? _boardCard;
+    private StackPanel? _sidePanel;
+    private ScrollViewer? _narrowScroll;
+    private ScrollViewer? _sideScroll;
 
     /// <summary>Creates the board over a game service.</summary>
     public SudokuView(SudokuGameService game)
@@ -103,6 +110,7 @@ public sealed class SudokuView : UserControl
                     Text = "A deterministic puzzle, a clear board, and help when you want it.",
                     Classes = { "body-copy" },
                     Foreground = GraphicalProfile.MutedBrush,
+                    TextWrapping = TextWrapping.Wrap,
                 },
             },
         };
@@ -127,10 +135,10 @@ public sealed class SudokuView : UserControl
         toolbar.Children.Add(ActionButton("Redo", Redo));
 
         BuildBoard();
-        var boardCard = new Border
+        _boardCard = new Border
         {
             Child = _board,
-            Padding = new Thickness(12),
+            Padding = new Thickness(8),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
             Background = GraphicalProfile.SurfaceBrush,
@@ -139,10 +147,9 @@ public sealed class SudokuView : UserControl
             CornerRadius = new CornerRadius(16),
         };
 
-        var side = new StackPanel
+        _sidePanel = new StackPanel
         {
             Spacing = 10,
-            Margin = new Thickness(0, 0, 20, 0),
             Children =
             {
                 Card("CURRENT GAME", _gameInfo),
@@ -150,61 +157,179 @@ public sealed class SudokuView : UserControl
                 BuildInputCard(),
             },
         };
-        var boardScroll = new ScrollViewer
+        _narrowScroll = new ScrollViewer
         {
-            Content = boardCard,
-            HorizontalScrollBarVisibility =
-                Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility =
-                Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-        };
-        var sideScroll = new ScrollViewer
-        {
-            Content = side,
             HorizontalScrollBarVisibility =
                 Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility =
                 Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
         };
-        Control body;
-        if (OperatingSystem.IsAndroid())
+        _sideScroll = new ScrollViewer
         {
-            var mobileBody = new Grid
-            {
-                RowDefinitions = new RowDefinitions("Auto,*"),
-                Margin = new Thickness(12, 0, 12, 10),
-            };
-            mobileBody.Children.Add(boardScroll);
-            Grid.SetRow(sideScroll, 1);
-            mobileBody.Children.Add(sideScroll);
-            body = mobileBody;
-        }
-        else
+            HorizontalScrollBarVisibility =
+                Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility =
+                Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+        };
+        _bodyHost = new Grid
         {
-            var desktopBody = new Grid
-            {
-                ColumnDefinitions = new ColumnDefinitions("*,330"),
-                Margin = new Thickness(20, 0, 0, 10),
-            };
-            desktopBody.Children.Add(boardScroll);
-            Grid.SetColumn(sideScroll, 1);
-            desktopBody.Children.Add(sideScroll);
-            body = desktopBody;
-        }
+            Margin = new Thickness(12, 0, 12, 8),
+        };
+        _bodyHost.SizeChanged += (_, _) => ArrangeSudokuBody();
+        ArrangeSudokuBody();
 
-        _status.Margin = new Thickness(20, 4, 20, 14);
+        _status.Margin = new Thickness(16, 4, 16, 10);
         _status.Foreground = GraphicalProfile.MutedBrush;
         _status.TextWrapping = TextWrapping.Wrap;
 
-        var root = new DockPanel();
+        var root = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(header, Dock.Top);
         DockPanel.SetDock(toolbar, Dock.Top);
         DockPanel.SetDock(_status, Dock.Bottom);
         root.Children.Add(header);
         root.Children.Add(toolbar);
         root.Children.Add(_status);
-        root.Children.Add(body);
+        root.Children.Add(_bodyHost);
         return root;
+    }
+
+    private void ArrangeSudokuBody()
+    {
+        if (_arrangingBody
+            || _bodyHost is null
+            || _boardCard is null
+            || _sidePanel is null
+            || _narrowScroll is null
+            || _sideScroll is null)
+            return;
+
+        _arrangingBody = true;
+        try
+        {
+            var width = _bodyHost.Bounds.Width;
+            var height = _bodyHost.Bounds.Height;
+            var narrow = OperatingSystem.IsAndroid() || width <= 0 || width < 720;
+            if (narrow != _narrowBody || _bodyHost.Children.Count == 0)
+            {
+                _narrowBody = narrow;
+                DetachFromParent(_boardCard);
+                DetachFromParent(_sidePanel);
+                _bodyHost.Children.Clear();
+                _bodyHost.RowDefinitions.Clear();
+                _bodyHost.ColumnDefinitions.Clear();
+                _narrowScroll.Content = null;
+                _sideScroll.Content = null;
+
+                if (narrow)
+                {
+                    var stack = new StackPanel { Spacing = 12 };
+                    stack.Children.Add(_boardCard);
+                    stack.Children.Add(_sidePanel);
+                    _narrowScroll.Content = stack;
+                    _bodyHost.Children.Add(_narrowScroll);
+                }
+                else
+                {
+                    _sideScroll.Content = _sidePanel;
+                    _bodyHost.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+                    _bodyHost.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(300)));
+                    _bodyHost.Children.Add(_boardCard);
+                    Grid.SetColumn(_sideScroll, 1);
+                    _sideScroll.Margin = new Thickness(12, 0, 0, 0);
+                    _bodyHost.Children.Add(_sideScroll);
+                }
+            }
+
+            if (width <= 0)
+                width = 360;
+            if (narrow)
+                FitBoard(width - 28);
+            else if (height > 0)
+                FitBoard(Math.Min(width - 312, height) - 16);
+        }
+        finally
+        {
+            _arrangingBody = false;
+        }
+    }
+
+    private void FitBoard(double available)
+    {
+        if (available <= 0)
+            return;
+
+        var side = Math.Clamp(available, 180, 690);
+        var cell = side / SudokuConstants.Size;
+        if (Math.Abs(_board.Width - side) < 0.5 && Math.Abs(_board.Height - side) < 0.5)
+        {
+            ApplyCellFonts();
+            return;
+        }
+
+        // Absolute cell sizes — Star rows inside a ScrollViewer grow infinitely tall.
+        _board.RowDefinitions.Clear();
+        _board.ColumnDefinitions.Clear();
+        for (var index = 0; index < SudokuConstants.Size; index++)
+        {
+            _board.RowDefinitions.Add(new RowDefinition(new GridLength(cell)));
+            _board.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(cell)));
+        }
+
+        _board.Width = side;
+        _board.Height = side;
+        _board.MinWidth = side;
+        _board.MaxWidth = side;
+        _board.MinHeight = side;
+        _board.MaxHeight = side;
+        _board.HorizontalAlignment = HorizontalAlignment.Center;
+        _board.VerticalAlignment = VerticalAlignment.Top;
+        foreach (var button in _cellButtons)
+        {
+            if (button is null)
+                continue;
+            button.Width = cell;
+            button.Height = cell;
+            button.MinWidth = 0;
+            button.MaxWidth = cell;
+            button.MinHeight = 0;
+            button.MaxHeight = cell;
+            button.Padding = new Thickness(0);
+        }
+
+        ApplyCellFonts();
+    }
+
+    private static void DetachFromParent(Control control)
+    {
+        switch (control.Parent)
+        {
+            case Panel panel:
+                panel.Children.Remove(control);
+                break;
+            case ContentControl content:
+                if (ReferenceEquals(content.Content, control))
+                    content.Content = null;
+                break;
+            case Decorator decorator when ReferenceEquals(decorator.Child, control):
+                decorator.Child = null;
+                break;
+        }
+    }
+
+    private void ApplyCellFonts()
+    {
+        var side = _board.Width > 0 ? _board.Width : 360;
+        var cell = side / SudokuConstants.Size;
+        var font = Math.Clamp(cell * 0.42, 12, 28);
+        foreach (var button in _cellButtons)
+        {
+            if (button is null)
+                continue;
+            button.MinWidth = 0;
+            button.MinHeight = 0;
+            var notes = button.Content is string text && text.Contains(' ', StringComparison.Ordinal);
+            button.FontSize = notes ? Math.Max(9, font * 0.45) : font;
+        }
     }
 
     private void BuildBoard()
@@ -215,19 +340,19 @@ public sealed class SudokuView : UserControl
             _board.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         }
 
-        _board.MaxWidth = 690;
-        _board.MaxHeight = 690;
+        _board.Width = 360;
+        _board.Height = 360;
         _board.HorizontalAlignment = HorizontalAlignment.Center;
-        _board.VerticalAlignment = VerticalAlignment.Top;
+        _board.VerticalAlignment = VerticalAlignment.Center;
         for (var cellIndex = 0; cellIndex < SudokuConstants.CellCount; cellIndex++)
         {
             var cell = SudokuCell.FromIndex(cellIndex);
             var button = new Button
             {
                 Tag = cellIndex,
-                MinWidth = 48,
-                MinHeight = 48,
-                Padding = new Thickness(2),
+                MinWidth = 0,
+                MinHeight = 0,
+                Padding = new Thickness(1),
                 HorizontalContentAlignment = HorizontalAlignment.Center,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 BorderBrush = GraphicalProfile.BorderBrush,
@@ -443,11 +568,12 @@ public sealed class SudokuView : UserControl
                         ? GraphicalProfile.AccentBrush
                         : GraphicalProfile.TextBrush;
             button.FontWeight = isGiven ? FontWeight.Bold : FontWeight.Normal;
-            button.FontSize = value == SudokuConstants.Empty ? 12 : 25;
             button.Content = value == SudokuConstants.Empty
                 ? string.Join(" ", session.GetNotes(cellIndex).Values())
                 : value.ToString();
         }
+
+        ApplyCellFonts();
 
         for (byte value = 1; value <= SudokuConstants.SymbolCount; value++)
         {

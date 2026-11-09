@@ -142,8 +142,12 @@ public sealed class MainPage : ContentPage
                 },
             });
 
+        _viewer.HorizontalOptions = LayoutOptions.Fill;
+        _viewer.VerticalOptions = LayoutOptions.Fill;
         var viewerLayout = new Grid
         {
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
             RowDefinitions =
             {
                 new RowDefinition(GridLength.Star),
@@ -152,16 +156,22 @@ public sealed class MainPage : ContentPage
         viewerLayout.Add(_viewer, 0, 0);
         _viewerCard = CreateCard(viewerLayout);
         _viewerCard.Padding = new Thickness(0);
+        _viewerCard.HorizontalOptions = LayoutOptions.Fill;
+        _viewerCard.VerticalOptions = LayoutOptions.Fill;
 
         _welcomeScroll = new ScrollView
         {
             AutomationId = "PdfReaderWelcome",
             Content = _welcomeCard,
             VerticalScrollBarVisibility = ScrollBarVisibility.Never,
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
         };
         _body = new Grid
         {
             Padding = new Thickness(16, 0, 16, 16),
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
             RowDefinitions =
             {
                 new RowDefinition(GridLength.Auto),
@@ -204,6 +214,8 @@ public sealed class MainPage : ContentPage
         {
             Title = "PDF Reader",
             Body = _body,
+            HorizontalOptions = LayoutOptions.Fill,
+            VerticalOptions = LayoutOptions.Fill,
         };
         _navigationShell.ActivationRequested += OnNavigationActivationRequested;
         _passwordPromptMessage = new Label
@@ -595,10 +607,11 @@ public sealed class MainPage : ContentPage
 
     private void ShowWelcome()
     {
-        var compact = PdfViewerLayout.IsCompact(Width);
         _navigationShell.Title = "PDF Reader";
-        _welcomeScroll.IsVisible = !compact;
-        _viewerCard.IsVisible = compact;
+        // Always keep the welcome surface until a document is open. Showing an empty
+        // PdfViewer on compact widths collapsed the Star workspace into a thin chrome strip.
+        _welcomeScroll.IsVisible = true;
+        _viewerCard.IsVisible = false;
         ApplyShellLayout();
     }
 

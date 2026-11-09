@@ -23,7 +23,10 @@ internal static class PresenceReportView
         AttendanceReport report,
         TimeZoneInfo zone,
         DateTimeOffset asOf,
-        Func<Task> export)
+        Func<Task> export,
+        Func<Task>? exportClockify = null,
+        Func<Task>? exportHoursJson = null,
+        Func<Task>? exportHoursCsv = null)
     {
         var content = new StackPanel
         {
@@ -74,6 +77,34 @@ internal static class PresenceReportView
         };
         exportButton.Click += async (_, _) => await export();
         content.Children.Add(exportButton);
+
+        if (exportClockify is not null)
+        {
+            content.Children.Add(SecondaryButton(
+                "Export Clockify CSV…",
+                exportClockify));
+        }
+
+        if (exportHoursJson is not null)
+        {
+            content.Children.Add(SecondaryButton(
+                "Export Hours JSON…",
+                exportHoursJson));
+        }
+
+        if (exportHoursCsv is not null)
+        {
+            content.Children.Add(SecondaryButton(
+                "Export Hours CSV…",
+                exportHoursCsv));
+        }
+
+        content.Children.Add(new TextBlock
+        {
+            Text = "Clockify and Hours exports include closed stays only. Open visits stay in the on-screen report until you leave.",
+            Foreground = GraphicalProfile.MutedBrush,
+            TextWrapping = TextWrapping.Wrap,
+        });
 
         var culture = CultureInfo.CurrentCulture;
         for (var index = 0; index < report.Places.Count; index++)
@@ -155,6 +186,20 @@ internal static class PresenceReportView
             content.Children.Add(Card(dayCard));
 
         return content;
+    }
+
+    static Button SecondaryButton(string label, Func<Task> action)
+    {
+        var button = new Button
+        {
+            Content = label,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 48,
+            Background = GraphicalProfile.SurfaceBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        button.Click += async (_, _) => await action();
+        return button;
     }
 
     static Border Card(Control child) =>

@@ -14,53 +14,22 @@ internal static class PresenceTodayView
         PresenceDayProjection day,
         IReadOnlyList<TrackedLocation> locations,
         DateTimeOffset now,
+        ObservationSnapshot observation,
         Action previousDay,
         Action nextDay,
         Action today,
         Action openMap,
         Action addLocation,
-        string observationStatus)
+        Action openSettings,
+        Action openReport)
     {
-        var content = new StackPanel
-        {
-            Margin = new Thickness(16, 12, 16, 28),
-            Spacing = 14,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-        };
+        var content = LedgerChrome.Page(
+            "YOUR DAY",
+            FormatDate(day.DisplayDate),
+            "A private, explainable record of where your configured locations saw you.");
 
-        var eyebrow = new TextBlock
-        {
-            Text = "YOUR DAY",
-            Classes = { "eyebrow" },
-            Foreground = GraphicalProfile.AccentBrush,
-        };
-        content.Children.Add(eyebrow);
-        content.Children.Add(new TextBlock
-        {
-            Text = FormatDate(day.DisplayDate),
-            Classes = { "page-title" },
-            Foreground = GraphicalProfile.TextBrush,
-        });
-        content.Children.Add(new TextBlock
-        {
-            Text = "A private, explainable record of where your configured locations saw you.",
-            Classes = { "body-copy" },
-            Foreground = GraphicalProfile.MutedBrush,
-        });
-        content.Children.Add(Card(
-            new TextBlock
-            {
-                Text = observationStatus,
-                Foreground = GraphicalProfile.MutedBrush,
-                TextWrapping = TextWrapping.Wrap,
-            },
-            GraphicalProfile.SurfaceBrush));
-
-        content.Children.Add(BuildDateBar(
-            day.DisplayDate,
-            previousDay,
-            nextDay,
-            today));
+        content.Children.Add(BuildObservationCard(observation, openSettings));
+        content.Children.Add(BuildDateBar(day.DisplayDate, previousDay, nextDay, today));
 
         var current = day.Intervals
             .Where(interval =>
@@ -70,24 +39,31 @@ internal static class PresenceTodayView
             .FirstOrDefault();
         content.Children.Add(BuildHero(current, day, locations));
 
-        var mapButton = new Button
+        var confirmedMinutes = day.Intervals.Sum(interval =>
         {
-            Content = "Open day map",
-            Classes = { "primary-button" },
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = GraphicalProfile.AccentFillBrush,
-            Foreground = GraphicalProfile.TextBrush,
+            var end = interval.EndedAt ?? now;
+            return Math.Max(0, (end - interval.StartedAt).TotalMinutes);
+        });
+        content.Children.Add(LedgerChrome.MetricsRow(
+            ("Segments", day.Intervals.Count.ToString()),
+            ("Samples", day.Observations.Count.ToString()),
+            ("Present", FormatDuration(TimeSpan.FromMinutes(confirmedMinutes)))));
+
+        var actions = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,*"),
+            ColumnSpacing = 8,
         };
-        mapButton.Click += (_, _) => openMap();
-        content.Children.Add(mapButton);
+        var mapButton = LedgerChrome.Primary("Open day map", openMap);
+        var reportButton = LedgerChrome.Secondary("Open report", openReport);
+        Grid.SetColumn(mapButton, 0);
+        Grid.SetColumn(reportButton, 1);
+        actions.Children.Add(mapButton);
+        actions.Children.Add(reportButton);
+        content.Children.Add(actions);
 
         var timelineHeader = new DockPanel();
-        var timelineTitle = new TextBlock
-        {
-            Text = "TIMELINE",
-            Classes = { "eyebrow" },
-            Foreground = GraphicalProfile.AccentBrush,
-        };
+        var timelineTitle = LedgerChrome.Eyebrow("TIMELINE");
         DockPanel.SetDock(timelineTitle, Dock.Left);
         timelineHeader.Children.Add(timelineTitle);
         var count = new TextBlock
@@ -95,6 +71,7 @@ internal static class PresenceTodayView
             Text = $"{day.Intervals.Count} segment{(day.Intervals.Count == 1 ? string.Empty : "s")}",
             Foreground = GraphicalProfile.MutedBrush,
             HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
         };
         DockPanel.SetDock(count, Dock.Right);
         timelineHeader.Children.Add(count);
@@ -123,6 +100,48 @@ internal static class PresenceTodayView
             VerticalScrollBarVisibility =
                 Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
         };
+    }
+
+    static Control BuildObservationCard(ObservationSnapshot observation, Action openSettings)
+    {
+        var chips = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+        };
+        chips.Children.Add(LedgerChrome.Chip(
+            observation.IsRunning ? "OBSERVER ON" : "OBSERVER OFF",
+            accent: observation.IsRunning));
+        chips.Children.Add(LedgerChrome.Chip(observation.PollLabel));
+        chips.Children.Add(LedgerChrome.Chip(observation.PublishLabel));
+
+        var stack = new StackPanel { Spacing = 10 };
+        stack.Children.Add(chips);
+        stack.Children.Add(LedgerChrome.Muted(observation.Summary));
+        if (!string.IsNullOrWhiteSpace(observation.LastPlacement))
+        {
+            stack.Children.Add(LedgerChrome.Body(
+                $"Placed at {observation.LastPlacement}"));
+        }
+
+        var evidence = new List<string>();
+        if (observation.LastWifiAt is { } wifi)
+            evidence.Add($"Wi-Fi {wifi.ToLocalTime():HH:mm}");
+        if (observation.LastPositionAt is { } position)
+            evidence.Add($"GPS {position.ToLocalTime():HH:mm}");
+        if (evidence.Count > 0)
+            stack.Children.Add(LedgerChrome.Muted(string.Join(" · ", evidence)));
+        if (!string.IsNullOrWhiteSpace(observation.LastError))
+        {
+            stack.Children.Add(new TextBlock
+            {
+                Text = observation.LastError,
+                Foreground = GraphicalProfile.DangerBrush,
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
+
+        stack.Children.Add(LedgerChrome.Secondary("Observation settings", openSettings));
+        return LedgerChrome.Card(stack, GraphicalProfile.RaisedBrush);
     }
 
     static Control BuildDateBar(
@@ -178,26 +197,12 @@ internal static class PresenceTodayView
                 ? $"Present since {FormatTime(current.StartedAt, day.DisplayTimeZone)}"
                 : $"Present from {FormatTime(current.StartedAt, day.DisplayTimeZone)}";
 
-        var badge = new Border
-        {
-            Padding = new Thickness(10, 6),
-            Background = current is null
-                ? GraphicalProfile.ActionSoftBrush
-                : GraphicalProfile.AccentFillBrush,
-            CornerRadius = new CornerRadius(14),
-            Child = new TextBlock
-            {
-                Text = current is null ? "BETWEEN PLACES" : "PRESENT",
-                Classes = { "eyebrow" },
-                Foreground = GraphicalProfile.TextBrush,
-            },
-        };
         var stack = new StackPanel
         {
             Spacing = 10,
             Children =
             {
-                badge,
+                LedgerChrome.Chip(current is null ? "BETWEEN PLACES" : "PRESENT", accent: current is not null),
                 new TextBlock
                 {
                     Text = title,
@@ -214,7 +219,7 @@ internal static class PresenceTodayView
                 },
             },
         };
-        return Card(stack, GraphicalProfile.SurfaceBrush);
+        return LedgerChrome.Card(stack);
     }
 
     static Control BuildInterval(PresenceInterval interval, TimeZoneInfo timeZone)
@@ -230,7 +235,9 @@ internal static class PresenceTodayView
         {
             Width = 8,
             MinHeight = 72,
-            Background = GraphicalProfile.ActionBrush,
+            Background = interval.IsOpen
+                ? GraphicalProfile.AccentFillBrush
+                : GraphicalProfile.ActionBrush,
             CornerRadius = new CornerRadius(4),
             Margin = new Thickness(0, 0, 12, 0),
         };
@@ -263,21 +270,12 @@ internal static class PresenceTodayView
             Orientation = Orientation.Horizontal,
             Children = { marker, copy },
         };
-        return Card(row, GraphicalProfile.SurfaceBrush);
+        return LedgerChrome.Card(row);
     }
 
     static Control BuildEmptyState(PresenceDayProjection day, Action addLocation)
     {
-        var add = new Button
-        {
-            Content = "Add your first location",
-            Classes = { "primary-button" },
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Background = GraphicalProfile.ActionBrush,
-            Foreground = Brushes.White,
-        };
-        add.Click += (_, _) => addLocation();
-        return Card(
+        return LedgerChrome.Card(
             new StackPanel
             {
                 Spacing = 10,
@@ -299,7 +297,7 @@ internal static class PresenceTodayView
                         Classes = { "body-copy" },
                         Foreground = GraphicalProfile.MutedBrush,
                     },
-                    add,
+                    LedgerChrome.Primary("Add your first location", addLocation),
                 },
             },
             GraphicalProfile.RaisedBrush);
@@ -328,7 +326,7 @@ internal static class PresenceTodayView
             });
         }
 
-        return Card(stack, GraphicalProfile.RaisedBrush);
+        return LedgerChrome.Card(stack, GraphicalProfile.RaisedBrush);
     }
 
     static Control BuildEvidenceSummary(
@@ -340,27 +338,23 @@ internal static class PresenceTodayView
             : string.Join(
                 Environment.NewLine,
                 day.Observations.TakeLast(12).Select(item => FormatSample(item, locations)));
-        return Card(
+        return LedgerChrome.Card(
             new StackPanel
             {
                 Spacing = 8,
                 Children =
                 {
-                    new TextBlock
-                    {
-                        Text = $"EVIDENCE · {day.Observations.Count}",
-                        Classes = { "eyebrow" },
-                        Foreground = GraphicalProfile.AccentBrush,
-                    },
+                    LedgerChrome.Eyebrow($"EVIDENCE · {day.Observations.Count}"),
                     new TextBlock
                     {
                         Text = lines,
                         Foreground = GraphicalProfile.TextBrush,
                         TextWrapping = TextWrapping.Wrap,
+                        FontFamily = new FontFamily("Cascadia Mono, Consolas, monospace"),
+                        FontSize = 12,
                     },
                 },
-            },
-            GraphicalProfile.SurfaceBrush);
+            });
     }
 
     static string FormatSample(
@@ -408,17 +402,6 @@ internal static class PresenceTodayView
         return button;
     }
 
-    static Border Card(Control child, IBrush background) =>
-        new()
-        {
-            Child = child,
-            Padding = new Thickness(18),
-            Background = background,
-            BorderBrush = GraphicalProfile.BorderBrush,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(18),
-        };
-
     static string FormatDate(DateOnly date) =>
         date == DateOnly.FromDateTime(DateTime.Now)
             ? "Today"
@@ -430,5 +413,5 @@ internal static class PresenceTodayView
     static string FormatDuration(TimeSpan duration) =>
         duration.TotalHours >= 1
             ? $"{(int)duration.TotalHours}h {duration.Minutes:00}m"
-            : $"{Math.Max(1, (int)duration.TotalMinutes)} min";
+            : $"{Math.Max(0, (int)Math.Round(duration.TotalMinutes))}m";
 }

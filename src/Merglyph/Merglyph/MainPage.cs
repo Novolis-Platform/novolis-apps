@@ -15,6 +15,7 @@ public sealed class MainPage : ContentPage
 {
     private readonly DocumentSession _session;
     private readonly MarkdownDocumentPicker _picker;
+    private readonly MarkdownDocumentCreator _creator;
     private readonly RecentDocumentStore _recentStore;
     private readonly MauiActivationInbox<DocumentOpenRequest> _activationInbox;
     private readonly MarkdownView _viewer = new()
@@ -48,7 +49,7 @@ public sealed class MainPage : ContentPage
     };
     private readonly Label _welcomeDescription = new()
     {
-        Text = "Merglyph keeps your documents close, clear, and beautifully rendered — including Mermaid diagrams.",
+        Text = "Create a new note in My Documents, or open an existing Markdown file — including Mermaid diagrams.",
         FontSize = 15,
         LineBreakMode = LineBreakMode.WordWrap,
     };
@@ -91,6 +92,7 @@ public sealed class MainPage : ContentPage
     private readonly ScrollView _welcomeScroll;
     private readonly ContentView _bodyHost = new();
     private readonly Button _heroOpenButton;
+    private readonly Button _heroNewButton;
     private readonly MobileNavigationShell _navigationShell;
     private CancellationTokenSource? _activationCancellation;
     private Task? _activationTask;
@@ -101,15 +103,17 @@ public sealed class MainPage : ContentPage
     public MainPage(
         DocumentSession session,
         MarkdownDocumentPicker picker,
+        MarkdownDocumentCreator creator,
         RecentDocumentStore recentStore,
         MauiActivationInbox<DocumentOpenRequest> activationInbox)
     {
         _session = session;
         _picker = picker;
+        _creator = creator;
         _recentStore = recentStore;
         _activationInbox = activationInbox;
 
-        Title = "Merglyph · Markdown Reader";
+        Title = "Merglyph · Markdown";
         _viewer.WebView.ExternalNavigationRequested += async (_, uri) =>
             await Launcher.Default.OpenAsync(uri);
 
@@ -124,6 +128,18 @@ public sealed class MainPage : ContentPage
             HorizontalOptions = LayoutOptions.Fill,
         };
         _heroOpenButton.Clicked += async (_, _) => await PickAndOpenAsync();
+
+        _heroNewButton = new Button
+        {
+            AutomationId = "NewDocumentHero",
+            Text = "Create new Markdown",
+            FontAttributes = FontAttributes.Bold,
+            FontSize = 14,
+            CornerRadius = 22,
+            Padding = new Thickness(20, 12),
+            HorizontalOptions = LayoutOptions.Fill,
+        };
+        _heroNewButton.Clicked += async (_, _) => await CreateAndOpenAsync();
 
         _welcomeCard = CreateCard(
             new VerticalStackLayout
@@ -144,6 +160,7 @@ public sealed class MainPage : ContentPage
                             CreateBadge("PRIVATE", GraphicalProfile.ActionSoft),
                         },
                     },
+                    _heroNewButton,
                     _heroOpenButton,
                     new VerticalStackLayout
                     {
@@ -212,6 +229,13 @@ public sealed class MainPage : ContentPage
 
         var menuTree = new MobileMenuTree(
         [
+            new MobileMenuNode(
+                "document.new",
+                "Create new Markdown",
+                MobileMenuNodeKind.Action)
+            {
+                CommandId = "document.new",
+            },
             new MobileMenuNode(
                 "document.open",
                 "Open Markdown file",
@@ -282,12 +306,32 @@ public sealed class MainPage : ContentPage
         }
     }
 
+    private async Task CreateAndOpenAsync()
+    {
+        try
+        {
+            var request = await _creator.CreateAsync();
+            await OpenAsync(request, CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            await DisplayAlertAsync("Unable to create document", exception.Message, "OK");
+        }
+    }
+
     private void OnNavigationActivationRequested(
         object? sender,
         MobileMenuActivationEventArgs args)
     {
-        if (args.CommandId == "document.open")
-            _ = PickAndOpenAsync();
+        switch (args.CommandId)
+        {
+            case "document.new":
+                _ = CreateAndOpenAsync();
+                break;
+            case "document.open":
+                _ = PickAndOpenAsync();
+                break;
+        }
     }
 
     private async Task ConsumeActivationsAsync(CancellationToken cancellationToken)
@@ -379,7 +423,9 @@ public sealed class MainPage : ContentPage
     private void Display(MarkdownDocument document)
     {
         _documentName.Text = document.Name.Value;
-        _documentMeta.Text = "Markdown document • local file";
+            _documentMeta.Text = string.IsNullOrWhiteSpace(document.SourceDirectory)
+                ? "Markdown document • local file"
+                : $"Markdown document • {document.SourceDirectory}";
         _navigationShell.Title = $"Merglyph · {document.Name.Value}";
         _bodyHost.Content = _viewerCard;
         ApplyChromeTheme();
@@ -403,7 +449,7 @@ public sealed class MainPage : ContentPage
     private void ShowWelcome()
     {
         _documentName.Text = "No document open";
-        _documentMeta.Text = "Choose a local Markdown file to begin";
+        _documentMeta.Text = "Create a new note or open a local Markdown file";
         _navigationShell.Title = "Merglyph";
         _bodyHost.Content = _welcomeScroll;
         ApplyChromeTheme();
@@ -432,6 +478,8 @@ public sealed class MainPage : ContentPage
         _documentMeta.TextColor = muted;
         _recentDocumentsTitle.TextColor = GraphicalProfile.Accent;
         _recentDocumentsEmpty.TextColor = muted;
+        _heroNewButton.BackgroundColor = GraphicalProfile.AccentFill;
+        _heroNewButton.TextColor = GraphicalProfile.Text;
         _heroOpenButton.BackgroundColor = GraphicalProfile.Action;
         _heroOpenButton.TextColor = GraphicalProfile.OnAction;
         _welcomeCard.Background = new SolidColorBrush(surface);

@@ -62,49 +62,62 @@ public sealed class AndroidDownloadsLedgerPublisher : ILedgerFilePublisher
         var relativePath = string.IsNullOrEmpty(directory)
             ? "Download/PresenceLedger/"
             : $"Download/PresenceLedger/{directory}/";
+        var mimeType = displayName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+            ? "application/json"
+            : "application/x-ndjson";
 
         var matches = FindMatches(resolver, collection, displayName, relativePath);
-        var existing = matches
-            .Where(match => string.Equals(
-                match.DisplayName,
-                displayName,
-                StringComparison.Ordinal)
-                && match.IsOwnedByApplication)
-            .Concat(matches.Where(match =>
-                !string.Equals(match.DisplayName, displayName, StringComparison.Ordinal)
-                && match.IsOwnedByApplication))
-            .Select(match => match.Uri)
-            .FirstOrDefault();
-        foreach (var match in matches)
+        var exactOwned = matches.FirstOrDefault(match =>
+            match.IsOwnedByApplication
+            && string.Equals(match.DisplayName, displayName, StringComparison.Ordinal)
+            && !match.IsPending);
+
+        foreach (var match in matches.Where(match => match.IsOwnedByApplication))
         {
-            if (match.IsOwnedByApplication
-                && (existing is null || !match.Uri.Equals(existing)))
-                DeleteBestEffort(resolver, match.Uri);
+            if (exactOwned.Uri is not null && match.Uri.Equals(exactOwned.Uri))
+                continue;
+
+            // Clear collision copies ("locations.ndjson (12)") and abandoned pending rows.
+            DeleteBestEffort(resolver, match.Uri);
         }
 
-        if (existing is not null)
+        if (exactOwned.Uri is not null)
         {
-            // MediaProvider rejects "wt" for some already-indexed Downloads
-            // rows. Its default write mode still truncates the existing row.
-            using var stream = resolver.OpenOutputStream(existing)
-                ?? throw new InvalidOperationException($"Android could not open {file.RelativePath}.");
-            using var input = File.OpenRead(file.FullPath);
-            input.CopyTo(stream);
-            return;
+            try
+            {
+                using var stream = resolver.OpenOutputStream(exactOwned.Uri)
+                    ?? throw new InvalidOperationException($"Android could not open {file.RelativePath}.");
+                using var input = File.OpenRead(file.FullPath);
+                input.CopyTo(stream);
+                stream.Flush();
+                return;
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                DeleteBestEffort(resolver, exactOwned.Uri);
+            }
         }
 
         var values = new ContentValues();
         values.Put(MediaStore.IMediaColumns.DisplayName, displayName);
-        values.Put(MediaStore.IMediaColumns.MimeType, "application/x-ndjson");
+        values.Put(MediaStore.IMediaColumns.MimeType, mimeType);
         values.Put(MediaStore.IMediaColumns.RelativePath, relativePath);
+        values.Put(MediaStore.IMediaColumns.IsPending, 1);
         var uri = resolver.Insert(collection, values)
             ?? throw new InvalidOperationException($"Android could not create {file.RelativePath}.");
         try
         {
-            using var stream = resolver.OpenOutputStream(uri)
-                ?? throw new InvalidOperationException($"Android could not write {file.RelativePath}.");
-            using var input = File.OpenRead(file.FullPath);
-            input.CopyTo(stream);
+            using (var stream = resolver.OpenOutputStream(uri)
+                ?? throw new InvalidOperationException($"Android could not write {file.RelativePath}."))
+            using (var input = File.OpenRead(file.FullPath))
+            {
+                input.CopyTo(stream);
+                stream.Flush();
+            }
+
+            var done = new ContentValues();
+            done.Put(MediaStore.IMediaColumns.IsPending, 0);
+            resolver.Update(uri, done, null, null);
         }
         catch
         {
@@ -114,22 +127,23 @@ public sealed class AndroidDownloadsLedgerPublisher : ILedgerFilePublisher
     }
 
     [SupportedOSPlatform("android29.0")]
-    static List<(global::Android.Net.Uri Uri, string DisplayName, bool IsOwnedByApplication)> FindMatches(
+    static List<(global::Android.Net.Uri Uri, string DisplayName, bool IsOwnedByApplication, bool IsPending)> FindMatches(
         ContentResolver resolver,
         global::Android.Net.Uri collection,
         string displayName,
         string relativePath)
     {
         var matches =
-            new List<(global::Android.Net.Uri Uri, string DisplayName, bool IsOwnedByApplication)>();
+            new List<(global::Android.Net.Uri Uri, string DisplayName, bool IsOwnedByApplication, bool IsPending)>();
         var relativePathColumn = MediaStore.IMediaColumns.RelativePath;
         const string ownerPackageColumn = "owner_package_name";
+        var isPendingColumn = MediaStore.IMediaColumns.IsPending;
         var packageName = global::Android.App.Application.Context?.PackageName;
         using var cursor = resolver.Query(
             collection,
-            ["_id", MediaStore.IMediaColumns.DisplayName, relativePathColumn, ownerPackageColumn],
-            null,
-            null,
+            ["_id", MediaStore.IMediaColumns.DisplayName, relativePathColumn, ownerPackageColumn, isPendingColumn],
+            $"{relativePathColumn}=?",
+            [relativePath],
             null);
         if (cursor is null)
             return matches;
@@ -138,7 +152,8 @@ public sealed class AndroidDownloadsLedgerPublisher : ILedgerFilePublisher
         var displayNameColumn = cursor.GetColumnIndexOrThrow(
             MediaStore.IMediaColumns.DisplayName);
         var relativePathIndex = cursor.GetColumnIndexOrThrow(relativePathColumn);
-        var ownerPackageIndex = cursor.GetColumnIndexOrThrow(ownerPackageColumn);
+        var ownerPackageIndex = cursor.GetColumnIndex(ownerPackageColumn);
+        var pendingIndex = cursor.GetColumnIndex(isPendingColumn);
         if (!cursor.MoveToFirst())
             return matches;
 
@@ -151,21 +166,28 @@ public sealed class AndroidDownloadsLedgerPublisher : ILedgerFilePublisher
             if (!string.Equals(
                     cursor.GetString(relativePathIndex),
                     relativePath,
-                    StringComparison.Ordinal)
-                || (!string.Equals(foundName, displayName, StringComparison.Ordinal)
-                    && !foundName.StartsWith(
-                        displayName + " (",
-                        StringComparison.Ordinal)))
+                    StringComparison.Ordinal))
             {
                 continue;
             }
 
+            var isExact = string.Equals(foundName, displayName, StringComparison.Ordinal);
+            var isCollision = foundName.StartsWith(displayName + " (", StringComparison.Ordinal);
+            var isPendingLeftover = foundName.StartsWith(".pending-", StringComparison.Ordinal)
+                && foundName.Contains(displayName, StringComparison.Ordinal);
+            if (!isExact && !isCollision && !isPendingLeftover)
+                continue;
+
             var id = cursor.GetLong(idColumn);
-            var ownerPackage = cursor.GetString(ownerPackageIndex);
+            var ownerPackage = ownerPackageIndex >= 0
+                ? cursor.GetString(ownerPackageIndex)
+                : null;
+            var pending = pendingIndex >= 0 && !cursor.IsNull(pendingIndex) && cursor.GetInt(pendingIndex) != 0;
             matches.Add((
                 ContentUris.WithAppendedId(collection, id),
                 foundName,
-                string.Equals(ownerPackage, packageName, StringComparison.Ordinal)));
+                string.Equals(ownerPackage, packageName, StringComparison.Ordinal),
+                pending));
         } while (cursor.MoveToNext());
 
         return matches;

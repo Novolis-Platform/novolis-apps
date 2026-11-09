@@ -66,6 +66,26 @@ map content is visible. Map tiles and Geonorge address search are the only
 network-backed features; the ledger itself has no account, cloud, telemetry,
 or backend.
 
+## Settings and time export
+
+**More → Settings** controls observation polling, GPS/Wi-Fi freshness, whether
+the ledger auto-publishes into Downloads, and Clockify defaults. Today shows a
+live observation strip (poll cadence, publish mode, last Wi-Fi/GPS). The Report
+page can export:
+
+- plain attendance report text
+- Clockify time-entry CSV (closed stays)
+- Hours JSON (`novolis.hours.presence-visits.v1`) and Hours CSV
+
+Automatic Downloads publishing defaults to off and, when enabled, is throttled
+(default every 15 minutes). The Android publisher uses MediaStore `IS_PENDING`
+and clears owned collision copies before writing. Use **Save ledger to
+Downloads** for an explicit publish.
+
+**More → Import dump folder…** restores a `Download/PresenceLedger` tree (or the
+PC backup folder) into the private ledger, skipping `.pending-*` leftovers and
+`name (N)` collision copies. Diagnostics are skipped by default.
+
 ## Portable backups
 
 Use **More → Export full ledger backup…** to create a versioned ZIP containing

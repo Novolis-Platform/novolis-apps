@@ -98,8 +98,12 @@ public sealed class MainView : UserControl
         _status.Text = "Local storage · Kartverket maps · Geonorge address search";
         _status.Foreground = GraphicalProfile.MutedBrush;
         _status.FontSize = 11;
-        _status.Margin = new Thickness(16, 6, 16, 4);
+        _status.Margin = new Thickness(16, 4, 16, 8);
+        _status.TextWrapping = TextWrapping.NoWrap;
+        _status.TextTrimming = TextTrimming.CharacterEllipsis;
 
+        _content.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _content.VerticalAlignment = VerticalAlignment.Stretch;
         var content = new DockPanel
         {
             LastChildFill = true,
@@ -134,6 +138,10 @@ public sealed class MainView : UserControl
             {
                 Children =
                 [
+                    new MobileMenuNode("settings", "Settings", MobileMenuNodeKind.Action)
+                    {
+                        CommandId = "settings",
+                    },
                     new MobileMenuNode("history", "History", MobileMenuNodeKind.Action)
                     {
                         CommandId = "history",
@@ -193,6 +201,9 @@ public sealed class MainView : UserControl
             case "report":
                 await ShowReportAsync();
                 break;
+            case "settings":
+                await ShowSettingsAsync();
+                break;
             case "history":
                 await ShowHistoryAsync();
                 break;
@@ -215,22 +226,33 @@ public sealed class MainView : UserControl
         {
             var projection = await ReadDayProjectionAsync(_displayDate);
             var locations = await ReadAllAsync(_locations.ReadAsync());
-            _content.Content = PresenceTodayView.Build(
-                projection,
-                locations,
-                DateTimeOffset.UtcNow,
-                () => _ = ChangeDayAsync(-1),
-                () => _ = ChangeDayAsync(1),
-                () => _ = ChangeDayAsync(
-                    DateOnly.FromDateTime(DateTime.Now).DayNumber - _displayDate.DayNumber),
-                () => _ = ShowMapAsync(),
-                () => _ = ShowAddLocationAsync(),
-                GetObservationStatusText());
+            var snapshot = CaptureObservationSnapshot();
+            _content.Content = new ScrollViewer
+            {
+                Content = PresenceTodayView.Build(
+                    projection,
+                    locations,
+                    DateTimeOffset.UtcNow,
+                    snapshot,
+                    () => _ = ChangeDayAsync(-1),
+                    () => _ = ChangeDayAsync(1),
+                    () => _ = ChangeDayAsync(
+                        DateOnly.FromDateTime(DateTime.Now).DayNumber - _displayDate.DayNumber),
+                    () => _ = ShowMapAsync(),
+                    () => _ = ShowAddLocationAsync(),
+                    () => _ = ShowSettingsAsync(),
+                    () => _ = ShowReportAsync()),
+                HorizontalScrollBarVisibility =
+                    Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility =
+                    Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            };
             SetStatus(
-                $"{projection.Observations.Count} local sample"
+                $"{projection.Observations.Count} sample"
                 + $"{(projection.Observations.Count == 1 ? string.Empty : "s")} · "
-                + $"{projection.Intervals.Count} confirmed segment"
-                + $"{(projection.Intervals.Count == 1 ? string.Empty : "s")}");
+                + $"{projection.Intervals.Count} segment"
+                + $"{(projection.Intervals.Count == 1 ? string.Empty : "s")}"
+                + (snapshot.IsRunning ? " · observing" : " · paused"));
         }
         catch (Exception ex)
         {
@@ -249,28 +271,33 @@ public sealed class MainView : UserControl
         await ShowTodayAsync();
     }
 
-    string GetObservationStatusText()
+    ObservationSnapshot CaptureObservationSnapshot()
     {
         var location = _services.GetService<ILocationReadingSource>();
         var wifi = _services.GetService<IWifiObservationSource>();
         var coordinator = _services.GetService<PresenceObservationCoordinator>();
+        var settings = _services.GetService<ObservationSettingsStore>()?.Current
+            ?? ObservationSettings.Default;
         if (location is null && wifi is null)
-            return "Desktop history mode · local data is available here, background observation is not.";
+        {
+            return ObservationSnapshot.Capture(
+                coordinator,
+                settings,
+                "Desktop history mode · background observation is not available here.");
+        }
 
         var statuses = new[]
-        {
-            location?.GetStatus(),
-            wifi?.GetStatus(),
-        }
-        .Where(status => status is not null)
-        .Select(status => FormatSourceStatus(status!.Value))
-        .ToArray();
-        var service = coordinator?.IsRunning == true
-            ? "observer active"
-            : "observer paused";
-        return statuses.Length == 0
-            ? $"Local {service}."
-            : $"Local {service} · {string.Join(" · ", statuses)}";
+            {
+                location?.GetStatus(),
+                wifi?.GetStatus(),
+            }
+            .Where(status => status is not null)
+            .Select(status => FormatSourceStatus(status!.Value))
+            .ToArray();
+        var summary = statuses.Length == 0
+            ? "Local observation is available on this host."
+            : string.Join(" · ", statuses);
+        return ObservationSnapshot.Capture(coordinator, settings, summary);
     }
 
     async Task<PresenceDayProjection> ReadDayProjectionAsync(DateOnly displayDate)
@@ -1058,13 +1085,38 @@ public sealed class MainView : UserControl
             var zone = TimeZoneInfo.Local;
             var asOf = DateTimeOffset.Now;
             var report = AttendanceReport.Build(events, locations);
+            var settings = _services.GetService<ObservationSettingsStore>()?.Current
+                ?? ObservationSettings.Default;
             _content.Content = new ScrollViewer
             {
                 Content = PresenceReportView.Build(
                     report,
                     zone,
                     asOf,
-                    () => ExportReportAsync(report, zone)),
+                    () => ExportReportAsync(report, zone),
+                    () => ExportTextAsync(
+                        "Export Clockify CSV",
+                        "presence-clockify.csv",
+                        "csv",
+                        TimeTrackingExport.ToClockifyCsv(
+                            report,
+                            zone,
+                            asOf,
+                            settings.ClockifyProjectName,
+                            settings.ClockifyBillable),
+                        "clockify-csv-exported"),
+                    () => ExportTextAsync(
+                        "Export Hours JSON",
+                        "presence-hours.json",
+                        "json",
+                        TimeTrackingExport.ToHoursJson(report, zone, asOf),
+                        "hours-json-exported"),
+                    () => ExportTextAsync(
+                        "Export Hours CSV",
+                        "presence-hours.csv",
+                        "csv",
+                        TimeTrackingExport.ToHoursCsv(report, zone, asOf),
+                        "hours-csv-exported")),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 HorizontalScrollBarVisibility =
                     Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
@@ -1163,6 +1215,111 @@ public sealed class MainView : UserControl
         }
 
         SetStatus("This host cannot export the report.");
+    }
+
+    async Task ShowSettingsAsync()
+    {
+        ShowSection(ShellSection.Settings);
+        var store = _services.GetService<ObservationSettingsStore>();
+        if (store is null)
+        {
+            _content.Content = ErrorSurface(
+                "Settings unavailable",
+                "Observation settings are not registered on this host.",
+                "Restart the app or reinstall the release package.",
+                () => _ = ShowSettingsAsync());
+            SetStatus("Settings unavailable");
+            return;
+        }
+
+        _content.Content = new ScrollViewer
+        {
+            Content = ObservationSettingsView.Build(
+                store.Current,
+                async settings =>
+                {
+                    await store.SaveAsync(settings);
+                    await RecordDiagnosticAsync(
+                        "info",
+                        "observation-settings-saved",
+                        "Saved observation and export settings.",
+                        $"poll={settings.PollIntervalSeconds}s publish={(settings.AutoPublishDownloads ? settings.AutoPublishMinimumIntervalMinutes + "m" : "off")}");
+                    SetStatus(
+                        $"Settings saved · poll every {settings.PollIntervalSeconds}s"
+                        + (settings.AutoPublishDownloads
+                            ? $" · publish ≥ {settings.AutoPublishMinimumIntervalMinutes}m"
+                            : " · Downloads publish off"));
+                    await ShowSettingsAsync();
+                }),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            HorizontalScrollBarVisibility =
+                Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility =
+                Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+        };
+        SetStatus("Observation settings");
+    }
+
+    async Task ExportTextAsync(
+        string title,
+        string suggestedFileName,
+        string extension,
+        string text,
+        string diagnosticCode)
+    {
+        var top = TopLevel.GetTopLevel(this);
+        if (top?.StorageProvider is { CanSave: true } storage)
+        {
+            var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = title,
+                SuggestedFileName = suggestedFileName,
+                DefaultExtension = extension,
+            });
+            if (file is null)
+            {
+                SetStatus("Export cancelled");
+                return;
+            }
+
+            await using var stream = await file.OpenWriteAsync();
+            await using var writer = new StreamWriter(stream);
+            await writer.WriteAsync(text);
+            await RecordDiagnosticAsync(
+                "info",
+                diagnosticCode,
+                $"Saved {suggestedFileName} through the host file picker.",
+                file.Name);
+            SetStatus($"{title} saved");
+            return;
+        }
+
+        var exporter = _services.GetService<IReportExport>();
+        if (exporter is not null)
+        {
+            try
+            {
+                await exporter.ExportAsync(text);
+                await RecordDiagnosticAsync(
+                    "info",
+                    diagnosticCode,
+                    $"Opened the share sheet for {suggestedFileName}.");
+                SetStatus($"{title} share opened");
+            }
+            catch (Exception ex)
+            {
+                await RecordDiagnosticAsync(
+                    "error",
+                    diagnosticCode + "-failed",
+                    $"Could not share {suggestedFileName}.",
+                    ex.ToString());
+                SetStatus($"Could not export: {ex.Message}");
+            }
+
+            return;
+        }
+
+        SetStatus("This host cannot export that file.");
     }
 
     async Task ShowHistoryAsync()
@@ -1268,17 +1425,15 @@ public sealed class MainView : UserControl
         var storage = _services.GetService<NdjsonPresenceStorage>();
         var paths = _services.GetService<IAppDataPaths>();
         var storageStatus = _services.GetService<ILedgerStorageStatus>();
-        var stack = PageStack("More", "The ledger, the event list, and what the phone is able to read.");
-        var events = new Button
-        {
-            Content = "Event list",
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 48,
-            Background = GraphicalProfile.SurfaceBrush,
-            Foreground = GraphicalProfile.TextBrush,
-        };
-        events.Click += async (_, _) => await ShowHistoryAsync();
-        stack.Children.Add(events);
+        var stack = LedgerChrome.Page(
+            "MORE",
+            "Ledger & tools",
+            "Observation health, exports, backups, and recovery.");
+        stack.Children.Add(LedgerChrome.Eyebrow("QUICK"));
+        stack.Children.Add(LedgerChrome.Secondary("Observation settings", () => _ = ShowSettingsAsync()));
+        stack.Children.Add(LedgerChrome.Secondary("Event list", () => _ = ShowHistoryAsync()));
+        stack.Children.Add(LedgerChrome.Secondary("Attendance report", () => _ = ShowReportAsync()));
+        stack.Children.Add(LedgerChrome.Eyebrow("HEALTH"));
         stack.Children.Add(DiagnosticLine(
             "Ledger root",
             paths?.RootDirectory ?? "Unavailable"));
@@ -1312,6 +1467,16 @@ public sealed class MainView : UserControl
         stack.Children.Add(DiagnosticLine(
             "Observation service",
             coordinator?.IsRunning == true ? "Active" : "Inactive"));
+        var observationSettings = _services.GetService<ObservationSettingsStore>()?.Current
+            ?? ObservationSettings.Default;
+        stack.Children.Add(DiagnosticLine(
+            "Poll interval",
+            $"{observationSettings.PollIntervalSeconds}s"));
+        stack.Children.Add(DiagnosticLine(
+            "Downloads auto-publish",
+            observationSettings.AutoPublishDownloads
+                ? $"every ≥ {observationSettings.AutoPublishMinimumIntervalMinutes}m"
+                : "Off"));
         stack.Children.Add(DiagnosticLine(
             "Last position evidence",
             coordinator?.LastPositionAt?.ToLocalTime().ToString("g") ?? "None"));
@@ -1413,19 +1578,19 @@ public sealed class MainView : UserControl
             "A backup includes places, history, raw observations, state, and diagnostics. " +
             "Import replaces this local ledger after validation."));
 
+        stack.Children.Add(LedgerChrome.Eyebrow("RECOVERY"));
+        stack.Children.Add(LedgerChrome.Secondary(
+            "Import dump folder…",
+            () => _ = ImportDumpFolderAsync()));
+        stack.Children.Add(Hint(
+            "Use this for a Downloads/PresenceLedger folder or the PC backup. Collision copies and .pending files are skipped; diagnostics stay out unless you choose them later."));
+
         var recovery = _services.GetService<ILedgerStorageRecovery>();
         if (recovery is not null)
         {
-            var import = new Button
-            {
-                Content = "Import shared Documents ledger",
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                MinHeight = 48,
-                Background = GraphicalProfile.SurfaceBrush,
-                Foreground = GraphicalProfile.TextBrush,
-            };
-            import.Click += async (_, _) => await ImportLegacyLedgerAsync(recovery);
-            stack.Children.Add(import);
+            stack.Children.Add(LedgerChrome.Secondary(
+                "Import shared Documents ledger",
+                () => _ = ImportLegacyLedgerAsync(recovery)));
         }
 
         var save = new Button
@@ -1560,6 +1725,65 @@ public sealed class MainView : UserControl
                 "Could not export the full ledger backup.",
                 exception.ToString());
             SetStatus($"Could not export ledger backup: {exception.Message}");
+        }
+    }
+
+    async Task ImportDumpFolderAsync()
+    {
+        SetStatus("Choose a Presence Ledger dump folder…");
+        try
+        {
+            var top = TopLevel.GetTopLevel(this);
+            if (top?.StorageProvider is not { CanPickFolder: true } storage)
+            {
+                SetStatus("This host cannot choose a dump folder.");
+                return;
+            }
+
+            var folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Import Presence Ledger dump folder",
+                AllowMultiple = false,
+            });
+            if (folders.Count == 0)
+            {
+                SetStatus("Dump import cancelled.");
+                return;
+            }
+
+            var folder = folders[0];
+            var localPath = folder.TryGetLocalPath();
+            if (string.IsNullOrWhiteSpace(localPath))
+            {
+                SetStatus("That folder is not a local path this host can import.");
+                return;
+            }
+
+            var paths = _services.GetRequiredService<IAppDataPaths>();
+            var result = LedgerFolderImport.Import(
+                localPath,
+                paths.RootDirectory,
+                includeDiagnostics: false);
+            await _history.RebuildAsync();
+            await RecordDiagnosticAsync(
+                "info",
+                "ledger-dump-imported",
+                $"Imported {result.FilesCopied} dump file(s); skipped {result.FilesSkipped}.",
+                localPath);
+            SetStatus(
+                $"Imported {result.FilesCopied} file{(result.FilesCopied == 1 ? string.Empty : "s")}"
+                + $", skipped {result.FilesSkipped} junk/diagnostic item"
+                + $"{(result.FilesSkipped == 1 ? string.Empty : "s")}.");
+            await ShowTodayAsync();
+        }
+        catch (Exception exception)
+        {
+            await RecordDiagnosticAsync(
+                "error",
+                "ledger-dump-import-failed",
+                "Could not import the dump folder.",
+                exception.ToString());
+            SetStatus($"Could not import dump: {exception.Message}");
         }
     }
 
@@ -1864,5 +2088,6 @@ public sealed class MainView : UserControl
         Places,
         Report,
         More,
+        Settings,
     }
 }

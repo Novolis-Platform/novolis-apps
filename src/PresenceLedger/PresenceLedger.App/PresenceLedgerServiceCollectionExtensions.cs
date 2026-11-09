@@ -30,6 +30,9 @@ public static class PresenceLedgerServiceCollectionExtensions
         services.AddSingleton<NdjsonPresenceStorage>(sp =>
             new NdjsonPresenceStorage(
                 sp.GetRequiredService<IAppDataPaths>().RootDirectory));
+        services.AddSingleton<ObservationSettingsStore>(sp =>
+            new ObservationSettingsStore(
+                sp.GetRequiredService<IAppDataPaths>().RootDirectory));
         services.AddSingleton<ITrackedLocationStore>(sp =>
             sp.GetRequiredService<NdjsonPresenceStorage>().Locations);
         services.AddSingleton<IPresenceEventStore>(sp =>

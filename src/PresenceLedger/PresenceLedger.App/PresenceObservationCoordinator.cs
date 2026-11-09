@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Novolis.Avalonia.Mobile;
 using PresenceLedger.Core;
+using PresenceLedger.Storage;
 
 namespace PresenceLedger.App;
 
@@ -10,14 +11,11 @@ namespace PresenceLedger.App;
 /// </summary>
 public sealed class PresenceObservationCoordinator : IAsyncDisposable
 {
-    static readonly TimeSpan WifiInterval = TimeSpan.FromSeconds(30);
-    static readonly TimeSpan FreshFixAge = TimeSpan.FromMinutes(2);
-    static readonly TimeSpan FreshNetworkAge = TimeSpan.FromMinutes(2);
-
     readonly IServiceProvider _services;
     readonly IPresenceEngine _engine;
     readonly IPresenceObservationStore _observations;
     readonly PresenceHistoryRebuild _history;
+    readonly ObservationSettingsStore _settings;
     readonly IPresenceDiagnosticsStore? _diagnostics;
     readonly object _gate = new();
 
@@ -26,6 +24,7 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
     Exception? _lastError;
     DateTimeOffset? _lastPositionAt;
     DateTimeOffset? _lastWifiAt;
+    DateTimeOffset? _lastPublishAt;
     string? _lastConnectedSsid;
     string? _lastPlacement;
     bool _positionFixSkipped;
@@ -36,14 +35,19 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         IPresenceEngine engine,
         IPresenceObservationStore observations,
         PresenceHistoryRebuild history,
+        ObservationSettingsStore settings,
         IPresenceDiagnosticsStore? diagnostics = null)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _observations = observations ?? throw new ArgumentNullException(nameof(observations));
         _history = history ?? throw new ArgumentNullException(nameof(history));
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _diagnostics = diagnostics;
     }
+
+    /// <summary>Active observation settings used by the next cycle.</summary>
+    public ObservationSettings Settings => _settings.Current;
 
     /// <summary>Whether a platform observation session is currently active.</summary>
     public bool IsRunning
@@ -210,12 +214,12 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
                 ex);
         }
 
-        using var timer = new PeriodicTimer(WifiInterval);
         while (!cancellationToken.IsCancellationRequested)
         {
+            var settings = _settings.Current;
             try
             {
-                await ObserveCycleAsync(location, wifi, cancellationToken);
+                await ObserveCycleAsync(location, wifi, settings, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -232,8 +236,7 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
 
             try
             {
-                if (!await timer.WaitForNextTickAsync(cancellationToken))
-                    return;
+                await Task.Delay(settings.PollInterval, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -245,14 +248,16 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
     Task ObserveCycleAsync(
         ILocationReadingSource? location,
         IWifiObservationSource? wifi,
+        ObservationSettings settings,
         CancellationToken cancellationToken) =>
         _history.RunExclusiveAsync(
-            token => ObserveOnceAsync(location, wifi, token),
+            token => ObserveOnceAsync(location, wifi, settings, token),
             cancellationToken);
 
     async Task ObserveOnceAsync(
         ILocationReadingSource? location,
         IWifiObservationSource? wifi,
+        ObservationSettings settings,
         CancellationToken cancellationToken)
     {
         var configured = await ReadConfiguredLocationsAsync(cancellationToken);
@@ -262,7 +267,7 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
 
         var connectedSsid = reading?.ConnectedSsid;
         var heard = (reading?.Visible ?? [])
-            .Where(network => network.Age is { } age && age <= FreshNetworkAge)
+            .Where(network => network.Age is { } age && age <= settings.FreshNetworkAge)
             .OrderByDescending(network => network.SignalDbm ?? int.MinValue)
             .Select(network => network.Ssid);
         var matched = WifiPlacement.Match(connectedSsid, configured)
@@ -319,11 +324,11 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
 
         if (skipPositionFix || location is null)
         {
-            await PublishLedgerAsync(cancellationToken);
+            await PublishLedgerAsync(settings, cancellationToken);
             return;
         }
 
-        var fix = await location.ReadFixAsync(FreshFixAge, cancellationToken);
+        var fix = await location.ReadFixAsync(settings.FreshFixAge, cancellationToken);
         var alreadyRecorded = false;
         if (fix is not null)
         {
@@ -350,7 +355,7 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
                 _lastPositionAt = fix.At;
         }
 
-        await PublishLedgerAsync(cancellationToken);
+        await PublishLedgerAsync(settings, cancellationToken);
     }
 
     async Task<IReadOnlyList<TrackedLocation>> ReadConfiguredLocationsAsync(
@@ -367,11 +372,28 @@ public sealed class PresenceObservationCoordinator : IAsyncDisposable
         return locations;
     }
 
-    async Task PublishLedgerAsync(CancellationToken cancellationToken)
+    async Task PublishLedgerAsync(
+        ObservationSettings settings,
+        CancellationToken cancellationToken)
     {
+        if (!settings.AutoPublishDownloads)
+            return;
+
         var publisher = _services.GetService<ILedgerFilePublisher>();
         if (publisher is null)
             return;
+
+        var now = DateTimeOffset.UtcNow;
+        lock (_gate)
+        {
+            if (_lastPublishAt is { } previous
+                && now - previous < settings.AutoPublishMinimumInterval)
+            {
+                return;
+            }
+
+            _lastPublishAt = now;
+        }
 
         try
         {

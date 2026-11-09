@@ -1,6 +1,6 @@
 # Merglyph
 
-Thin MAUI host for offline Markdown viewing via `Novolis.Maui.Markdown`. Product home is **novolis-apps** (`src/Merglyph`).
+Thin MAUI host for offline Markdown viewing via `Novolis.Maui.Markdown`. Product home is **novolis-apps** (`src/Merglyph`). Create new notes under the OS documents folder (My Documents / Personal), falling back to app storage when that folder is not writable.
 
 - **Ship:** Windows Inno (`windows-inno`) and Android APK (`android-apk`) via the **Release** workflow (`Merglyph`)
 - **Local:** Windows MAUI + Android
