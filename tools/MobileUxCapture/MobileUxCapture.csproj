@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Sudoku\Sudoku.App\Sudoku.App.csproj" />
     <ProjectReference Include="..\..\src\BooksMobile\BooksMobile\BooksMobile.csproj" />
+    <ProjectReference Include="..\..\src\ReadAloud\ReadAloud\ReadAloud.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.4" />
@@ -28,6 +29,7 @@
     <LibraryReference Include="Novolis.Avalonia.Navigation" />
     <LibraryReference Include="Novolis.Avalonia.Speech" />
     <LibraryReference Include="Novolis.Commands.Navigation" />
+    <LibraryReference Include="Novolis.Logging.Diagnostics" />
     <LibraryReference Include="Novolis.Manuscript" />
     <LibraryReference Include="Novolis.Manuscript.Export.Audio" />
   </ItemGroup>

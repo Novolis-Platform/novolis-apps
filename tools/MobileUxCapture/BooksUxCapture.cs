@@ -3,9 +3,7 @@ using System.Runtime.Versioning;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
-using Avalonia.Media.Imaging;
 using Avalonia.Styling;
-using Avalonia.Threading;
 using BooksMobile;
 using BooksMobile.Services;
 using BooksMobile.Views;
@@ -20,145 +18,148 @@ using Novolis.Manuscript.Export.Audio;
 
 namespace MobileUxCapture;
 
-/// <summary>Headless Flip8-aspect captures of Books Mobile against a local books workspace.</summary>
+/// <summary>
+/// Books Mobile UX matrix: every primary view × phone/desktop × light/dark.
+/// </summary>
 [SupportedOSPlatform("windows")]
 internal static class BooksUxCapture
 {
-    // Galaxy Z Flip8 main panel is 1080×2520. Capture at 50% DIPs so the frame fits
-    // desktop tooling while preserving the ~21:9 phone geometry.
-    public const int Flip8Width = 540;
-    public const int Flip8Height = 1260;
-
     public static void CaptureAll(string outDir, string booksWorkspace)
     {
         if (!Directory.Exists(booksWorkspace))
             throw new DirectoryNotFoundException(booksWorkspace);
 
-        Environment.SetEnvironmentVariable("BOOKSMOBILE_LOCAL_WORKSPACE", Path.GetFullPath(booksWorkspace));
-        Environment.SetEnvironmentVariable("BOOKSMOBILE_REPO_NAME", "books");
-        Environment.SetEnvironmentVariable("BOOKSMOBILE_CONTENT_PREFIX", "src/");
+        foreach (var form in UxFormFactor.All)
+        {
+            CaptureAuthMatrix(outDir, form);
+            CaptureSignedInJourney(outDir, booksWorkspace, form);
+        }
 
-        var storage = Path.Combine(Path.GetTempPath(), "novolis-ux-booksmobile");
-        Directory.CreateDirectory(storage);
+        UxCaptureSession.ResetTheme();
+    }
 
+    static void CaptureAuthMatrix(string outDir, UxFormFactor form)
+    {
+        foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            Environment.SetEnvironmentVariable("BOOKSMOBILE_LOCAL_WORKSPACE", null);
+            Application.Current!.RequestedThemeVariant = theme;
+            var view = CreateView("BooksMobileUxAuth");
+            UxCaptureSession.CaptureControl(
+                view,
+                form.Width,
+                form.Height,
+                Path.Combine(outDir, UxCaptureNames.File("books", "auth", form.Id, ThemeId(theme))));
+        }
+    }
+
+    static void CaptureSignedInJourney(string outDir, string booksWorkspace, UxFormFactor form)
+    {
+        foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            Environment.SetEnvironmentVariable("BOOKSMOBILE_LOCAL_WORKSPACE", Path.GetFullPath(booksWorkspace));
+            Environment.SetEnvironmentVariable("BOOKSMOBILE_REPO_NAME", "books");
+            Environment.SetEnvironmentVariable("BOOKSMOBILE_CONTENT_PREFIX", "src/");
+            Application.Current!.RequestedThemeVariant = theme;
+
+            using var provider = BuildProvider("BooksMobileUxJourney");
+            var session = provider.GetRequiredService<BooksMobileSession>();
+            session.TryRestoreSessionAsync().GetAwaiter().GetResult();
+            if (!session.IsSignedIn)
+                throw new InvalidOperationException("Local books workspace did not sign in.");
+
+            var view = provider.GetRequiredService<MainView>();
+            var window = new Window
+            {
+                Width = form.Width,
+                Height = form.Height,
+                Background = GraphicalProfile.BackgroundBrush,
+                Content = view,
+                Title = $"Books {form.Id} {ThemeId(theme)}",
+            };
+            window.Show();
+            UxCaptureSession.Pump(700);
+
+            Save(window, outDir, "library", form, theme);
+
+            var book = FirstBook(session);
+            if (book is null)
+            {
+                window.Close();
+                continue;
+            }
+
+            Invoke(view, "ShowBook", book, (string?)null);
+            UxCaptureSession.Pump(250);
+            Save(window, outDir, "book", form, theme);
+
+            var chapter = PreferProseChapter(book);
+            if (chapter is null)
+            {
+                window.Close();
+                continue;
+            }
+
+            Invoke(view, "OpenChapter", chapter);
+            UxCaptureSession.Pump(500);
+            Save(window, outDir, "chapter-read", form, theme);
+
+            Invoke(view, "ToggleChapterMode");
+            UxCaptureSession.Pump(350);
+            Save(window, outDir, "chapter-edit", form, theme);
+
+            // Keyboard squish is phone-only proof (desktop rarely shows IME height).
+            if (form.Id == UxFormFactor.Phone.Id)
+            {
+                PlaceCaretNearEnd(view);
+                view.SimulateSoftKeyboard(420);
+                UxCaptureSession.Pump(400);
+                Save(window, outDir, "chapter-edit-keyboard", form, theme);
+                Console.WriteLine($"SoftKeyboardBottom={view.SoftKeyboardBottom} ({ThemeId(theme)})");
+                view.SimulateSoftKeyboard(0);
+                UxCaptureSession.Pump(150);
+            }
+
+            Invoke(view, "ShowReadAnything");
+            UxCaptureSession.Pump(250);
+            Save(window, outDir, "read-anything", form, theme);
+
+            window.Close();
+        }
+    }
+
+    static void Save(Window window, string outDir, string view, UxFormFactor form, ThemeVariant theme)
+    {
+        var path = Path.Combine(outDir, UxCaptureNames.File("books", view, form.Id, ThemeId(theme)));
+        window.UpdateLayout();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        using var frame = HeadlessWindowExtensions.CaptureRenderedFrame(window)
+            ?? throw new InvalidOperationException($"No frame for {path}");
+        frame.Save(path, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
+        Console.WriteLine($"Wrote {Path.GetFileName(path)}");
+    }
+
+    static MainView CreateView(string profile)
+    {
+        using var provider = BuildProvider(profile);
+        return provider.GetRequiredService<MainView>();
+    }
+
+    static ServiceProvider BuildProvider(string profile)
+    {
         var services = new ServiceCollection();
-        services.AddNovolisMobileDesktop("BooksMobileUxCapture");
-        services.AddSingleton<IAppDataPaths>(_ => new DesktopAppDataPaths("BooksMobileUxCapture"));
+        services.AddNovolisMobileDesktop(profile);
+        services.AddSingleton<IAppDataPaths>(_ => new DesktopAppDataPaths(profile));
         services.AddSingleton<IScreenWakeLock, NullScreenWakeLock>();
         services.AddSingleton<IAudioPlayer, SilentAudioPlayer>();
         services.AddSingleton<IVoiceService, SilentVoice>();
         services.AddBooksMobileCore();
-        using var provider = services.BuildServiceProvider();
-
-        var session = provider.GetRequiredService<BooksMobileSession>();
-        session.TryRestoreSessionAsync().GetAwaiter().GetResult();
-        if (!session.IsSignedIn)
-            throw new InvalidOperationException("Local books workspace did not sign in.");
-
-        var view = provider.GetRequiredService<MainView>();
-        var window = new Window
-        {
-            Width = Flip8Width,
-            Height = Flip8Height,
-            Background = GraphicalProfile.BackgroundBrush,
-            Content = view,
-            Title = "Books Mobile UX capture",
-        };
-        window.Show();
-        Pump(800);
-
-        CaptureFrame(window, Path.Combine(outDir, "books-flip8-library.png"));
-
-        var book = FirstBook(session);
-        if (book is null)
-        {
-            Console.WriteLine("No books found in workspace — library capture only.");
-            window.Close();
-            return;
-        }
-
-        Invoke(view, "ShowBook", book, (string?)null);
-        Pump(200);
-        CaptureFrame(window, Path.Combine(outDir, "books-flip8-book.png"));
-
-        var chapter = PreferProseChapter(book);
-        if (chapter is null)
-        {
-            window.Close();
-            return;
-        }
-
-        Invoke(view, "OpenChapter", chapter);
-        Pump(600);
-        CaptureFrame(window, Path.Combine(outDir, "books-flip8-chapter-read.png"));
-
-        Invoke(view, "ToggleChapterMode");
-        Pump(400);
-        CaptureFrame(window, Path.Combine(outDir, "books-flip8-chapter-edit.png"));
-
-        // Soft-keyboard proof: squish host by ~1/3 Flip height; caret must stay in view.
-        PlaceCaretNearEnd(view);
-        view.SimulateSoftKeyboard(420);
-        Pump(500);
-        CaptureFrame(window, Path.Combine(outDir, "books-flip8-chapter-edit-keyboard.png"));
-        Console.WriteLine($"SoftKeyboardBottom={view.SoftKeyboardBottom}");
-        view.SimulateSoftKeyboard(0);
-        Pump(200);
-
-        Invoke(view, "ShowReadAnything");
-        Pump(200);
-        CaptureFrame(window, Path.Combine(outDir, "books-flip8-read-anything.png"));
-
-        CaptureThemePair(outDir, booksWorkspace);
-
-        // Auth chrome without local workspace (separate short-lived session).
-        CaptureAuth(outDir);
-
-        window.Close();
+        return services.BuildServiceProvider();
     }
 
-    static void CaptureThemePair(string outDir, string booksWorkspace)
-    {
-        if (Application.Current is null)
-            return;
-
-        CaptureThemedLibrary(outDir, booksWorkspace, ThemeVariant.Light, "books-flip8-library-light.png");
-        CaptureThemedLibrary(outDir, booksWorkspace, ThemeVariant.Dark, "books-flip8-library-dark.png");
-        Application.Current.RequestedThemeVariant = ThemeVariant.Default;
-    }
-
-    static void CaptureThemedLibrary(
-        string outDir,
-        string booksWorkspace,
-        ThemeVariant theme,
-        string fileName)
-    {
-        Environment.SetEnvironmentVariable("BOOKSMOBILE_LOCAL_WORKSPACE", Path.GetFullPath(booksWorkspace));
-        Environment.SetEnvironmentVariable("BOOKSMOBILE_REPO_NAME", "books");
-        Environment.SetEnvironmentVariable("BOOKSMOBILE_CONTENT_PREFIX", "src/");
-        Application.Current!.RequestedThemeVariant = theme;
-
-        var services = new ServiceCollection();
-        services.AddNovolisMobileDesktop("BooksMobileUxCaptureTheme");
-        services.AddSingleton<IScreenWakeLock, NullScreenWakeLock>();
-        services.AddSingleton<IAudioPlayer, SilentAudioPlayer>();
-        services.AddSingleton<IVoiceService, SilentVoice>();
-        services.AddBooksMobileCore();
-        using var provider = services.BuildServiceProvider();
-        var session = provider.GetRequiredService<BooksMobileSession>();
-        session.TryRestoreSessionAsync().GetAwaiter().GetResult();
-        var view = provider.GetRequiredService<MainView>();
-        var window = new Window
-        {
-            Width = Flip8Width,
-            Height = Flip8Height,
-            Content = view,
-        };
-        window.Show();
-        Pump(700);
-        CaptureFrame(window, Path.Combine(outDir, fileName));
-        window.Close();
-    }
+    static string ThemeId(ThemeVariant theme) =>
+        theme == ThemeVariant.Dark ? "dark" : "light";
 
     static void PlaceCaretNearEnd(MainView view)
     {
@@ -172,33 +173,8 @@ internal static class BooksUxCapture
         editor.EnsureCaretVisible();
     }
 
-    static void CaptureAuth(string outDir)
-    {
-        Environment.SetEnvironmentVariable("BOOKSMOBILE_LOCAL_WORKSPACE", null);
-        var services = new ServiceCollection();
-        services.AddNovolisMobileDesktop("BooksMobileUxCaptureAuth");
-        services.AddSingleton<IScreenWakeLock, NullScreenWakeLock>();
-        services.AddSingleton<IAudioPlayer, SilentAudioPlayer>();
-        services.AddSingleton<IVoiceService, SilentVoice>();
-        services.AddBooksMobileCore();
-        using var provider = services.BuildServiceProvider();
-        var view = provider.GetRequiredService<MainView>();
-        var window = new Window
-        {
-            Width = Flip8Width,
-            Height = Flip8Height,
-            Background = GraphicalProfile.BackgroundBrush,
-            Content = view,
-        };
-        window.Show();
-        Pump(600);
-        CaptureFrame(window, Path.Combine(outDir, "books-flip8-auth.png"));
-        window.Close();
-    }
-
     static BookInfo? FirstBook(BooksMobileSession session)
     {
-        // Prefer a multi-chapter book with real prose for read-mode UX evidence.
         BookInfo? fallback = null;
         foreach (var series in session.LoadSeries())
         {
@@ -238,29 +214,6 @@ internal static class BooksUxCapture
         var mi = candidates.FirstOrDefault(m => m.GetParameters().Length == args.Length)
             ?? throw new MissingMethodException(target.GetType().FullName, method);
         mi.Invoke(target, args);
-    }
-
-    static void Pump(int settleMs)
-    {
-        var until = Environment.TickCount64 + settleMs;
-        while (Environment.TickCount64 < until)
-        {
-            Dispatcher.UIThread.RunJobs();
-            Thread.Sleep(16);
-        }
-
-        Dispatcher.UIThread.RunJobs();
-    }
-
-    static void CaptureFrame(Window window, string path)
-    {
-        window.UpdateLayout();
-        Dispatcher.UIThread.RunJobs();
-        window.UpdateLayout();
-        using var frame = window.CaptureRenderedFrame()
-            ?? throw new InvalidOperationException($"No frame for {path}");
-        frame.Save(path, PngBitmapEncoderOptions.Default);
-        Console.WriteLine($"Wrote {Path.GetFileName(path)}");
     }
 
     sealed class SilentAudioPlayer : IAudioPlayer
