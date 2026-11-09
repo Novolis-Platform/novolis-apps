@@ -47,13 +47,12 @@ internal static class Program
                 ShellUxCapture.CaptureSudoku(outDir);
                 ShellUxCapture.CapturePresence(outDir);
                 ShellUxCapture.CapturePdf(outDir);
-                ShellUxCapture.CaptureAppCatalog(outDir);
                 ReadAloudUxCapture.CaptureAll(outDir);
             }
-            else if (catalogOnly)
-            {
+
+            // Catalog chrome is opt-in only — not real product UI.
+            if (catalogOnly)
                 ShellUxCapture.CaptureAppCatalog(outDir);
-            }
 
             if (!catalogOnly)
             {
