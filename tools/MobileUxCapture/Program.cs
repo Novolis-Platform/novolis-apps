@@ -17,6 +17,8 @@ internal static class Program
 
         var booksOnly = args.Any(static a =>
             string.Equals(a, "--books", StringComparison.OrdinalIgnoreCase));
+        var sudokuOnly = args.Any(static a =>
+            string.Equals(a, "--sudoku", StringComparison.OrdinalIgnoreCase));
         var catalogOnly = args.Any(static a =>
             string.Equals(a, "--catalog", StringComparison.OrdinalIgnoreCase));
         var readAloudOnly = args.Any(static a =>
@@ -36,7 +38,11 @@ internal static class Program
             })
             .SetupWithoutStarting();
 
-        if (readAloudOnly)
+        if (sudokuOnly)
+        {
+            ShellUxCapture.CaptureSudoku(outDir);
+        }
+        else if (readAloudOnly)
         {
             ReadAloudUxCapture.CaptureAll(outDir);
         }

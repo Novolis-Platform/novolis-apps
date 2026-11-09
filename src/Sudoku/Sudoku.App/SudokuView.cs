@@ -247,15 +247,17 @@ public sealed class SudokuView : UserControl
 
                 if (narrow)
                 {
-                    // Tight stack: board then keypad (no mid-gap on tall Flip chrome).
+                    // Compact stack under the chrome — board then keypad (no scroll, no mid-gap).
                     _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                     _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                    _boardCard.VerticalAlignment = VerticalAlignment.Top;
                     _bodyHost.Children.Add(_boardCard);
                     Grid.SetRow(_keypadStrip, 1);
                     _bodyHost.Children.Add(_keypadStrip);
                 }
                 else
                 {
+                    _boardCard.VerticalAlignment = VerticalAlignment.Top;
                     _sideScroll.Content = _sidePanel;
                     _bodyHost.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
                     _bodyHost.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(300)));
@@ -270,11 +272,10 @@ public sealed class SudokuView : UserControl
                 width = 360;
             if (narrow)
             {
-                // Square board capped so header + actions + keypad stay on-screen.
-                var maxSide = height > 0
-                    ? Math.Max(200, height - 118)
-                    : width - 12;
-                FitBoard(Math.Min(width - 12, Math.Min(maxSide, 420)));
+                // Prefer nearly full phone width so captures stay sharp and readable.
+                var byWidth = width - 8;
+                var byHeight = height > 0 ? height - 64 : byWidth;
+                FitBoard(Math.Clamp(Math.Min(byWidth, byHeight), 280, 520));
             }
             else if (height > 0)
             {

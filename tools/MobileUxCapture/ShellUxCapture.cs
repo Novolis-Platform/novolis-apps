@@ -20,15 +20,23 @@ internal static class ShellUxCapture
             outDir,
             "sudoku",
             "board",
-            (_, _) =>
+            (form, theme) =>
             {
-                var storage = Path.Combine(Path.GetTempPath(), "novolis-ux-sudoku");
+                // Isolated storage per frame so status shows ladder start, not a resume.
+                var themeId = theme == ThemeVariant.Dark ? "dark" : "light";
+                var storage = Path.Combine(
+                    Path.GetTempPath(),
+                    "novolis-ux-sudoku",
+                    $"{form.Id}-{themeId}");
+                if (Directory.Exists(storage))
+                    Directory.Delete(storage, recursive: true);
                 Directory.CreateDirectory(storage);
                 var services = new ServiceCollection()
                     .AddSudokuApp(storage)
                     .BuildServiceProvider();
                 return new SudokuView(services.GetRequiredService<SudokuGameService>());
-            });
+            },
+            settleMs: 700);
     }
 
     public static void CapturePresence(string outDir)

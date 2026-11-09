@@ -15,12 +15,13 @@ internal static class UxCaptureSession
         string app,
         string view,
         Func<UxFormFactor, ThemeVariant, Control> build,
-        Action<string>? onWrote = null)
+        Action<string>? onWrote = null,
+        int settleMs = 120)
     {
         foreach (var form in UxFormFactor.All)
         {
-            CaptureThemed(outDir, app, view, form, ThemeVariant.Light, build, onWrote);
-            CaptureThemed(outDir, app, view, form, ThemeVariant.Dark, build, onWrote);
+            CaptureThemed(outDir, app, view, form, ThemeVariant.Light, build, onWrote, settleMs);
+            CaptureThemed(outDir, app, view, form, ThemeVariant.Dark, build, onWrote, settleMs);
         }
     }
 
@@ -31,7 +32,8 @@ internal static class UxCaptureSession
         UxFormFactor form,
         ThemeVariant theme,
         Func<UxFormFactor, ThemeVariant, Control> build,
-        Action<string>? onWrote = null)
+        Action<string>? onWrote = null,
+        int settleMs = 120)
     {
         var themeId = theme == ThemeVariant.Dark ? "dark" : "light";
         if (Application.Current is not null)
@@ -39,11 +41,16 @@ internal static class UxCaptureSession
 
         var content = build(form, theme);
         var path = Path.Combine(outDir, UxCaptureNames.File(app, view, form.Id, themeId));
-        CaptureControl(content, form.Width, form.Height, path);
+        CaptureControl(content, form.Width, form.Height, path, settleMs);
         onWrote?.Invoke(path);
     }
 
-    public static void CaptureControl(Control content, int width, int height, string path)
+    public static void CaptureControl(
+        Control content,
+        int width,
+        int height,
+        string path,
+        int settleMs = 120)
     {
         var window = new Window
         {
@@ -54,13 +61,15 @@ internal static class UxCaptureSession
             Title = Path.GetFileNameWithoutExtension(path),
         };
         window.Show();
-        Pump(120);
+        Pump(settleMs);
         window.UpdateLayout();
         Dispatcher.UIThread.RunJobs();
         window.UpdateLayout();
+        Pump(80);
         using var frame = HeadlessWindowExtensions.CaptureRenderedFrame(window)
             ?? throw new InvalidOperationException($"No frame for {path}");
-        frame.Save(path, PngBitmapEncoderOptions.Default);
+        // Prefer lossless for UI proof — JPEG crush in the eval canvas was muddy.
+        frame.Save(path);
         window.Close();
         Console.WriteLine($"Wrote {Path.GetFileName(path)}");
     }
