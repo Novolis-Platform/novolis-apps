@@ -10,7 +10,10 @@ using Sudoku.Core;
 
 namespace Sudoku.App;
 
-/// <summary>Code-only interactive classic Sudoku board and command surface.</summary>
+/// <summary>
+/// Compact classic Sudoku host: board + keypad stay in view on phone;
+/// campaign is a linear 1–N ladder with local progress files.
+/// </summary>
 public sealed class SudokuView : UserControl
 {
     private readonly SudokuGameService _game;
@@ -18,10 +21,13 @@ public sealed class SudokuView : UserControl
     private readonly Button[] _cellButtons = new Button[SudokuConstants.CellCount];
     private readonly Button[] _numberButtons = new Button[SudokuConstants.SymbolCount + 1];
     private readonly Button _clearButton = new();
+    private readonly TextBlock _title = new();
+    private readonly TextBlock _subtitle = new();
     private readonly TextBlock _status = new();
-    private readonly TextBlock _progress = new();
-    private readonly TextBlock _gameInfo = new();
+    private readonly TextBlock _sideInfo = new();
     private readonly Button _notesButton = new();
+    private readonly Button _prevButton = new();
+    private readonly Button _nextButton = new();
     private readonly DispatcherTimer _timer;
     private DateTime _lastTickUtc = DateTime.UtcNow;
     private int _selectedCell = -1;
@@ -29,11 +35,11 @@ public sealed class SudokuView : UserControl
     private bool _loaded;
     private bool _arrangingBody;
     private bool _narrowBody = true;
-    private string _message = "Choose a difficulty to begin.";
+    private string _message = "Continue your ladder whenever you are ready.";
     private Grid? _bodyHost;
     private Border? _boardCard;
+    private Control? _keypadStrip;
     private StackPanel? _sidePanel;
-    private ScrollViewer? _narrowScroll;
     private ScrollViewer? _sideScroll;
 
     /// <summary>Creates the board over a game service.</summary>
@@ -41,7 +47,13 @@ public sealed class SudokuView : UserControl
     {
         _game = game ?? throw new ArgumentNullException(nameof(game));
         Focusable = true;
-        _game.StateChanged += (_, _) => Refresh();
+        _game.StateChanged += (_, _) =>
+        {
+            if (Dispatcher.UIThread.CheckAccess())
+                Refresh();
+            else
+                Dispatcher.UIThread.Post(Refresh);
+        };
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += (_, _) =>
         {
@@ -58,24 +70,39 @@ public sealed class SudokuView : UserControl
         Refresh();
     }
 
-    private async void OnAttached(object? sender, VisualTreeAttachmentEventArgs args)
+    private void OnAttached(object? sender, VisualTreeAttachmentEventArgs args)
     {
         if (_loaded)
             return;
         _loaded = true;
         _lastTickUtc = DateTime.UtcNow;
         _timer.Start();
+        _ = Dispatcher.UIThread.InvokeAsync(BootstrapAsync);
+    }
+
+    private async Task BootstrapAsync()
+    {
         try
         {
             if (await _game.LoadLatestAsync().ConfigureAwait(true))
-                SetStatus("Loaded the latest saved game.");
+                SetStatus("Resumed your saved puzzle.");
             else
-                NewGame(SudokuDifficultySegment.Medium);
+            {
+                _game.ContinueCampaign();
+                SetStatus($"Puzzle {_game.CurrentLadderNumber} of {_game.Ladder.Count}.");
+            }
         }
         catch (Exception exception)
         {
             SetStatus($"Load failed: {exception.Message}");
-            NewGame(SudokuDifficultySegment.Medium);
+            try
+            {
+                _game.ContinueCampaign();
+            }
+            catch (Exception startException)
+            {
+                SetStatus($"Start failed: {startException.Message}");
+            }
         }
     }
 
@@ -83,86 +110,84 @@ public sealed class SudokuView : UserControl
     {
         _timer.Stop();
         _game.WriteRecovery();
+        _ = _game.SaveAsync();
     }
 
     private Control BuildLayout()
     {
+        _title.Text = "Novolis Sudoku";
+        _title.FontSize = 22;
+        _title.FontWeight = FontWeight.Bold;
+        _title.Foreground = GraphicalProfile.TextBrush;
+
+        _subtitle.Text = "Puzzle 1 / 69";
+        _subtitle.FontSize = 13;
+        _subtitle.Foreground = GraphicalProfile.MutedBrush;
+        _subtitle.TextWrapping = TextWrapping.NoWrap;
+
         var header = new StackPanel
         {
-            Margin = new Thickness(20, 16, 20, 8),
-            Spacing = 3,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = "CLASSIC PUZZLE",
-                    Classes = { "eyebrow" },
-                    Foreground = GraphicalProfile.AccentBrush,
-                },
-                new TextBlock
-                {
-                    Text = "Novolis Sudoku",
-                    Classes = { "page-title" },
-                    Foreground = GraphicalProfile.TextBrush,
-                },
-                new TextBlock
-                {
-                    Text = "A deterministic puzzle, a clear board, and help when you want it.",
-                    Classes = { "body-copy" },
-                    Foreground = GraphicalProfile.MutedBrush,
-                    TextWrapping = TextWrapping.Wrap,
-                },
-            },
+            Margin = new Thickness(14, 10, 14, 4),
+            Spacing = 2,
+            Children = { _title, _subtitle },
         };
 
         var toolbar = new WrapPanel
         {
-            Margin = new Thickness(20, 0, 20, 10),
+            Margin = new Thickness(10, 0, 10, 6),
             Orientation = Orientation.Horizontal,
         };
-        foreach (var segment in _game.Segments)
+        ConfigureChromeButton(_prevButton, "Prev", () =>
         {
-            var selectedSegment = segment.Segment;
-            toolbar.Children.Add(
-                ActionButton(
-                    segment.DisplayName,
-                    () => NewGame(selectedSegment)));
-        }
-        toolbar.Children.Add(ActionButton("Load latest", () => _ = LoadLatestAsync()));
-        toolbar.Children.Add(ActionButton("Save", () => _ = SaveAsync()));
-        toolbar.Children.Add(ActionButton("Hint", ApplyHint));
-        toolbar.Children.Add(ActionButton("Undo", Undo));
-        toolbar.Children.Add(ActionButton("Redo", Redo));
+            if (_game.TryPrevious())
+                SetStatus($"Puzzle {_game.CurrentLadderNumber}.");
+            else
+                SetStatus("This is the first unlocked puzzle.");
+        });
+        ConfigureChromeButton(_nextButton, "Next", () =>
+        {
+            if (_game.TryNext())
+                SetStatus($"Puzzle {_game.CurrentLadderNumber}.");
+            else
+                SetStatus("Clear this puzzle to unlock the next.");
+        });
+        toolbar.Children.Add(_prevButton);
+        toolbar.Children.Add(_nextButton);
+        toolbar.Children.Add(ChromeButton("Hint", ApplyHint));
+        toolbar.Children.Add(ChromeButton("Undo", Undo));
+        toolbar.Children.Add(ChromeButton("Redo", Redo));
+        _notesButton.Content = "Notes";
+        StyleChromeButton(_notesButton);
+        _notesButton.Click += (_, _) =>
+        {
+            _notesMode = !_notesMode;
+            _notesButton.Content = _notesMode ? "Notes ●" : "Notes";
+            SetStatus(_notesMode ? "Notes on." : "Notes off.");
+        };
+        toolbar.Children.Add(_notesButton);
 
         BuildBoard();
         _boardCard = new Border
         {
             Child = _board,
-            Padding = new Thickness(8),
+            Padding = new Thickness(4),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
             Background = GraphicalProfile.SurfaceBrush,
             BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(16),
+            CornerRadius = new CornerRadius(12),
         };
 
+        _keypadStrip = BuildKeypadStrip();
         _sidePanel = new StackPanel
         {
             Spacing = 10,
             Children =
             {
-                Card("CURRENT GAME", _gameInfo),
-                Card("PROGRESS", _progress),
-                BuildInputCard(),
+                Card("CAMPAIGN", _sideInfo),
+                BuildInputCardDesktop(),
             },
-        };
-        _narrowScroll = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility =
-                Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility =
-                Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
         };
         _sideScroll = new ScrollViewer
         {
@@ -171,16 +196,16 @@ public sealed class SudokuView : UserControl
             VerticalScrollBarVisibility =
                 Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
         };
-        _bodyHost = new Grid
-        {
-            Margin = new Thickness(12, 0, 12, 8),
-        };
+
+        _bodyHost = new Grid { Margin = new Thickness(8, 0, 8, 4) };
         _bodyHost.SizeChanged += (_, _) => ArrangeSudokuBody();
         ArrangeSudokuBody();
 
-        _status.Margin = new Thickness(16, 4, 16, 10);
+        _status.Margin = new Thickness(12, 2, 12, 8);
+        _status.FontSize = 12;
         _status.Foreground = GraphicalProfile.MutedBrush;
-        _status.TextWrapping = TextWrapping.Wrap;
+        _status.TextWrapping = TextWrapping.NoWrap;
+        _status.TextTrimming = TextTrimming.CharacterEllipsis;
 
         var root = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(header, Dock.Top);
@@ -198,8 +223,8 @@ public sealed class SudokuView : UserControl
         if (_arrangingBody
             || _bodyHost is null
             || _boardCard is null
+            || _keypadStrip is null
             || _sidePanel is null
-            || _narrowScroll is null
             || _sideScroll is null)
             return;
 
@@ -213,20 +238,21 @@ public sealed class SudokuView : UserControl
             {
                 _narrowBody = narrow;
                 DetachFromParent(_boardCard);
+                DetachFromParent(_keypadStrip);
                 DetachFromParent(_sidePanel);
                 _bodyHost.Children.Clear();
                 _bodyHost.RowDefinitions.Clear();
                 _bodyHost.ColumnDefinitions.Clear();
-                _narrowScroll.Content = null;
                 _sideScroll.Content = null;
 
                 if (narrow)
                 {
-                    var stack = new StackPanel { Spacing = 12 };
-                    stack.Children.Add(_boardCard);
-                    stack.Children.Add(_sidePanel);
-                    _narrowScroll.Content = stack;
-                    _bodyHost.Children.Add(_narrowScroll);
+                    // Board fills; keypad pinned under it — no scroll stack.
+                    _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+                    _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                    _bodyHost.Children.Add(_boardCard);
+                    Grid.SetRow(_keypadStrip, 1);
+                    _bodyHost.Children.Add(_keypadStrip);
                 }
                 else
                 {
@@ -243,9 +269,18 @@ public sealed class SudokuView : UserControl
             if (width <= 0)
                 width = 360;
             if (narrow)
-                FitBoard(width - 28);
+            {
+                // Keep keypad + status reachable: board eats remaining height.
+                var keypadBudget = 118;
+                var boardBudget = height > 0
+                    ? Math.Max(180, height - keypadBudget)
+                    : width - 12;
+                FitBoard(Math.Min(width - 12, boardBudget));
+            }
             else if (height > 0)
-                FitBoard(Math.Min(width - 312, height) - 16);
+            {
+                FitBoard(Math.Min(width - 312, height) - 12);
+            }
         }
         finally
         {
@@ -258,7 +293,7 @@ public sealed class SudokuView : UserControl
         if (available <= 0)
             return;
 
-        var side = Math.Clamp(available, 180, 690);
+        var side = Math.Clamp(available, 160, 690);
         var cell = side / SudokuConstants.Size;
         if (Math.Abs(_board.Width - side) < 0.5 && Math.Abs(_board.Height - side) < 0.5)
         {
@@ -266,7 +301,6 @@ public sealed class SudokuView : UserControl
             return;
         }
 
-        // Absolute cell sizes — Star rows inside a ScrollViewer grow infinitely tall.
         _board.RowDefinitions.Clear();
         _board.ColumnDefinitions.Clear();
         for (var index = 0; index < SudokuConstants.Size; index++)
@@ -320,7 +354,7 @@ public sealed class SudokuView : UserControl
     {
         var side = _board.Width > 0 ? _board.Width : 360;
         var cell = side / SudokuConstants.Size;
-        var font = Math.Clamp(cell * 0.42, 12, 28);
+        var font = Math.Clamp(cell * 0.42, 11, 28);
         foreach (var button in _cellButtons)
         {
             if (button is null)
@@ -328,7 +362,7 @@ public sealed class SudokuView : UserControl
             button.MinWidth = 0;
             button.MinHeight = 0;
             var notes = button.Content is string text && text.Contains(' ', StringComparison.Ordinal);
-            button.FontSize = notes ? Math.Max(9, font * 0.45) : font;
+            button.FontSize = notes ? Math.Max(8, font * 0.42) : font;
         }
     }
 
@@ -340,8 +374,8 @@ public sealed class SudokuView : UserControl
             _board.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         }
 
-        _board.Width = 360;
-        _board.Height = 360;
+        _board.Width = 320;
+        _board.Height = 320;
         _board.HorizontalAlignment = HorizontalAlignment.Center;
         _board.VerticalAlignment = VerticalAlignment.Center;
         for (var cellIndex = 0; cellIndex < SudokuConstants.CellCount; cellIndex++)
@@ -352,7 +386,7 @@ public sealed class SudokuView : UserControl
                 Tag = cellIndex,
                 MinWidth = 0,
                 MinHeight = 0,
-                Padding = new Thickness(1),
+                Padding = new Thickness(0),
                 HorizontalContentAlignment = HorizontalAlignment.Center,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 BorderBrush = GraphicalProfile.BorderBrush,
@@ -377,13 +411,66 @@ public sealed class SudokuView : UserControl
         }
     }
 
-    private Control BuildInputCard()
+    private Control BuildKeypadStrip()
     {
+        var row = new Grid
+        {
+            ColumnDefinitions = ColumnDefinitions.Parse("*,*,*,*,*,*,*,*,*,Auto"),
+            Margin = new Thickness(0, 6, 0, 0),
+        };
+        for (byte value = 1; value <= SudokuConstants.SymbolCount; value++)
+        {
+            var number = value;
+            var button = new Button
+            {
+                Content = number.ToString(),
+                MinHeight = 44,
+                MinWidth = 0,
+                Margin = new Thickness(2, 0, 2, 0),
+                Padding = new Thickness(0),
+                HorizontalContentAlignment = HorizontalAlignment.Center,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Background = GraphicalProfile.RaisedBrush,
+                Foreground = GraphicalProfile.TextBrush,
+                FontWeight = FontWeight.SemiBold,
+            };
+            button.Click += (_, _) => ApplyValue(number);
+            _numberButtons[number] = button;
+            Grid.SetColumn(button, number - 1);
+            row.Children.Add(button);
+        }
+
+        _clearButton.Content = "⌫";
+        _clearButton.MinHeight = 44;
+        _clearButton.MinWidth = 44;
+        _clearButton.Margin = new Thickness(2, 0, 0, 0);
+        _clearButton.Padding = new Thickness(0);
+        _clearButton.HorizontalContentAlignment = HorizontalAlignment.Center;
+        _clearButton.VerticalContentAlignment = VerticalAlignment.Center;
+        _clearButton.Background = GraphicalProfile.RaisedBrush;
+        _clearButton.Foreground = GraphicalProfile.TextBrush;
+        _clearButton.Click += (_, _) => ApplyValue(SudokuConstants.Empty);
+        Grid.SetColumn(_clearButton, 9);
+        row.Children.Add(_clearButton);
+
+        return new Border
+        {
+            Background = GraphicalProfile.SurfaceBrush,
+            BorderBrush = GraphicalProfile.BorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(6),
+            Child = row,
+        };
+    }
+
+    private Control BuildInputCardDesktop()
+    {
+        // Desktop keeps a 3×3 pad; phone uses the compact strip above.
         var keypad = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("*,*,*"),
             RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         for (byte value = 1; value <= SudokuConstants.SymbolCount; value++)
         {
@@ -399,56 +486,26 @@ public sealed class SudokuView : UserControl
                 Foreground = GraphicalProfile.TextBrush,
             };
             button.Click += (_, _) => ApplyValue(number);
-            _numberButtons[number] = button;
+            // Phone strip owns _numberButtons; desktop mirrors without shared refs.
             Grid.SetRow(button, (number - 1) / 3);
             Grid.SetColumn(button, (number - 1) % 3);
             keypad.Children.Add(button);
         }
 
-        _clearButton.Content = "Clear";
-        _clearButton.MinHeight = 44;
-        _clearButton.Margin = new Thickness(0, 0, 6, 6);
-        _clearButton.HorizontalContentAlignment = HorizontalAlignment.Center;
-        _clearButton.VerticalContentAlignment = VerticalAlignment.Center;
-        _clearButton.Background = GraphicalProfile.RaisedBrush;
-        _clearButton.Foreground = GraphicalProfile.TextBrush;
-        _clearButton.Click += (_, _) => ApplyValue(SudokuConstants.Empty);
-        Grid.SetRow(_clearButton, 3);
-        Grid.SetColumn(_clearButton, 0);
-        Grid.SetColumnSpan(_clearButton, 3);
-        keypad.Children.Add(_clearButton);
-
-        _notesButton.Content = "Notes off";
-        _notesButton.MinHeight = 44;
-        _notesButton.Margin = new Thickness(0, 0, 6, 6);
-        _notesButton.Click += (_, _) =>
+        var clear = new Button
         {
-            _notesMode = !_notesMode;
-            _notesButton.Content = _notesMode ? "Notes on" : "Notes off";
-            SetStatus(_notesMode ? "Notes mode enabled." : "Notes mode disabled.");
+            Content = "Clear",
+            MinHeight = 44,
+            Margin = new Thickness(0, 0, 6, 6),
+            Background = GraphicalProfile.RaisedBrush,
+            Foreground = GraphicalProfile.TextBrush,
         };
+        clear.Click += (_, _) => ApplyValue(SudokuConstants.Empty);
+        Grid.SetRow(clear, 3);
+        Grid.SetColumnSpan(clear, 3);
+        keypad.Children.Add(clear);
 
-        var check = ActionButton("Check selected", CheckSelected);
-        return Card(
-            "INPUT",
-            new StackPanel
-            {
-                Spacing = 6,
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = "Select a cell, then enter a value.",
-                        Foreground = GraphicalProfile.MutedBrush,
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    keypad,
-                    new WrapPanel
-                    {
-                        Children = { _notesButton, check },
-                    },
-                },
-            });
+        return Card("INPUT", keypad);
     }
 
     private static Border Card(string title, Control content)
@@ -461,63 +518,83 @@ public sealed class SudokuView : UserControl
         };
         return new Border
         {
-            Padding = new Thickness(14),
+            Padding = new Thickness(12),
             Background = GraphicalProfile.SurfaceBrush,
             BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(12),
             Child = new StackPanel
             {
-                Spacing = 7,
+                Spacing = 6,
                 Children = { heading, content },
             },
         };
     }
 
-    private static Button ActionButton(string label, Action action)
+    private static Button ChromeButton(string label, Action action)
     {
-        var button = new Button
-        {
-            Content = label,
-            MinHeight = 42,
-            Margin = new Thickness(0, 0, 6, 6),
-            Padding = new Thickness(12, 7),
-            Background = GraphicalProfile.AccentFillBrush,
-            Foreground = GraphicalProfile.OnAccentFillBrush,
-        };
+        var button = new Button { Content = label };
+        StyleChromeButton(button);
         button.Click += (_, _) => action();
         return button;
+    }
+
+    private static void ConfigureChromeButton(Button button, string label, Action action)
+    {
+        button.Content = label;
+        StyleChromeButton(button);
+        button.Click += (_, _) => action();
+    }
+
+    private static void StyleChromeButton(Button button)
+    {
+        button.MinHeight = 36;
+        button.Margin = new Thickness(0, 0, 6, 4);
+        button.Padding = new Thickness(10, 4);
+        button.Background = GraphicalProfile.AccentFillBrush;
+        button.Foreground = GraphicalProfile.OnAccentFillBrush;
     }
 
     private void Refresh()
     {
         var session = _game.Current;
-        if (session is null)
+        var progress = _game.Progress;
+        var ladder = _game.Ladder;
+        var step = _game.CurrentLadderStep;
+
+        if (session is null || step is null)
         {
-            _gameInfo.Text = "No game loaded.";
-            _progress.Text = "Start a new puzzle.";
+            _subtitle.Text = "No puzzle loaded";
+            _sideInfo.Text = "Start the campaign.";
             _status.Text = _message;
             return;
         }
 
-        var report = session.Game.Difficulty;
-        var segmentName = _game.CurrentSegment?.DisplayName ?? report.Difficulty.ToString();
-        var puzzlePosition = _game.CurrentPuzzleNumber > 0
-            ? $" · puzzle {_game.CurrentPuzzleNumber}/{_game.CurrentSegment?.Games.Count ?? 0}"
-            : string.Empty;
-        _gameInfo.Text =
-            $"{segmentName}{puzzlePosition}"
+        var conquered = progress.ConqueredPuzzleIds.Count;
+        _subtitle.Text =
+            $"#{step.Number}/{ladder.Count} · {step.SegmentDisplayName}"
+            + $" · {FormatElapsed(session.Elapsed)}"
+            + $" · {session.Mistakes}✗ · {session.HintsUsed}?"
+            + $" · cleared {conquered}/{ladder.Count}";
+
+        _sideInfo.Text =
+            $"Ladder #{step.Number} of {ladder.Count}"
             + Environment.NewLine
-            + $"{report.Difficulty} · seed {session.Game.Seed}"
+            + $"{step.SegmentDisplayName} · id {step.PuzzleId}"
             + Environment.NewLine
-            + $"{report.GivenCount} givens · score {report.Score}";
-        _progress.Text =
-            $"{SudokuHelpers.CountFilled(session.Entries)}/{SudokuConstants.CellCount} filled"
+            + $"{SudokuHelpers.CountFilled(session.Entries)}/{SudokuConstants.CellCount} filled"
             + Environment.NewLine
-            + $"Time {FormatElapsed(session.Elapsed)} · "
-            + $"mistakes {session.Mistakes} · hints {session.HintsUsed}";
+            + $"Unlocked through #{progress.HighestUnlockedNumber}"
+            + Environment.NewLine
+            + $"Completions {progress.Completions} · play {FormatElapsed(TimeSpan.FromSeconds(progress.TotalPlaySeconds))}";
+
+        _prevButton.IsEnabled = step.Number > 1;
+        _nextButton.IsEnabled = step.Number < progress.HighestUnlockedNumber;
+
         if (session.IsCompleted)
-            _message = "Puzzle complete. Start another game whenever you are ready.";
+            _message = step.Number < ladder.Count
+                ? "Cleared — Next unlocks the following puzzle."
+                : "Campaign complete. You can replay any puzzle.";
 
         var conflicts = _selectedCell >= 0
             ? SudokuHelpers.FindConflicts(session.Entries, _selectedCell).ToHashSet()
@@ -598,55 +675,7 @@ public sealed class SudokuView : UserControl
 
         _status.Text = _game.LastStorageError is null
             ? _message
-            : $"{_message} Storage warning: {_game.LastStorageError}";
-    }
-
-    private void NewGame(SudokuDifficultySegment segment)
-    {
-        try
-        {
-            _selectedCell = -1;
-            _game.StartNew(segment);
-            SetStatus($"{segment} puzzle loaded.");
-        }
-        catch (Exception exception)
-        {
-            SetStatus($"New game failed: {exception.Message}");
-        }
-    }
-
-    private async Task LoadLatestAsync()
-    {
-        try
-        {
-            if (await _game.LoadLatestAsync().ConfigureAwait(true))
-            {
-                _selectedCell = -1;
-                SetStatus("Loaded the latest saved game.");
-            }
-            else
-            {
-                SetStatus("No saved game exists yet.");
-            }
-        }
-        catch (Exception exception)
-        {
-            SetStatus($"Load failed: {exception.Message}");
-        }
-    }
-
-    private async Task SaveAsync()
-    {
-        try
-        {
-            SetStatus(await _game.SaveAsync().ConfigureAwait(true)
-                ? "Game saved."
-                : "There is no game to save.");
-        }
-        catch (Exception exception)
-        {
-            SetStatus($"Save failed: {exception.Message}");
-        }
+            : $"{_message} · {_game.LastStorageError}";
     }
 
     private void ApplyHint()
@@ -654,7 +683,7 @@ public sealed class SudokuView : UserControl
         var hint = _game.ApplyHint();
         if (hint is null)
         {
-            SetStatus("No simple single is available. Check entries or use the solver report.");
+            SetStatus("No simple single available.");
             return;
         }
 
@@ -663,10 +692,10 @@ public sealed class SudokuView : UserControl
     }
 
     private void Undo() =>
-        SetStatus(_game.Undo() ? "Undo applied." : "Nothing to undo.");
+        SetStatus(_game.Undo() ? "Undo." : "Nothing to undo.");
 
     private void Redo() =>
-        SetStatus(_game.Redo() ? "Redo applied." : "Nothing to redo.");
+        SetStatus(_game.Redo() ? "Redo." : "Nothing to redo.");
 
     private void ApplyValue(byte value)
     {
@@ -679,35 +708,13 @@ public sealed class SudokuView : UserControl
         if (_notesMode && value != SudokuConstants.Empty)
         {
             SetStatus(_game.ToggleNote(_selectedCell, value)
-                ? $"Note {value} toggled."
-                : "Notes are only available in empty editable cells.");
+                ? $"Note {value}."
+                : "Notes need an empty cell.");
             return;
         }
 
         _game.TrySetValue(_selectedCell, value, out var message);
         SetStatus(message);
-    }
-
-    private void CheckSelected()
-    {
-        var session = _game.Current;
-        if (session is null || _selectedCell < 0)
-        {
-            SetStatus("Select a cell first.");
-            return;
-        }
-        if (session.IsGiven(_selectedCell))
-        {
-            SetStatus("That cell is a given.");
-            return;
-        }
-
-        var value = session.Entries.Get(_selectedCell);
-        SetStatus(value == SudokuConstants.Empty
-            ? "The selected cell is empty."
-            : value == session.Solution.Get(_selectedCell)
-                ? "That value is correct."
-                : "That value is not correct.");
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs args)
@@ -792,5 +799,4 @@ public sealed class SudokuView : UserControl
         elapsed.TotalHours >= 1
             ? elapsed.ToString(@"h\:mm\:ss")
             : elapsed.ToString(@"m\:ss");
-
 }
