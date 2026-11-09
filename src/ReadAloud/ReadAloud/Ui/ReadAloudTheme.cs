@@ -24,6 +24,41 @@ internal static class ReadAloudTheme
         return block;
     }
 
+    public static TextBlock Heading(string text, double size = 18)
+    {
+        var block = new TextBlock
+        {
+            Text = text,
+            FontFamily = GraphicalProfile.BodyFont,
+            FontSize = size,
+            FontWeight = FontWeight.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        GraphicalProfileBinding.Bind(
+            block,
+            TextBlock.ForegroundProperty,
+            GraphicalProfile.TextResourceKey);
+        return block;
+    }
+
+    public static TextBlock Body(string text, double size = 14)
+    {
+        var block = new TextBlock
+        {
+            Text = text,
+            FontFamily = GraphicalProfile.BodyFont,
+            FontSize = size,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        GraphicalProfileBinding.Bind(
+            block,
+            TextBlock.ForegroundProperty,
+            GraphicalProfile.TextResourceKey);
+        return block;
+    }
+
+    public static TextBlock SectionLabel(string text) => Muted(text, 12);
+
     public static TextBox Field(string? placeholder = null, bool secret = false)
     {
         var box = new TextBox
@@ -33,6 +68,7 @@ internal static class ReadAloudTheme
             PlaceholderText = placeholder,
             PasswordChar = secret ? '•' : default,
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 40,
         };
         GraphicalProfileBinding.Bind(
             box,
@@ -65,6 +101,38 @@ internal static class ReadAloudTheme
         return block;
     }
 
+    public static Border Card(Control child, Thickness? padding = null)
+    {
+        var card = new Border
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = padding ?? new Thickness(14),
+            CornerRadius = new CornerRadius(GraphicalProfileColors.CardRadius),
+            BorderThickness = new Thickness(1),
+            Child = child,
+        };
+        GraphicalProfileBinding.Bind(
+            card,
+            Border.BackgroundProperty,
+            GraphicalProfile.SurfaceResourceKey);
+        GraphicalProfileBinding.Bind(
+            card,
+            Border.BorderBrushProperty,
+            GraphicalProfile.BorderResourceKey);
+        return card;
+    }
+
+    public static ComboBox Picker()
+    {
+        var picker = new ComboBox
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 40,
+            FontFamily = GraphicalProfile.BodyFont,
+        };
+        return picker;
+    }
+
     public static Button Button(string text, ReadAloudButtonKind kind = ReadAloudButtonKind.Secondary)
     {
         var btn = new Button
@@ -77,6 +145,7 @@ internal static class ReadAloudTheme
             CornerRadius = new CornerRadius(4),
             HorizontalAlignment = HorizontalAlignment.Left,
             MinWidth = 0,
+            MinHeight = 40,
             Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
         };
         StyleButton(btn, kind);
@@ -137,5 +206,51 @@ internal static class ReadAloudTheme
                 btn.BorderThickness = new Thickness(1);
                 break;
         }
+    }
+
+    public static void ApplyStatusTone(TextBlock block, StatusTone tone)
+    {
+        var key = tone switch
+        {
+            StatusTone.Busy => GraphicalProfile.AccentResourceKey,
+            StatusTone.Success => GraphicalProfile.ActionResourceKey,
+            StatusTone.Warning => GraphicalProfile.WarningResourceKey,
+            StatusTone.Danger => GraphicalProfile.DangerResourceKey,
+            _ => GraphicalProfile.MutedResourceKey,
+        };
+        GraphicalProfileBinding.Bind(block, TextBlock.ForegroundProperty, key);
+    }
+
+    public static void StyleModeToggle(Button button, bool selected)
+    {
+        if (selected)
+        {
+            GraphicalProfileBinding.Bind(
+                button,
+                Avalonia.Controls.Button.BackgroundProperty,
+                GraphicalProfile.AccentFillResourceKey);
+            GraphicalProfileBinding.Bind(
+                button,
+                Avalonia.Controls.Button.ForegroundProperty,
+                GraphicalProfile.OnAccentFillResourceKey);
+            button.BorderThickness = new Thickness(0);
+            button.FontWeight = FontWeight.SemiBold;
+            return;
+        }
+
+        GraphicalProfileBinding.Bind(
+            button,
+            Avalonia.Controls.Button.BackgroundProperty,
+            GraphicalProfile.RaisedResourceKey);
+        GraphicalProfileBinding.Bind(
+            button,
+            Avalonia.Controls.Button.ForegroundProperty,
+            GraphicalProfile.TextResourceKey);
+        GraphicalProfileBinding.Bind(
+            button,
+            Avalonia.Controls.Button.BorderBrushProperty,
+            GraphicalProfile.BorderResourceKey);
+        button.BorderThickness = new Thickness(1);
+        button.FontWeight = FontWeight.Normal;
     }
 }

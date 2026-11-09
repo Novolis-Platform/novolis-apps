@@ -19,10 +19,10 @@ public sealed class PassageSurface : Grid
         {
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
-            PlaceholderText = "Paste or type anything to hear…",
+            PlaceholderText = "Paste or type the text you want to hear…",
             FontFamily = GraphicalProfile.BodyFont,
             FontSize = 18,
-            MinHeight = 120,
+            MinHeight = 160,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
         };

@@ -58,13 +58,13 @@ key and service-account setup.
 
 ## Android Azure sign-in
 
-Open **Azure setup**, choose **Automatic — Microsoft sign-in**, and select the
-Microsoft account you want to use. The sign-in prompt is account-neutral, so a
-personal or work account already on the device can be selected. Later token
-requests reuse that account. The redirect remains
+Tap **Connect** on the connection card (opened automatically on first launch).
+Choose **Microsoft account**, then **Sign in with Microsoft**. The sign-in
+prompt is account-neutral, so a personal or work account already on the device
+can be selected. Later token requests reuse that account. The redirect remains
 `msalc8b938aa-2e5d-48b4-89c6-fc139733c44d://auth`.
 
-Then choose a subscription only when more than one is available. Read Aloud
+The panel walks **Sign in → subscription → Speech service**. Read Aloud
 filters resource groups and services to compatible Speech resources and
 automatically selects the only valid resource when there is one. The automatic
 path does not ask for a Speech key or embed one as a secret in the APK.
@@ -92,12 +92,11 @@ after sign-in, typed save, import, or Test. The default selection is
 `en-US-AvaMultilingualNeural`. Changing the list persists that voice with the
 saved Azure setup so the next launch restores it.
 
-For **Manual — JSON credentials file**, type the Speech **endpoint** and
-**subscription key** and choose **Save credentials**, or choose
-**Import credentials file…** and select a user-owned UTF-8 JSON file with this
-exact schema. Typed fields stay on the Manual panel even when import is
-available. Import fills the endpoint and stores the key; the key box stays
-empty after a successful save or import.
+For **Endpoint & key**, type the Speech **endpoint** and **subscription key**
+and choose **Save and connect**, or expand **Import, export, and backup** and
+import a user-owned UTF-8 JSON file with this exact schema. Import fills the
+endpoint and stores the key; the key box stays empty after a successful save
+or import.
 
 ```json
 {
