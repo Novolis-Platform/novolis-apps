@@ -247,8 +247,8 @@ public sealed class SudokuView : UserControl
 
                 if (narrow)
                 {
-                    // Board fills; keypad pinned under it — no scroll stack.
-                    _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+                    // Tight stack: board then keypad (no mid-gap on tall Flip chrome).
+                    _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                     _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                     _bodyHost.Children.Add(_boardCard);
                     Grid.SetRow(_keypadStrip, 1);
@@ -270,12 +270,11 @@ public sealed class SudokuView : UserControl
                 width = 360;
             if (narrow)
             {
-                // Keep keypad + status reachable: board eats remaining height.
-                var keypadBudget = 118;
-                var boardBudget = height > 0
-                    ? Math.Max(180, height - keypadBudget)
+                // Square board capped so header + actions + keypad stay on-screen.
+                var maxSide = height > 0
+                    ? Math.Max(200, height - 118)
                     : width - 12;
-                FitBoard(Math.Min(width - 12, boardBudget));
+                FitBoard(Math.Min(width - 12, Math.Min(maxSide, 420)));
             }
             else if (height > 0)
             {
