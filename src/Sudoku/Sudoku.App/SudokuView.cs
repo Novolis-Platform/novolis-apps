@@ -137,18 +137,8 @@ public sealed class SudokuView : UserControl
         toolbar.Children.Add(_backButton);
         toolbar.Children.Add(_prevButton);
         toolbar.Children.Add(_nextButton);
-        toolbar.Children.Add(ChromeButton("Hint", ApplyHint));
         toolbar.Children.Add(ChromeButton("Undo", Undo));
         toolbar.Children.Add(ChromeButton("Redo", Redo));
-        _notesButton.Content = "Notes";
-        StyleChromeButton(_notesButton);
-        _notesButton.Click += (_, _) =>
-        {
-            _notesMode = !_notesMode;
-            _notesButton.Content = _notesMode ? "Notes ●" : "Notes";
-            SetStatus(_notesMode ? "Notes on." : "Notes off.");
-        };
-        toolbar.Children.Add(_notesButton);
 
         BuildBoard();
         _boardCard = new Border
@@ -339,14 +329,20 @@ public sealed class SudokuView : UserControl
         var side = _board.Width > 0 ? _board.Width : 360;
         var cell = side / SudokuConstants.Size;
         var font = Math.Clamp(cell * 0.42, 11, 28);
+        var noteFont = Math.Max(7, font * 0.34);
         foreach (var button in _cellButtons)
         {
             if (button is null)
                 continue;
             button.MinWidth = 0;
             button.MinHeight = 0;
-            var notes = button.Content is string text && text.Contains(' ', StringComparison.Ordinal);
-            button.FontSize = notes ? Math.Max(8, font * 0.42) : font;
+            if (button.Content is TextBlock notesFace)
+            {
+                notesFace.FontSize = noteFont;
+                continue;
+            }
+
+            button.FontSize = font;
         }
     }
 
@@ -397,45 +393,49 @@ public sealed class SudokuView : UserControl
 
     private Control BuildKeypadStrip()
     {
-        var row = new Grid
+        // 3 tall × 4 wide: digits in the left 3 columns, commands on the right.
+        var pad = new Grid
         {
-            ColumnDefinitions = ColumnDefinitions.Parse("*,*,*,*,*,*,*,*,*,Auto"),
+            ColumnDefinitions = ColumnDefinitions.Parse("*,*,*,*"),
+            RowDefinitions = RowDefinitions.Parse("*,*,*"),
             Margin = new Thickness(0, 6, 0, 0),
+            MinHeight = 148,
         };
         for (byte value = 1; value <= SudokuConstants.SymbolCount; value++)
         {
             var number = value;
-            var button = new Button
-            {
-                Content = number.ToString(),
-                MinHeight = 44,
-                MinWidth = 0,
-                Margin = new Thickness(2, 0, 2, 0),
-                Padding = new Thickness(0),
-                HorizontalContentAlignment = HorizontalAlignment.Center,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Background = GraphicalProfile.RaisedBrush,
-                Foreground = GraphicalProfile.TextBrush,
-                FontWeight = FontWeight.SemiBold,
-            };
-            button.Click += (_, _) => ApplyValue(number);
+            var button = CreatePadButton(number.ToString(), () => ApplyValue(number));
+            button.FontWeight = FontWeight.SemiBold;
+            button.FontSize = 18;
             _numberButtons[number] = button;
-            Grid.SetColumn(button, number - 1);
-            row.Children.Add(button);
+            Grid.SetRow(button, (number - 1) / 3);
+            Grid.SetColumn(button, (number - 1) % 3);
+            pad.Children.Add(button);
         }
 
+        StyleNotesCommandButton();
+        _notesButton.Click += (_, _) =>
+        {
+            _notesMode = !_notesMode;
+            StyleNotesCommandButton();
+            SetStatus(_notesMode ? "Notes on — tap digits as superscript marks." : "Notes off.");
+        };
+        Grid.SetRow(_notesButton, 0);
+        Grid.SetColumn(_notesButton, 3);
+        pad.Children.Add(_notesButton);
+
         _clearButton.Content = "⌫";
-        _clearButton.MinHeight = 44;
-        _clearButton.MinWidth = 44;
-        _clearButton.Margin = new Thickness(2, 0, 0, 0);
-        _clearButton.Padding = new Thickness(0);
-        _clearButton.HorizontalContentAlignment = HorizontalAlignment.Center;
-        _clearButton.VerticalContentAlignment = VerticalAlignment.Center;
-        _clearButton.Background = GraphicalProfile.RaisedBrush;
-        _clearButton.Foreground = GraphicalProfile.TextBrush;
+        StyleCommandPadButton(_clearButton);
         _clearButton.Click += (_, _) => ApplyValue(SudokuConstants.Empty);
-        Grid.SetColumn(_clearButton, 9);
-        row.Children.Add(_clearButton);
+        Grid.SetRow(_clearButton, 1);
+        Grid.SetColumn(_clearButton, 3);
+        pad.Children.Add(_clearButton);
+
+        var hint = CreatePadButton("Hint", ApplyHint);
+        StyleCommandPadButton(hint);
+        Grid.SetRow(hint, 2);
+        Grid.SetColumn(hint, 3);
+        pad.Children.Add(hint);
 
         return new Border
         {
@@ -444,17 +444,17 @@ public sealed class SudokuView : UserControl
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(6),
-            Child = row,
+            Child = pad,
         };
     }
 
     private Control BuildInputCardDesktop()
     {
-        // Desktop keeps a 3×3 pad; phone uses the compact strip above.
+        // Same 3×4 layout as the phone pad (digits left, commands right).
         var keypad = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("*,*,*"),
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("*,*,*,*"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto"),
         };
         for (byte value = 1; value <= SudokuConstants.SymbolCount; value++)
         {
@@ -470,27 +470,116 @@ public sealed class SudokuView : UserControl
                 Foreground = GraphicalProfile.TextBrush,
             };
             button.Click += (_, _) => ApplyValue(number);
-            // Phone strip owns _numberButtons; desktop mirrors without shared refs.
             Grid.SetRow(button, (number - 1) / 3);
             Grid.SetColumn(button, (number - 1) % 3);
             keypad.Children.Add(button);
         }
 
+        var notes = new Button
+        {
+            MinHeight = 44,
+            Margin = new Thickness(0, 0, 0, 6),
+            Background = GraphicalProfile.SurfaceBrush,
+            Content = CreateNotesFace(active: false),
+        };
+        notes.Click += (_, _) =>
+        {
+            _notesMode = !_notesMode;
+            notes.Content = CreateNotesFace(_notesMode);
+            notes.Background = _notesMode
+                ? GraphicalProfile.RaisedBrush
+                : GraphicalProfile.SurfaceBrush;
+            SetStatus(_notesMode ? "Notes on — tap digits as superscript marks." : "Notes off.");
+        };
+        Grid.SetRow(notes, 0);
+        Grid.SetColumn(notes, 3);
+        keypad.Children.Add(notes);
+
         var clear = new Button
         {
-            Content = "Clear",
+            Content = "⌫",
             MinHeight = 44,
-            Margin = new Thickness(0, 0, 6, 6),
+            Margin = new Thickness(0, 0, 0, 6),
             Background = GraphicalProfile.RaisedBrush,
             Foreground = GraphicalProfile.TextBrush,
         };
         clear.Click += (_, _) => ApplyValue(SudokuConstants.Empty);
-        Grid.SetRow(clear, 3);
-        Grid.SetColumnSpan(clear, 3);
+        Grid.SetRow(clear, 1);
+        Grid.SetColumn(clear, 3);
         keypad.Children.Add(clear);
+
+        var hint = new Button
+        {
+            Content = "Hint",
+            MinHeight = 44,
+            Margin = new Thickness(0, 0, 0, 6),
+            Background = GraphicalProfile.RaisedBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        hint.Click += (_, _) => ApplyHint();
+        Grid.SetRow(hint, 2);
+        Grid.SetColumn(hint, 3);
+        keypad.Children.Add(hint);
 
         return Card("INPUT", keypad);
     }
+
+    private static Button CreatePadButton(string label, Action action)
+    {
+        var button = new Button
+        {
+            Content = label,
+            MinHeight = 44,
+            MinWidth = 0,
+            Margin = new Thickness(2),
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Background = GraphicalProfile.RaisedBrush,
+            Foreground = GraphicalProfile.TextBrush,
+        };
+        button.Click += (_, _) => action();
+        return button;
+    }
+
+    private static void StyleCommandPadButton(Button button)
+    {
+        button.MinHeight = 44;
+        button.MinWidth = 0;
+        button.Margin = new Thickness(2);
+        button.Padding = new Thickness(0);
+        button.HorizontalContentAlignment = HorizontalAlignment.Center;
+        button.VerticalContentAlignment = VerticalAlignment.Center;
+        button.Background = GraphicalProfile.RaisedBrush;
+        button.Foreground = GraphicalProfile.TextBrush;
+        button.FontSize = 13;
+    }
+
+    private void StyleNotesCommandButton()
+    {
+        StyleCommandPadButton(_notesButton);
+        _notesButton.Content = CreateNotesFace(_notesMode);
+        _notesButton.Background = _notesMode
+            ? GraphicalProfile.RaisedBrush
+            : GraphicalProfile.SurfaceBrush;
+        _notesButton.BorderBrush = GraphicalProfile.BorderBrush;
+        _notesButton.BorderThickness = new Thickness(1);
+    }
+
+    private static TextBlock CreateNotesFace(bool active) =>
+        new()
+        {
+            Text = "¹²³",
+            FontSize = active ? 15 : 13,
+            FontWeight = FontWeight.Normal,
+            Foreground = active
+                ? GraphicalProfile.AccentBrush
+                : GraphicalProfile.MutedBrush,
+            Opacity = active ? 1 : 0.72,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+        };
 
     private static Border Card(string title, Control content)
     {
@@ -629,9 +718,26 @@ public sealed class SudokuView : UserControl
                         ? GraphicalProfile.AccentBrush
                         : GraphicalProfile.TextBrush;
             button.FontWeight = isGiven ? FontWeight.Bold : FontWeight.Normal;
-            button.Content = value == SudokuConstants.Empty
-                ? string.Join(" ", session.GetNotes(cellIndex).Values())
-                : value.ToString();
+            if (value == SudokuConstants.Empty)
+            {
+                var marks = session.GetNotes(cellIndex).Values().ToArray();
+                button.Content = marks.Length == 0
+                    ? string.Empty
+                    : new TextBlock
+                    {
+                        Text = string.Concat(marks.Select(ToSuperscriptDigit)),
+                        FontSize = 9,
+                        Foreground = GraphicalProfile.MutedBrush,
+                        Opacity = 0.75,
+                        TextAlignment = TextAlignment.Center,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                    };
+            }
+            else
+            {
+                button.Content = value.ToString();
+            }
         }
 
         ApplyCellFonts();
@@ -783,4 +889,19 @@ public sealed class SudokuView : UserControl
         elapsed.TotalHours >= 1
             ? elapsed.ToString(@"h\:mm\:ss")
             : elapsed.ToString(@"m\:ss");
+
+    private static char ToSuperscriptDigit(byte value) =>
+        value switch
+        {
+            1 => '¹',
+            2 => '²',
+            3 => '³',
+            4 => '⁴',
+            5 => '⁵',
+            6 => '⁶',
+            7 => '⁷',
+            8 => '⁸',
+            9 => '⁹',
+            _ => '⁰',
+        };
 }
