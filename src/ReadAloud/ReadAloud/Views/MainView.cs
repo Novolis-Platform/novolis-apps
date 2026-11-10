@@ -1018,61 +1018,77 @@ public sealed class MainView : DockPanel
         if (_resourcePicker is null)
             return;
 
-        _signInBusy = true;
-        _signInButton.IsEnabled = false;
-        _signInButton.Content = "Waiting for Microsoft…";
-        RefreshSetupProgress();
-        SetStatus("Opening Microsoft sign-in…", StatusTone.Busy);
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            _signInBusy = true;
+            _signInButton.IsEnabled = false;
+            _signInButton.Content = "Waiting for Microsoft…";
+            RefreshSetupProgress();
+            SetStatus("Opening Microsoft sign-in…", StatusTone.Busy);
+        });
         try
         {
-            _subscriptions = await _resourcePicker.SignInAsync();
-            _signOutButton.IsVisible = true;
-            _resourceRefresh = true;
-            _subscriptionPicker.ItemsSource =
-                _subscriptions.Select(subscription => subscription.DisplayName).ToArray();
-            _subscriptionPicker.SelectedIndex = _subscriptions.Count == 1 ? 0 : -1;
-            _subscriptionPicker.IsEnabled = _subscriptions.Count > 0;
-            ResetResourcePickersCore();
-            _resourceRefresh = false;
-
-            if (_subscriptions.Count == 0)
+            var subscriptions = await _resourcePicker.SignInAsync().ConfigureAwait(false);
+            await Dispatcher.UIThread.InvokeAsync(async () =>
             {
+                _subscriptions = subscriptions;
+                _signOutButton.IsVisible = true;
+                _resourceRefresh = true;
+                _subscriptionPicker.ItemsSource =
+                    _subscriptions.Select(subscription => subscription.DisplayName).ToArray();
+                _subscriptionPicker.SelectedIndex = _subscriptions.Count == 1 ? 0 : -1;
+                _subscriptionPicker.IsEnabled = _subscriptions.Count > 0;
+                ResetResourcePickersCore();
+                _resourceRefresh = false;
+
+                if (_subscriptions.Count == 0)
+                {
+                    RefreshSetupProgress();
+                    SetStatus(
+                        "No enabled Azure subscriptions are available on this account.",
+                        StatusTone.Warning);
+                    return;
+                }
+
+                if (_subscriptions.Count == 1)
+                {
+                    await LoadResourceGroupsAsync(_subscriptions[0]);
+                    return;
+                }
+
                 RefreshSetupProgress();
-                SetStatus(
-                    "No enabled Azure subscriptions are available on this account.",
-                    StatusTone.Warning);
-                return;
-            }
-
-            if (_subscriptions.Count == 1)
-            {
-                await LoadResourceGroupsAsync(_subscriptions[0]);
-                return;
-            }
-
-            RefreshSetupProgress();
-            SetStatus("Choose an Azure subscription.", StatusTone.Neutral);
+                SetStatus("Choose an Azure subscription.", StatusTone.Neutral);
+            });
         }
         catch (OperationCanceledException)
         {
-            SetStatus("Microsoft sign-in was cancelled.", StatusTone.Warning);
-            RefreshSetupProgress();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                SetStatus("Microsoft sign-in was cancelled.", StatusTone.Warning);
+                RefreshSetupProgress();
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read Aloud Azure sign-in failed.");
-            SetStatus(AzureErrorText.Describe(ex, "Azure sign-in failed"), StatusTone.Danger);
-            RefreshSetupProgress();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                SetStatus(AzureErrorText.Describe(ex, "Azure sign-in failed"), StatusTone.Danger);
+                RefreshSetupProgress();
+            });
         }
         finally
         {
-            _signInBusy = false;
-            _resourceRefresh = false;
-            _signInButton.IsEnabled = true;
-            _signInButton.Content = _subscriptions.Count > 0
-                ? "Sign in again"
-                : "Sign in with Microsoft";
-            RefreshSetupProgress();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _signInBusy = false;
+                _resourceRefresh = false;
+                _signInButton.IsEnabled = true;
+                _signInButton.Content = _subscriptions.Count > 0
+                    ? "Sign in again"
+                    : "Sign in with Microsoft";
+                RefreshSetupProgress();
+            });
         }
     }
 
