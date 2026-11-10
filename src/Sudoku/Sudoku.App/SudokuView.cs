@@ -815,6 +815,13 @@ public sealed class SudokuView : UserControl
 
     private void OnKeyDown(object? sender, KeyEventArgs args)
     {
+        if (args.Key is Key.Escape or Key.BrowserBack)
+        {
+            BackToLadderRequested?.Invoke(this, EventArgs.Empty);
+            args.Handled = true;
+            return;
+        }
+
         if (TryGetDigit(args.Key, out var value))
         {
             ApplyValue(value);

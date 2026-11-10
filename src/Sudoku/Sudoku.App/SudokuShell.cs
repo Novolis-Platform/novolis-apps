@@ -19,6 +19,18 @@ public sealed class SudokuShell : UserControl
     public void ShowHome() =>
         Content = new SudokuHomeView(_game, OnPlayRequested);
 
+    /// <summary>
+    /// Returns true when play was open and back navigated to the ladder
+    /// (so the Android host should not exit).
+    /// </summary>
+    public bool TryHandleBack()
+    {
+        if (Content is not SudokuView)
+            return false;
+        ShowHome();
+        return true;
+    }
+
     private void OnPlayRequested(SudokuPlayRequest request) =>
         _ = Dispatcher.UIThread.InvokeAsync(() => OpenPlayAsync(request));
 
