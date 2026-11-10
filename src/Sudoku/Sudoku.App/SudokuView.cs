@@ -144,13 +144,13 @@ public sealed class SudokuView : UserControl
         _boardCard = new Border
         {
             Child = _board,
-            Padding = new Thickness(4),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Top,
+            Padding = new Thickness(2),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
             Background = GraphicalProfile.SurfaceBrush,
             BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
+            CornerRadius = new CornerRadius(8),
         };
 
         _keypadStrip = BuildKeypadStrip();
@@ -171,7 +171,7 @@ public sealed class SudokuView : UserControl
                 Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
         };
 
-        _bodyHost = new Grid { Margin = new Thickness(8, 0, 8, 4) };
+        _bodyHost = new Grid { Margin = new Thickness(4, 0, 4, 2) };
         _bodyHost.SizeChanged += (_, _) => ArrangeSudokuBody();
         ArrangeSudokuBody();
 
@@ -221,12 +221,14 @@ public sealed class SudokuView : UserControl
 
                 if (narrow)
                 {
-                    // Compact stack under the chrome — board then keypad (no scroll, no mid-gap).
+                    // Board takes leftover height; keypad stays full-width under it.
+                    _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Star));
                     _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                    _bodyHost.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                    _boardCard.VerticalAlignment = VerticalAlignment.Top;
+                    _boardCard.VerticalAlignment = VerticalAlignment.Center;
+                    _boardCard.HorizontalAlignment = HorizontalAlignment.Stretch;
                     _bodyHost.Children.Add(_boardCard);
                     Grid.SetRow(_keypadStrip, 1);
+                    _keypadStrip.HorizontalAlignment = HorizontalAlignment.Stretch;
                     _bodyHost.Children.Add(_keypadStrip);
                 }
                 else
@@ -246,10 +248,15 @@ public sealed class SudokuView : UserControl
                 width = 360;
             if (narrow)
             {
-                // Prefer nearly full phone width so captures stay sharp and readable.
-                var byWidth = width - 8;
-                var byHeight = height > 0 ? height - 64 : byWidth;
-                FitBoard(Math.Clamp(Math.Min(byWidth, byHeight), 280, 520));
+                // Use nearly the full phone width; only shrink if height cannot fit the square.
+                var keypadReserve = _keypadStrip.Bounds.Height > 0
+                    ? _keypadStrip.Bounds.Height + 4
+                    : 168;
+                var byWidth = Math.Max(240, width - 4);
+                var byHeight = height > keypadReserve
+                    ? height - keypadReserve
+                    : byWidth;
+                FitBoard(Math.Min(byWidth, byHeight));
             }
             else if (height > 0)
             {
@@ -328,17 +335,18 @@ public sealed class SudokuView : UserControl
     {
         var side = _board.Width > 0 ? _board.Width : 360;
         var cell = side / SudokuConstants.Size;
-        var font = Math.Clamp(cell * 0.42, 11, 28);
-        var noteFont = Math.Max(7, font * 0.34);
+        var font = Math.Clamp(cell * 0.48, 14, 34);
+        var noteFont = Math.Clamp(cell * 0.26, 10, 18);
         foreach (var button in _cellButtons)
         {
             if (button is null)
                 continue;
             button.MinWidth = 0;
             button.MinHeight = 0;
-            if (button.Content is TextBlock notesFace)
+            if (button.Content is Grid notesGrid)
             {
-                notesFace.FontSize = noteFont;
+                foreach (var child in notesGrid.Children.OfType<TextBlock>())
+                    child.FontSize = noteFont;
                 continue;
             }
 
@@ -398,15 +406,17 @@ public sealed class SudokuView : UserControl
         {
             ColumnDefinitions = ColumnDefinitions.Parse("*,*,*,*"),
             RowDefinitions = RowDefinitions.Parse("*,*,*"),
-            Margin = new Thickness(0, 6, 0, 0),
-            MinHeight = 148,
+            Margin = new Thickness(0, 2, 0, 0),
+            MinHeight = 168,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
         for (byte value = 1; value <= SudokuConstants.SymbolCount; value++)
         {
             var number = value;
             var button = CreatePadButton(number.ToString(), () => ApplyValue(number));
             button.FontWeight = FontWeight.SemiBold;
-            button.FontSize = 18;
+            button.FontSize = 22;
+            button.MinHeight = 52;
             _numberButtons[number] = button;
             Grid.SetRow(button, (number - 1) / 3);
             Grid.SetColumn(button, (number - 1) % 3);
@@ -418,7 +428,7 @@ public sealed class SudokuView : UserControl
         {
             _notesMode = !_notesMode;
             StyleNotesCommandButton();
-            SetStatus(_notesMode ? "Notes on — tap digits as superscript marks." : "Notes off.");
+            SetStatus(_notesMode ? "Notes on — tap digits as pencil marks." : "Notes off.");
         };
         Grid.SetRow(_notesButton, 0);
         Grid.SetColumn(_notesButton, 3);
@@ -442,8 +452,9 @@ public sealed class SudokuView : UserControl
             Background = GraphicalProfile.SurfaceBrush,
             BorderBrush = GraphicalProfile.BorderBrush,
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(6),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(4),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Child = pad,
         };
     }
@@ -529,10 +540,12 @@ public sealed class SudokuView : UserControl
         var button = new Button
         {
             Content = label,
-            MinHeight = 44,
+            MinHeight = 52,
             MinWidth = 0,
-            Margin = new Thickness(2),
+            Margin = new Thickness(3),
             Padding = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Background = GraphicalProfile.RaisedBrush,
@@ -544,15 +557,17 @@ public sealed class SudokuView : UserControl
 
     private static void StyleCommandPadButton(Button button)
     {
-        button.MinHeight = 44;
+        button.MinHeight = 52;
         button.MinWidth = 0;
-        button.Margin = new Thickness(2);
+        button.Margin = new Thickness(3);
         button.Padding = new Thickness(0);
+        button.HorizontalAlignment = HorizontalAlignment.Stretch;
+        button.VerticalAlignment = VerticalAlignment.Stretch;
         button.HorizontalContentAlignment = HorizontalAlignment.Center;
         button.VerticalContentAlignment = VerticalAlignment.Center;
         button.Background = GraphicalProfile.RaisedBrush;
         button.Foreground = GraphicalProfile.TextBrush;
-        button.FontSize = 13;
+        button.FontSize = 15;
     }
 
     private void StyleNotesCommandButton()
@@ -723,16 +738,7 @@ public sealed class SudokuView : UserControl
                 var marks = session.GetNotes(cellIndex).Values().ToArray();
                 button.Content = marks.Length == 0
                     ? string.Empty
-                    : new TextBlock
-                    {
-                        Text = string.Concat(marks.Select(ToSuperscriptDigit)),
-                        FontSize = 9,
-                        Foreground = GraphicalProfile.MutedBrush,
-                        Opacity = 0.75,
-                        TextAlignment = TextAlignment.Center,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center,
-                    };
+                    : BuildNotesGrid(marks);
             }
             else
             {
@@ -890,18 +896,39 @@ public sealed class SudokuView : UserControl
             ? elapsed.ToString(@"h\:mm\:ss")
             : elapsed.ToString(@"m\:ss");
 
-    private static char ToSuperscriptDigit(byte value) =>
-        value switch
+    /// <summary>Classic 3×3 pencil-mark layout filling the cell (not a centered cluster).</summary>
+    private static Grid BuildNotesGrid(IReadOnlyList<byte> marks)
+    {
+        var present = marks.ToHashSet();
+        var grid = new Grid
         {
-            1 => '¹',
-            2 => '²',
-            3 => '³',
-            4 => '⁴',
-            5 => '⁵',
-            6 => '⁶',
-            7 => '⁷',
-            8 => '⁸',
-            9 => '⁹',
-            _ => '⁰',
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Margin = new Thickness(1),
         };
+        for (var index = 0; index < 3; index++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        }
+
+        for (byte value = 1; value <= SudokuConstants.SymbolCount; value++)
+        {
+            var face = new TextBlock
+            {
+                Text = present.Contains(value) ? value.ToString() : string.Empty,
+                FontSize = 12,
+                Foreground = GraphicalProfile.MutedBrush,
+                Opacity = 0.9,
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch,
+            };
+            Grid.SetRow(face, (value - 1) / 3);
+            Grid.SetColumn(face, (value - 1) % 3);
+            grid.Children.Add(face);
+        }
+
+        return grid;
+    }
 }
