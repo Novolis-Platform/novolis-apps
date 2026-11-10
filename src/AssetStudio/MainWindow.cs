@@ -71,7 +71,7 @@ internal sealed class MainWindow : Window
         if (string.Equals(command, "preview", StringComparison.OrdinalIgnoreCase))
         {
             _ = _surface.RefreshPreviewAsync();
-            _surface.Feedback.SetStatus("CPU preview requested.");
+            _surface.Feedback.SetStatus("Path-trace preview requested (GPU when available).");
             return;
         }
 
