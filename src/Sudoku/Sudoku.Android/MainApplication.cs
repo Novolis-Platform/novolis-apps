@@ -27,9 +27,12 @@ public class MainApplication : AvaloniaAndroidApplication<SudokuApplication>
     {
         var context = global::Android.App.Application.Context
             ?? throw new InvalidOperationException("Android application context is unavailable.");
+        // Live saves/progress must be File.IO-readable. Shared Documents can
+        // look claimed on Android 10+ then fail later with EACCES/UnauthorizedAccess.
         var locations = AndroidAppStorage.Open(
             context,
-            "Sudoku");
+            "Sudoku",
+            AndroidStoragePreference.AppPrivate);
 
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
