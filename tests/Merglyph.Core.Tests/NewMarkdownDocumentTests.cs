@@ -15,29 +15,17 @@ public sealed class NewMarkdownDocumentTests
 
             await Assert.That(Path.GetFileName(first)).IsEqualTo("Untitled.md");
             await Assert.That(Path.GetFileName(second)).IsEqualTo("Untitled 2.md");
+            await Assert.That(Path.IsPathRooted(first)).IsTrue();
+            await Assert.That(Path.GetFullPath(first).StartsWith(
+                    Path.GetFullPath(root),
+                    StringComparison.OrdinalIgnoreCase))
+                .IsTrue();
+            await Assert.That(Path.GetExtension(first)).IsEqualTo(".md");
             await Assert.That(NewMarkdownDocument.DefaultContent).Contains("# Untitled");
         }
         finally
         {
             Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Test]
-    public async Task CreateUniquePath_ReturnsVisibleAbsolutePathUnderDocumentsRoot()
-    {
-        var root = Path.Combine(Path.GetTempPath(), "merglyph-visible-" + Guid.NewGuid().ToString("N"));
-        try
-        {
-            var path = NewMarkdownDocument.CreateUniquePath(root);
-            await Assert.That(Path.IsPathRooted(path)).IsTrue();
-            await Assert.That(path.StartsWith(root, StringComparison.OrdinalIgnoreCase)).IsTrue();
-            await Assert.That(Path.GetExtension(path)).IsEqualTo(".md");
-        }
-        finally
-        {
-            if (Directory.Exists(root))
-                Directory.Delete(root, recursive: true);
         }
     }
 
