@@ -35,7 +35,6 @@ internal static class AndroidSafMarkdownCreator
         await WriteUriAsync(resolver, uri, content, cancellationToken).ConfigureAwait(false);
 
         var name = ResolveDisplayName(activity, uri);
-        var displayPath = uri.ToString() ?? name;
         return new DocumentOpenRequest(
             new DocumentName(name),
             openCancellation =>
@@ -46,7 +45,7 @@ internal static class AndroidSafMarkdownCreator
                 return ValueTask.FromResult<Stream>(stream);
             },
             SourceDirectory: null,
-            DisplayPath: displayPath,
+            DisplayPath: name,
             SaveAsync: (body, saveCancellation) =>
                 WriteUriAsync(resolver, uri, body, saveCancellation));
     }

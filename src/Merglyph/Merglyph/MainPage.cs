@@ -513,10 +513,12 @@ public sealed class MainPage : ContentPage
 
     private async Task OpenRecentAsync(RecentDocument recentDocument)
     {
+        // Recent entries are local snapshots only — Save becomes Save As to a real file.
         var request = new DocumentOpenRequest(
             new DocumentName(recentDocument.Name),
             _ => ValueTask.FromResult<Stream>(
-                new MemoryStream(Encoding.UTF8.GetBytes(recentDocument.Content), writable: false)));
+                new MemoryStream(Encoding.UTF8.GetBytes(recentDocument.Content), writable: false)),
+            DisplayPath: "Recent snapshot · Save As to keep edits");
         await OpenAsync(request, CancellationToken.None);
     }
 

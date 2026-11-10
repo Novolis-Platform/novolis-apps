@@ -13,6 +13,11 @@ public sealed class MarkdownDocumentPicker
 
     public async ValueTask<DocumentOpenRequest?> PickAsync()
     {
+#if ANDROID
+        // MAUI FilePicker copies into app cache on Android — never save back there.
+        // SAF open-document keeps a persistable URI to the real user file.
+        return await AndroidSafMarkdownOpener.OpenAsync().ConfigureAwait(false);
+#else
         var file = await FilePicker.Default.PickAsync(new PickOptions
         {
             PickerTitle = "Open Markdown document",
@@ -47,5 +52,6 @@ public sealed class MarkdownDocumentPicker
             directory,
             displayPath,
             save);
+#endif
     }
 }

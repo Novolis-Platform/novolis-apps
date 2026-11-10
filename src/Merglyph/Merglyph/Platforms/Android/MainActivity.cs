@@ -41,7 +41,8 @@ namespace Merglyph;
 public sealed class MainActivity : MauiAppCompatActivity
 {
     private const int CreateMarkdownDocumentRequest = 0x4D47; // MG
-    private TaskCompletionSource<Android.Net.Uri?>? _createDocumentCompletion;
+    private const int OpenMarkdownDocumentRequest = 0x4D48; // MH
+    private TaskCompletionSource<Android.Net.Uri?>? _documentPickerCompletion;
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -61,22 +62,6 @@ public sealed class MainActivity : MauiAppCompatActivity
         string suggestedFileName,
         CancellationToken cancellationToken = default)
     {
-        if (_createDocumentCompletion is not null)
-            throw new InvalidOperationException("A create-document picker is already open.");
-
-        var completion = new TaskCompletionSource<Android.Net.Uri?>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        _createDocumentCompletion = completion;
-        if (cancellationToken.CanBeCanceled)
-        {
-            cancellationToken.Register(() =>
-            {
-                if (_createDocumentCompletion == completion)
-                    _createDocumentCompletion = null;
-                completion.TrySetCanceled(cancellationToken);
-            });
-        }
-
         var intent = new Intent(Intent.ActionCreateDocument);
         intent.AddCategory(Intent.CategoryOpenable);
         intent.SetType("text/markdown");
@@ -86,7 +71,48 @@ public sealed class MainActivity : MauiAppCompatActivity
             ActivityFlags.GrantReadUriPermission
             | ActivityFlags.GrantWriteUriPermission
             | ActivityFlags.GrantPersistableUriPermission);
-        StartActivityForResult(intent, CreateMarkdownDocumentRequest);
+        return StartDocumentPickerAsync(intent, CreateMarkdownDocumentRequest, cancellationToken);
+    }
+
+    /// <summary>Opens SAF open-document and returns the chosen content URI, or null if cancelled.</summary>
+    internal Task<Android.Net.Uri?> OpenMarkdownDocumentAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var intent = new Intent(Intent.ActionOpenDocument);
+        intent.AddCategory(Intent.CategoryOpenable);
+        intent.SetType("*/*");
+        intent.PutExtra(
+            Intent.ExtraMimeTypes,
+            new[] { "text/markdown", "text/x-markdown", "text/plain", "application/octet-stream" });
+        intent.AddFlags(
+            ActivityFlags.GrantReadUriPermission
+            | ActivityFlags.GrantWriteUriPermission
+            | ActivityFlags.GrantPersistableUriPermission);
+        return StartDocumentPickerAsync(intent, OpenMarkdownDocumentRequest, cancellationToken);
+    }
+
+    private Task<Android.Net.Uri?> StartDocumentPickerAsync(
+        Intent intent,
+        int requestCode,
+        CancellationToken cancellationToken)
+    {
+        if (_documentPickerCompletion is not null)
+            throw new InvalidOperationException("A document picker is already open.");
+
+        var completion = new TaskCompletionSource<Android.Net.Uri?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _documentPickerCompletion = completion;
+        if (cancellationToken.CanBeCanceled)
+        {
+            cancellationToken.Register(() =>
+            {
+                if (_documentPickerCompletion == completion)
+                    _documentPickerCompletion = null;
+                completion.TrySetCanceled(cancellationToken);
+            });
+        }
+
+        StartActivityForResult(intent, requestCode);
         return completion.Task;
     }
 
@@ -96,11 +122,11 @@ public sealed class MainActivity : MauiAppCompatActivity
         Intent? data)
     {
         base.OnActivityResult(requestCode, resultCode, data);
-        if (requestCode != CreateMarkdownDocumentRequest)
+        if (requestCode is not (CreateMarkdownDocumentRequest or OpenMarkdownDocumentRequest))
             return;
 
-        var completion = _createDocumentCompletion;
-        _createDocumentCompletion = null;
+        var completion = _documentPickerCompletion;
+        _documentPickerCompletion = null;
         if (completion is null)
             return;
 
@@ -145,7 +171,6 @@ public sealed class MainActivity : MauiAppCompatActivity
         if (!SupportedMarkdownDocuments.IsSupported(name))
             return;
 
-        var displayPath = uri.ToString();
         var filePath = string.Equals(uri.Scheme, "file", StringComparison.OrdinalIgnoreCase)
             ? uri.Path
             : null;
@@ -178,7 +203,7 @@ public sealed class MainActivity : MauiAppCompatActivity
             SourceDirectory: string.IsNullOrWhiteSpace(filePath)
                 ? null
                 : Path.GetDirectoryName(filePath),
-            DisplayPath: displayPath,
+            DisplayPath: name,
             SaveAsync: save));
     }
 

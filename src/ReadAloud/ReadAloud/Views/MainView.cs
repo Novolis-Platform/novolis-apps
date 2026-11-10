@@ -1028,8 +1028,10 @@ public sealed class MainView : DockPanel
         });
         try
         {
+            // Keep ARM / MSAL off the UI dispatcher. Never await discovery inside InvokeAsync —
+            // that held _signInBusy and froze the subscription ComboBox after login.
             var subscriptions = await _resourcePicker.SignInAsync().ConfigureAwait(false);
-            await Dispatcher.UIThread.InvokeAsync(async () =>
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _subscriptions = subscriptions;
                 _signOutButton.IsVisible = true;
@@ -1040,25 +1042,27 @@ public sealed class MainView : DockPanel
                 _subscriptionPicker.IsEnabled = _subscriptions.Count > 0;
                 ResetResourcePickersCore();
                 _resourceRefresh = false;
+                _signInBusy = false;
+                _signInButton.IsEnabled = true;
+                _signInButton.Content = _subscriptions.Count > 0
+                    ? "Sign in again"
+                    : "Sign in with Microsoft";
+                RefreshSetupProgress();
 
                 if (_subscriptions.Count == 0)
                 {
-                    RefreshSetupProgress();
                     SetStatus(
                         "No enabled Azure subscriptions are available on this account.",
                         StatusTone.Warning);
                     return;
                 }
 
-                if (_subscriptions.Count == 1)
-                {
-                    await LoadResourceGroupsAsync(_subscriptions[0]);
-                    return;
-                }
-
-                RefreshSetupProgress();
-                SetStatus("Choose an Azure subscription.", StatusTone.Neutral);
+                if (_subscriptions.Count > 1)
+                    SetStatus("Choose an Azure subscription.", StatusTone.Neutral);
             });
+
+            if (subscriptions.Count == 1)
+                await LoadResourceGroupsAsync(subscriptions[0]).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -1303,54 +1307,68 @@ public sealed class MainView : DockPanel
 
         try
         {
-            SetStatus($"Finding Speech resources in {subscription.DisplayName}…", StatusTone.Busy);
-            RefreshSetupProgress();
-            _resourceGroups = await _resourcePicker.GetSpeechResourceGroupsAsync(subscription.Id);
-            _resourceRefresh = true;
-            _resourceGroupPicker.ItemsSource =
-                _resourceGroups
-                    .Select(group => $"{group.Name} ({group.SpeechResourceCount:N0})")
-                    .ToArray();
-            _resourceGroupPicker.SelectedIndex = _resourceGroups.Count == 1 ? 0 : -1;
-            _resourceGroupPicker.IsEnabled = _resourceGroups.Count > 0;
-            ResetSpeechResourcePickerCore();
-            _resourceRefresh = false;
-
-            if (_resourceGroups.Count == 0)
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
+                SetStatus($"Finding Speech resources in {subscription.DisplayName}…", StatusTone.Busy);
                 RefreshSetupProgress();
-                SetStatus(
-                    "No compatible Azure Speech resource was found in that subscription.",
-                    StatusTone.Warning);
-                _resourceStatus.Text =
-                    "No resource group contains a compatible Speech service.";
-                return;
-            }
-
-            if (_resourceGroups.Count == 1)
+            });
+            var groups = await _resourcePicker
+                .GetSpeechResourceGroupsAsync(subscription.Id)
+                .ConfigureAwait(false);
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                await LoadSpeechResourcesAsync(subscription, _resourceGroups[0]);
-                return;
-            }
+                _resourceGroups = groups;
+                _resourceRefresh = true;
+                _resourceGroupPicker.ItemsSource =
+                    _resourceGroups
+                        .Select(group => $"{group.Name} ({group.SpeechResourceCount:N0})")
+                        .ToArray();
+                _resourceGroupPicker.SelectedIndex = _resourceGroups.Count == 1 ? 0 : -1;
+                _resourceGroupPicker.IsEnabled = _resourceGroups.Count > 0;
+                ResetSpeechResourcePickerCore();
+                _resourceRefresh = false;
 
-            RefreshSetupProgress();
-            SetStatus("Choose a resource group.", StatusTone.Neutral);
+                if (_resourceGroups.Count == 0)
+                {
+                    RefreshSetupProgress();
+                    SetStatus(
+                        "No compatible Azure Speech resource was found in that subscription.",
+                        StatusTone.Warning);
+                    _resourceStatus.Text =
+                        "No resource group contains a compatible Speech service.";
+                    return;
+                }
+
+                if (_resourceGroups.Count > 1)
+                {
+                    RefreshSetupProgress();
+                    SetStatus("Choose a resource group.", StatusTone.Neutral);
+                }
+            });
+
+            if (groups.Count == 1)
+                await LoadSpeechResourcesAsync(subscription, groups[0]).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            SetStatus("Resource discovery cancelled.", StatusTone.Warning);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                SetStatus("Resource discovery cancelled.", StatusTone.Warning));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read Aloud Azure resource-group discovery failed.");
-            SetStatus(
-                AzureErrorText.Describe(ex, "Resource discovery failed"),
-                StatusTone.Danger);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                SetStatus(
+                    AzureErrorText.Describe(ex, "Resource discovery failed"),
+                    StatusTone.Danger));
         }
         finally
         {
-            _resourceRefresh = false;
-            RefreshSetupProgress();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _resourceRefresh = false;
+                RefreshSetupProgress();
+            });
         }
     }
 
@@ -1379,53 +1397,65 @@ public sealed class MainView : DockPanel
 
         try
         {
-            SetStatus($"Finding Speech services in {resourceGroup.Name}…", StatusTone.Busy);
-            RefreshSetupProgress();
-            _speechResources = await _resourcePicker.GetSpeechResourcesAsync(
-                subscription.Id,
-                resourceGroup.Name);
-            _resourceRefresh = true;
-            _speechResourcePicker.ItemsSource =
-                _speechResources
-                    .Select(resource => $"{resource.Name} ({resource.Location})")
-                    .ToArray();
-            _speechResourcePicker.SelectedIndex = _speechResources.Count == 1 ? 0 : -1;
-            _speechResourcePicker.IsEnabled = _speechResources.Count > 0;
-            _resourceRefresh = false;
-
-            if (_speechResources.Count == 0)
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
+                SetStatus($"Finding Speech services in {resourceGroup.Name}…", StatusTone.Busy);
                 RefreshSetupProgress();
-                SetStatus(
-                    "No compatible Speech service was found in that group.",
-                    StatusTone.Warning);
-                return;
-            }
-
-            if (_speechResources.Count == 1)
+            });
+            var resources = await _resourcePicker
+                .GetSpeechResourcesAsync(subscription.Id, resourceGroup.Name)
+                .ConfigureAwait(false);
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                await ConfigureAzureResourceAsync(_speechResources[0]);
-                return;
-            }
+                _speechResources = resources;
+                _resourceRefresh = true;
+                _speechResourcePicker.ItemsSource =
+                    _speechResources
+                        .Select(resource => $"{resource.Name} ({resource.Location})")
+                        .ToArray();
+                _speechResourcePicker.SelectedIndex = _speechResources.Count == 1 ? 0 : -1;
+                _speechResourcePicker.IsEnabled = _speechResources.Count > 0;
+                _resourceRefresh = false;
 
-            RefreshSetupProgress();
-            SetStatus("Choose a Speech service.", StatusTone.Neutral);
+                if (_speechResources.Count == 0)
+                {
+                    RefreshSetupProgress();
+                    SetStatus(
+                        "No compatible Speech service was found in that group.",
+                        StatusTone.Warning);
+                    return;
+                }
+
+                if (_speechResources.Count > 1)
+                {
+                    RefreshSetupProgress();
+                    SetStatus("Choose a Speech service.", StatusTone.Neutral);
+                }
+            });
+
+            if (resources.Count == 1)
+                await ConfigureAzureResourceAsync(resources[0]).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            SetStatus("Resource discovery cancelled.", StatusTone.Warning);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                SetStatus("Resource discovery cancelled.", StatusTone.Warning));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read Aloud Azure Speech discovery failed.");
-            SetStatus(
-                AzureErrorText.Describe(ex, "Speech discovery failed"),
-                StatusTone.Danger);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                SetStatus(
+                    AzureErrorText.Describe(ex, "Speech discovery failed"),
+                    StatusTone.Danger));
         }
         finally
         {
-            _resourceRefresh = false;
-            RefreshSetupProgress();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _resourceRefresh = false;
+                RefreshSetupProgress();
+            });
         }
     }
 
@@ -1445,7 +1475,8 @@ public sealed class MainView : DockPanel
     {
         try
         {
-            SetStatus($"Connecting to {resource.Name}…", StatusTone.Busy);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                SetStatus($"Connecting to {resource.Name}…", StatusTone.Busy));
             await _speech.ConfigureAzureAsync(new AzureSpeechSetup
             {
                 Endpoint = resource.Endpoint,
@@ -1455,31 +1486,39 @@ public sealed class MainView : DockPanel
                 TenantId = resource.TenantId,
                 VoiceName = _speech.Voice.Voice,
                 Locale = LocaleFromVoice(_speech.Voice.Voice),
+            }).ConfigureAwait(false);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _azureSetupPanel.IsVisible = false;
             });
-            _azureSetupPanel.IsVisible = false;
-            await RefreshVoiceListAsync();
-            SetStatus(
-                $"Connected to {resource.Name} ({_voices.Count:N0} voices).",
-                StatusTone.Success);
-            RefreshProviderUi();
-            RefreshListen();
-            _usageStatus.Text = "Tap Refresh usage to load the last 30 days.";
-            await RefreshUsageAsync();
+            await RefreshVoiceListAsync().ConfigureAwait(false);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                SetStatus(
+                    $"Connected to {resource.Name} ({_voices.Count:N0} voices).",
+                    StatusTone.Success);
+                RefreshProviderUi();
+                RefreshListen();
+                _usageStatus.Text = "Tap Refresh usage to load the last 30 days.";
+            });
+            await RefreshUsageAsync().ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            SetStatus("Azure connection cancelled.", StatusTone.Warning);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                SetStatus("Azure connection cancelled.", StatusTone.Warning));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Read Aloud Azure Speech resource connection failed.");
-            SetStatus(
-                AzureErrorText.Describe(ex, "Azure connection failed"),
-                StatusTone.Danger);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                SetStatus(
+                    AzureErrorText.Describe(ex, "Azure connection failed"),
+                    StatusTone.Danger));
         }
         finally
         {
-            RefreshSetupProgress();
+            await Dispatcher.UIThread.InvokeAsync(RefreshSetupProgress);
         }
     }
 
