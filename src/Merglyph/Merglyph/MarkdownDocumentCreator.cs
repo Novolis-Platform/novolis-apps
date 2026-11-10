@@ -12,13 +12,23 @@ public sealed class MarkdownDocumentCreator
     /// Writes a new Untitled Markdown document and returns an open request for it.
     /// On Android the user picks the visible Documents/Downloads target via SAF.
     /// </summary>
+    public ValueTask<DocumentOpenRequest> CreateAsync(
+        CancellationToken cancellationToken = default) =>
+        CreateAsync(NewMarkdownDocument.DefaultContent, cancellationToken);
+
+    /// <summary>
+    /// Writes <paramref name="content"/> to a new user-visible Markdown file
+    /// (used for Create and Save As).
+    /// </summary>
     public async ValueTask<DocumentOpenRequest> CreateAsync(
+        string content,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        content ??= string.Empty;
 
 #if ANDROID
-        var saf = await AndroidSafMarkdownCreator.CreateAsync(cancellationToken)
+        var saf = await AndroidSafMarkdownCreator.CreateAsync(content, cancellationToken)
             .ConfigureAwait(false);
         if (saf is null)
             throw new OperationCanceledException("Document create was cancelled.");
@@ -29,10 +39,8 @@ public sealed class MarkdownDocumentCreator
         var directory = UserDocumentsPaths.EnsureWritable(preferred, fallback);
         var path = NewMarkdownDocument.CreateUniquePath(directory);
 
-        await File.WriteAllTextAsync(
-            path,
-            NewMarkdownDocument.DefaultContent,
-            cancellationToken).ConfigureAwait(false);
+        await MarkdownDocumentWriter.WriteFileAsync(path, content, cancellationToken)
+            .ConfigureAwait(false);
 
         var name = new DocumentName(Path.GetFileName(path));
         return new DocumentOpenRequest(
@@ -43,7 +51,9 @@ public sealed class MarkdownDocumentCreator
                 return File.OpenRead(path);
             },
             directory,
-            path);
+            path,
+            (body, saveCancellation) =>
+                MarkdownDocumentWriter.WriteFileAsync(path, body, saveCancellation));
 #endif
     }
 }

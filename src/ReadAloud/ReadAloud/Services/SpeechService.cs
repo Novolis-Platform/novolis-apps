@@ -12,7 +12,7 @@ namespace ReadAloud.Services;
 public sealed class SpeechService : IDisposable
 {
     public const int MobileMaxChunkChars = 700;
-    public const string DefaultVoiceName = "en-US-AvaMultilingualNeural";
+    public const string DefaultVoiceName = "en-US-AvaNeural";
     public const string DefaultLocale = "en-US";
     public const string DefaultAzureClientId = "c8b938aa-2e5d-48b4-89c6-fc139733c44d";
     public const string DefaultAzureTenantId = "25427e56-8e11-4e5a-b8e6-d7645bdc27b1";
@@ -177,10 +177,10 @@ public sealed class SpeechService : IDisposable
         var speechText = MarkdownSpeechPreParser.Normalize(text);
         if (string.IsNullOrWhiteSpace(speechText))
             return;
-        if (!_front.IsAzureConfigured)
+        if (!_front.Capabilities.CanCreateMp3)
         {
             throw new SpeechCapabilityException(
-                "Azure Speech is required for Read Aloud playback.");
+                "Pick Edge Read Aloud, or connect Azure Speech, before listening.");
         }
 
         CancellationToken linked;
@@ -326,9 +326,9 @@ public sealed class SpeechService : IDisposable
         var speechText = MarkdownSpeechPreParser.Normalize(text);
         if (string.IsNullOrWhiteSpace(speechText))
             return [];
-        if (!_front.IsAzureConfigured)
+        if (!_front.Capabilities.CanCreateMp3)
             throw new SpeechCapabilityException(
-                "MP3 export requires Azure Speech setup.");
+                "MP3 export needs Edge Read Aloud or a connected Azure Speech resource.");
 
         return await _playback.ConcatenateMp3Async(
             speechText,

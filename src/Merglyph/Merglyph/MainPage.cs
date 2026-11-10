@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Linq;
 using System.Text;
 using Merglyph.Core;
 using Novolis.Commands.Navigation;
@@ -13,6 +12,12 @@ namespace Merglyph;
 
 public sealed class MainPage : ContentPage
 {
+    private enum DocumentMode
+    {
+        Preview,
+        Edit,
+    }
+
     private readonly DocumentSession _session;
     private readonly MarkdownDocumentPicker _picker;
     private readonly MarkdownDocumentCreator _creator;
@@ -22,6 +27,15 @@ public sealed class MainPage : ContentPage
     {
         AutomationId = "DocumentViewer",
         Padding = new Thickness(3),
+    };
+    private readonly Editor _editor = new()
+    {
+        AutomationId = "DocumentEditor",
+        FontFamily = "Consolas",
+        FontSize = 15,
+        AutoSize = EditorAutoSizeOption.Disabled,
+        HorizontalOptions = LayoutOptions.Fill,
+        VerticalOptions = LayoutOptions.Fill,
     };
     private readonly Label _documentName = new()
     {
@@ -35,21 +49,21 @@ public sealed class MainPage : ContentPage
     };
     private readonly Label _welcomeEyebrow = new()
     {
-        Text = "OFFLINE MARKDOWN READER",
+        Text = "OFFLINE MARKDOWN EDITOR",
         FontAttributes = FontAttributes.Bold,
         FontSize = 11,
         CharacterSpacing = 1.5,
     };
     private readonly Label _welcomeTitle = new()
     {
-        Text = "Read the shape of your ideas.",
+        Text = "Write and read Markdown.",
         FontAttributes = FontAttributes.Bold,
         FontSize = 30,
         LineBreakMode = LineBreakMode.WordWrap,
     };
     private readonly Label _welcomeDescription = new()
     {
-        Text = "Create a new note in My Documents, or open an existing Markdown file — including Mermaid diagrams.",
+        Text = "Create or open a .md file, edit the source, preview Mermaid and formatted Markdown, then save.",
         FontSize = 15,
         LineBreakMode = LineBreakMode.WordWrap,
     };
@@ -61,7 +75,7 @@ public sealed class MainPage : ContentPage
     };
     private readonly Label _documentEyebrow = new()
     {
-        Text = "OPEN DOCUMENT",
+        Text = "MARKDOWN DOCUMENT",
         FontAttributes = FontAttributes.Bold,
         FontSize = 10,
         CharacterSpacing = 1.4,
@@ -91,13 +105,19 @@ public sealed class MainPage : ContentPage
     private readonly Border _viewerCard;
     private readonly ScrollView _welcomeScroll;
     private readonly ContentView _bodyHost = new();
+    private readonly ContentView _documentSurface = new();
     private readonly Button _heroOpenButton;
     private readonly Button _heroNewButton;
+    private readonly Button _editModeButton;
+    private readonly Button _previewModeButton;
+    private readonly Button _saveButton;
     private readonly MobileNavigationShell _navigationShell;
     private CancellationTokenSource? _activationCancellation;
     private Task? _activationTask;
     private bool _themeSubscribed;
     private bool _recentDocumentsLoaded;
+    private bool _suppressEditorChanged;
+    private DocumentMode _mode = DocumentMode.Edit;
     private IReadOnlyList<RecentDocument> _recentDocuments = [];
 
     public MainPage(
@@ -116,30 +136,23 @@ public sealed class MainPage : ContentPage
         Title = "Merglyph · Markdown";
         _viewer.WebView.ExternalNavigationRequested += async (_, uri) =>
             await Launcher.Default.OpenAsync(uri);
+        _editor.TextChanged += OnEditorTextChanged;
 
-        _heroOpenButton = new Button
-        {
-            AutomationId = "OpenDocumentHero",
-            Text = "Open a Markdown file",
-            FontAttributes = FontAttributes.Bold,
-            FontSize = 14,
-            CornerRadius = 22,
-            Padding = new Thickness(20, 12),
-            HorizontalOptions = LayoutOptions.Fill,
-        };
-        _heroOpenButton.Clicked += async (_, _) => await PickAndOpenAsync();
+        _heroOpenButton = CreateHeroButton(
+            "OpenDocumentHero",
+            "Open a Markdown file",
+            async () => await PickAndOpenAsync());
+        _heroNewButton = CreateHeroButton(
+            "NewDocumentHero",
+            "Create new Markdown",
+            async () => await CreateAndOpenAsync());
 
-        _heroNewButton = new Button
-        {
-            AutomationId = "NewDocumentHero",
-            Text = "Create new Markdown",
-            FontAttributes = FontAttributes.Bold,
-            FontSize = 14,
-            CornerRadius = 22,
-            Padding = new Thickness(20, 12),
-            HorizontalOptions = LayoutOptions.Fill,
-        };
-        _heroNewButton.Clicked += async (_, _) => await CreateAndOpenAsync();
+        _editModeButton = CreateChromeButton("EditMode", "Edit", () => SetMode(DocumentMode.Edit));
+        _previewModeButton = CreateChromeButton(
+            "PreviewMode",
+            "Preview",
+            () => SetMode(DocumentMode.Preview));
+        _saveButton = CreateChromeButton("SaveDocument", "Save", () => _ = SaveAsync());
 
         _welcomeCard = CreateCard(
             new VerticalStackLayout
@@ -155,9 +168,9 @@ public sealed class MainPage : ContentPage
                         Spacing = 8,
                         Children =
                         {
-                            CreateBadge("OFFLINE", GraphicalProfile.AccentFill),
-                            CreateBadge("MERMAID", GraphicalProfile.Action),
-                            CreateBadge("PRIVATE", GraphicalProfile.ActionSoft),
+                            CreateBadge("EDIT", GraphicalProfile.AccentFill),
+                            CreateBadge("PREVIEW", GraphicalProfile.Action),
+                            CreateBadge("MERMAID", GraphicalProfile.ActionSoft),
                         },
                     },
                     _heroNewButton,
@@ -175,15 +188,21 @@ public sealed class MainPage : ContentPage
                 },
             });
 
+        var modeRow = new HorizontalStackLayout
+        {
+            Spacing = 8,
+            Children = { _editModeButton, _previewModeButton, _saveButton },
+        };
         var viewerHeader = new VerticalStackLayout
         {
             Padding = new Thickness(20, 18, 20, 14),
-            Spacing = 3,
+            Spacing = 8,
             Children =
             {
                 _documentName,
                 _documentEyebrow,
                 _documentMeta,
+                modeRow,
             },
         };
         var viewerLayout = new Grid
@@ -195,10 +214,9 @@ public sealed class MainPage : ContentPage
             },
         };
         viewerLayout.Add(viewerHeader, 0, 0);
-        _viewer.HorizontalOptions = LayoutOptions.Fill;
-        _viewer.VerticalOptions = LayoutOptions.Fill;
-        viewerLayout.Add(_viewer, 0, 1);
-        // WinUI WebView2 stays blank inside a rounded/clipped Border. Keep a rectangular card.
+        _documentSurface.HorizontalOptions = LayoutOptions.Fill;
+        _documentSurface.VerticalOptions = LayoutOptions.Fill;
+        viewerLayout.Add(_documentSurface, 0, 1);
         _viewerCard = new Border
         {
             Padding = new Thickness(0),
@@ -218,6 +236,8 @@ public sealed class MainPage : ContentPage
         _welcomeScroll.VerticalOptions = LayoutOptions.Fill;
         _viewerCard.HorizontalOptions = LayoutOptions.Fill;
         _viewerCard.VerticalOptions = LayoutOptions.Fill;
+        _viewer.HorizontalOptions = LayoutOptions.Fill;
+        _viewer.VerticalOptions = LayoutOptions.Fill;
 
         var body = new Grid
         {
@@ -242,6 +262,27 @@ public sealed class MainPage : ContentPage
                 MobileMenuNodeKind.Action)
             {
                 CommandId = "document.open",
+            },
+            new MobileMenuNode(
+                "document.edit",
+                "Edit Markdown",
+                MobileMenuNodeKind.Action)
+            {
+                CommandId = "document.edit",
+            },
+            new MobileMenuNode(
+                "document.preview",
+                "Preview Markdown",
+                MobileMenuNodeKind.Action)
+            {
+                CommandId = "document.preview",
+            },
+            new MobileMenuNode(
+                "document.save",
+                "Save Markdown",
+                MobileMenuNodeKind.Action)
+            {
+                CommandId = "document.save",
             },
         ]);
         var controller = new MobileNavigationController(menuTree);
@@ -331,6 +372,17 @@ public sealed class MainPage : ContentPage
             case "document.open":
                 _ = PickAndOpenAsync();
                 break;
+            case "document.edit":
+                if (_session.Current is not null)
+                    SetMode(DocumentMode.Edit);
+                break;
+            case "document.preview":
+                if (_session.Current is not null)
+                    SetMode(DocumentMode.Preview);
+                break;
+            case "document.save":
+                _ = SaveAsync();
+                break;
         }
     }
 
@@ -366,7 +418,7 @@ public sealed class MainPage : ContentPage
             {
             }
 
-            Display(document);
+            Display(document, preferredMode: DocumentMode.Edit);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -374,6 +426,62 @@ public sealed class MainPage : ContentPage
         catch (Exception exception)
         {
             await DisplayAlertAsync("Unable to open document", exception.Message, "OK");
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_session.Current is null)
+        {
+            await DisplayAlertAsync("Nothing to save", "Open or create a Markdown document first.", "OK");
+            return;
+        }
+
+        CommitEditorToSession();
+        try
+        {
+            if (!_session.CanSave)
+            {
+                var request = await _creator.CreateAsync(_session.Current.Content.Value);
+                await using var stream = await request.OpenReadAsync(CancellationToken.None);
+                var document = await new MarkdownDocumentReader().ReadAsync(
+                    request.Name,
+                    stream,
+                    CancellationToken.None);
+                document = document with
+                {
+                    SourceDirectory = request.SourceDirectory,
+                    DisplayPath = request.DisplayPath,
+                    Content = _session.Current.Content,
+                };
+                _session.BindSave(request, document);
+            }
+            else
+            {
+                await _session.SaveAsync();
+            }
+
+            try
+            {
+                _recentDocuments = await _recentStore.RememberAsync(_session.Current!);
+                _recentDocumentsLoaded = true;
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+
+            RefreshDocumentChrome();
+            await DisplayAlertAsync("Saved", $"Saved {_session.Current!.Name.Value}.", "OK");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            await DisplayAlertAsync("Unable to save document", exception.Message, "OK");
         }
     }
 
@@ -415,26 +523,65 @@ public sealed class MainPage : ContentPage
     private void OnRequestedThemeChanged(object? sender, AppThemeChangedEventArgs args)
     {
         if (_session.Current is { } document)
-            Display(document);
+            Display(document, _mode);
         else
             ShowWelcome();
     }
 
-    private void Display(MarkdownDocument document)
+    private void OnEditorTextChanged(object? sender, TextChangedEventArgs args)
     {
-        _documentName.Text = document.Name.Value;
-        var location = !string.IsNullOrWhiteSpace(document.DisplayPath)
-            ? document.DisplayPath
-            : document.SourceDirectory;
-        _documentMeta.Text = string.IsNullOrWhiteSpace(location)
-            ? "Markdown document • local file"
-            : $"Markdown document • {location}";
-        _navigationShell.Title = $"Merglyph · {document.Name.Value}";
+        if (_suppressEditorChanged || _session.Current is null)
+            return;
+        _session.SetContent(args.NewTextValue ?? string.Empty);
+        RefreshDocumentChrome();
+    }
+
+    private void Display(MarkdownDocument document, DocumentMode preferredMode)
+    {
+        _mode = preferredMode;
+        _suppressEditorChanged = true;
+        _editor.Text = document.Content.Value;
+        _suppressEditorChanged = false;
+        RefreshDocumentChrome();
         _bodyHost.Content = _viewerCard;
         ApplyChromeTheme();
-        _viewer.SourceDirectory = document.SourceDirectory;
-        _viewer.Title = document.Name.Value;
-        _viewer.Markdown = document.Content.Value;
+        ApplyDocumentSurface();
+    }
+
+    private void SetMode(DocumentMode mode)
+    {
+        if (_session.Current is null)
+            return;
+
+        CommitEditorToSession();
+        _mode = mode;
+        ApplyDocumentSurface();
+        RefreshDocumentChrome();
+        ApplyChromeTheme();
+    }
+
+    private void CommitEditorToSession()
+    {
+        if (_session.Current is null)
+            return;
+        _session.SetContent(_editor.Text ?? string.Empty);
+    }
+
+    private void ApplyDocumentSurface()
+    {
+        if (_session.Current is null)
+            return;
+
+        if (_mode == DocumentMode.Edit)
+        {
+            _documentSurface.Content = _editor;
+            return;
+        }
+
+        _viewer.SourceDirectory = _session.Current.SourceDirectory;
+        _viewer.Title = _session.Current.Name.Value;
+        _viewer.Markdown = _session.Current.Content.Value;
+        _documentSurface.Content = _viewer;
         if (Environment.GetCommandLineArgs().Contains("--preview", StringComparer.OrdinalIgnoreCase))
             _ = OpenFirstPreviewWhenReadyAsync();
     }
@@ -459,6 +606,30 @@ public sealed class MainPage : ContentPage
         _viewer.SourceDirectory = null;
         _viewer.Title = "Merglyph";
         _viewer.Markdown = string.Empty;
+        _suppressEditorChanged = true;
+        _editor.Text = string.Empty;
+        _suppressEditorChanged = false;
+    }
+
+    private void RefreshDocumentChrome()
+    {
+        if (_session.Current is not { } document)
+            return;
+
+        var dirty = _session.IsDirty ? "• " : string.Empty;
+        _documentName.Text = dirty + document.Name.Value;
+        var location = !string.IsNullOrWhiteSpace(document.DisplayPath)
+            ? document.DisplayPath
+            : document.SourceDirectory;
+        var modeLabel = _mode == DocumentMode.Edit ? "Editing source" : "Reading preview";
+        _documentMeta.Text = string.IsNullOrWhiteSpace(location)
+            ? $"{modeLabel} • local Markdown"
+            : $"{modeLabel} • {location}";
+        _navigationShell.Title = $"{dirty}Merglyph · {document.Name.Value}";
+        _saveButton.Text = _session.CanSave
+            ? (_session.IsDirty ? "Save*" : "Save")
+            : "Save As";
+        StyleModeButtons();
     }
 
     private void ApplyChromeTheme()
@@ -485,11 +656,32 @@ public sealed class MainPage : ContentPage
         _heroNewButton.TextColor = GraphicalProfile.Text;
         _heroOpenButton.BackgroundColor = GraphicalProfile.Action;
         _heroOpenButton.TextColor = GraphicalProfile.OnAction;
+        _editor.TextColor = text;
+        _editor.BackgroundColor = GraphicalProfile.Raised;
         _welcomeCard.Background = new SolidColorBrush(surface);
         _welcomeCard.Stroke = new SolidColorBrush(border);
         _viewerCard.Background = new SolidColorBrush(surface);
         _viewerCard.Stroke = new SolidColorBrush(border);
+        StyleModeButtons();
         RenderRecentDocuments();
+    }
+
+    private void StyleModeButtons()
+    {
+        StyleToggle(_editModeButton, selected: _mode == DocumentMode.Edit);
+        StyleToggle(_previewModeButton, selected: _mode == DocumentMode.Preview);
+        _saveButton.BackgroundColor = GraphicalProfile.AccentFill;
+        _saveButton.TextColor = GraphicalProfile.Text;
+    }
+
+    private static void StyleToggle(Button button, bool selected)
+    {
+        button.BackgroundColor = selected
+            ? GraphicalProfile.Action
+            : GraphicalProfile.Raised;
+        button.TextColor = selected
+            ? GraphicalProfile.OnAction
+            : GraphicalProfile.Text;
     }
 
     private void RenderRecentDocuments()
@@ -517,6 +709,37 @@ public sealed class MainPage : ContentPage
             button.Clicked += async (_, _) => await OpenRecentAsync(document);
             _recentDocumentsList.Children.Add(button);
         }
+    }
+
+    private static Button CreateHeroButton(string automationId, string text, Func<Task> onClick)
+    {
+        var button = new Button
+        {
+            AutomationId = automationId,
+            Text = text,
+            FontAttributes = FontAttributes.Bold,
+            FontSize = 14,
+            CornerRadius = 22,
+            Padding = new Thickness(20, 12),
+            HorizontalOptions = LayoutOptions.Fill,
+        };
+        button.Clicked += async (_, _) => await onClick();
+        return button;
+    }
+
+    private static Button CreateChromeButton(string automationId, string text, Action onClick)
+    {
+        var button = new Button
+        {
+            AutomationId = automationId,
+            Text = text,
+            FontAttributes = FontAttributes.Bold,
+            FontSize = 13,
+            CornerRadius = 16,
+            Padding = new Thickness(14, 8),
+        };
+        button.Clicked += (_, _) => onClick();
+        return button;
     }
 
     private static Border CreateCard(View content) =>

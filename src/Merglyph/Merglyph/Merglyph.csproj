@@ -10,7 +10,7 @@
     <SingleProject>true</SingleProject>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <ApplicationTitle>Merglyph · Markdown Reader</ApplicationTitle>
+    <ApplicationTitle>Merglyph · Markdown</ApplicationTitle>
     <ApplicationId>dev.novolis.merglyph</ApplicationId>
     <ApplicationDisplayVersion>$(NovolisPlatformVersion)</ApplicationDisplayVersion>
     <ApplicationVersion Condition="'$(NovolisAndroidVersionCode)' != ''">$(NovolisAndroidVersionCode)</ApplicationVersion>

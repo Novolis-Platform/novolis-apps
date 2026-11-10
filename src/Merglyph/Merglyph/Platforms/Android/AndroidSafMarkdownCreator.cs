@@ -11,10 +11,11 @@ namespace Merglyph;
 internal static class AndroidSafMarkdownCreator
 {
     /// <summary>
-    /// Opens the system create-document UI and writes the default Markdown body.
+    /// Opens the system create-document UI and writes the Markdown body.
     /// Returns null when the user cancels.
     /// </summary>
     public static async Task<DocumentOpenRequest?> CreateAsync(
+        string content,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -31,14 +32,7 @@ internal static class AndroidSafMarkdownCreator
 
         var resolver = activity.ContentResolver
             ?? throw new IOException("Android ContentResolver is unavailable.");
-        await using (var output = resolver.OpenOutputStream(uri)
-            ?? throw new IOException("Android did not provide a writable document stream."))
-        await using (var writer = new StreamWriter(output))
-        {
-            await writer.WriteAsync(NewMarkdownDocument.DefaultContent.AsMemory(), cancellationToken)
-                .ConfigureAwait(false);
-            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-        }
+        await WriteUriAsync(resolver, uri, content, cancellationToken).ConfigureAwait(false);
 
         var name = ResolveDisplayName(activity, uri);
         var displayPath = uri.ToString() ?? name;
@@ -52,7 +46,22 @@ internal static class AndroidSafMarkdownCreator
                 return ValueTask.FromResult<Stream>(stream);
             },
             SourceDirectory: null,
-            DisplayPath: displayPath);
+            DisplayPath: displayPath,
+            SaveAsync: (body, saveCancellation) =>
+                WriteUriAsync(resolver, uri, body, saveCancellation));
+    }
+
+    private static async ValueTask WriteUriAsync(
+        ContentResolver resolver,
+        Android.Net.Uri uri,
+        string content,
+        CancellationToken cancellationToken)
+    {
+        // "wt" truncates so Save replaces the whole document.
+        await using var output = resolver.OpenOutputStream(uri, "wt")
+            ?? throw new IOException("Android did not provide a writable document stream.");
+        await MarkdownDocumentWriter.WriteStreamAsync(output, content, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static string ResolveDisplayName(Activity activity, Android.Net.Uri uri)

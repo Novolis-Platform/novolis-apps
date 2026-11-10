@@ -28,6 +28,15 @@ public sealed class MarkdownDocumentPicker
         var directory = string.IsNullOrWhiteSpace(file.FullPath)
             ? null
             : Path.GetDirectoryName(file.FullPath);
+        var displayPath = string.IsNullOrWhiteSpace(file.FullPath) ? null : file.FullPath;
+        SaveDocumentContent? save = null;
+        if (!string.IsNullOrWhiteSpace(file.FullPath))
+        {
+            var path = file.FullPath;
+            save = (content, cancellationToken) =>
+                MarkdownDocumentWriter.WriteFileAsync(path, content, cancellationToken);
+        }
+
         return new DocumentOpenRequest(
             new DocumentName(file.FileName),
             async cancellationToken =>
@@ -35,6 +44,8 @@ public sealed class MarkdownDocumentPicker
                 cancellationToken.ThrowIfCancellationRequested();
                 return await file.OpenReadAsync();
             },
-            directory);
+            directory,
+            displayPath,
+            save);
     }
 }

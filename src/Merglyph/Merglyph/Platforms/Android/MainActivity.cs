@@ -145,22 +145,53 @@ public sealed class MainActivity : MauiAppCompatActivity
         if (!SupportedMarkdownDocuments.IsSupported(name))
             return;
 
+        var displayPath = uri.ToString();
+        var filePath = string.Equals(uri.Scheme, "file", StringComparison.OrdinalIgnoreCase)
+            ? uri.Path
+            : null;
+        SaveDocumentContent? save = null;
+        if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+        {
+            var path = filePath;
+            save = (content, cancellationToken) =>
+                MarkdownDocumentWriter.WriteFileAsync(path, content, cancellationToken);
+        }
+        else if (ContentResolver is not null)
+        {
+            var resolver = ContentResolver;
+            save = (content, cancellationToken) =>
+                WriteContentUriAsync(resolver, uri, content, cancellationToken);
+        }
+
         MauiActivationBridge<DocumentOpenRequest>.Publish(new DocumentOpenRequest(
             new DocumentName(name),
             cancellationToken =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (string.Equals(uri.Scheme, "file", StringComparison.OrdinalIgnoreCase)
-                    && uri.Path is { Length: > 0 } path
-                    && File.Exists(path))
-                {
-                    return ValueTask.FromResult<Stream>(File.OpenRead(path));
-                }
+                if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+                    return ValueTask.FromResult<Stream>(File.OpenRead(filePath));
 
                 var stream = ContentResolver?.OpenInputStream(uri)
                     ?? throw new IOException("Android did not provide a readable document stream.");
                 return ValueTask.FromResult<Stream>(stream);
-            }));
+            },
+            SourceDirectory: string.IsNullOrWhiteSpace(filePath)
+                ? null
+                : Path.GetDirectoryName(filePath),
+            DisplayPath: displayPath,
+            SaveAsync: save));
+    }
+
+    private static async ValueTask WriteContentUriAsync(
+        ContentResolver resolver,
+        Android.Net.Uri uri,
+        string content,
+        CancellationToken cancellationToken)
+    {
+        await using var output = resolver.OpenOutputStream(uri, "wt")
+            ?? throw new IOException("Android did not provide a writable document stream.");
+        await MarkdownDocumentWriter.WriteStreamAsync(output, content, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private void TryPersistReadPermission(Intent intent, Android.Net.Uri uri)
