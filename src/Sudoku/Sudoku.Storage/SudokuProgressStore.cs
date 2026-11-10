@@ -129,10 +129,7 @@ public sealed class SudokuProgressStore
                 ?? new SudokuProgressRecord();
             if (record.SchemaVersion != SudokuProgressRecord.CurrentSchema)
                 record.SchemaVersion = SudokuProgressRecord.CurrentSchema;
-            record.CurrentLadderNumber = Math.Max(1, record.CurrentLadderNumber);
-            record.HighestUnlockedNumber = Math.Max(1, record.HighestUnlockedNumber);
-            record.ConqueredPuzzleIds ??= [];
-            record.BestTimesSeconds ??= new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            Normalize(record);
             return record;
         }
         catch
@@ -143,11 +140,24 @@ public sealed class SudokuProgressStore
 
     private void PersistUnlocked()
     {
+        Normalize(_record);
+        Directory.CreateDirectory(RootPath);
         var json = JsonSerializer.Serialize(_record, Options);
         var temp = FilePath + ".tmp";
         File.WriteAllText(temp, json);
-        File.Copy(temp, FilePath, overwrite: true);
-        File.Delete(temp);
+        File.Move(temp, FilePath, overwrite: true);
+    }
+
+    private static void Normalize(SudokuProgressRecord record)
+    {
+        record.SchemaVersion = SudokuProgressRecord.CurrentSchema;
+        record.CurrentLadderNumber = Math.Max(1, record.CurrentLadderNumber);
+        // Puzzle #1 is always open — never allow a zero unlock floor.
+        record.HighestUnlockedNumber = Math.Max(1, record.HighestUnlockedNumber);
+        if (record.CurrentLadderNumber > record.HighestUnlockedNumber)
+            record.CurrentLadderNumber = record.HighestUnlockedNumber;
+        record.ConqueredPuzzleIds ??= [];
+        record.BestTimesSeconds ??= new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
     }
 
     private static SudokuProgressRecord Clone(SudokuProgressRecord source) =>

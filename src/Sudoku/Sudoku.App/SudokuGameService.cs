@@ -68,7 +68,8 @@ public sealed class SudokuGameService
     public SudokuSession StartLadder(int ladderNumber)
     {
         var progress = _progress.Snapshot;
-        if (ladderNumber < 1 || ladderNumber > progress.HighestUnlockedNumber)
+        var unlockedThrough = Math.Max(1, progress.HighestUnlockedNumber);
+        if (ladderNumber < 1 || ladderNumber > unlockedThrough)
             throw new InvalidOperationException($"Puzzle {ladderNumber} is still locked.");
 
         var step = _ladder.Get(ladderNumber);

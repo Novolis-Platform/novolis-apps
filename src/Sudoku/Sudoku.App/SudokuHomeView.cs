@@ -114,7 +114,8 @@ public sealed class SudokuHomeView : UserControl
 
     private Control BuildStepRow(SudokuLadderPuzzle step, Sudoku.Storage.SudokuProgressRecord progress)
     {
-        var unlocked = step.Number <= progress.HighestUnlockedNumber;
+        var unlockedThrough = Math.Max(1, progress.HighestUnlockedNumber);
+        var unlocked = step.Number <= unlockedThrough;
         var conquered = progress.ConqueredPuzzleIds.Contains(
             step.PuzzleId,
             StringComparer.OrdinalIgnoreCase);
