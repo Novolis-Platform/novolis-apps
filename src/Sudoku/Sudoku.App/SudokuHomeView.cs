@@ -4,10 +4,11 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Novolis.Avalonia.GraphicalProfile;
 using Sudoku.Core;
+using Sudoku.Storage;
 
 namespace Sudoku.App;
 
-/// <summary>Ladder catalog home: continue plus segmented unlocked/locked steps.</summary>
+/// <summary>Ladder catalog home: continue/resume plus open steps with active-game badges.</summary>
 public sealed class SudokuHomeView : UserControl
 {
     private readonly SudokuGameService _game;
@@ -30,6 +31,9 @@ public sealed class SudokuHomeView : UserControl
     private Control BuildLayout()
     {
         var progress = _game.Progress;
+        var activeByNumber = _game.IncompleteSavesByLadderNumber();
+        var primaryActive = _game.TryGetPrimaryActiveGame();
+
         var title = new TextBlock
         {
             Text = "Novolis Sudoku",
@@ -40,8 +44,11 @@ public sealed class SudokuHomeView : UserControl
         var subtitle = new TextBlock
         {
             Text =
-                $"Ladder · unlocked through #{progress.HighestUnlockedNumber}"
-                + $" · cleared {progress.ConqueredPuzzleIds.Count}/{_game.Ladder.Count}",
+                $"Ladder · all {_game.Ladder.Count} open"
+                + $" · cleared {progress.ConqueredPuzzleIds.Count}/{_game.Ladder.Count}"
+                + (activeByNumber.Count > 0
+                    ? $" · {activeByNumber.Count} in progress"
+                    : string.Empty),
             FontSize = 13,
             Foreground = GraphicalProfile.MutedBrush,
             TextWrapping = TextWrapping.Wrap,
@@ -50,13 +57,21 @@ public sealed class SudokuHomeView : UserControl
 
         var continueButton = new Button
         {
-            Content = $"Continue · #{Math.Clamp(progress.CurrentLadderNumber, 1, _game.Ladder.Count)}",
+            Content = primaryActive is { } active
+                ? $"Resume · #{active.Step.Number} · {FormatElapsed(TimeSpan.FromSeconds(active.Save.ElapsedSeconds))}"
+                : $"Continue · #{Math.Clamp(progress.CurrentLadderNumber, 1, _game.Ladder.Count)}",
             Classes = { "primary-button" },
             HorizontalAlignment = HorizontalAlignment.Stretch,
             MinHeight = 44,
             Margin = new Thickness(0, 12, 0, 8),
         };
-        continueButton.Click += (_, _) => _play(SudokuPlayRequest.Continue());
+        continueButton.Click += (_, _) =>
+        {
+            if (primaryActive is { } resume)
+                _play(SudokuPlayRequest.Ladder(resume.Step.Number));
+            else
+                _play(SudokuPlayRequest.Continue());
+        };
 
         var list = new StackPanel { Spacing = 4 };
         SudokuDifficultySegment? lastSegment = null;
@@ -75,7 +90,8 @@ public sealed class SudokuHomeView : UserControl
                 });
             }
 
-            list.Children.Add(BuildStepRow(step, progress));
+            activeByNumber.TryGetValue(step.Number, out var activeSave);
+            list.Children.Add(BuildStepRow(step, progress, activeSave));
         }
 
         _status.FontSize = 12;
@@ -83,7 +99,11 @@ public sealed class SudokuHomeView : UserControl
         _status.TextWrapping = TextWrapping.Wrap;
         _status.Margin = new Thickness(0, 8, 0, 0);
         if (string.IsNullOrWhiteSpace(_status.Text))
-            _status.Text = "Pick a puzzle from the ladder, or continue where you left off.";
+        {
+            _status.Text = primaryActive is { } resumeHint
+                ? $"Active game on #{resumeHint.Step.Number} · {FormatElapsed(TimeSpan.FromSeconds(resumeHint.Save.ElapsedSeconds))} — tap Resume or the ladder row."
+                : "Pick a puzzle from the ladder, or continue where you left off.";
+        }
 
         var header = new StackPanel
         {
@@ -112,17 +132,19 @@ public sealed class SudokuHomeView : UserControl
         return root;
     }
 
-    private Control BuildStepRow(SudokuLadderPuzzle step, Sudoku.Storage.SudokuProgressRecord progress)
+    private Control BuildStepRow(
+        SudokuLadderPuzzle step,
+        SudokuProgressRecord progress,
+        SudokuSaveRecord? activeSave)
     {
-        var unlockedThrough = Math.Max(1, progress.HighestUnlockedNumber);
-        var unlocked = step.Number <= unlockedThrough;
         var conquered = progress.ConqueredPuzzleIds.Contains(
             step.PuzzleId,
             StringComparer.OrdinalIgnoreCase);
         progress.BestTimesSeconds.TryGetValue(step.PuzzleId, out var bestSeconds);
+        var inProgress = activeSave is not null;
 
-        var state = !unlocked
-            ? "Locked"
+        var state = inProgress
+            ? $"In progress · {FormatElapsed(TimeSpan.FromSeconds(activeSave!.ElapsedSeconds))}"
             : conquered
                 ? bestSeconds > 0
                     ? $"Cleared · best {FormatElapsed(TimeSpan.FromSeconds(bestSeconds))}"
@@ -136,15 +158,15 @@ public sealed class SudokuHomeView : UserControl
             Text = $"#{step.Number} · {step.SegmentDisplayName}",
             FontSize = 15,
             FontWeight = FontWeight.SemiBold,
-            Foreground = unlocked
-                ? GraphicalProfile.TextBrush
-                : GraphicalProfile.MutedBrush,
+            Foreground = GraphicalProfile.TextBrush,
         };
         var detail = new TextBlock
         {
             Text = state,
             FontSize = 12,
-            Foreground = GraphicalProfile.MutedBrush,
+            Foreground = inProgress
+                ? GraphicalProfile.AccentBrush
+                : GraphicalProfile.MutedBrush,
             Margin = new Thickness(0, 2, 0, 0),
         };
 
@@ -153,14 +175,12 @@ public sealed class SudokuHomeView : UserControl
             Padding = new Thickness(12, 10),
             CornerRadius = new CornerRadius(10),
             Background = GraphicalProfile.SurfaceBrush,
-            BorderBrush = GraphicalProfile.BorderBrush,
-            BorderThickness = new Thickness(1),
-            Opacity = unlocked ? 1 : 0.55,
+            BorderBrush = inProgress
+                ? GraphicalProfile.AccentBrush
+                : GraphicalProfile.BorderBrush,
+            BorderThickness = new Thickness(inProgress ? 2 : 1),
             Child = new StackPanel { Children = { title, detail } },
         };
-
-        if (!unlocked)
-            return row;
 
         row.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
         row.PointerPressed += (_, args) =>

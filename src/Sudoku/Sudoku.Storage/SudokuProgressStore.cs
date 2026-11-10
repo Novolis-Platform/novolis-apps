@@ -105,6 +105,20 @@ public sealed class SudokuProgressStore
         }
     }
 
+    /// <summary>Raises the unlock ceiling through the given ladder number (inclusive).</summary>
+    public SudokuProgressRecord EnsureUnlockedThrough(int ladderNumber)
+    {
+        if (ladderNumber < 1)
+            throw new ArgumentOutOfRangeException(nameof(ladderNumber));
+        lock (_gate)
+        {
+            if (_record.HighestUnlockedNumber < ladderNumber)
+                _record.HighestUnlockedNumber = ladderNumber;
+            PersistUnlocked();
+            return Clone(_record);
+        }
+    }
+
     /// <summary>Adds elapsed play without a completion.</summary>
     public void AddPlaySeconds(long seconds)
     {

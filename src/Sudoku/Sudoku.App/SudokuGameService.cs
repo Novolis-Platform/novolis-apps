@@ -23,6 +23,47 @@ public sealed class SudokuGameService
         _progress = progress ?? throw new ArgumentNullException(nameof(progress));
         _catalog = catalog ?? SudokuPuzzleCatalog.LoadDefault();
         _ladder = SudokuLadder.FromCatalog(_catalog);
+        // Full ladder is playable; conquer tracking still records clears.
+        _progress.EnsureUnlockedThrough(_ladder.Count);
+    }
+
+    /// <summary>
+    /// Incomplete named saves keyed by ladder number (active in-progress games).
+    /// </summary>
+    public IReadOnlyDictionary<int, SudokuSaveRecord> IncompleteSavesByLadderNumber()
+    {
+        var byId = _store.List()
+            .Where(save => !save.Completed)
+            .ToDictionary(save => save.Id);
+        if (byId.Count == 0)
+            return new Dictionary<int, SudokuSaveRecord>();
+
+        var map = new Dictionary<int, SudokuSaveRecord>();
+        foreach (var step in _ladder.Steps)
+        {
+            var sessionId = SudokuLadder.StableSessionId(step.PuzzleId);
+            if (byId.TryGetValue(sessionId, out var save))
+                map[step.Number] = save;
+        }
+
+        return map;
+    }
+
+    /// <summary>Most recently saved incomplete game, if any.</summary>
+    public (SudokuLadderPuzzle Step, SudokuSaveRecord Save)? TryGetPrimaryActiveGame()
+    {
+        SudokuLadderPuzzle? step = null;
+        SudokuSaveRecord? save = null;
+        foreach (var pair in IncompleteSavesByLadderNumber())
+        {
+            if (save is null || pair.Value.SavedUtc > save.SavedUtc)
+            {
+                step = _ladder.Get(pair.Key);
+                save = pair.Value;
+            }
+        }
+
+        return step is null || save is null ? null : (step, save);
     }
 
     /// <summary>Raised after the current session or progress changes.</summary>
@@ -85,11 +126,10 @@ public sealed class SudokuGameService
         return true;
     }
 
-    /// <summary>Moves to the next unlocked ladder puzzle.</summary>
+    /// <summary>Moves to the next ladder puzzle.</summary>
     public bool TryNext()
     {
-        var progress = _progress.Snapshot;
-        if (CurrentLadderNumber <= 0 || CurrentLadderNumber >= progress.HighestUnlockedNumber)
+        if (CurrentLadderNumber <= 0 || CurrentLadderNumber >= _ladder.Count)
             return false;
         StartLadder(CurrentLadderNumber + 1);
         return true;

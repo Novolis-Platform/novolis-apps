@@ -672,16 +672,16 @@ public sealed class SudokuView : UserControl
             + Environment.NewLine
             + $"{SudokuHelpers.CountFilled(session.Entries)}/{SudokuConstants.CellCount} filled"
             + Environment.NewLine
-            + $"Unlocked through #{progress.HighestUnlockedNumber}"
+            + $"Ladder open · {ladder.Count} puzzles"
             + Environment.NewLine
             + $"Completions {progress.Completions} · play {FormatElapsed(TimeSpan.FromSeconds(progress.TotalPlaySeconds))}";
 
         _prevButton.IsEnabled = step.Number > 1;
-        _nextButton.IsEnabled = step.Number < progress.HighestUnlockedNumber;
+        _nextButton.IsEnabled = step.Number < ladder.Count;
 
         if (session.IsCompleted)
             _message = step.Number < ladder.Count
-                ? "Cleared — Next unlocks the following puzzle."
+                ? "Cleared — Next opens the following puzzle."
                 : "Campaign complete. You can replay any puzzle.";
 
         var conflicts = _selectedCell >= 0
