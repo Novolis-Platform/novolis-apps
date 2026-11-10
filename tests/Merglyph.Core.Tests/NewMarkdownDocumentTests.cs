@@ -33,24 +33,26 @@ public sealed class NewMarkdownDocumentTests
     public async Task Resolve_UsesMyDocumentsWhenAvailable()
     {
         // MyDocuments and Personal share the same enum value on Windows.
+        var documents = Path.Combine("Users", "demo", "Documents");
         var path = UserDocumentsPaths.Resolve(folder =>
             folder is Environment.SpecialFolder.MyDocuments
                 or Environment.SpecialFolder.Personal
-                ? @"C:\Users\demo\Documents"
+                ? documents
                 : string.Empty);
 
-        await Assert.That(path).IsEqualTo(@"C:\Users\demo\Documents");
+        await Assert.That(path).IsEqualTo(documents);
     }
 
     [Test]
     public async Task Resolve_FallsBackToProfileDocuments()
     {
+        var profile = Path.Combine("Users", "demo");
         var path = UserDocumentsPaths.Resolve(folder =>
             folder == Environment.SpecialFolder.UserProfile
-                ? @"C:\Users\demo"
+                ? profile
                 : string.Empty);
 
-        await Assert.That(path).IsEqualTo(@"C:\Users\demo\Documents");
+        await Assert.That(path).IsEqualTo(Path.Combine(profile, "Documents"));
     }
 
     [Test]
