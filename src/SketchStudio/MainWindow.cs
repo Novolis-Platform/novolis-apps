@@ -18,7 +18,7 @@ using Optris.Icons.Avalonia;
 
 namespace SketchStudio;
 
-internal sealed class MainWindow : Window
+internal sealed partial class MainWindow : Window
 {
     // 13 opaque standards — custom color for #RRGGBB / #AARRGGBB via popup.
     static readonly string[] Palette =
@@ -708,48 +708,29 @@ internal sealed class MainWindow : Window
         var bLabel = MkLabel(b);
         var aLabel = MkLabel(a);
 
-        void SyncFromSliders()
-        {
-            r = (byte)Math.Clamp((int)Math.Round(rSlider.Value), 0, 255);
-            g = (byte)Math.Clamp((int)Math.Round(gSlider.Value), 0, 255);
-            b = (byte)Math.Clamp((int)Math.Round(bSlider.Value), 0, 255);
-            a = (byte)Math.Clamp((int)Math.Round(aSlider.Value), 0, 255);
-            rLabel.Text = r.ToString();
-            gLabel.Text = g.ToString();
-            bLabel.Text = b.ToString();
-            aLabel.Text = a.ToString();
-            preview.Background = new SolidColorBrush(Color.FromArgb(a, r, g, b));
-            if (hexBox.Tag is not true)
-                hexBox.Text = FormatHex(a, r, g, b);
-        }
+        var colorUi = new CustomColorDialogUi(
+            new CustomColorChannels(a, r, g, b),
+            preview,
+            hexBox,
+            rSlider,
+            gSlider,
+            bSlider,
+            aSlider,
+            rLabel,
+            gLabel,
+            bLabel,
+            aLabel);
 
-        void SyncFromHex()
-        {
-            if (!TryParseColorComponents(hexBox.Text?.Trim() ?? "", out var pa, out var pr, out var pg, out var pb))
-                return;
-            a = pa;
-            r = pr;
-            g = pg;
-            b = pb;
-            hexBox.Tag = true;
-            rSlider.Value = r;
-            gSlider.Value = g;
-            bSlider.Value = b;
-            aSlider.Value = a;
-            hexBox.Tag = false;
-            SyncFromSliders();
-        }
-
-        rSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) SyncFromSliders(); };
-        gSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) SyncFromSliders(); };
-        bSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) SyncFromSliders(); };
-        aSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) SyncFromSliders(); };
-        hexBox.LostFocus += (_, _) => SyncFromHex();
+        rSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) colorUi.ApplySliderBatch(); };
+        gSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) colorUi.ApplySliderBatch(); };
+        bSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) colorUi.ApplySliderBatch(); };
+        aSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) colorUi.ApplySliderBatch(); };
+        hexBox.LostFocus += (_, _) => colorUi.SyncFromHex();
         hexBox.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Enter)
             {
-                SyncFromHex();
+                colorUi.SyncFromHex();
                 e.Handled = true;
             }
         };
@@ -835,8 +816,9 @@ internal sealed class MainWindow : Window
         cancel.Click += (_, _) => dlg.Close();
         apply.Click += (_, _) =>
         {
-            SyncFromHex();
-            chosen = FormatHex(a, r, g, b);
+            colorUi.SyncFromHex();
+            var c = colorUi.Channels;
+            chosen = FormatHex(c.A, c.R, c.G, c.B);
             dlg.Close();
         };
 
