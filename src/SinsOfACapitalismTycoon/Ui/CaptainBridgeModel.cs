@@ -105,29 +105,7 @@ internal sealed class CaptainBridgeModel
     var ship = sim.State.World.Shipments.FirstOrDefault(s =>
       !s.IsLegacy && s.FirmId.Equals(ids.Carrier) && s.Status == ShipmentStatus.InTransit);
     var underway = ship is not null;
-    string voyage;
-    if (ship is null)
-    {
-      voyage = $"DOCK · {currentName} ({currentSystem})";
-    }
-    else if (ship.Quantity.Value <= 0m)
-    {
-      voyage =
-        $"REPOSITION · {ship.Phase} @ {HubLabel(ids, ship.CurrentHubId)} · [{ship.TransitProfile}]";
-    }
-    else
-    {
-      voyage =
-        $"UNDERWAY · {CampaignWorld.SkuLabel(ship.ProductId, ids)} ×{ship.Quantity.Value:0} · {ship.Phase} @ {HubLabel(ids, ship.CurrentHubId)} · [{ship.TransitProfile}]";
-    }
-
-    if (ship is null
-        && day <= CampaignWorld.LienServiceGraceDays
-        && entry is { LienPrincipal: > 0.05m })
-    {
-      var left = Math.Max(0, CampaignWorld.LienServiceGraceDays - day);
-      voyage += $" · Grace {left}d · then lien bites";
-    }
+    var voyage = BuildVoyageLine(ids, ship, currentName, currentSystem, day, entry);
 
     var spotBoard = CaptainJobBoard.ListSpot(
       sim, ids, profile, currentSystem, dockOnly: session.Player.DockBoardOnly, mesh: ids.Mesh);
@@ -157,50 +135,7 @@ internal sealed class CaptainBridgeModel
       : RouteHighlight.FromShipment(ids, sim.State.World, ship);
 
     var (points, edges, hubDetails) = CaptainMapProjection.Build(ids);
-
-    var feed = new List<FeedLine>();
-    if (inFtl)
-    {
-      // Mesh panel freezes in FTL — no node link until in-system again.
-      feed.Add(new FeedLine(
-        "vox.mesh",
-        "Mesh offline · FTL — no node link until in-system",
-        "mesh"));
-      if (session.LastBridge is { Feed: { Count: > 0 } prevFeed })
-      {
-        foreach (var line in prevFeed)
-        {
-          if (line.Voice.Equals("vox.mesh", StringComparison.OrdinalIgnoreCase)
-              && line.Text.Contains("Mesh offline", StringComparison.OrdinalIgnoreCase))
-          {
-            continue;
-          }
-
-          feed.Add(line);
-        }
-      }
-    }
-    else
-    {
-      foreach (var subject in meshSnap.RecentSubjects.Take(6))
-      {
-        feed.Add(new FeedLine("vox.mesh", subject, "mesh"));
-      }
-
-      if (!session.Player.DockBoardOnly)
-      {
-        feed.Add(new FeedLine(
-          "vox.mesh",
-          $"Mesh intel is delayed · inbox {meshSnap.FeedInboxCount} · digests {meshSnap.SpotDigestCount}",
-          "mesh"));
-      }
-
-      foreach (var m in session.Milestones.Entries.OrderBy(e => e.Day).ThenBy(e => e.Kind).TakeLast(40))
-      {
-        var vox = VoxBank.ForMilestone(m.Kind, m.Detail);
-        feed.Add(new FeedLine(vox.Voice, vox.Text, $"d{m.Day}"));
-      }
-    }
+    var feed = BuildFeed(session, meshSnap, inFtl);
 
     var lifeHits = LifeMoments.Count(session.Milestones);
     var scoreRows = LifeMoments.Score(session.Milestones)
@@ -208,44 +143,7 @@ internal sealed class CaptainBridgeModel
       .ToList();
 
     var decision = session.Agents.CarrierPulse.LastDecision;
-    var listPremium = entry is null ? 0m : ids.Registry.QuotePremiumDue(entry);
-    var operating = InsurancePulse.IsOperating(sim.State.World, ids.Carrier);
-    var premium = operating
-      ? listPremium
-      : listPremium * CampaignWorld.IdleStandingPremiumFactor;
-    var premiumHint = operating ? $"{premium:0.#}/d" : $"{premium:0.#}/d idle";
-    var payable = entry?.PremiumPayable ?? 0m;
-    var runwayDays = premium > 0.05m
-      ? Math.Round(cash / premium, 1, MidpointRounding.AwayFromZero)
-      : 999m;
-    var runwayLine = premium > 0.05m
-      ? $"~{runwayDays:0.#}d runway @ {premiumHint}"
-      : "runway —";
-    var repScore = ids.Reputation.Get(ids.Carrier);
-    var escrowPending = ids.Escrow.OpenPrincipalFor(ids.Carrier);
-    if (escrowPending < 0.5m && session.Player.Manifest.Lots.Count > 0)
-    {
-      escrowPending = session.Player.Manifest.Lots.Sum(l => l.DestBid * l.Quantity);
-    }
-
-    var escrowAge = ids.Escrow.OpenAgeDays(ids.Carrier, day);
-    var escrowClock = escrowPending > 0.5m
-      ? (underway
-        ? $"CCA pending {escrowPending:0} · day {escrowAge} underway"
-        : $"CCA staged ~{escrowPending:0} · opens on sail")
-      : "";
-    // LifeFraction is wear used; bridge shows remaining drive life (100% = fresh).
-    var lifeRemain = entry is null ? 0m : Math.Clamp((1m - entry.LifeFraction) * 100m, 0m, 100m);
-    var hull = entry is null
-      ? "—"
-      : payable > 0.05m
-        ? $"life {lifeRemain:0}% · premium {premiumHint} · payable {payable:0.#} · lien {entry.LienPrincipal:0} · OH {entry.OverhaulCount}"
-        : $"life {lifeRemain:0}% · premium {premiumHint} · lien {entry.LienPrincipal:0} · OH {entry.OverhaulCount}";
-    if (!string.IsNullOrEmpty(escrowClock))
-    {
-      hull += $"\n{escrowClock}";
-    }
-
+    var finance = BuildHullFinance(sim, ids, entry, cash, underway, day, session);
     var standing = entry?.StandingLabel ?? "—";
     var advice = CaptainCoach.For(session);
     var soft = advice.SoftFailEnrichment;
@@ -258,71 +156,31 @@ internal sealed class CaptainBridgeModel
         $"life {e.LifeFraction * 100m:0}% · P/S/Std {e.PriorityLegs}/{e.SlowLegs}/{e.StandardLegs}"))
       .ToList();
 
-    var money = new List<MetricRow>
-    {
-      new(CampaignWorld.PlayerHullName, $"{cash:0}", standing),
-      new("Ops liquid", $"{session.Credits.LiquidStock:0}"),
-      new("Claims / load", $"{ids.Registry.ClaimsPaid:0} / {ids.Registry.ActuarialLoad:0.##}"),
-      new("Escrow open", escrowPending > 0.5m
-        ? $"{ids.Escrow.OpenCount} · CCA {escrowPending:0}"
-        : $"{ids.Escrow.OpenCount}"),
-      new("Reputation", $"{repScore:0}"),
-      new("Mesh inbox", inFtl
-        ? "offline · FTL"
-        : $"{meshSnap.FeedInboxCount} · em {meshSnap.EmergencyCount} · digests {meshSnap.SpotDigestCount}"),
-    };
-
-    var agentRows = new List<MetricRow>
-    {
-      new(CampaignWorld.PlayerHullName, decision),
-      new("Mining", session.Agents.Mining.LastDecision),
-      new("Industry", session.Agents.Industry.LastDecision),
-      new("Station", session.Agents.Station.LastDecision),
-      new("Mega", session.Agents.MegaHauler.LastDecision),
-    };
+    var money = BuildMoneyRows(session, ids, cash, standing, finance.EscrowPending, finance.RepScore, meshSnap, inFtl);
+    var agentRows = BuildAgentRows(session, decision);
 
     var standby = session.Player.Opportunities?.ActiveStandbyTramp?.Equals(ids.Carrier) == true;
     var dockedIdle = !underway
                      && !sim.State.World.PendingPlanShipments.Any(p => p.FirmId.Equals(ids.Carrier))
                      && !sim.State.World.PendingPlanRepositions.Any(p => p.FirmId.Equals(ids.Carrier));
 
-    var travelTarget = session.Player.TravelTargetSystemId;
-    // Selecting the current system on the map used to arm Travel → "already at dock" soft-lock.
-    if (string.IsNullOrEmpty(travelTarget)
-        || travelTarget.Equals(currentSystem, StringComparison.OrdinalIgnoreCase))
-    {
-      travelTarget = suggestedTravel;
-      if (!string.IsNullOrEmpty(suggestedTravel))
-      {
-        session.Player.TravelTargetSystemId = suggestedTravel;
-      }
-    }
+    var travelTarget = ResolveTravelTarget(session, currentSystem, suggestedTravel);
 
     var manifestOrigin = session.Player.Manifest.Lots.Count > 0
       ? session.Player.Manifest.Lots[0].OriginSystemId
       : null;
     var manifestAtDock = string.IsNullOrEmpty(manifestOrigin)
       || manifestOrigin.Equals(currentSystem, StringComparison.OrdinalIgnoreCase);
-    var routeIds = new List<string>();
-    if (underwayRoute.Count > 0)
-    {
-      foreach (var e in underwayRoute)
-      {
-        if (routeIds.Count == 0) routeIds.Add(e.FromId);
-        routeIds.Add(e.ToId);
-      }
-    }
-    else if (!string.IsNullOrEmpty(travelTarget))
-    {
-      var planned = RouteHighlight.BetweenSystems(ids, currentSystem, travelTarget);
-      foreach (var e in planned)
-      {
-        if (routeIds.Count == 0) routeIds.Add(e.FromId);
-        routeIds.Add(e.ToId);
-      }
-    }
+    var routeIds = BuildRouteSystemIds(ids, currentSystem, travelTarget, underwayRoute);
 
     var (shipX, shipY, shipVis) = ShipMapPose.Compute(ids, sim.State.World, currentSystem, ship, points);
+    var premium = finance.Premium;
+    var runwayDays = finance.RunwayDays;
+    var runwayLine = finance.RunwayLine;
+    var repScore = finance.RepScore;
+    var escrowClock = finance.EscrowClock;
+    var escrowPending = finance.EscrowPending;
+    var hull = finance.HullLine;
 
     return new CaptainBridgeModel
     {
@@ -400,6 +258,213 @@ internal sealed class CaptainBridgeModel
       SessionGameHoursPerRealMinute = session.SessionGameHoursPerRealMinute,
       PaceLine = session.PaceLine,
     };
+  }
+
+  private static string BuildVoyageLine(
+    CampaignWorld.Ids ids,
+    ActiveShipment? ship,
+    string currentName,
+    string currentSystem,
+    int day,
+    ShipRegistryEntry? entry)
+  {
+    string voyage;
+    if (ship is null)
+      voyage = $"DOCK · {currentName} ({currentSystem})";
+    else if (ship.Quantity.Value <= 0m)
+      voyage =
+        $"REPOSITION · {ship.Phase} @ {HubLabel(ids, ship.CurrentHubId)} · [{ship.TransitProfile}]";
+    else
+      voyage =
+        $"UNDERWAY · {CampaignWorld.SkuLabel(ship.ProductId, ids)} ×{ship.Quantity.Value:0} · {ship.Phase} @ {HubLabel(ids, ship.CurrentHubId)} · [{ship.TransitProfile}]";
+
+    if (ship is null
+        && day <= CampaignWorld.LienServiceGraceDays
+        && entry is { LienPrincipal: > 0.05m })
+    {
+      var left = Math.Max(0, CampaignWorld.LienServiceGraceDays - day);
+      voyage += $" · Grace {left}d · then lien bites";
+    }
+
+    return voyage;
+  }
+
+  private static List<FeedLine> BuildFeed(
+    CampaignRunner.LiveSession session,
+    MeshCaptainInbox.Snapshot meshSnap,
+    bool inFtl)
+  {
+    var feed = new List<FeedLine>();
+    if (inFtl)
+    {
+      feed.Add(new FeedLine(
+        "vox.mesh",
+        "Mesh offline · FTL — no node link until in-system",
+        "mesh"));
+      if (session.LastBridge is { Feed: { Count: > 0 } prevFeed })
+      {
+        foreach (var line in prevFeed)
+        {
+          if (line.Voice.Equals("vox.mesh", StringComparison.OrdinalIgnoreCase)
+              && line.Text.Contains("Mesh offline", StringComparison.OrdinalIgnoreCase))
+          {
+            continue;
+          }
+
+          feed.Add(line);
+        }
+      }
+
+      return feed;
+    }
+
+    foreach (var subject in meshSnap.RecentSubjects.Take(6))
+      feed.Add(new FeedLine("vox.mesh", subject, "mesh"));
+
+    if (!session.Player.DockBoardOnly)
+    {
+      feed.Add(new FeedLine(
+        "vox.mesh",
+        $"Mesh intel is delayed · inbox {meshSnap.FeedInboxCount} · digests {meshSnap.SpotDigestCount}",
+        "mesh"));
+    }
+
+    foreach (var m in session.Milestones.Entries.OrderBy(e => e.Day).ThenBy(e => e.Kind).TakeLast(40))
+    {
+      var vox = VoxBank.ForMilestone(m.Kind, m.Detail);
+      feed.Add(new FeedLine(vox.Voice, vox.Text, $"d{m.Day}"));
+    }
+
+    return feed;
+  }
+
+  private readonly record struct HullFinance(
+    decimal Premium,
+    decimal RunwayDays,
+    string RunwayLine,
+    decimal RepScore,
+    decimal EscrowPending,
+    string EscrowClock,
+    string HullLine);
+
+  private static HullFinance BuildHullFinance(
+    EconomySimulation sim,
+    CampaignWorld.Ids ids,
+    ShipRegistryEntry? entry,
+    decimal cash,
+    bool underway,
+    int day,
+    CampaignRunner.LiveSession session)
+  {
+    var listPremium = entry is null ? 0m : ids.Registry.QuotePremiumDue(entry);
+    var operating = InsurancePulse.IsOperating(sim.State.World, ids.Carrier);
+    var premium = operating
+      ? listPremium
+      : listPremium * CampaignWorld.IdleStandingPremiumFactor;
+    var premiumHint = operating ? $"{premium:0.#}/d" : $"{premium:0.#}/d idle";
+    var payable = entry?.PremiumPayable ?? 0m;
+    var runwayDays = premium > 0.05m
+      ? Math.Round(cash / premium, 1, MidpointRounding.AwayFromZero)
+      : 999m;
+    var runwayLine = premium > 0.05m
+      ? $"~{runwayDays:0.#}d runway @ {premiumHint}"
+      : "runway —";
+    var repScore = ids.Reputation.Get(ids.Carrier);
+    var escrowPending = ids.Escrow.OpenPrincipalFor(ids.Carrier);
+    if (escrowPending < 0.5m && session.Player.Manifest.Lots.Count > 0)
+      escrowPending = session.Player.Manifest.Lots.Sum(l => l.DestBid * l.Quantity);
+
+    var escrowAge = ids.Escrow.OpenAgeDays(ids.Carrier, day);
+    var escrowClock = escrowPending > 0.5m
+      ? (underway
+        ? $"CCA pending {escrowPending:0} · day {escrowAge} underway"
+        : $"CCA staged ~{escrowPending:0} · opens on sail")
+      : "";
+    var lifeRemain = entry is null ? 0m : Math.Clamp((1m - entry.LifeFraction) * 100m, 0m, 100m);
+    var hull = entry is null
+      ? "—"
+      : payable > 0.05m
+        ? $"life {lifeRemain:0}% · premium {premiumHint} · payable {payable:0.#} · lien {entry.LienPrincipal:0} · OH {entry.OverhaulCount}"
+        : $"life {lifeRemain:0}% · premium {premiumHint} · lien {entry.LienPrincipal:0} · OH {entry.OverhaulCount}";
+    if (!string.IsNullOrEmpty(escrowClock))
+      hull += $"\n{escrowClock}";
+
+    return new HullFinance(premium, runwayDays, runwayLine, repScore, escrowPending, escrowClock, hull);
+  }
+
+  private static List<MetricRow> BuildMoneyRows(
+    CampaignRunner.LiveSession session,
+    CampaignWorld.Ids ids,
+    decimal cash,
+    string standing,
+    decimal escrowPending,
+    decimal repScore,
+    MeshCaptainInbox.Snapshot meshSnap,
+    bool inFtl) =>
+  [
+    new(CampaignWorld.PlayerHullName, $"{cash:0}", standing),
+    new("Ops liquid", $"{session.Credits.LiquidStock:0}"),
+    new("Claims / load", $"{ids.Registry.ClaimsPaid:0} / {ids.Registry.ActuarialLoad:0.##}"),
+    new("Escrow open", escrowPending > 0.5m
+      ? $"{ids.Escrow.OpenCount} · CCA {escrowPending:0}"
+      : $"{ids.Escrow.OpenCount}"),
+    new("Reputation", $"{repScore:0}"),
+    new("Mesh inbox", inFtl
+      ? "offline · FTL"
+      : $"{meshSnap.FeedInboxCount} · em {meshSnap.EmergencyCount} · digests {meshSnap.SpotDigestCount}"),
+  ];
+
+  private static List<MetricRow> BuildAgentRows(CampaignRunner.LiveSession session, string decision) =>
+  [
+    new(CampaignWorld.PlayerHullName, decision),
+    new("Mining", session.Agents.Mining.LastDecision),
+    new("Industry", session.Agents.Industry.LastDecision),
+    new("Station", session.Agents.Station.LastDecision),
+    new("Mega", session.Agents.MegaHauler.LastDecision),
+  ];
+
+  private static string? ResolveTravelTarget(
+    CampaignRunner.LiveSession session,
+    string currentSystem,
+    string? suggestedTravel)
+  {
+    var travelTarget = session.Player.TravelTargetSystemId;
+    if (string.IsNullOrEmpty(travelTarget)
+        || travelTarget.Equals(currentSystem, StringComparison.OrdinalIgnoreCase))
+    {
+      travelTarget = suggestedTravel;
+      if (!string.IsNullOrEmpty(suggestedTravel))
+        session.Player.TravelTargetSystemId = suggestedTravel;
+    }
+
+    return travelTarget;
+  }
+
+  private static List<string> BuildRouteSystemIds(
+    CampaignWorld.Ids ids,
+    string currentSystem,
+    string? travelTarget,
+    IReadOnlyList<StarMapEdge> underwayRoute)
+  {
+    var routeIds = new List<string>();
+    if (underwayRoute.Count > 0)
+    {
+      foreach (var e in underwayRoute)
+      {
+        if (routeIds.Count == 0) routeIds.Add(e.FromId);
+        routeIds.Add(e.ToId);
+      }
+    }
+    else if (!string.IsNullOrEmpty(travelTarget))
+    {
+      foreach (var e in RouteHighlight.BetweenSystems(ids, currentSystem, travelTarget))
+      {
+        if (routeIds.Count == 0) routeIds.Add(e.FromId);
+        routeIds.Add(e.ToId);
+      }
+    }
+
+    return routeIds;
   }
 
   private static string HubLabel(CampaignWorld.Ids ids, TransportHubId hubId)

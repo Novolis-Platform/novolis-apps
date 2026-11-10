@@ -44,301 +44,249 @@ internal sealed record RunOptions(
 
     public static RunOptions Parse(string[] args)
     {
-        var mode = AppMode.Headless;
-        var engine = EngineKind.Campaign;
-        var scenario = Sim.ScenarioKind.LogisticsBind;
-        var periods = 100;
-        var daysHours = Default.DaysHours;
-        var seed = Default.Seed;
-        var logEvery = 0;
-        var quiet = false;
-        var drama = true;
-        var story = false;
-        bool? player = null;
-        var autopilot = false;
-        var neuralAutopilot = false;
-        var playerBot = false;
-        var board = JobBoardScope.Mesh;
-        string? commands = null;
-        var playtest = false;
-        var lastTramp = false;
-        string? loadSave = null;
+        var p = new Parser();
+        p.Consume(args);
+        return p.ToOptions();
+    }
 
-        for (var i = 0; i < args.Length; i++)
+    private sealed class Parser
+    {
+        private AppMode _mode = AppMode.Headless;
+        private EngineKind _engine = EngineKind.Campaign;
+        private Sim.ScenarioKind _scenario = Sim.ScenarioKind.LogisticsBind;
+        private int _periods = 100;
+        private long _daysHours = Default.DaysHours;
+        private ulong _seed = Default.Seed;
+        private int _logEvery;
+        private bool _quiet;
+        private bool _drama = true;
+        private bool _story;
+        private bool? _player;
+        private bool _autopilot;
+        private bool _neuralAutopilot;
+        private bool _playerBot;
+        private JobBoardScope _board = JobBoardScope.Mesh;
+        private string? _commands;
+        private bool _playtest;
+        private bool _lastTramp;
+        private string? _loadSave;
+
+        public void Consume(string[] args)
+        {
+            for (var i = 0; i < args.Length; i++)
+            {
+                if (TryApplyValue(args, ref i))
+                    continue;
+
+                if (TryApplySwitch(args, ref i))
+                    continue;
+
+                var a = args[i];
+                if (a is "-h" or "--help")
+                {
+                    PrintHelp();
+                    Environment.Exit(0);
+                }
+            }
+        }
+
+        public RunOptions ToOptions()
+        {
+            var playerOn = _player ?? (_mode is AppMode.Avalonia or AppMode.Captain);
+            if (_lastTramp)
+                playerOn = true;
+
+            return new RunOptions(
+                _mode, _engine, _scenario, _periods, _daysHours, _seed, _logEvery, _quiet, _drama, _story,
+                playerOn, _autopilot, _neuralAutopilot, _playerBot, _board, _commands, _playtest, _lastTramp,
+                _loadSave);
+        }
+
+        private bool TryApplyValue(string[] args, ref int i)
+        {
+            if (TryRead(args, ref i, "mode", out var value))
+            {
+                _mode = ParseMode(value);
+                return true;
+            }
+
+            if (TryRead(args, ref i, "engine", out value))
+            {
+                _engine = ParseEngine(value);
+                return true;
+            }
+
+            if (TryRead(args, ref i, "days", out value))
+            {
+                if (!Universe.DurationArg.TryParse(value, out _daysHours))
+                    throw new ArgumentException("--days must look like 10d or 240h.");
+                return true;
+            }
+
+            if (TryRead(args, ref i, "scenario", out value))
+            {
+                _scenario = Sim.ScenarioKindParser.Parse(value);
+                _engine = EngineKind.Core;
+                return true;
+            }
+
+            if (TryRead(args, ref i, "periods", out value))
+            {
+                _periods = ParsePositiveInt(value, "periods");
+                return true;
+            }
+
+            if (TryRead(args, ref i, "seed", out value))
+            {
+                _seed = ParseULong(value);
+                return true;
+            }
+
+            if (TryRead(args, ref i, "log-every", out value))
+            {
+                _logEvery = ParseNonNegativeInt(value, "log-every");
+                return true;
+            }
+
+            if (TryRead(args, ref i, "drama", out value))
+            {
+                _drama = ParseOnOff(value, "--drama");
+                return true;
+            }
+
+            if (TryRead(args, ref i, "player", out value))
+            {
+                _player = ParseOnOff(value, "--player");
+                return true;
+            }
+
+            if (TryRead(args, ref i, "autopilot", out value))
+            {
+                _autopilot = ParseOnOff(value, "--autopilot");
+                return true;
+            }
+
+            if (TryRead(args, ref i, "neural-autopilot", out value))
+            {
+                _neuralAutopilot = ParseOnOff(value, "--neural-autopilot");
+                if (_neuralAutopilot)
+                    _autopilot = true;
+                return true;
+            }
+
+            if (TryRead(args, ref i, "player-bot", out value))
+            {
+                _playerBot = ParseOnOff(value, "--player-bot");
+                return true;
+            }
+
+            if (TryRead(args, ref i, "board", out value))
+            {
+                _board = ParseBoard(value);
+                return true;
+            }
+
+            if (TryRead(args, ref i, "commands", out value))
+            {
+                _commands = value;
+                return true;
+            }
+
+            if (TryRead(args, ref i, "load", out value))
+            {
+                _loadSave = value.Trim();
+                _player ??= true;
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryApplySwitch(string[] args, ref int i)
         {
             var a = args[i];
-            if (a.Equals("--mode", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                mode = ParseMode(args[++i]);
-                continue;
-            }
-
-            if (a.StartsWith("--mode=", StringComparison.OrdinalIgnoreCase))
-            {
-                mode = ParseMode(a["--mode=".Length..]);
-                continue;
-            }
-
-            if (a.Equals("--engine", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                engine = ParseEngine(args[++i]);
-                continue;
-            }
-
-            if (a.StartsWith("--engine=", StringComparison.OrdinalIgnoreCase))
-            {
-                engine = ParseEngine(a["--engine=".Length..]);
-                continue;
-            }
-
-            if (a.Equals("--days", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                if (!Universe.DurationArg.TryParse(args[++i], out daysHours))
-                    throw new ArgumentException("--days must look like 10d or 240h.");
-                continue;
-            }
-
-            if (a.StartsWith("--days=", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!Universe.DurationArg.TryParse(a["--days=".Length..], out daysHours))
-                    throw new ArgumentException("--days must look like 10d or 240h.");
-                continue;
-            }
-
-            if (a.Equals("--scenario", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                scenario = Sim.ScenarioKindParser.Parse(args[++i]);
-                engine = EngineKind.Core;
-                continue;
-            }
-
-            if (a.StartsWith("--scenario=", StringComparison.OrdinalIgnoreCase))
-            {
-                scenario = Sim.ScenarioKindParser.Parse(a["--scenario=".Length..]);
-                engine = EngineKind.Core;
-                continue;
-            }
-
-            if (a.Equals("--periods", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                periods = ParsePositiveInt(args[++i], "periods");
-                continue;
-            }
-
-            if (a.StartsWith("--periods=", StringComparison.OrdinalIgnoreCase))
-            {
-                periods = ParsePositiveInt(a["--periods=".Length..], "periods");
-                continue;
-            }
-
-            if (a.Equals("--seed", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                seed = ParseULong(args[++i]);
-                continue;
-            }
-
-            if (a.StartsWith("--seed=", StringComparison.OrdinalIgnoreCase))
-            {
-                seed = ParseULong(a["--seed=".Length..]);
-                continue;
-            }
-
-            if (a.Equals("--log-every", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                logEvery = ParseNonNegativeInt(args[++i], "log-every");
-                continue;
-            }
-
-            if (a.StartsWith("--log-every=", StringComparison.OrdinalIgnoreCase))
-            {
-                logEvery = ParseNonNegativeInt(a["--log-every=".Length..], "log-every");
-                continue;
-            }
-
-            if (a.Equals("--drama", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                drama = ParseDrama(args[++i]);
-                continue;
-            }
-
-            if (a.StartsWith("--drama=", StringComparison.OrdinalIgnoreCase))
-            {
-                drama = ParseDrama(a["--drama=".Length..]);
-                continue;
-            }
 
             if (a is "--story")
             {
                 if (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
-                {
-                    story = ParseDrama(args[++i]);
-                }
+                    _story = ParseOnOff(args[++i], "--story");
                 else
-                {
-                    story = true;
-                }
-
-                continue;
+                    _story = true;
+                return true;
             }
 
             if (a.StartsWith("--story=", StringComparison.OrdinalIgnoreCase))
             {
-                story = ParseDrama(a["--story=".Length..]);
-                continue;
+                _story = ParseOnOff(a["--story=".Length..], "--story");
+                return true;
             }
 
             if (a is "-q" or "--quiet")
             {
-                quiet = true;
-                continue;
-            }
-
-            if (a.Equals("--player", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                player = ParseOnOff(args[++i], "--player");
-                continue;
-            }
-
-            if (a.StartsWith("--player=", StringComparison.OrdinalIgnoreCase))
-            {
-                player = ParseOnOff(a["--player=".Length..], "--player");
-                continue;
-            }
-
-            if (a.Equals("--autopilot", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                autopilot = ParseOnOff(args[++i], "--autopilot");
-                continue;
-            }
-
-            if (a.StartsWith("--autopilot=", StringComparison.OrdinalIgnoreCase))
-            {
-                autopilot = ParseOnOff(a["--autopilot=".Length..], "--autopilot");
-                continue;
+                _quiet = true;
+                return true;
             }
 
             if (a.Equals("--neural-autopilot", StringComparison.OrdinalIgnoreCase)
                 || a.Equals("--neural-autopilot=on", StringComparison.OrdinalIgnoreCase))
             {
-                neuralAutopilot = true;
-                autopilot = true;
-                continue;
-            }
-
-            if (a.StartsWith("--neural-autopilot=", StringComparison.OrdinalIgnoreCase))
-            {
-                neuralAutopilot = ParseOnOff(a["--neural-autopilot=".Length..], "--neural-autopilot");
-                if (neuralAutopilot)
-                {
-                    autopilot = true;
-                }
-
-                continue;
-            }
-
-            if (a.Equals("--player-bot", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                playerBot = ParseOnOff(args[++i], "--player-bot");
-                continue;
-            }
-
-            if (a.StartsWith("--player-bot=", StringComparison.OrdinalIgnoreCase))
-            {
-                playerBot = ParseOnOff(a["--player-bot=".Length..], "--player-bot");
-                continue;
-            }
-
-            if (a.Equals("--board", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                board = ParseBoard(args[++i]);
-                continue;
-            }
-
-            if (a.StartsWith("--board=", StringComparison.OrdinalIgnoreCase))
-            {
-                board = ParseBoard(a["--board=".Length..]);
-                continue;
-            }
-
-            if (a.Equals("--commands", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                commands = args[++i];
-                continue;
-            }
-
-            if (a.StartsWith("--commands=", StringComparison.OrdinalIgnoreCase))
-            {
-                commands = a["--commands=".Length..];
-                continue;
+                _neuralAutopilot = true;
+                _autopilot = true;
+                return true;
             }
 
             if (a is "--playtest")
             {
-                playtest = true;
-                mode = AppMode.Captain;
-                if (daysHours == Default.DaysHours)
-                {
-                    daysHours = 60L * 24;
-                }
-
-                continue;
+                ApplyPlaytest(days: 60L * 24);
+                return true;
             }
 
             if (a is "--last-tramp" or "--lasttramp")
             {
-                lastTramp = true;
-                continue;
+                _lastTramp = true;
+                return true;
             }
 
             if (a is "--playtest-last-tramp" or "--playtest-lasttramp")
             {
-                playtest = true;
-                lastTramp = true;
-                autopilot = true;
-                mode = AppMode.Captain;
-                if (daysHours == Default.DaysHours)
-                {
-                    daysHours = 120L * 24;
-                }
-
-                continue;
+                _lastTramp = true;
+                _autopilot = true;
+                ApplyPlaytest(days: 120L * 24);
+                return true;
             }
 
-            if (a.Equals("--load", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-            {
-                loadSave = args[++i].Trim();
-                player ??= true;
-                continue;
-            }
-
-            if (a.StartsWith("--load=", StringComparison.OrdinalIgnoreCase))
-            {
-                loadSave = a["--load=".Length..].Trim();
-                player ??= true;
-                continue;
-            }
-
-            if (a is "-h" or "--help")
-            {
-                PrintHelp();
-                Environment.Exit(0);
-            }
+            return false;
         }
 
-        // Avalonia / captain imply player unless explicitly disabled.
-        var playerOn = player ?? (mode is AppMode.Avalonia or AppMode.Captain);
-        if (lastTramp)
+        private void ApplyPlaytest(long days)
         {
-            playerOn = true;
+            _playtest = true;
+            _mode = AppMode.Captain;
+            if (_daysHours == Default.DaysHours)
+                _daysHours = days;
         }
-
-        return new RunOptions(
-            mode, engine, scenario, periods, daysHours, seed, logEvery, quiet, drama, story,
-            playerOn, autopilot, neuralAutopilot, playerBot, board, commands, playtest, lastTramp, loadSave);
     }
 
-    private static bool ParseDrama(string value) =>
-        ParseOnOff(value, "--drama");
+    /// <summary>Accepts <c>--name value</c> or <c>--name=value</c>.</summary>
+    private static bool TryRead(string[] args, ref int i, string name, out string value)
+    {
+        var a = args[i];
+        var equals = "--" + name + "=";
+        if (a.StartsWith(equals, StringComparison.OrdinalIgnoreCase))
+        {
+            value = a[equals.Length..];
+            return true;
+        }
+
+        if (a.Equals("--" + name, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+        {
+            value = args[++i];
+            return true;
+        }
+
+        value = "";
+        return false;
+    }
 
     private static bool ParseOnOff(string value, string flag) =>
         value.Trim().ToLowerInvariant() switch

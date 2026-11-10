@@ -265,218 +265,11 @@ internal static class CampaignWorld
       builder.SetLabor(tramp, 28m);
     }
 
-    var sites = new Dictionary<string, Site>(StringComparer.OrdinalIgnoreCase);
-    var householdSeeds = new List<(AstroEconomyBridge.HubBinding Hub, int Households, FirmId HouseholdId)>();
-    var mfgSlotsNeeded = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-    var livingNeeded = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+    var (sites, householdSeeds) = SeedGeography(
+      builder, bridge, areas, mining, industry, station, carrier);
+    SeedCohortsAndOwnership(builder, householdSeeds, areas, goodsCat, mining, industry, station);
 
-    foreach (var hub in bridge.Hubs.OrderBy(h => h.SystemId, StringComparer.Ordinal))
-    {
-      if (hub.Role is SystemRole.Capital or SystemRole.Inhabited or SystemRole.Industrial
-          or SystemRole.Mining)
-      {
-        // Cohort PopulationCount is household count (no headcount layer).
-        // Mining camps are small but required — region labor pools are area-local.
-        var households = hub.Role switch
-        {
-          SystemRole.Capital => 100,
-          SystemRole.Industrial => 45,
-          SystemRole.Mining => 12,
-          _ => 30,
-        };
-        livingNeeded[hub.SystemId] = livingNeeded.GetValueOrDefault(hub.SystemId) + households;
-        householdSeeds.Add((hub, households, FirmId.From(builder.NextGuid())));
-      }
-
-      if (hub.Role is SystemRole.Mining or SystemRole.Industrial)
-      {
-        mfgSlotsNeeded[hub.SystemId] = mfgSlotsNeeded.GetValueOrDefault(hub.SystemId) + 1;
-      }
-    }
-
-    foreach (var hub in bridge.Hubs.OrderBy(h => h.SystemId, StringComparer.Ordinal))
-    {
-      var area = areas[hub.SystemId];
-      var roleFloor = hub.Role switch
-      {
-        SystemRole.Capital => 120,
-        SystemRole.Industrial => 50,
-        SystemRole.Inhabited => 40,
-        SystemRole.Mining => 20,
-        _ => 5,
-      };
-      var seededHh = livingNeeded.GetValueOrDefault(hub.SystemId);
-      var living = Math.Max(roleFloor, seededHh);
-      var production = mfgSlotsNeeded.GetValueOrDefault(hub.SystemId) + 2;
-      builder.AddRegion(area, living, production);
-    }
-
-    FirmId? capitalHousehold = null;
-    foreach (var hub in bridge.Hubs.OrderBy(h => h.SystemId, StringComparer.Ordinal))
-    {
-      FirmId? owner = hub.Role switch
-      {
-        SystemRole.Mining => mining,
-        SystemRole.Industrial => industry,
-        SystemRole.Capital or SystemRole.Inhabited => station,
-        _ => null,
-      };
-
-      FacilityId? facility = null;
-      FacilityId? mfgFacility = null;
-      OperatingUnitId? mfg = null;
-      FacilityId? carrierPost = null;
-      var area = areas[hub.SystemId];
-
-      if (owner is { } firmId && hub.Role is SystemRole.Mining or SystemRole.Industrial
-          or SystemRole.Inhabited or SystemRole.Capital)
-      {
-        var facilityId = FacilityId.From(builder.NextGuid());
-        var unitId = OperatingUnitId.From(builder.NextGuid());
-        mfg = unitId;
-        var kind = hub.Role is SystemRole.Mining or SystemRole.Industrial
-          ? OperatingUnitKind.Manufacturing
-          : OperatingUnitKind.Sales;
-        var capacity = hub.Role switch
-        {
-          SystemRole.Capital => 200m,
-          SystemRole.Industrial => 120m,
-          SystemRole.Mining => 80m,
-          _ => 60m,
-        };
-        var layout = new FacilityLayout(
-          ImmutableDictionary<OperatingUnitId, OperatingUnit>.Empty
-            .Add(unitId, new OperatingUnit(unitId, kind, Quantity.From(capacity))),
-          ImmutableArray<MaterialRoute>.Empty);
-        builder.AddFacility(new FacilityBinding(facilityId, firmId, hub.LocationId, hub.LocationId, layout, area));
-        if (hub.Role is SystemRole.Mining or SystemRole.Industrial)
-        {
-          mfgFacility = facilityId;
-        }
-        else
-        {
-          facility = facilityId; // Station Sales at Capital / Inhabited
-        }
-      }
-
-      // Mining camps: Station Sales shelf so Final consumption can sink household budgets.
-      if (hub.Role is SystemRole.Mining)
-      {
-        var retailId = FacilityId.From(builder.NextGuid());
-        var salesUnit = OperatingUnitId.From(builder.NextGuid());
-        var retailLayout = new FacilityLayout(
-          ImmutableDictionary<OperatingUnitId, OperatingUnit>.Empty
-            .Add(salesUnit, new OperatingUnit(salesUnit, OperatingUnitKind.Sales, Quantity.From(80m))),
-          ImmutableArray<MaterialRoute>.Empty);
-        builder.AddFacility(new FacilityBinding(
-          retailId, station, hub.LocationId, hub.LocationId, retailLayout, area));
-        facility = retailId;
-      }
-
-      if (hub.Role is SystemRole.Capital or SystemRole.Inhabited or SystemRole.Industrial or SystemRole.Mining)
-      {
-        var postId = FacilityId.From(builder.NextGuid());
-        var store = OperatingUnitId.From(builder.NextGuid());
-        var layout = new FacilityLayout(
-          ImmutableDictionary<OperatingUnitId, OperatingUnit>.Empty
-            .Add(store, new OperatingUnit(store, OperatingUnitKind.Storage, Quantity.From(80m))),
-          ImmutableArray<MaterialRoute>.Empty);
-        builder.AddFacility(new FacilityBinding(postId, carrier, hub.LocationId, hub.LocationId, layout, area));
-        carrierPost = postId;
-      }
-
-      sites[hub.SystemId] = new Site
-      {
-        Hub = hub,
-        OwnerFirm = owner,
-        Facility = facility,
-        MfgFacility = mfgFacility,
-        CarrierPost = carrierPost,
-        MfgUnit = mfg,
-      };
-    }
-
-    var householdSum = householdSeeds.Sum(h => h.Households);
-    var creditsLeft = OpeningHouseholdCredits;
-    for (var i = 0; i < householdSeeds.Count; i++)
-    {
-      var (hub, households, householdId) = householdSeeds[i];
-      decimal budget;
-      if (i == householdSeeds.Count - 1)
-      {
-        budget = creditsLeft;
-      }
-      else
-      {
-        budget = Math.Round(OpeningHouseholdCredits * households / householdSum, 2, MidpointRounding.AwayFromZero);
-        creditsLeft -= budget;
-      }
-
-      // Final (Goods) is the household consumption sink — not Capital parts.
-      var prefs = ImmutableArray.Create(
-        new CategoryPreference(goodsCat, 1m));
-
-      if (hub.Role == SystemRole.Capital && capitalHousehold is null)
-      {
-        capitalHousehold = householdId;
-      }
-
-      builder.AddCohort(new ConsumerCohort(
-        ConsumerCohortId.From(builder.NextGuid()),
-        new PopulationCount(households),
-        Money.From(budget),
-        new PreferenceProfile(prefs, 0.7m, 0m, 0m),
-        areas[hub.SystemId],
-        HouseholdProductivityKind.Mean,
-        householdId));
-    }
-
-    // Civic majority + capital seed + float for household PurchaseOwnership.
-    if (capitalHousehold is { } capitalHh)
-    {
-      builder.SetOwnership(mining, capitalHh, 0.15m);
-      builder.SetOwnership(mining, station, 0.7m);
-    }
-    else
-    {
-      builder.SetOwnership(mining, station, 0.85m);
-    }
-
-    builder.SetOwnership(industry, station, 0.35m);
-
-    var books = new CampaignRegistryBooks();
-    books.Ships.Underwriter = station;
-    books.Ships.Register(ShipRegistryEntry.Create(
-      carrier, PlayerHullName, "LightCommercial", ownerMaster: true, lienPrincipal: PlayerRestorationLien));
-    for (var i = 1; i < carriers.Length; i++)
-    {
-      books.Ships.Register(ShipRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1}", "LightCommercial"));
-    }
-
-    books.Ships.Register(ShipRegistryEntry.Create(megaHauler, "MV Bulk River", "MegaHauler", ownerMaster: false));
-
-    books.Firms.Register(FirmRegistryEntry.Create(mining, "Sins Mining"));
-    books.Firms.Register(FirmRegistryEntry.Create(industry, "Sins Industry"));
-    books.Firms.Register(FirmRegistryEntry.Create(station, "Sins Station"));
-    var playerFirm = FirmRegistryEntry.Create(carrier, PlayerFirmName);
-    playerFirm.LienPrincipal = PlayerRestorationLien;
-    books.Firms.Register(playerFirm);
-    for (var i = 1; i < carriers.Length; i++)
-    {
-      books.Firms.Register(FirmRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1} Co."));
-    }
-
-    books.Firms.Register(FirmRegistryEntry.Create(megaHauler, "Bulk River Lines"));
-
-    // Commercial Priority endorsement per light hull (door for dense sprints later).
-    foreach (var ship in books.Ships.Entries.Where(e => e.OwnerMaster))
-    {
-      books.Licenses.Register(LicenseRegistryEntry.Create(
-        LicenseRegistryEntry.IdFor(ship.FirmId, "priority-freight"),
-        $"{ship.RegistryName} Priority endorsement",
-        scope: "priority-freight",
-        holderSubjectId: ship.SubjectId));
-    }
+    var books = BuildRegistryBooks(mining, industry, station, carrier, carriers, megaHauler);
 
     var ids = new Ids
     {
@@ -510,6 +303,238 @@ internal static class CampaignWorld
     ApplyStoreLimits(sim, ids);
     SeedInvariants.Assert(ids, sim);
     return (sim, ids);
+  }
+
+  private static (
+    Dictionary<string, Site> Sites,
+    List<(AstroEconomyBridge.HubBinding Hub, int Households, FirmId HouseholdId)> HouseholdSeeds)
+    SeedGeography(
+      EconomyWorldBuilder builder,
+      AstroEconomyBridge.BridgeResult bridge,
+      Dictionary<string, GeographicAreaId> areas,
+      FirmId mining,
+      FirmId industry,
+      FirmId station,
+      FirmId carrier)
+  {
+    var sites = new Dictionary<string, Site>(StringComparer.OrdinalIgnoreCase);
+    var householdSeeds = new List<(AstroEconomyBridge.HubBinding Hub, int Households, FirmId HouseholdId)>();
+    var mfgSlotsNeeded = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+    var livingNeeded = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var hub in bridge.Hubs.OrderBy(h => h.SystemId, StringComparer.Ordinal))
+    {
+      if (hub.Role is SystemRole.Capital or SystemRole.Inhabited or SystemRole.Industrial
+          or SystemRole.Mining)
+      {
+        var households = hub.Role switch
+        {
+          SystemRole.Capital => 100,
+          SystemRole.Industrial => 45,
+          SystemRole.Mining => 12,
+          _ => 30,
+        };
+        livingNeeded[hub.SystemId] = livingNeeded.GetValueOrDefault(hub.SystemId) + households;
+        householdSeeds.Add((hub, households, FirmId.From(builder.NextGuid())));
+      }
+
+      if (hub.Role is SystemRole.Mining or SystemRole.Industrial)
+        mfgSlotsNeeded[hub.SystemId] = mfgSlotsNeeded.GetValueOrDefault(hub.SystemId) + 1;
+    }
+
+    foreach (var hub in bridge.Hubs.OrderBy(h => h.SystemId, StringComparer.Ordinal))
+    {
+      var area = areas[hub.SystemId];
+      var roleFloor = hub.Role switch
+      {
+        SystemRole.Capital => 120,
+        SystemRole.Industrial => 50,
+        SystemRole.Inhabited => 40,
+        SystemRole.Mining => 20,
+        _ => 5,
+      };
+      var living = Math.Max(roleFloor, livingNeeded.GetValueOrDefault(hub.SystemId));
+      builder.AddRegion(area, living, mfgSlotsNeeded.GetValueOrDefault(hub.SystemId) + 2);
+    }
+
+    foreach (var hub in bridge.Hubs.OrderBy(h => h.SystemId, StringComparer.Ordinal))
+      sites[hub.SystemId] = BuildSite(builder, hub, areas[hub.SystemId], mining, industry, station, carrier);
+
+    return (sites, householdSeeds);
+  }
+
+  private static Site BuildSite(
+    EconomyWorldBuilder builder,
+    AstroEconomyBridge.HubBinding hub,
+    GeographicAreaId area,
+    FirmId mining,
+    FirmId industry,
+    FirmId station,
+    FirmId carrier)
+  {
+    FirmId? owner = hub.Role switch
+    {
+      SystemRole.Mining => mining,
+      SystemRole.Industrial => industry,
+      SystemRole.Capital or SystemRole.Inhabited => station,
+      _ => null,
+    };
+
+    FacilityId? facility = null;
+    FacilityId? mfgFacility = null;
+    OperatingUnitId? mfg = null;
+    FacilityId? carrierPost = null;
+
+    if (owner is { } firmId && hub.Role is SystemRole.Mining or SystemRole.Industrial
+        or SystemRole.Inhabited or SystemRole.Capital)
+    {
+      var facilityId = FacilityId.From(builder.NextGuid());
+      var unitId = OperatingUnitId.From(builder.NextGuid());
+      mfg = unitId;
+      var kind = hub.Role is SystemRole.Mining or SystemRole.Industrial
+        ? OperatingUnitKind.Manufacturing
+        : OperatingUnitKind.Sales;
+      var capacity = hub.Role switch
+      {
+        SystemRole.Capital => 200m,
+        SystemRole.Industrial => 120m,
+        SystemRole.Mining => 80m,
+        _ => 60m,
+      };
+      var layout = new FacilityLayout(
+        ImmutableDictionary<OperatingUnitId, OperatingUnit>.Empty
+          .Add(unitId, new OperatingUnit(unitId, kind, Quantity.From(capacity))),
+        ImmutableArray<MaterialRoute>.Empty);
+      builder.AddFacility(new FacilityBinding(facilityId, firmId, hub.LocationId, hub.LocationId, layout, area));
+      if (hub.Role is SystemRole.Mining or SystemRole.Industrial)
+        mfgFacility = facilityId;
+      else
+        facility = facilityId;
+    }
+
+    if (hub.Role is SystemRole.Mining)
+    {
+      var retailId = FacilityId.From(builder.NextGuid());
+      var salesUnit = OperatingUnitId.From(builder.NextGuid());
+      var retailLayout = new FacilityLayout(
+        ImmutableDictionary<OperatingUnitId, OperatingUnit>.Empty
+          .Add(salesUnit, new OperatingUnit(salesUnit, OperatingUnitKind.Sales, Quantity.From(80m))),
+        ImmutableArray<MaterialRoute>.Empty);
+      builder.AddFacility(new FacilityBinding(
+        retailId, station, hub.LocationId, hub.LocationId, retailLayout, area));
+      facility = retailId;
+    }
+
+    if (hub.Role is SystemRole.Capital or SystemRole.Inhabited or SystemRole.Industrial or SystemRole.Mining)
+    {
+      var postId = FacilityId.From(builder.NextGuid());
+      var store = OperatingUnitId.From(builder.NextGuid());
+      var layout = new FacilityLayout(
+        ImmutableDictionary<OperatingUnitId, OperatingUnit>.Empty
+          .Add(store, new OperatingUnit(store, OperatingUnitKind.Storage, Quantity.From(80m))),
+        ImmutableArray<MaterialRoute>.Empty);
+      builder.AddFacility(new FacilityBinding(postId, carrier, hub.LocationId, hub.LocationId, layout, area));
+      carrierPost = postId;
+    }
+
+    return new Site
+    {
+      Hub = hub,
+      OwnerFirm = owner,
+      Facility = facility,
+      MfgFacility = mfgFacility,
+      CarrierPost = carrierPost,
+      MfgUnit = mfg,
+    };
+  }
+
+  private static void SeedCohortsAndOwnership(
+    EconomyWorldBuilder builder,
+    List<(AstroEconomyBridge.HubBinding Hub, int Households, FirmId HouseholdId)> householdSeeds,
+    Dictionary<string, GeographicAreaId> areas,
+    ProductCategoryId goodsCat,
+    FirmId mining,
+    FirmId industry,
+    FirmId station)
+  {
+    FirmId? capitalHousehold = null;
+    var householdSum = householdSeeds.Sum(h => h.Households);
+    var creditsLeft = OpeningHouseholdCredits;
+    for (var i = 0; i < householdSeeds.Count; i++)
+    {
+      var (hub, households, householdId) = householdSeeds[i];
+      decimal budget;
+      if (i == householdSeeds.Count - 1)
+        budget = creditsLeft;
+      else
+      {
+        budget = Math.Round(OpeningHouseholdCredits * households / householdSum, 2, MidpointRounding.AwayFromZero);
+        creditsLeft -= budget;
+      }
+
+      var prefs = ImmutableArray.Create(new CategoryPreference(goodsCat, 1m));
+      if (hub.Role == SystemRole.Capital && capitalHousehold is null)
+        capitalHousehold = householdId;
+
+      builder.AddCohort(new ConsumerCohort(
+        ConsumerCohortId.From(builder.NextGuid()),
+        new PopulationCount(households),
+        Money.From(budget),
+        new PreferenceProfile(prefs, 0.7m, 0m, 0m),
+        areas[hub.SystemId],
+        HouseholdProductivityKind.Mean,
+        householdId));
+    }
+
+    if (capitalHousehold is { } capitalHh)
+    {
+      builder.SetOwnership(mining, capitalHh, 0.15m);
+      builder.SetOwnership(mining, station, 0.7m);
+    }
+    else
+      builder.SetOwnership(mining, station, 0.85m);
+
+    builder.SetOwnership(industry, station, 0.35m);
+  }
+
+  private static CampaignRegistryBooks BuildRegistryBooks(
+    FirmId mining,
+    FirmId industry,
+    FirmId station,
+    FirmId carrier,
+    FirmId[] carriers,
+    FirmId megaHauler)
+  {
+    var books = new CampaignRegistryBooks();
+    books.Ships.Underwriter = station;
+    books.Ships.Register(ShipRegistryEntry.Create(
+      carrier, PlayerHullName, "LightCommercial", ownerMaster: true, lienPrincipal: PlayerRestorationLien));
+    for (var i = 1; i < carriers.Length; i++)
+      books.Ships.Register(ShipRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1}", "LightCommercial"));
+
+    books.Ships.Register(ShipRegistryEntry.Create(megaHauler, "MV Bulk River", "MegaHauler", ownerMaster: false));
+
+    books.Firms.Register(FirmRegistryEntry.Create(mining, "Sins Mining"));
+    books.Firms.Register(FirmRegistryEntry.Create(industry, "Sins Industry"));
+    books.Firms.Register(FirmRegistryEntry.Create(station, "Sins Station"));
+    var playerFirm = FirmRegistryEntry.Create(carrier, PlayerFirmName);
+    playerFirm.LienPrincipal = PlayerRestorationLien;
+    books.Firms.Register(playerFirm);
+    for (var i = 1; i < carriers.Length; i++)
+      books.Firms.Register(FirmRegistryEntry.Create(carriers[i], $"MV Tramp {i + 1} Co."));
+
+    books.Firms.Register(FirmRegistryEntry.Create(megaHauler, "Bulk River Lines"));
+
+    foreach (var ship in books.Ships.Entries.Where(e => e.OwnerMaster))
+    {
+      books.Licenses.Register(LicenseRegistryEntry.Create(
+        LicenseRegistryEntry.IdFor(ship.FirmId, "priority-freight"),
+        $"{ship.RegistryName} Priority endorsement",
+        scope: "priority-freight",
+        holderSubjectId: ship.SubjectId));
+    }
+
+    return books;
   }
 
   private static MeshState SeedMesh(
