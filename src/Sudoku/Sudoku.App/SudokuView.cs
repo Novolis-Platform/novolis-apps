@@ -35,12 +35,16 @@ public sealed class SudokuView : UserControl
     private bool _loaded;
     private bool _arrangingBody;
     private bool _narrowBody = true;
-    private string _message = "Continue your ladder whenever you are ready.";
+    private string _message = "Clear the board, or head back to the ladder.";
     private Grid? _bodyHost;
     private Border? _boardCard;
     private Control? _keypadStrip;
     private StackPanel? _sidePanel;
     private ScrollViewer? _sideScroll;
+    private readonly Button _backButton = new();
+
+    /// <summary>Raised when the player wants the ladder home list again.</summary>
+    public event EventHandler? BackToLadderRequested;
 
     /// <summary>Creates the board over a game service.</summary>
     public SudokuView(SudokuGameService game)
@@ -68,6 +72,10 @@ public sealed class SudokuView : UserControl
         DetachedFromVisualTree += OnDetached;
         KeyDown += OnKeyDown;
         Refresh();
+        if (_game.Current is not null)
+            SetStatus($"Puzzle {_game.CurrentLadderNumber} of {_game.Ladder.Count}.");
+        else
+            SetStatus("No puzzle loaded — go back to the ladder.");
     }
 
     private void OnAttached(object? sender, VisualTreeAttachmentEventArgs args)
@@ -77,33 +85,6 @@ public sealed class SudokuView : UserControl
         _loaded = true;
         _lastTickUtc = DateTime.UtcNow;
         _timer.Start();
-        _ = Dispatcher.UIThread.InvokeAsync(BootstrapAsync);
-    }
-
-    private async Task BootstrapAsync()
-    {
-        try
-        {
-            if (await _game.LoadLatestAsync().ConfigureAwait(true))
-                SetStatus("Resumed your saved puzzle.");
-            else
-            {
-                _game.ContinueCampaign();
-                SetStatus($"Puzzle {_game.CurrentLadderNumber} of {_game.Ladder.Count}.");
-            }
-        }
-        catch (Exception exception)
-        {
-            SetStatus($"Load failed: {exception.Message}");
-            try
-            {
-                _game.ContinueCampaign();
-            }
-            catch (Exception startException)
-            {
-                SetStatus($"Start failed: {startException.Message}");
-            }
-        }
     }
 
     private void OnDetached(object? sender, VisualTreeAttachmentEventArgs args)
@@ -137,6 +118,8 @@ public sealed class SudokuView : UserControl
             Margin = new Thickness(10, 0, 10, 6),
             Orientation = Orientation.Horizontal,
         };
+        ConfigureChromeButton(_backButton, "Ladder", () =>
+            BackToLadderRequested?.Invoke(this, EventArgs.Empty));
         ConfigureChromeButton(_prevButton, "Prev", () =>
         {
             if (_game.TryPrevious())
@@ -151,6 +134,7 @@ public sealed class SudokuView : UserControl
             else
                 SetStatus("Clear this puzzle to unlock the next.");
         });
+        toolbar.Children.Add(_backButton);
         toolbar.Children.Add(_prevButton);
         toolbar.Children.Add(_nextButton);
         toolbar.Children.Add(ChromeButton("Hint", ApplyHint));

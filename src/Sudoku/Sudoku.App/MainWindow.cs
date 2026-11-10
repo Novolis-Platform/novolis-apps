@@ -17,6 +17,6 @@ public sealed class MainWindow : Window
         MinWidth = 860;
         MinHeight = 660;
         GraphicalProfile.ApplyWindowChrome(this);
-        Content = new SudokuView(game);
+        Content = new SudokuShell(game);
     }
 }

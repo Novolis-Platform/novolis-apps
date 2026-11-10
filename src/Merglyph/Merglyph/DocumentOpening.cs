@@ -7,7 +7,8 @@ public delegate ValueTask<Stream> OpenDocumentStream(CancellationToken cancellat
 public sealed record DocumentOpenRequest(
     DocumentName Name,
     OpenDocumentStream OpenReadAsync,
-    string? SourceDirectory = null);
+    string? SourceDirectory = null,
+    string? DisplayPath = null);
 
 public sealed class DocumentSession(MarkdownDocumentReader reader)
 {
@@ -19,7 +20,11 @@ public sealed class DocumentSession(MarkdownDocumentReader reader)
     {
         await using var stream = await request.OpenReadAsync(cancellationToken);
         var document = await reader.ReadAsync(request.Name, stream, cancellationToken);
-        Current = document with { SourceDirectory = request.SourceDirectory };
+        Current = document with
+        {
+            SourceDirectory = request.SourceDirectory,
+            DisplayPath = request.DisplayPath,
+        };
         return Current;
     }
 }

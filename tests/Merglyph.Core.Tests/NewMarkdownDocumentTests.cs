@@ -24,6 +24,24 @@ public sealed class NewMarkdownDocumentTests
     }
 
     [Test]
+    public async Task CreateUniquePath_ReturnsVisibleAbsolutePathUnderDocumentsRoot()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "merglyph-visible-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = NewMarkdownDocument.CreateUniquePath(root);
+            await Assert.That(Path.IsPathRooted(path)).IsTrue();
+            await Assert.That(path.StartsWith(root, StringComparison.OrdinalIgnoreCase)).IsTrue();
+            await Assert.That(Path.GetExtension(path)).IsEqualTo(".md");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task Resolve_UsesMyDocumentsWhenAvailable()
     {
         // MyDocuments and Personal share the same enum value on Windows.

@@ -423,9 +423,12 @@ public sealed class MainPage : ContentPage
     private void Display(MarkdownDocument document)
     {
         _documentName.Text = document.Name.Value;
-            _documentMeta.Text = string.IsNullOrWhiteSpace(document.SourceDirectory)
-                ? "Markdown document • local file"
-                : $"Markdown document • {document.SourceDirectory}";
+        var location = !string.IsNullOrWhiteSpace(document.DisplayPath)
+            ? document.DisplayPath
+            : document.SourceDirectory;
+        _documentMeta.Text = string.IsNullOrWhiteSpace(location)
+            ? "Markdown document • local file"
+            : $"Markdown document • {location}";
         _navigationShell.Title = $"Merglyph · {document.Name.Value}";
         _bodyHost.Content = _viewerCard;
         ApplyChromeTheme();

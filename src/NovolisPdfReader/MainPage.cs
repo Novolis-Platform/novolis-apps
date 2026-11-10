@@ -512,7 +512,7 @@ public sealed class MainPage : ContentPage
         var prompt = _passwordPrompt;
         _passwordPrompt = null;
         _passwordOverlay.IsVisible = false;
-        var password = accept ? _passwordEntry.Text : null;
+        var password = accept ? _passwordEntry.Text?.Trim() : null;
         _passwordEntry.Text = string.Empty;
         prompt?.TrySetResult(password);
         return Task.CompletedTask;
