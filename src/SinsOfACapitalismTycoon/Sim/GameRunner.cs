@@ -30,83 +30,116 @@ internal static class GameRunner
         var engine = DefaultBoundedPeriodPipeline.CreateEngine();
         var bounded = new BoundedPeriodState(state);
         var sw = Stopwatch.StartNew();
-
-        decimal cumProd = 0m;
-        decimal cumMoneyCreated = 0m;
-        decimal cumMoneyDestroyed = 0m;
-        decimal cumWages = 0m;
-        decimal cumTax = 0m;
-        decimal cumTransfers = 0m;
-        decimal cumObligationsPaid = 0m;
-        decimal peakCash = state.TotalCash().Amount;
-        decimal troughCash = peakCash;
-        var periodsWithProd = 0;
-        var periodsWithoutProd = 0;
-        var currentGap = 0;
-        var longestGap = 0;
-        decimal peakMineOre = HoldingLedger.GetQuantity(state, ids.MinerFirm, ids.MineRegion, ids.OreId);
-        var factoryStockouts = 0;
-        var delinquentSightings = 0;
-        var defaultedSightings = 0;
-
-        var log = new List<string>
-        {
-            FormatLogLine(0, state, counters.TransfersStarted)
-        };
+        var tallies = new PeriodTallies(state, ids);
+        var log = new List<string> { FormatLogLine(0, state, counters.TransfersStarted) };
 
         for (var i = 0; i < periods; i++)
         {
             bounded = bounded.WithEconomy(policy.ApplyIntents(bounded.Economy, ids, i, periods));
             bounded = engine.Advance(bounded);
             state = bounded.Economy;
-
-            var cash = state.TotalCash().Amount;
-            if (cash > peakCash) peakCash = cash;
-            if (cash < troughCash) troughCash = cash;
-
-            var flows = state.Flows;
-            cumProd += flows.ProductionOutputValue.Amount;
-            cumMoneyCreated += flows.MoneyCreated.Amount;
-            cumMoneyDestroyed += flows.MoneyDestroyed.Amount;
-            cumWages += flows.WagesAccrued.Amount;
-            cumTax += flows.TaxCollected.Amount;
-            cumTransfers += flows.TransfersPaid.Amount;
-            cumObligationsPaid += flows.ObligationsPaid.Amount;
-
-            var factoryRuns = bounded.Scratch.ActualRuns.TryGetValue(ids.FactoryActivityId, out var fr) ? fr : 0m;
-            if (factoryRuns > 0m)
-            {
-                periodsWithProd++;
-                currentGap = 0;
-            }
-            else
-            {
-                periodsWithoutProd++;
-                currentGap++;
-                if (currentGap > longestGap)
-                    longestGap = currentGap;
-            }
-
-            var mineOre = HoldingLedger.GetQuantity(state, ids.MinerFirm, ids.MineRegion, ids.OreId);
-            if (mineOre > peakMineOre)
-                peakMineOre = mineOre;
-
-            var factoryOre = HoldingLedger.GetQuantity(state, ids.FactoryFirm, ids.FactoryRegion, ids.OreId);
-            if (factoryOre < 2m)
-                factoryStockouts++;
-
-            delinquentSightings += state.Obligations.Count(o => o.Status == ObligationStatus.Delinquent);
-            defaultedSightings += state.Obligations.Count(o => o.Status == ObligationStatus.Defaulted);
-
-            var t = state.Period;
-            if (t == periods || t % sampleEvery == 0)
-                log.Add(FormatLogLine(t, state, counters.TransfersStarted));
-
+            tallies.Accumulate(state, bounded, ids);
+            MaybeSampleLog(log, state, counters.TransfersStarted, periods, sampleEvery);
             progress?.Invoke(i + 1, periods);
         }
 
         sw.Stop();
+        return BuildReport(scenario, seed, periods, sampleEvery, state, ids, counters, tallies, log, sw.Elapsed);
+    }
 
+    private sealed class PeriodTallies
+    {
+        public decimal CumProd;
+        public decimal CumMoneyCreated;
+        public decimal CumMoneyDestroyed;
+        public decimal CumWages;
+        public decimal CumTax;
+        public decimal CumTransfers;
+        public decimal CumObligationsPaid;
+        public decimal PeakCash;
+        public decimal TroughCash;
+        public int PeriodsWithProd;
+        public int PeriodsWithoutProd;
+        public int CurrentGap;
+        public int LongestGap;
+        public decimal PeakMineOre;
+        public int FactoryStockouts;
+        public int DelinquentSightings;
+        public int DefaultedSightings;
+
+        public PeriodTallies(EconomyState state, SeedIds ids)
+        {
+            PeakCash = state.TotalCash().Amount;
+            TroughCash = PeakCash;
+            PeakMineOre = HoldingLedger.GetQuantity(state, ids.MinerFirm, ids.MineRegion, ids.OreId);
+        }
+
+        public void Accumulate(EconomyState state, BoundedPeriodState bounded, SeedIds ids)
+        {
+            var cash = state.TotalCash().Amount;
+            if (cash > PeakCash) PeakCash = cash;
+            if (cash < TroughCash) TroughCash = cash;
+
+            var flows = state.Flows;
+            CumProd += flows.ProductionOutputValue.Amount;
+            CumMoneyCreated += flows.MoneyCreated.Amount;
+            CumMoneyDestroyed += flows.MoneyDestroyed.Amount;
+            CumWages += flows.WagesAccrued.Amount;
+            CumTax += flows.TaxCollected.Amount;
+            CumTransfers += flows.TransfersPaid.Amount;
+            CumObligationsPaid += flows.ObligationsPaid.Amount;
+
+            var factoryRuns = bounded.Scratch.ActualRuns.TryGetValue(ids.FactoryActivityId, out var fr) ? fr : 0m;
+            if (factoryRuns > 0m)
+            {
+                PeriodsWithProd++;
+                CurrentGap = 0;
+            }
+            else
+            {
+                PeriodsWithoutProd++;
+                CurrentGap++;
+                if (CurrentGap > LongestGap)
+                    LongestGap = CurrentGap;
+            }
+
+            var mineOre = HoldingLedger.GetQuantity(state, ids.MinerFirm, ids.MineRegion, ids.OreId);
+            if (mineOre > PeakMineOre)
+                PeakMineOre = mineOre;
+
+            var factoryOre = HoldingLedger.GetQuantity(state, ids.FactoryFirm, ids.FactoryRegion, ids.OreId);
+            if (factoryOre < 2m)
+                FactoryStockouts++;
+
+            DelinquentSightings += state.Obligations.Count(o => o.Status == ObligationStatus.Delinquent);
+            DefaultedSightings += state.Obligations.Count(o => o.Status == ObligationStatus.Defaulted);
+        }
+    }
+
+    private static void MaybeSampleLog(
+        List<string> log,
+        EconomyState state,
+        int transfersStarted,
+        int periods,
+        int sampleEvery)
+    {
+        var t = state.Period;
+        if (t == periods || t % sampleEvery == 0)
+            log.Add(FormatLogLine(t, state, transfersStarted));
+    }
+
+    private static SimReport BuildReport(
+        ScenarioKind scenario,
+        ulong seed,
+        int periods,
+        int sampleEvery,
+        EconomyState state,
+        SeedIds ids,
+        Policies.PolicyCounters counters,
+        PeriodTallies tallies,
+        List<string> log,
+        TimeSpan elapsed)
+    {
         var oreMine = HoldingLedger.GetQuantity(state, ids.MinerFirm, ids.MineRegion, ids.OreId);
         var oreFactory = HoldingLedger.GetQuantity(state, ids.FactoryFirm, ids.FactoryRegion, ids.OreId);
         var widgets =
@@ -133,34 +166,34 @@ internal static class GameRunner
             Regions: state.RegionInsights().ToList(),
             PeriodLog: log,
             Horizon: new HorizonStats(
-                CumulativeProductionFlow: cumProd,
-                PeakCash: peakCash,
-                TroughCash: troughCash,
-                PeriodsWithProduction: periodsWithProd,
+                CumulativeProductionFlow: tallies.CumProd,
+                PeakCash: tallies.PeakCash,
+                TroughCash: tallies.TroughCash,
+                PeriodsWithProduction: tallies.PeriodsWithProd,
                 TransfersStarted: counters.TransfersStarted,
                 FinalOreAtMine: oreMine,
                 FinalOreAtFactory: oreFactory,
                 FinalWidgets: widgets,
-                Elapsed: sw.Elapsed,
+                Elapsed: elapsed,
                 Drama: new DramaStats(
-                    PeriodsWithoutProduction: periodsWithoutProd,
-                    LongestProductionGap: longestGap,
-                    PeakMineOreStockpile: peakMineOre,
-                    FactoryOreStockoutPeriods: factoryStockouts,
-                    DelinquentObligationSightings: delinquentSightings,
-                    DefaultedObligationSightings: defaultedSightings,
+                    PeriodsWithoutProduction: tallies.PeriodsWithoutProd,
+                    LongestProductionGap: tallies.LongestGap,
+                    PeakMineOreStockpile: tallies.PeakMineOre,
+                    FactoryOreStockoutPeriods: tallies.FactoryStockouts,
+                    DelinquentObligationSightings: tallies.DelinquentSightings,
+                    DefaultedObligationSightings: tallies.DefaultedSightings,
                     CreditDraws: counters.CreditDraws,
                     ShocksInjected: counters.ShocksInjected,
                     CapacityExpansions: counters.CapacityExpansions,
                     MoneyCreatedByPolicy: counters.MoneyCreatedByPolicy),
                 CumulativeFlows: new CumulativeFlowStats(
-                    MoneyCreated: cumMoneyCreated,
-                    MoneyDestroyed: cumMoneyDestroyed,
-                    WagesAccrued: cumWages,
-                    TaxCollected: cumTax,
-                    TransfersPaid: cumTransfers,
-                    ObligationsPaid: cumObligationsPaid,
-                    ProductionOutputValue: cumProd,
+                    MoneyCreated: tallies.CumMoneyCreated,
+                    MoneyDestroyed: tallies.CumMoneyDestroyed,
+                    WagesAccrued: tallies.CumWages,
+                    TaxCollected: tallies.CumTax,
+                    TransfersPaid: tallies.CumTransfers,
+                    ObligationsPaid: tallies.CumObligationsPaid,
+                    ProductionOutputValue: tallies.CumProd,
                     LastPeriodNetMoneyCreated: state.Flows.NetMoneyCreated.Amount)));
     }
 

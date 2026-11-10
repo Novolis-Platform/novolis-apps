@@ -319,6 +319,13 @@ internal static class CaptainConsole
 
   private enum HandleResult { Ok, Advanced, Quit, Fail, WaitBerth }
 
+  private sealed class HandleFlags
+  {
+    public bool Hauled;
+    public bool Traveled;
+    public bool RemoteReject;
+  }
+
   private static HandleResult Handle(
     string line,
     CampaignRunner.LiveSession session,
@@ -329,276 +336,327 @@ internal static class CaptainConsole
   {
     var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     var cmd = parts[0].ToLowerInvariant();
-    switch (cmd)
+    var flags = new HandleFlags { Hauled = hauled, Traveled = traveled, RemoteReject = remoteReject };
+    var result = DispatchCommand(cmd, parts, session, bridge, flags);
+    hauled = flags.Hauled;
+    traveled = flags.Traveled;
+    remoteReject = flags.RemoteReject;
+    return result;
+  }
+
+  private static HandleResult DispatchCommand(
+    string cmd,
+    string[] parts,
+    CampaignRunner.LiveSession session,
+    CaptainBridgeService bridge,
+    HandleFlags flags) =>
+    cmd switch
     {
-      case "help":
-      case "?":
-        Console.WriteLine(
-          """
-          status / spot / charters / market / manifest
-          accept N              Commit freight spot N if AT load dock (else refuse)
-          accept-at-dock       First AT-DOCK freight into manifest
-          accept-charter N      Commit goods charter N (or standby)
-          buy N / sell N        Dock market ASK/BID into Calypso stock
-          depart [sku]          Depart manifest lot
-          travel <systemId>     Empty reposition
-          travel-to-best        Travel to best remote freight origin
-          refuse / wait / premium / overhaul
-          board mesh|dock       Spot intel filter (aliases: network|berth|local)
-          step / continue / resume / quit
-          save [label] / saves / load latest|<guid>
-          """);
-        return HandleResult.Ok;
+      "help" or "?" => CmdHelp(),
+      "status" => CmdStatus(session),
+      "spot" or "jobs" => CmdSpot(session),
+      "charters" => CmdCharters(session),
+      "market" => CmdMarket(session),
+      "manifest" => CmdManifest(session),
+      "board" => CmdBoard(parts, session),
+      "profile" => CmdProfile(parts, session),
+      "accept" => CmdAccept(parts, session, bridge, flags),
+      "accept-remote" => CmdAcceptRemote(session, flags),
+      "accept-at-dock" or "accept-at-berth" => CmdAcceptAtDock(session, bridge, flags),
+      "depart" => CmdDepart(parts, bridge),
+      "travel" => CmdTravel(parts, bridge, flags),
+      "travel-to-best" => CmdTravelToBest(session, bridge, flags),
+      "wait-dock-spot" => HandleResult.WaitBerth,
+      "accept-charter" => CmdAcceptCharter(parts, session, bridge, flags),
+      "buy" or "sell" => CmdBuySell(cmd, parts, session, bridge),
+      "wait" => CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Wait }),
+      "refuse" => CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.RefuseStandby }),
+      "premium" => CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Premium }),
+      "overhaul" => CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Overhaul }),
+      "step" => CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Step }),
+      "continue" or "go" => CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Continue }),
+      "resume" => CmdResume(bridge),
+      "save" => CmdSave(parts, bridge),
+      "saves" => CmdSaves(),
+      "load" => CmdLoadHint(),
+      "quit" or "exit" => HandleResult.Quit,
+      _ => CmdUnknown(cmd),
+    };
 
-      case "status":
-        PrintStatus(session, banner: false);
-        return HandleResult.Ok;
+  private static HandleResult CmdHelp()
+  {
+    Console.WriteLine(
+      """
+      status / spot / charters / market / manifest
+      accept N              Commit freight spot N if AT load dock (else refuse)
+      accept-at-dock       First AT-DOCK freight into manifest
+      accept-charter N      Commit goods charter N (or standby)
+      buy N / sell N        Dock market ASK/BID into Calypso stock
+      depart [sku]          Depart manifest lot
+      travel <systemId>     Empty reposition
+      travel-to-best        Travel to best remote freight origin
+      refuse / wait / premium / overhaul
+      board mesh|dock       Spot intel filter (aliases: network|berth|local)
+      step / continue / resume / quit
+      save [label] / saves / load latest|<guid>
+      """);
+    return HandleResult.Ok;
+  }
 
-      case "spot":
-      case "jobs":
-        PrintSpot(session);
-        return HandleResult.Ok;
+  private static HandleResult CmdStatus(CampaignRunner.LiveSession session)
+  {
+    PrintStatus(session, banner: false);
+    return HandleResult.Ok;
+  }
 
-      case "charters":
-        PrintCharters(session);
-        return HandleResult.Ok;
+  private static HandleResult CmdSpot(CampaignRunner.LiveSession session)
+  {
+    PrintSpot(session);
+    return HandleResult.Ok;
+  }
 
-      case "market":
-        PrintMarket(session);
-        return HandleResult.Ok;
+  private static HandleResult CmdCharters(CampaignRunner.LiveSession session)
+  {
+    PrintCharters(session);
+    return HandleResult.Ok;
+  }
 
-      case "manifest":
-        PrintManifest(session);
-        return HandleResult.Ok;
+  private static HandleResult CmdMarket(CampaignRunner.LiveSession session)
+  {
+    PrintMarket(session);
+    return HandleResult.Ok;
+  }
 
-      case "board":
-        if (parts.Length >= 2)
-        {
-          session.Player.DockBoardOnly = parts[1].Equals("dock", StringComparison.OrdinalIgnoreCase)
-                                          || parts[1].Equals("berth", StringComparison.OrdinalIgnoreCase)
-                                          || parts[1].Equals("local", StringComparison.OrdinalIgnoreCase);
-          if (parts[1].Equals("mesh", StringComparison.OrdinalIgnoreCase)
-              || parts[1].Equals("network", StringComparison.OrdinalIgnoreCase)
-              || parts[1].Equals("all", StringComparison.OrdinalIgnoreCase)
-              || parts[1].Equals("global", StringComparison.OrdinalIgnoreCase))
-          {
-            session.Player.DockBoardOnly = false;
-          }
-        }
+  private static HandleResult CmdManifest(CampaignRunner.LiveSession session)
+  {
+    PrintManifest(session);
+    return HandleResult.Ok;
+  }
 
-        Console.WriteLine($"board → {(session.Player.DockBoardOnly ? "dock" : "mesh")}");
-        PrintSpot(session);
-        return HandleResult.Ok;
-
-      case "profile":
-        if (parts.Length >= 2)
-        {
-          session.Player.DefaultProfile = parts[1].ToLowerInvariant() switch
-          {
-            "slow" => TransitProfile.SlowEconomic,
-            "std" or "standard" => TransitProfile.StandardCommercial,
-            "priority" or "pri" => TransitProfile.PriorityCommercial,
-            _ => session.Player.DefaultProfile
-          };
-        }
-
-        Console.WriteLine($"profile = {session.Player.DefaultProfile}");
-        return HandleResult.Ok;
-
-      case "accept":
-      {
-        var spots = session.ListJobs();
-        if (spots.Count == 0)
-        {
-          Console.WriteLine("No spot postings");
-          return HandleResult.Ok;
-        }
-
-        var idx = 0;
-        if (parts.Length >= 2 && !int.TryParse(parts[1], out idx))
-        {
-          Console.WriteLine("accept N");
-          return HandleResult.Fail;
-        }
-
-        if (idx < 0 || idx >= spots.Count)
-        {
-          Console.WriteLine("index out of range");
-          return HandleResult.Fail;
-        }
-
-        var job = spots[idx];
-        if (!job.AtOrigin)
-        {
-          remoteReject = true;
-          Console.WriteLine($"REJECTED — not at load dock ({job.OriginName}). Travel first; posting may vanish.");
-          return HandleResult.Ok;
-        }
-
-        return CommitAndContinue(session, bridge, job, ref hauled);
-      }
-
-      case "accept-remote":
+  private static HandleResult CmdBoard(string[] parts, CampaignRunner.LiveSession session)
+  {
+    if (parts.Length >= 2)
+    {
+      session.Player.DockBoardOnly = parts[1].Equals("dock", StringComparison.OrdinalIgnoreCase)
+                                      || parts[1].Equals("berth", StringComparison.OrdinalIgnoreCase)
+                                      || parts[1].Equals("local", StringComparison.OrdinalIgnoreCase);
+      if (parts[1].Equals("mesh", StringComparison.OrdinalIgnoreCase)
+          || parts[1].Equals("network", StringComparison.OrdinalIgnoreCase)
+          || parts[1].Equals("all", StringComparison.OrdinalIgnoreCase)
+          || parts[1].Equals("global", StringComparison.OrdinalIgnoreCase))
       {
         session.Player.DockBoardOnly = false;
-        var job = session.ListJobs().FirstOrDefault(j => !j.AtOrigin);
-        if (job is null)
-        {
-          Console.WriteLine("No remote spot to reject");
-          remoteReject = true; // vacuously ok
-          return HandleResult.Ok;
-        }
-
-        remoteReject = true;
-        Console.WriteLine($"REJECTED — not at load dock ({job.OriginName}). Travel first.");
-        return HandleResult.Ok;
       }
-
-      case "accept-at-dock":
-      case "accept-at-berth":
-      {
-        var job = CaptainJobBoard.ListLiveFreight(
-            session.Sim, session.Ids, session.Player.DefaultProfile, session.CurrentSystemId, take: 16)
-          .FirstOrDefault(j => j.AtOrigin);
-        if (job is null)
-        {
-          Console.WriteLine("No AT-DOCK freight — try travel-to-best");
-          return HandleResult.Ok;
-        }
-
-        return CommitAndContinue(session, bridge, job, ref hauled);
-      }
-
-      case "depart":
-      {
-        var sku = parts.Length >= 2 ? parts[1] : null;
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Depart }
-          .With(AgentCommandKeys.Sku, sku));
-      }
-
-      case "travel":
-      {
-        if (parts.Length < 2)
-        {
-          Console.WriteLine("travel <systemId>");
-          return HandleResult.Ok;
-        }
-
-        traveled = true;
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Travel }
-          .With(AgentCommandKeys.DestSystemId, parts[1]));
-      }
-
-      case "travel-to-best":
-      {
-        // Dock acts use live freight board — mesh digests can be empty early.
-        var live = CaptainJobBoard.ListLiveFreight(
-            session.Sim, session.Ids, session.Player.DefaultProfile, session.CurrentSystemId, take: 32)
-          .OrderByDescending(j => j.Margin)
-          .ToList();
-        var remote = live.FirstOrDefault(j => !j.AtOrigin && j.Margin > 0m)
-                     ?? live.FirstOrDefault(j => !j.AtOrigin);
-        if (remote is null)
-        {
-          Console.WriteLine("No remote freight origin to travel to");
-          return HandleResult.Ok;
-        }
-
-        traveled = true;
-        Console.WriteLine($"(best) {remote.OriginName} for {remote.Label}");
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Travel }
-          .With(AgentCommandKeys.DestSystemId, remote.OriginSystemId));
-      }
-
-      case "wait-dock-spot":
-        return HandleResult.WaitBerth;
-
-      case "accept-charter":
-      {
-        var list = session.ListCharters();
-        if (parts.Length < 2 || !int.TryParse(parts[1], out var ci) || ci < 0 || ci >= list.Count)
-        {
-          Console.WriteLine("accept-charter N");
-          PrintCharters(session);
-          return HandleResult.Ok;
-        }
-
-        hauled = true;
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.AcceptCharter }
-          .With(AgentCommandKeys.Index, ci));
-      }
-
-      case "buy":
-      case "sell":
-      {
-        var market = session.ListMarket();
-        if (parts.Length < 2 || !int.TryParse(parts[1], out var mi) || mi < 0 || mi >= market.Count)
-        {
-          Console.WriteLine($"{cmd} N");
-          PrintMarket(session);
-          return HandleResult.Ok;
-        }
-
-        return CaptainAdvance(bridge, new AgentCommand
-        {
-          ActionId = cmd == "buy" ? AgentActionIds.MarketBuy : AgentActionIds.MarketSell,
-        }.With(AgentCommandKeys.Index, mi));
-      }
-
-      case "wait":
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Wait });
-
-      case "refuse":
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.RefuseStandby });
-
-      case "premium":
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Premium });
-
-      case "overhaul":
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Overhaul });
-
-      case "step":
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Step });
-
-      case "continue":
-      case "go":
-        return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Continue });
-
-      case "resume":
-        bridge.Execute(new AgentCommand { ActionId = AgentActionIds.Resume });
-        return HandleResult.Quit;
-
-      case "save":
-      {
-        var label = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : null;
-        var saveResult = bridge.Execute(new AgentCommand { ActionId = AgentActionIds.Save }
-          .With(AgentCommandKeys.Label, label));
-        Console.WriteLine(saveResult.Ok
-          ? $"{saveResult.Message} → {CampaignSaveStore.Default.RootPath}"
-          : $"Save failed: {saveResult.Message}");
-        return saveResult.Ok ? HandleResult.Ok : HandleResult.Fail;
-      }
-
-      case "saves":
-        foreach (var s in CampaignSaveStore.Default.List().Take(12))
-        {
-          Console.WriteLine($"{s.Id:N}  d{s.DayIndex}  {s.SavedUtc:u}  {s.Label}  {s.SurvivalLine}");
-        }
-
-        return HandleResult.Ok;
-
-      case "load":
-        Console.WriteLine("Resume only at launch: --load latest|<guid>");
-        return HandleResult.Ok;
-
-      case "quit":
-      case "exit":
-        return HandleResult.Quit;
-
-      default:
-        Console.WriteLine($"Unknown '{cmd}' — help");
-        return HandleResult.Ok;
     }
+
+    Console.WriteLine($"board → {(session.Player.DockBoardOnly ? "dock" : "mesh")}");
+    PrintSpot(session);
+    return HandleResult.Ok;
+  }
+
+  private static HandleResult CmdProfile(string[] parts, CampaignRunner.LiveSession session)
+  {
+    if (parts.Length >= 2)
+    {
+      session.Player.DefaultProfile = parts[1].ToLowerInvariant() switch
+      {
+        "slow" => TransitProfile.SlowEconomic,
+        "std" or "standard" => TransitProfile.StandardCommercial,
+        "priority" or "pri" => TransitProfile.PriorityCommercial,
+        _ => session.Player.DefaultProfile
+      };
+    }
+
+    Console.WriteLine($"profile = {session.Player.DefaultProfile}");
+    return HandleResult.Ok;
+  }
+
+  private static HandleResult CmdAccept(
+    string[] parts,
+    CampaignRunner.LiveSession session,
+    CaptainBridgeService bridge,
+    HandleFlags flags)
+  {
+    var spots = session.ListJobs();
+    if (spots.Count == 0)
+    {
+      Console.WriteLine("No spot postings");
+      return HandleResult.Ok;
+    }
+
+    var idx = 0;
+    if (parts.Length >= 2 && !int.TryParse(parts[1], out idx))
+    {
+      Console.WriteLine("accept N");
+      return HandleResult.Fail;
+    }
+
+    if (idx < 0 || idx >= spots.Count)
+    {
+      Console.WriteLine("index out of range");
+      return HandleResult.Fail;
+    }
+
+    var job = spots[idx];
+    if (!job.AtOrigin)
+    {
+      flags.RemoteReject = true;
+      Console.WriteLine($"REJECTED — not at load dock ({job.OriginName}). Travel first; posting may vanish.");
+      return HandleResult.Ok;
+    }
+
+    return CommitAndContinue(session, bridge, job, flags);
+  }
+
+  private static HandleResult CmdAcceptRemote(CampaignRunner.LiveSession session, HandleFlags flags)
+  {
+    session.Player.DockBoardOnly = false;
+    var job = session.ListJobs().FirstOrDefault(j => !j.AtOrigin);
+    if (job is null)
+    {
+      Console.WriteLine("No remote spot to reject");
+      flags.RemoteReject = true;
+      return HandleResult.Ok;
+    }
+
+    flags.RemoteReject = true;
+    Console.WriteLine($"REJECTED — not at load dock ({job.OriginName}). Travel first.");
+    return HandleResult.Ok;
+  }
+
+  private static HandleResult CmdAcceptAtDock(
+    CampaignRunner.LiveSession session,
+    CaptainBridgeService bridge,
+    HandleFlags flags)
+  {
+    var job = CaptainJobBoard.ListLiveFreight(
+        session.Sim, session.Ids, session.Player.DefaultProfile, session.CurrentSystemId, take: 16)
+      .FirstOrDefault(j => j.AtOrigin);
+    if (job is null)
+    {
+      Console.WriteLine("No AT-DOCK freight — try travel-to-best");
+      return HandleResult.Ok;
+    }
+
+    return CommitAndContinue(session, bridge, job, flags);
+  }
+
+  private static HandleResult CmdDepart(string[] parts, CaptainBridgeService bridge)
+  {
+    var sku = parts.Length >= 2 ? parts[1] : null;
+    return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Depart }
+      .With(AgentCommandKeys.Sku, sku));
+  }
+
+  private static HandleResult CmdTravel(string[] parts, CaptainBridgeService bridge, HandleFlags flags)
+  {
+    if (parts.Length < 2)
+    {
+      Console.WriteLine("travel <systemId>");
+      return HandleResult.Ok;
+    }
+
+    flags.Traveled = true;
+    return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Travel }
+      .With(AgentCommandKeys.DestSystemId, parts[1]));
+  }
+
+  private static HandleResult CmdTravelToBest(
+    CampaignRunner.LiveSession session,
+    CaptainBridgeService bridge,
+    HandleFlags flags)
+  {
+    var live = CaptainJobBoard.ListLiveFreight(
+        session.Sim, session.Ids, session.Player.DefaultProfile, session.CurrentSystemId, take: 32)
+      .OrderByDescending(j => j.Margin)
+      .ToList();
+    var remote = live.FirstOrDefault(j => !j.AtOrigin && j.Margin > 0m)
+                 ?? live.FirstOrDefault(j => !j.AtOrigin);
+    if (remote is null)
+    {
+      Console.WriteLine("No remote freight origin to travel to");
+      return HandleResult.Ok;
+    }
+
+    flags.Traveled = true;
+    Console.WriteLine($"(best) {remote.OriginName} for {remote.Label}");
+    return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.Travel }
+      .With(AgentCommandKeys.DestSystemId, remote.OriginSystemId));
+  }
+
+  private static HandleResult CmdAcceptCharter(
+    string[] parts,
+    CampaignRunner.LiveSession session,
+    CaptainBridgeService bridge,
+    HandleFlags flags)
+  {
+    var list = session.ListCharters();
+    if (parts.Length < 2 || !int.TryParse(parts[1], out var ci) || ci < 0 || ci >= list.Count)
+    {
+      Console.WriteLine("accept-charter N");
+      PrintCharters(session);
+      return HandleResult.Ok;
+    }
+
+    flags.Hauled = true;
+    return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.AcceptCharter }
+      .With(AgentCommandKeys.Index, ci));
+  }
+
+  private static HandleResult CmdBuySell(
+    string cmd,
+    string[] parts,
+    CampaignRunner.LiveSession session,
+    CaptainBridgeService bridge)
+  {
+    var market = session.ListMarket();
+    if (parts.Length < 2 || !int.TryParse(parts[1], out var mi) || mi < 0 || mi >= market.Count)
+    {
+      Console.WriteLine($"{cmd} N");
+      PrintMarket(session);
+      return HandleResult.Ok;
+    }
+
+    return CaptainAdvance(bridge, new AgentCommand
+    {
+      ActionId = cmd == "buy" ? AgentActionIds.MarketBuy : AgentActionIds.MarketSell,
+    }.With(AgentCommandKeys.Index, mi));
+  }
+
+  private static HandleResult CmdResume(CaptainBridgeService bridge)
+  {
+    bridge.Execute(new AgentCommand { ActionId = AgentActionIds.Resume });
+    return HandleResult.Quit;
+  }
+
+  private static HandleResult CmdSave(string[] parts, CaptainBridgeService bridge)
+  {
+    var label = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : null;
+    var saveResult = bridge.Execute(new AgentCommand { ActionId = AgentActionIds.Save }
+      .With(AgentCommandKeys.Label, label));
+    Console.WriteLine(saveResult.Ok
+      ? $"{saveResult.Message} → {CampaignSaveStore.Default.RootPath}"
+      : $"Save failed: {saveResult.Message}");
+    return saveResult.Ok ? HandleResult.Ok : HandleResult.Fail;
+  }
+
+  private static HandleResult CmdSaves()
+  {
+    foreach (var s in CampaignSaveStore.Default.List().Take(12))
+      Console.WriteLine($"{s.Id:N}  d{s.DayIndex}  {s.SavedUtc:u}  {s.Label}  {s.SurvivalLine}");
+    return HandleResult.Ok;
+  }
+
+  private static HandleResult CmdLoadHint()
+  {
+    Console.WriteLine("Resume only at launch: --load latest|<guid>");
+    return HandleResult.Ok;
+  }
+
+  private static HandleResult CmdUnknown(string cmd)
+  {
+    Console.WriteLine($"Unknown '{cmd}' — help");
+    return HandleResult.Ok;
   }
 
   private static HandleResult CaptainAdvance(CaptainBridgeService bridge, AgentCommand command)
@@ -614,7 +672,7 @@ internal static class CaptainConsole
     CampaignRunner.LiveSession session,
     CaptainBridgeService bridge,
     CaptainJobBoard.SpotCandidate job,
-    ref bool hauled)
+    HandleFlags flags)
   {
     var spots = session.ListJobs();
     var idx = spots.ToList().FindIndex(j =>
@@ -623,7 +681,7 @@ internal static class CaptainConsole
       && j.SkuLabel == job.SkuLabel
       && j.Quantity == job.Quantity);
     if (idx < 0) idx = 0;
-    hauled = true;
+    flags.Hauled = true;
     return CaptainAdvance(bridge, new AgentCommand { ActionId = AgentActionIds.AcceptSpot }
       .With(AgentCommandKeys.Index, idx));
   }
