@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Novolis.Avalonia.GraphicalProfile;
@@ -182,13 +183,37 @@ public sealed class SudokuHomeView : UserControl
             Child = new StackPanel { Children = { title, detail } },
         };
 
-        row.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
-        row.PointerPressed += (_, args) =>
-        {
-            if (args.GetCurrentPoint(row).Properties.IsLeftButtonPressed)
-                _play(SudokuPlayRequest.Ladder(step.Number));
-        };
+        row.Cursor = new Cursor(StandardCursorType.Hand);
+        // Press-to-open steals ScrollViewer drags on touch — only open on a short tap.
+        AttachScrollFriendlyTap(row, () => _play(SudokuPlayRequest.Ladder(step.Number)));
         return row;
+    }
+
+    private static void AttachScrollFriendlyTap(Control target, Action onTap)
+    {
+        const double cancelDistance = 12;
+        Point? originRoot = null;
+
+        target.PointerPressed += (_, args) =>
+        {
+            var point = args.GetCurrentPoint(target);
+            if (!point.Properties.IsLeftButtonPressed)
+                return;
+            // Root space: ScrollViewer can move the row under the finger without local Moved events.
+            originRoot = args.GetPosition(null);
+        };
+        target.PointerReleased += (_, args) =>
+        {
+            if (originRoot is not { } start)
+                return;
+            originRoot = null;
+            var end = args.GetPosition(null);
+            if (Math.Abs(end.X - start.X) >= cancelDistance
+                || Math.Abs(end.Y - start.Y) >= cancelDistance)
+                return;
+            onTap();
+        };
+        target.PointerCaptureLost += (_, _) => originRoot = null;
     }
 
     private static string FormatElapsed(TimeSpan elapsed)
